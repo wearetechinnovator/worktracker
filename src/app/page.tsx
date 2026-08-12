@@ -4,9 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
-  Clock, Plus, Folder, Calendar, TrendingUp, 
-  Users, UserPlus, Mail, ChevronRight,
-  AlertCircle, Loader2, Edit3, Trash2
+  Clock, Plus, Folder, Calendar, Users, UserPlus, Mail, ChevronRight,
+  AlertCircle, Loader2
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 
@@ -47,7 +46,6 @@ interface WorkEntry {
   actualTime: number;
   description?: string;
   createdAt: string;
-  updatedAt: string;
 }
 
 export default function Dashboard() {
@@ -61,7 +59,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Modal State
+  // Modals
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [isWorkModalOpen, setIsWorkModalOpen] = useState(false);
@@ -96,6 +94,10 @@ export default function Dashboard() {
   const [workEnd, setWorkEnd] = useState('17:00');
   const [workDesc, setWorkDesc] = useState('');
   const [submittingWork, setSubmittingWork] = useState(false);
+
+  // Email Summary Modal State
+  const [isMailModalOpen, setIsMailModalOpen] = useState(false);
+  const [mailContent, setMailContent] = useState('');
 
   // Presets
   const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#475569'];
@@ -139,21 +141,14 @@ export default function Dashboard() {
       const empData = await empRes.json().catch(() => null);
       const workData = await workRes.json().catch(() => null);
 
-      if (!projRes.ok || !projData || !projData.success) {
-        throw new Error(projData?.error || 'Failed to connect to projects API.');
-      }
-      if (!empRes.ok || !empData || !empData.success) {
-        throw new Error(empData?.error || 'Failed to connect to employees API.');
-      }
-      if (!workRes.ok || !workData || !workData.success) {
-        throw new Error(workData?.error || 'Failed to connect to work API.');
-      }
+      if (!projRes.ok || !projData || !projData.success) throw new Error(projData?.error || 'Failed to connect to database');
+      if (!empRes.ok || !empData || !empData.success) throw new Error(empData?.error || 'Failed to connect to database');
+      if (!workRes.ok || !workData || !workData.success) throw new Error(workData?.error || 'Failed to connect to database');
 
       setProjects(projData.data);
       setEmployees(empData.data);
       setEntries(workData.data);
 
-      // Pre-fill modal states if empty
       if (projData.data.length > 0 && !workProjId) {
         setWorkProjId(projData.data[0]._id);
       }
@@ -164,7 +159,7 @@ export default function Dashboard() {
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Error loading dashboard data.');
+      setError(err.message || 'Error occurred while loading data.');
     } finally {
       setLoading(false);
     }
@@ -203,7 +198,6 @@ export default function Dashboard() {
       setEmpName('');
       setEmpEmail('');
       setEmpPass('password123');
-      setEmpType('employee');
       setIsEmployeeModalOpen(false);
       await fetchData();
     } catch (err: any) {
@@ -249,10 +243,7 @@ export default function Dashboard() {
   const handleAddWork = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalEmpId = user.userType === 'employee' ? user._id : workEmpId;
-    if (!workProjId || !finalEmpId || !workTitle.trim() || !workDate || !workStart || !workEnd) {
-      alert('Please fill out all required work fields!');
-      return;
-    }
+    if (!workProjId || !finalEmpId || !workTitle.trim() || !workDate || !workStart || !workEnd) return;
 
     try {
       setSubmittingWork(true);
@@ -270,7 +261,7 @@ export default function Dashboard() {
         })
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to save log');
+      if (!data.success) throw new Error(data.error || 'Failed to log task');
 
       setWorkTitle('');
       setWorkDesc('');
@@ -283,7 +274,6 @@ export default function Dashboard() {
     }
   };
 
-  // Toggle member assignment selection
   const handleMemberSelectToggle = (empId: string) => {
     if (projMembers.includes(empId)) {
       setProjMembers(projMembers.filter(id => id !== empId));
@@ -292,10 +282,9 @@ export default function Dashboard() {
     }
   };
 
-  // Filter logs for today's scheduler timeline
-  const timelineEntries = entries.filter((entry) => entry.date === selectedTimelineDate);
+  // Filter timeline logs
+  const timelineEntries = entries.filter(e => e.date === selectedTimelineDate);
 
-  // Time positions helper
   const calculateTimelinePosition = (start: string, end: string) => {
     const parseTimeToMins = (t: string) => {
       const [h, m] = t.split(':').map(Number);
@@ -355,7 +344,50 @@ export default function Dashboard() {
 
   const totalChartHours = dailyWorkTimes.reduce((sum, d) => sum + d.workHours + d.overtimeHours, 0).toFixed(1);
 
-  // Active / Logged-in profile card details
+  const handleOpenMailModal = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayEntries = entries.filter(e => e.date === todayStr && e.employeeId === user?._id);
+
+    if (todayEntries.length === 0) {
+      alert("You haven't logged any work sessions for today yet.");
+      return;
+    }
+
+    const formatTimeTo12Hour = (time24: string) => {
+      if (!time24) return '';
+      const [hStr, mStr] = time24.split(':');
+      let h = parseInt(hStr, 10);
+      const m = mStr;
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12;
+      h = h ? h : 12;
+      return `${h}:${m} ${ampm}`;
+    };
+
+    const text = todayEntries.map((entry, index) => {
+      const hours = (entry.actualTime / 60).toFixed(1);
+      const start12 = formatTimeTo12Hour(entry.startTime);
+      const end12 = formatTimeTo12Hour(entry.endTime);
+      
+      return `Task ${index + 1}:
+
+Project: ${entry.projectName}
+Task: ${entry.title}
+Time: ${start12} – ${end12} (${hours} hours)
+Status: Completed
+Summary: ${entry.description || 'Completed work task details.'}`;
+    }).join('\n\n');
+
+    setMailContent(text);
+    setIsMailModalOpen(true);
+  };
+
+  const handleCopyToClipboard = () => {
+    navigator.clipboard.writeText(mailContent);
+    alert('Task summary copied to clipboard!');
+  };
+
+  const featuredEmployee = employees.find(e => e.name === 'Cody Fisher') || employees[0];
   const meEmployee = user ? (employees.find(e => e._id === user._id) || user) : null;
   const isAdmin = user?.userType === 'admin';
 
@@ -370,7 +402,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      {/* Top Welcome Panel */}
+      {/* Welcome Panel */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }} className="no-print">
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Dashboard Overview</h1>
@@ -394,11 +426,7 @@ export default function Dashboard() {
             </>
           )}
           <button className="btn btn-primary" onClick={() => {
-            if (projects.length === 0) {
-              alert('Please ensure there is at least one department created first!');
-              return;
-            }
-            if (!workProjId) setWorkProjId(projects[0]._id);
+            if (projects.length === 0) return alert('Create a department first!');
             setIsWorkModalOpen(true);
           }}>
             <Plus size={14} />
@@ -410,17 +438,17 @@ export default function Dashboard() {
       {error && (
         <div className="card" style={{ borderLeft: '4px solid #ef4444', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
           <AlertCircle style={{ color: '#ef4444' }} />
-          <p style={{ fontWeight: 600 }}>{error}</p>
+          <p style={{ fontWeight: 650 }}>{error}</p>
         </div>
       )}
 
       {/* Main Grid Layout */}
       <div className="dashboard-grid">
         
-        {/* LEFT COLUMN: Employee status (Admin Only) */}
+        {/* ROW 2: LEFT COLUMN: Employee status (Admin Only) */}
         {isAdmin && (
           <div className="col-5" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div className="card">
+            <div className="card" style={{ flex: 1 }}>
               <div className="card-header">
                 <h3 className="card-title">Employee Status Monitor</h3>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Status today</span>
@@ -449,15 +477,12 @@ export default function Dashboard() {
                     </div>
                   );
                 })}
-                {employees.length === 0 && (
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textAlign: 'center', padding: '12px' }}>No employees registered.</p>
-                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* RIGHT COLUMN: Timeline scheduler */}
+        {/* ROW 2: RIGHT COLUMN: Timeline scheduler */}
         <div className={isAdmin ? "col-7" : "col-12"}>
           <div className="card" style={{ height: '100%' }}>
             <div className="card-header">
@@ -467,11 +492,10 @@ export default function Dashboard() {
                   type="date" 
                   value={selectedTimelineDate} 
                   onChange={(e) => setSelectedTimelineDate(e.target.value)}
-                  style={{ border: '1px solid var(--border-color)', borderRadius: '6px', padding: '4px 6px', fontSize: '0.75rem', fontWeight: 600 }}
+                  style={{ border: '1px solid var(--border-color)', borderRadius: '6px', padding: '4px 6px', fontSize: '0.75rem', fontWeight: 650 }}
                 />
                 <button className="btn btn-secondary btn-sm" onClick={() => {
                   if (projects.length === 0) return;
-                  if (!workProjId) setWorkProjId(projects[0]._id);
                   setWorkDate(selectedTimelineDate);
                   setIsWorkModalOpen(true);
                 }}>
@@ -527,19 +551,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* BOTTOM SECTION: Tables & Charts */}
-        {/* Left Bottom Column */}
+        {/* ROW 3: TABLES AND CHARTS */}
         <div className={isAdmin ? "col-7" : "col-8"}>
           {isAdmin ? (
-            /* Admin view: Employee Registry */
             <div className="card" style={{ height: '100%' }}>
               <div className="card-header">
                 <h3 className="card-title">Employee Registry</h3>
-                <Link href="/employees" className="btn btn-secondary btn-sm">
-                  See Details
-                </Link>
+                <Link href="/employees" className="btn btn-secondary btn-sm">See Details</Link>
               </div>
-              
               <table className="data-table">
                 <thead>
                   <tr>
@@ -570,20 +589,23 @@ export default function Dashboard() {
                       <td style={{ color: 'var(--text-secondary)' }}>{emp.role}</td>
                     </tr>
                   ))}
-                  {employees.length === 0 && (
-                    <tr>
-                      <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px' }}>No members registered.</td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
           ) : (
-            /* Employee view: Personal Logged Tasks */
             <div className="card" style={{ height: '100%' }}>
-              <div className="card-header">
-                <h3 className="card-title">My Tracked Logs</h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Recent work sessions</span>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 className="card-title">My Tracked Logs</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Recent work sessions</span>
+                </div>
+                <button 
+                  className="btn btn-secondary btn-sm" 
+                  style={{ padding: '4px 8px', fontSize: '0.72rem' }}
+                  onClick={handleOpenMailModal}
+                >
+                  Generate Daily Mail
+                </button>
               </div>
               <div style={{ overflowX: 'auto' }}>
                 <table className="data-table">
@@ -616,13 +638,6 @@ export default function Dashboard() {
                         </td>
                       </tr>
                     ))}
-                    {entries.length === 0 && (
-                      <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px' }}>
-                          You haven't logged any work sessions yet.
-                        </td>
-                      </tr>
-                    )}
                   </tbody>
                 </table>
               </div>
@@ -630,46 +645,49 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Right Bottom Column */}
+        {/* Right side Featured Employee / Member chart */}
         <div className={isAdmin ? "col-5" : "col-4"} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          
-          {/* Profile card / Featured Member */}
+          {/* Profile Card */}
           {meEmployee && (
             <div className="card">
               <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>
                 {isAdmin ? 'Featured Member' : 'My Work Profile'}
               </div>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '4px' }}>{meEmployee.role}</h3>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '4px' }}>
+                {isAdmin ? (featuredEmployee?.role || 'Administrator') : meEmployee.role}
+              </h3>
               
               <div className="employee-badge-container" style={{ marginBottom: '12px' }}>
                 <span className="tag-badge" style={{ backgroundColor: '#eff6ff', color: 'var(--accent-primary)', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
-                  {meEmployee.department}
+                  {isAdmin ? (featuredEmployee?.department || 'Management') : meEmployee.department}
                 </span>
                 <span className="tag-badge">Full Time</span>
                 <span className="tag-badge">Active</span>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-                <div className="avatar" style={{ backgroundColor: meEmployee.avatarColor || '#7f56d9', width: '32px', height: '32px', fontSize: '0.85rem' }}>
-                  {meEmployee.name?.split(' ').map((n: string) => n[0]).join('')}
+                <div className="avatar" style={{ backgroundColor: isAdmin ? (featuredEmployee?.avatarColor || '#ef4444') : (meEmployee.avatarColor || '#7f56d9'), width: '32px', height: '32px', fontSize: '0.85rem' }}>
+                  {isAdmin ? (featuredEmployee?.name?.split(' ').map((n: string) => n[0]).join('') || 'CF') : meEmployee.name?.split(' ').map((n: string) => n[0]).join('')}
                 </div>
                 <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <div style={{ fontWeight: 750, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meEmployee.name}</div>
+                  <div style={{ fontWeight: 750, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {isAdmin ? (featuredEmployee?.name || 'Cody Fisher') : meEmployee.name}
+                  </div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    <span>{meEmployee.email}</span>
+                    <span>{isAdmin ? (featuredEmployee?.email || 'cody@mail.com') : meEmployee.email}</span>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>TRACKED</div>
                   <div style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '0.85rem' }}>
-                    {formatMinutesToDuration(meEmployee.totalMinutes || 0)}
+                    {formatMinutesToDuration(isAdmin ? (featuredEmployee?.totalMinutes || 0) : (meEmployee.totalMinutes || 0))}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Member Work Hours Chart (Admin Only) */}
+          {/* Member Work Hours chart (Admin Only) */}
           {isAdmin && (
             <div className="card">
               <div className="card-header">
@@ -802,7 +820,7 @@ export default function Dashboard() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Initial Status</label>
+                  <label className="form-label">Presence Status</label>
                   <select 
                     className="form-control"
                     value={empStatus}
@@ -816,15 +834,15 @@ export default function Dashboard() {
                 <div className="form-group">
                   <label className="form-label">Theme Color</label>
                   <div className="color-selector">
-                    {colors.map((color) => (
+                    {colors.map((c) => (
                       <div 
-                        key={color}
+                        key={c}
                         className="color-option"
                         style={{ 
-                          backgroundColor: color,
-                          borderColor: empColor === color ? 'var(--text-primary)' : 'transparent'
+                          backgroundColor: c,
+                          borderColor: empColor === c ? 'var(--text-primary)' : 'transparent'
                         }}
-                        onClick={() => setEmpColor(color)}
+                        onClick={() => setEmpColor(c)}
                       />
                     ))}
                   </div>
@@ -832,9 +850,7 @@ export default function Dashboard() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsEmployeeModalOpen(false)}>
-                  Cancel
-                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsEmployeeModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={submittingEmp}>
                   {submittingEmp ? 'Creating...' : 'Create Member'}
                 </button>
@@ -869,24 +885,24 @@ export default function Dashboard() {
                 <label className="form-label">Description (Optional)</label>
                 <textarea 
                   className="form-control" 
-                  placeholder="Details about this department scope..."
+                  placeholder="Define scope..."
                   value={projDesc}
                   onChange={(e) => setProjDesc(e.target.value)}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label">Visual Dot Badge Color</label>
+                <label className="form-label">Visual Badge Color</label>
                 <div className="color-selector">
-                  {colors.map((color) => (
+                  {colors.map((c) => (
                     <div 
-                      key={color}
+                      key={c}
                       className="color-option"
                       style={{ 
-                        backgroundColor: color,
-                        borderColor: projColor === color ? 'var(--text-primary)' : 'transparent'
+                        backgroundColor: c,
+                        borderColor: projColor === c ? 'var(--text-primary)' : 'transparent'
                       }}
-                      onClick={() => setProjColor(color)}
+                      onClick={() => setProjColor(c)}
                     />
                   ))}
                 </div>
@@ -894,27 +910,22 @@ export default function Dashboard() {
 
               <div className="form-group">
                 <label className="form-label">Assign Members</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '8px 10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '10px' }}>
                   {employees.map(emp => (
-                    <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', cursor: 'pointer' }}>
+                    <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', cursor: 'pointer' }}>
                       <input 
                         type="checkbox"
                         checked={projMembers.includes(emp._id)}
                         onChange={() => handleMemberSelectToggle(emp._id)}
                       />
-                      <span>{emp.name} ({emp.role})</span>
+                      <span style={{ fontWeight: 650 }}>{emp.name} ({emp.role})</span>
                     </label>
                   ))}
-                  {employees.length === 0 && (
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>No team members to assign. Create them first.</span>
-                  )}
                 </div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsProjectModalOpen(false)}>
-                  Cancel
-                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsProjectModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={submittingProj}>
                   {submittingProj ? 'Creating...' : 'Create Department'}
                 </button>
@@ -1016,21 +1027,47 @@ export default function Dashboard() {
                 <label className="form-label">Session Notes (Optional)</label>
                 <textarea 
                   className="form-control" 
-                  placeholder="Describe your progress, details, blockers..."
+                  placeholder="Details, progress, blockers..."
                   value={workDesc}
                   onChange={(e) => setWorkDesc(e.target.value)}
                 />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsWorkModalOpen(false)}>
-                  Cancel
-                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsWorkModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={submittingWork}>
                   {submittingWork ? 'Saving...' : 'Save Log'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: DAILY MAIL SUMMARY */}
+      {isMailModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsMailModalOpen(false)}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Daily Email Summary</h3>
+              <button className="modal-close" onClick={() => setIsMailModalOpen(false)}>&times;</button>
+            </div>
+            <div style={{ marginBottom: '14px' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Here is your formatted task summary for today ({selectedTimelineDate}). Click Copy to save it to your clipboard.
+              </p>
+            </div>
+            <div className="form-group">
+              <textarea 
+                className="form-control" 
+                readOnly
+                style={{ minHeight: '220px', fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: '1.4', background: 'var(--bg-tertiary)' }}
+                value={mailContent}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setIsMailModalOpen(false)}>Close</button>
+              <button type="button" className="btn btn-primary" onClick={handleCopyToClipboard}>Copy to Clipboard</button>
+            </div>
           </div>
         </div>
       )}
