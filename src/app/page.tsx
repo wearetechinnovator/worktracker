@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   Clock, Plus, Folder, Calendar, TrendingUp, 
-  Users, UserPlus, Mail, Phone, ChevronRight,
-  AlertCircle, Loader2, ArrowRight, Eye
+  Users, UserPlus, Mail, ChevronRight,
+  AlertCircle, Loader2, Edit3, Trash2
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 
@@ -45,23 +46,28 @@ interface WorkEntry {
   endTime: string;
   actualTime: number;
   description?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function Dashboard() {
-  // State
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+
+  // Data State
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [entries, setEntries] = useState<WorkEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Modal Open/Close
+  // Modal State
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [isWorkModalOpen, setIsWorkModalOpen] = useState(false);
 
-  // Selected Day for Timeline (default to a day with seeded logs, e.g. Jan 26, 2026)
-  const [selectedTimelineDate, setSelectedTimelineDate] = useState('2026-01-26');
+  // Selected Day for Timeline (default to today)
+  const [selectedTimelineDate, setSelectedTimelineDate] = useState('');
 
   // Employee Form State
   const [empName, setEmpName] = useState('');
@@ -70,6 +76,8 @@ export default function Dashboard() {
   const [empDept, setEmpDept] = useState('Design');
   const [empStatus, setEmpStatus] = useState('Active');
   const [empColor, setEmpColor] = useState('#3b82f6');
+  const [empPass, setEmpPass] = useState('password123');
+  const [empType, setEmpType] = useState('employee');
   const [submittingEmp, setSubmittingEmp] = useState(false);
 
   // Project Form State
@@ -83,27 +91,48 @@ export default function Dashboard() {
   const [workProjId, setWorkProjId] = useState('');
   const [workEmpId, setWorkEmpId] = useState('');
   const [workTitle, setWorkTitle] = useState('');
-  const [workDate, setWorkDate] = useState('2026-01-26');
+  const [workDate, setWorkDate] = useState('');
   const [workStart, setWorkStart] = useState('09:00');
   const [workEnd, setWorkEnd] = useState('17:00');
   const [workDesc, setWorkDesc] = useState('');
   const [submittingWork, setSubmittingWork] = useState(false);
 
   // Presets
-  const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#e2e8f0'];
+  const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#475569'];
   const departments = ['Design', 'Development', 'Marketing', 'Human Resource', 'Management'];
   const statuses = ['Active', 'Sick Leave', 'Annual Leave', 'Work From Home'];
 
-  // Fetch Data
+  // Check login session on mount
+  useEffect(() => {
+    const storedUser = localStorage.getItem('worktracker_user');
+    if (!storedUser) {
+      router.push('/login');
+    } else {
+      const parsed = JSON.parse(storedUser);
+      setUser(parsed);
+      const todayStr = new Date().toISOString().split('T')[0];
+      setSelectedTimelineDate(todayStr);
+      setWorkDate(todayStr);
+    }
+  }, [router]);
+
+  // Fetch Data based on user role
   const fetchData = useCallback(async () => {
+    if (!user) return;
+
     try {
       setLoading(true);
       setError(null);
 
+      const isEmployee = user.userType === 'employee';
+      const projUrl = isEmployee ? `/api/projects?employeeId=${user._id}` : '/api/projects';
+      const empUrl = '/api/employees';
+      const workUrl = isEmployee ? `/api/work?employeeId=${user._id}` : '/api/work';
+
       const [projRes, empRes, workRes] = await Promise.all([
-        fetch('/api/projects'),
-        fetch('/api/employees'),
-        fetch('/api/work')
+        fetch(projUrl),
+        fetch(empUrl),
+        fetch(workUrl)
       ]);
 
       const projData = await projRes.json().catch(() => null);
@@ -111,34 +140,46 @@ export default function Dashboard() {
       const workData = await workRes.json().catch(() => null);
 
       if (!projRes.ok || !projData || !projData.success) {
-        throw new Error(projData?.error || 'Failed to connect to database. Please verify your MONGODB_URI connection string in Vercel project configurations.');
+        throw new Error(projData?.error || 'Failed to connect to projects API.');
       }
       if (!empRes.ok || !empData || !empData.success) {
-        throw new Error(empData?.error || 'Failed to connect to database. Please verify your MONGODB_URI connection string in Vercel project configurations.');
+        throw new Error(empData?.error || 'Failed to connect to employees API.');
       }
       if (!workRes.ok || !workData || !workData.success) {
-        throw new Error(workData?.error || 'Failed to connect to database. Please verify your MONGODB_URI connection string in Vercel project configurations.');
+        throw new Error(workData?.error || 'Failed to connect to work API.');
       }
 
       setProjects(projData.data);
       setEmployees(empData.data);
       setEntries(workData.data);
+
+      // Pre-fill modal states if empty
+      if (projData.data.length > 0 && !workProjId) {
+        setWorkProjId(projData.data[0]._id);
+      }
+      if (user.userType === 'employee') {
+        setWorkEmpId(user._id);
+      } else if (empData.data.length > 0 && !workEmpId) {
+        setWorkEmpId(empData.data[0]._id);
+      }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Error occurred while loading data.');
+      setError(err.message || 'Error loading dashboard data.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user, workProjId, workEmpId]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (user) {
+      fetchData();
+    }
+  }, [user, fetchData]);
 
   // Handle Employee Form Submit
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!empName.trim() || !empEmail.trim()) return;
+    if (!empName.trim() || !empEmail.trim() || !empPass.trim()) return;
 
     try {
       setSubmittingEmp(true);
@@ -151,7 +192,9 @@ export default function Dashboard() {
           role: empRole,
           department: empDept,
           status: empStatus,
-          avatarColor: empColor
+          avatarColor: empColor,
+          password: empPass,
+          userType: empType
         })
       });
       const data = await res.json();
@@ -159,6 +202,8 @@ export default function Dashboard() {
 
       setEmpName('');
       setEmpEmail('');
+      setEmpPass('password123');
+      setEmpType('employee');
       setIsEmployeeModalOpen(false);
       await fetchData();
     } catch (err: any) {
@@ -200,20 +245,12 @@ export default function Dashboard() {
     }
   };
 
-  // Toggle member assignment selection
-  const handleMemberSelectToggle = (empId: string) => {
-    if (projMembers.includes(empId)) {
-      setProjMembers(projMembers.filter(id => id !== empId));
-    } else {
-      setProjMembers([...projMembers, empId]);
-    }
-  };
-
-  // Handle Work Log Submit
+  // Handle Work Entry Submit
   const handleAddWork = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!workProjId || !workEmpId || !workTitle.trim() || !workDate) {
-      alert('Please fill out all required fields.');
+    const finalEmpId = user.userType === 'employee' ? user._id : workEmpId;
+    if (!workProjId || !finalEmpId || !workTitle.trim() || !workDate || !workStart || !workEnd) {
+      alert('Please fill out all required work fields!');
       return;
     }
 
@@ -224,7 +261,7 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectId: workProjId,
-          employeeId: workEmpId,
+          employeeId: finalEmpId,
           title: workTitle,
           date: workDate,
           startTime: workStart,
@@ -233,7 +270,7 @@ export default function Dashboard() {
         })
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to save log entry');
+      if (!data.success) throw new Error(data.error || 'Failed to save log');
 
       setWorkTitle('');
       setWorkDesc('');
@@ -246,61 +283,40 @@ export default function Dashboard() {
     }
   };
 
-  // Chart calculation (Member Work Hours) - last 7 days (Jan 24 - Jan 30)
-  const chartDays = ['2026-01-24', '2026-01-25', '2026-01-26', '2026-01-27', '2026-01-28', '2026-01-29', '2026-01-30'];
-  
-  const dailyWorkTimes = chartDays.map(day => {
-    const dayEntries = entries.filter(e => e.date === day);
-    
-    // Calculate hours per employee on this day
-    const employeeTimes: Record<string, number> = {};
-    dayEntries.forEach(e => {
-      if (!employeeTimes[e.employeeId]) employeeTimes[e.employeeId] = 0;
-      employeeTimes[e.employeeId] += e.actualTime;
-    });
-
-    let normalMinutes = 0;
-    let overtimeMinutes = 0;
-
-    Object.values(employeeTimes).forEach(mins => {
-      if (mins > 480) { // 8 hours
-        normalMinutes += 480;
-        overtimeMinutes += (mins - 480);
-      } else {
-        normalMinutes += mins;
-      }
-    });
-
-    return {
-      day: day.split('-')[2], // get day number e.g. "24"
-      workHours: normalMinutes / 60,
-      overtimeHours: overtimeMinutes / 60
-    };
-  });
-
-  const totalChartHours = dailyWorkTimes.reduce((sum, d) => sum + d.workHours + d.overtimeHours, 0).toFixed(1);
-
-  // Timeline scheduler helper for selected date
-  const timelineEntries = entries.filter(e => e.date === selectedTimelineDate);
-
-  const calculateTimelinePosition = (startTimeStr: string, endTimeStr: string) => {
-    const [startH, startM] = startTimeStr.split(':').map(Number);
-    const [endH, endM] = endTimeStr.split(':').map(Number);
-    
-    // Scale timeline from 08:00 to 18:00 (10 hours = 600 minutes)
-    const timelineStartMins = 8 * 60;
-    const timelineDurationMins = 10 * 60;
-
-    const startOffsetMins = (startH * 60 + startM) - timelineStartMins;
-    const endOffsetMins = (endH * 60 + endM) - timelineStartMins;
-
-    const left = Math.max(0, Math.min(100, (startOffsetMins / timelineDurationMins) * 100));
-    const width = Math.max(5, Math.min(100 - left, ((endOffsetMins - startOffsetMins) / timelineDurationMins) * 100));
-
-    return { left: `${left}%`, width: `${width}%` };
+  // Toggle member assignment selection
+  const handleMemberSelectToggle = (empId: string) => {
+    if (projMembers.includes(empId)) {
+      setProjMembers(projMembers.filter(id => id !== empId));
+    } else {
+      setProjMembers([...projMembers, empId]);
+    }
   };
 
-  // Get color classes for timeline block
+  // Filter logs for today's scheduler timeline
+  const timelineEntries = entries.filter((entry) => entry.date === selectedTimelineDate);
+
+  // Time positions helper
+  const calculateTimelinePosition = (start: string, end: string) => {
+    const parseTimeToMins = (t: string) => {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    };
+    const timelineStartMins = 8 * 60; // 08:00
+    const timelineEndMins = 18 * 60;  // 18:00
+    const totalMins = timelineEndMins - timelineStartMins;
+
+    const startMins = Math.max(timelineStartMins, parseTimeToMins(start));
+    const endMins = Math.min(timelineEndMins, parseTimeToMins(end));
+
+    const leftPct = ((startMins - timelineStartMins) / totalMins) * 100;
+    const widthPct = ((endMins - startMins) / totalMins) * 100;
+
+    return {
+      left: `${Math.max(0, Math.min(100, leftPct))}%`,
+      width: `${Math.max(2, Math.min(100, widthPct))}%`
+    };
+  };
+
   const getTimelineColor = (projColor: string) => {
     if (projColor === '#10b981') return 'green';
     if (projColor === '#f59e0b') return 'orange';
@@ -308,8 +324,40 @@ export default function Dashboard() {
     return 'blue';
   };
 
-  // Featured Employee (Cody Fisher details or the top employee by hours)
-  const featuredEmployee = employees.find(e => e.name === 'Cody Fisher') || employees[0];
+  // Aggregation for Stacked Bar Chart
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    return d.getDate();
+  }).reverse();
+
+  const dailyWorkTimes = last7Days.map((dayNum) => {
+    const dayEntries = entries.filter((entry) => {
+      const entryDay = new Date(entry.date).getDate();
+      return entryDay === dayNum;
+    });
+
+    let totalMins = dayEntries.reduce((sum, e) => sum + e.actualTime, 0);
+    let workHours = parseFloat((totalMins / 60).toFixed(1));
+    let overtimeHours = 0;
+
+    if (workHours > 8) {
+      overtimeHours = parseFloat((workHours - 8).toFixed(1));
+      workHours = 8;
+    }
+
+    return {
+      day: dayNum,
+      workHours,
+      overtimeHours
+    };
+  });
+
+  const totalChartHours = dailyWorkTimes.reduce((sum, d) => sum + d.workHours + d.overtimeHours, 0).toFixed(1);
+
+  // Active / Logged-in profile card details
+  const meEmployee = user ? (employees.find(e => e._id === user._id) || user) : null;
+  const isAdmin = user?.userType === 'admin';
 
   if (loading && projects.length === 0 && !error) {
     return (
@@ -323,30 +371,37 @@ export default function Dashboard() {
   return (
     <div>
       {/* Top Welcome Panel */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', marginBottom: '32px' }} className="no-print">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }} className="no-print">
         <div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: 800 }}>Dashboard Overview</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Manage your organization departments, monitor employee schedule, and track tasks.</p>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Dashboard Overview</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+            {isAdmin 
+              ? 'Manage your organization departments, monitor employee schedule, and track tasks.'
+              : 'Log your work sessions, view assigned departments, and manage your schedules.'}
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button className="btn btn-secondary" onClick={() => setIsEmployeeModalOpen(true)}>
-            <UserPlus size={16} />
-            <span>Add Employee</span>
-          </button>
-          <button className="btn btn-secondary" onClick={() => setIsProjectModalOpen(true)}>
-            <Folder size={16} />
-            <span>New Department</span>
-          </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {isAdmin && (
+            <>
+              <button className="btn btn-secondary" onClick={() => setIsEmployeeModalOpen(true)}>
+                <UserPlus size={14} />
+                <span>Add Employee</span>
+              </button>
+              <button className="btn btn-secondary" onClick={() => setIsProjectModalOpen(true)}>
+                <Folder size={14} />
+                <span>New Department</span>
+              </button>
+            </>
+          )}
           <button className="btn btn-primary" onClick={() => {
-            if (projects.length === 0 || employees.length === 0) {
-              alert('Please ensure you have at least one department and employee created first!');
+            if (projects.length === 0) {
+              alert('Please ensure there is at least one department created first!');
               return;
             }
             if (!workProjId) setWorkProjId(projects[0]._id);
-            if (!workEmpId) setWorkEmpId(employees[0]._id);
             setIsWorkModalOpen(true);
           }}>
-            <Plus size={16} />
+            <Plus size={14} />
             <span>Log Work</span>
           </button>
         </div>
@@ -355,57 +410,56 @@ export default function Dashboard() {
       {error && (
         <div className="card" style={{ borderLeft: '4px solid #ef4444', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
           <AlertCircle style={{ color: '#ef4444' }} />
-          <p>{error}</p>
+          <p style={{ fontWeight: 600 }}>{error}</p>
         </div>
       )}
 
-      {/* Main BordUp Grid Layout */}
+      {/* Main Grid Layout */}
       <div className="dashboard-grid">
         
+        {/* LEFT COLUMN: Employee status (Admin Only) */}
+        {isAdmin && (
+          <div className="col-5" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="card">
+              <div className="card-header">
+                <h3 className="card-title">Employee Status Monitor</h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Status today</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {employees.slice(0, 5).map((emp) => {
+                  let statusClass = 'active';
+                  if (emp.status === 'Sick Leave') statusClass = 'sick';
+                  if (emp.status === 'Annual Leave') statusClass = 'annual';
+                  if (emp.status === 'Work From Home') statusClass = 'wfh';
 
-        {/* ROW 2: LEFT COLUMN: Employee status & Employee summary */}
-        <div className="col-5" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          {/* Card: What's on in January? (Employee leave/status monitor) */}
-          <div className="card" style={{ flex: 1 }}>
-            <div className="card-header">
-              <h3 className="card-title">Employee Status Monitor</h3>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Jan 2026</span>
-            </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {employees.slice(0, 4).map((emp) => {
-                let statusClass = 'active';
-                if (emp.status === 'Sick Leave') statusClass = 'sick';
-                if (emp.status === 'Annual Leave') statusClass = 'annual';
-                if (emp.status === 'Work From Home') statusClass = 'wfh';
-
-                return (
-                  <div key={emp._id} className="list-row" style={{ padding: '4px 0' }}>
-                    <div className="avatar-wrapper">
-                      <div className="avatar" style={{ backgroundColor: emp.avatarColor, width: '36px', height: '36px' }}>
-                        {emp.name.split(' ').map(n => n[0]).join('')}
+                  return (
+                    <div key={emp._id} className="list-row" style={{ padding: '2px 0' }}>
+                      <div className="avatar-wrapper">
+                        <div className="avatar" style={{ backgroundColor: emp.avatarColor, width: '28px', height: '28px', fontSize: '0.7rem' }}>
+                          {emp.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+                        <div>
+                          <div className="avatar-title" style={{ fontSize: '0.8rem' }}>{emp.name}</div>
+                          <div className="avatar-subtitle" style={{ fontSize: '0.7rem' }}>{emp.role}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="avatar-title" style={{ fontSize: '0.9rem' }}>{emp.name}</div>
-                        <div className="avatar-subtitle" style={{ fontSize: '0.75rem' }}>{emp.role}</div>
-                      </div>
+                      <span className={`badge-status ${statusClass}`}>
+                        {emp.status}
+                      </span>
                     </div>
-                    <span className={`badge-status ${statusClass}`}>
-                      {emp.status}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+                {employees.length === 0 && (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textAlign: 'center', padding: '12px' }}>No employees registered.</p>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* ROW 2: MIDDLE/RIGHT COLUMN: Today timeline & featured employee card */}
-        <div className="col-7" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          {/* Timeline scheduler card */}
-          <div className="card">
+        {/* RIGHT COLUMN: Timeline scheduler */}
+        <div className={isAdmin ? "col-7" : "col-12"}>
+          <div className="card" style={{ height: '100%' }}>
             <div className="card-header">
               <h3 className="card-title">Today Schedule</h3>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -413,12 +467,11 @@ export default function Dashboard() {
                   type="date" 
                   value={selectedTimelineDate} 
                   onChange={(e) => setSelectedTimelineDate(e.target.value)}
-                  style={{ border: '1px solid var(--border-color)', borderRadius: '6px', padding: '4px 8px', fontSize: '0.8rem', fontWeight: 600 }}
+                  style={{ border: '1px solid var(--border-color)', borderRadius: '6px', padding: '4px 6px', fontSize: '0.75rem', fontWeight: 600 }}
                 />
                 <button className="btn btn-secondary btn-sm" onClick={() => {
-                  if (employees.length === 0 || projects.length === 0) return;
+                  if (projects.length === 0) return;
                   if (!workProjId) setWorkProjId(projects[0]._id);
-                  if (!workEmpId) setWorkEmpId(employees[0]._id);
                   setWorkDate(selectedTimelineDate);
                   setIsWorkModalOpen(true);
                 }}>
@@ -440,12 +493,10 @@ export default function Dashboard() {
               </div>
               
               <div className="timeline-grid">
-                {/* Horizontal logs */}
                 {timelineEntries.slice(0, 3).map((entry, index) => {
                   const pos = calculateTimelinePosition(entry.startTime, entry.endTime);
                   const colorClass = getTimelineColor(entry.projectColor);
-                  // Stagger height position so they don't overlap
-                  const topOffset = 20 + index * 50;
+                  const topOffset = 15 + index * 40;
 
                   return (
                     <div 
@@ -464,12 +515,11 @@ export default function Dashboard() {
                 })}
 
                 {timelineEntries.length === 0 && (
-                  <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
                     No work sessions logged for this day.
                   </div>
                 )}
 
-                {/* 09:35 Marker line matching screenshot */}
                 <div className="timeline-now-line" style={{ left: '16.5%' }} />
                 <div className="timeline-now-bubble" style={{ left: '16.5%' }}>09.35</div>
               </div>
@@ -477,145 +527,203 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ROW 3: EMPLOYEE TABLE */}
-        <div className="col-7">
-          <div className="card" style={{ height: '100%' }}>
-            <div className="card-header">
-              <h3 className="card-title">Employee Registry</h3>
-              <Link href="/employees" className="btn btn-secondary btn-sm">
-                See Details
-              </Link>
-            </div>
-            
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Employee Name</th>
-                  <th>Department</th>
-                  <th>Job Title</th>
-                </tr>
-              </thead>
-              <tbody>
-                {employees.slice(0, 3).map((emp) => (
-                  <tr key={emp._id}>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div className="avatar-wrapper">
-                        <div className="avatar" style={{ backgroundColor: emp.avatarColor, width: '32px', height: '32px', fontSize: '0.8rem' }}>
-                          {emp.name.split(' ').map(n => n[0]).join('')}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 700 }}>{emp.name}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{emp.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="tag-badge" style={{ borderColor: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-primary)', background: '#eff6ff' }}>
-                        {emp.department}
-                      </span>
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{emp.role}</td>
+        {/* BOTTOM SECTION: Tables & Charts */}
+        {/* Left Bottom Column */}
+        <div className={isAdmin ? "col-7" : "col-8"}>
+          {isAdmin ? (
+            /* Admin view: Employee Registry */
+            <div className="card" style={{ height: '100%' }}>
+              <div className="card-header">
+                <h3 className="card-title">Employee Registry</h3>
+                <Link href="/employees" className="btn btn-secondary btn-sm">
+                  See Details
+                </Link>
+              </div>
+              
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Employee Name</th>
+                    <th>Department</th>
+                    <th>Job Title</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {employees.slice(0, 4).map((emp) => (
+                    <tr key={emp._id}>
+                      <td>
+                        <div className="avatar-wrapper">
+                          <div className="avatar" style={{ backgroundColor: emp.avatarColor, width: '28px', height: '28px', fontSize: '0.7rem' }}>
+                            {emp.name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700 }}>{emp.name}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{emp.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="tag-badge" style={{ borderColor: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-primary)', background: '#eff6ff' }}>
+                          {emp.department}
+                        </span>
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{emp.role}</td>
+                    </tr>
+                  ))}
+                  {employees.length === 0 && (
+                    <tr>
+                      <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px' }}>No members registered.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* Employee view: Personal Logged Tasks */
+            <div className="card" style={{ height: '100%' }}>
+              <div className="card-header">
+                <h3 className="card-title">My Tracked Logs</h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Recent work sessions</span>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Department</th>
+                      <th>Work Performed</th>
+                      <th>Time</th>
+                      <th style={{ textAlign: 'right' }}>Tracked</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entries.slice(0, 5).map((entry) => (
+                      <tr key={entry._id}>
+                        <td>{entry.date}</td>
+                        <td>
+                          <span className="tag-badge" style={{ backgroundColor: `${entry.projectColor}15`, color: entry.projectColor, borderColor: `${entry.projectColor}30` }}>
+                            {entry.projectName}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{entry.title}</div>
+                        </td>
+                        <td style={{ color: 'var(--text-secondary)' }}>
+                          {entry.startTime} - {entry.endTime}
+                        </td>
+                        <td style={{ fontWeight: 750, color: 'var(--accent-primary)', textAlign: 'right' }}>
+                          {formatMinutesToDuration(entry.actualTime)}
+                        </td>
+                      </tr>
+                    ))}
+                    {entries.length === 0 && (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px' }}>
+                          You haven't logged any work sessions yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* ROW 3: RIGHT COLUMN: Featured Developer and Stacked chart */}
-        <div className="col-5" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Right Bottom Column */}
+        <div className={isAdmin ? "col-5" : "col-4"} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           
-          {/* Developer Card (Cody Fisher card) */}
-          {featuredEmployee && (
+          {/* Profile card / Featured Member */}
+          {meEmployee && (
             <div className="card">
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Featured Member</div>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '6px' }}>{featuredEmployee.role}</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>
-                Full-stack engineering member responsible for backend integrations and database optimization setups.
-              </p>
-
-              <div className="employee-badge-container" style={{ marginBottom: '20px' }}>
-                <span className="tag-badge" style={{ backgroundColor: '#eff6ff', color: 'var(--accent-primary)', border: '1px solid rgba(59, 130, 246, 0.15)' }}>{featuredEmployee.department}</span>
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>
+                {isAdmin ? 'Featured Member' : 'My Work Profile'}
+              </div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '4px' }}>{meEmployee.role}</h3>
+              
+              <div className="employee-badge-container" style={{ marginBottom: '12px' }}>
+                <span className="tag-badge" style={{ backgroundColor: '#eff6ff', color: 'var(--accent-primary)', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
+                  {meEmployee.department}
+                </span>
                 <span className="tag-badge">Full Time</span>
-                <span className="tag-badge">Remote</span>
+                <span className="tag-badge">Active</span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                <div className="avatar" style={{ backgroundColor: featuredEmployee.avatarColor, width: '40px', height: '40px' }}>
-                  {featuredEmployee.name.split(' ').map(n => n[0]).join('')}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
+                <div className="avatar" style={{ backgroundColor: meEmployee.avatarColor || '#7f56d9', width: '32px', height: '32px', fontSize: '0.85rem' }}>
+                  {meEmployee.name?.split(' ').map((n: string) => n[0]).join('')}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 750 }}>{featuredEmployee.name}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Mail size={12} />
-                    <span>{featuredEmployee.email}</span>
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <div style={{ fontWeight: 750, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meEmployee.name}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span>{meEmployee.email}</span>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>TRACKED TIME</div>
-                  <div style={{ fontWeight: 800, color: 'var(--accent-primary)' }}>
-                    {formatMinutesToDuration(featuredEmployee.totalMinutes || 0)}
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>TRACKED</div>
+                  <div style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '0.85rem' }}>
+                    {formatMinutesToDuration(meEmployee.totalMinutes || 0)}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Member Work Hours Chart */}
-          <div className="card">
-            <div className="card-header">
-              <div>
-                <h3 className="card-title" style={{ fontSize: '1rem' }}>Member Work Hours</h3>
-                <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px', display: 'block' }}>
-                  {totalChartHours} hrs total
-                </span>
+          {/* Member Work Hours Chart (Admin Only) */}
+          {isAdmin && (
+            <div className="card">
+              <div className="card-header">
+                <div>
+                  <h3 className="card-title" style={{ fontSize: '0.9rem' }}>Member Work Hours</h3>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px', display: 'block' }}>
+                    {totalChartHours} hrs total
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', display: 'flex', gap: '6px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#3b82f6' }} /> Work
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#fecdd3' }} /> OT
+                  </span>
+                </div>
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', gap: '10px' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }} /> Work Time
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#fecdd3' }} /> Overtime
-                </span>
-              </div>
-            </div>
 
-            <div className="stacked-chart-container">
-              {/* Reference Grid lines */}
-              <div className="chart-grid-line" style={{ bottom: '70px' }} />
-              <div className="chart-grid-line" style={{ bottom: '130px' }} />
-              <div className="chart-grid-line" style={{ bottom: '190px' }} />
+              <div className="stacked-chart-container">
+                <div className="chart-grid-line" style={{ bottom: '50px' }} />
+                <div className="chart-grid-line" style={{ bottom: '90px' }} />
+                <div className="chart-grid-line" style={{ bottom: '130px' }} />
 
-              {dailyWorkTimes.map((data, index) => {
-                // Max height represents 12 hours (190px max bar height)
-                const maxVal = 12;
-                const workHeight = Math.min(190, (data.workHours / maxVal) * 190);
-                const otHeight = Math.min(190 - workHeight, (data.overtimeHours / maxVal) * 190);
+                {dailyWorkTimes.map((data, index) => {
+                  const maxVal = 12;
+                  const workHeight = Math.min(130, (data.workHours / maxVal) * 130);
+                  const otHeight = Math.min(130 - workHeight, (data.overtimeHours / maxVal) * 130);
 
-                return (
-                  <div key={index} className="chart-column">
-                    <div className="chart-bar-stack" style={{ height: `${workHeight + otHeight}px` }}>
-                      {data.overtimeHours > 0 && (
-                        <div className="chart-bar-pink" style={{ height: `${(otHeight / (workHeight + otHeight)) * 100}%` }} title={`Overtime: ${data.overtimeHours} hrs`} />
-                      )}
-                      <div className="chart-bar-blue" style={{ height: `${(workHeight / (workHeight + otHeight)) * 100}%` }} title={`Work Time: ${data.workHours} hrs`} />
+                  return (
+                    <div key={index} className="chart-column">
+                      <div className="chart-bar-stack" style={{ height: `${workHeight + otHeight}px`, width: '12px' }}>
+                        {data.overtimeHours > 0 && (
+                          <div className="chart-bar-pink" style={{ height: `${(otHeight / (workHeight + otHeight)) * 100}%` }} title={`Overtime: ${data.overtimeHours} hrs`} />
+                        )}
+                        <div className="chart-bar-blue" style={{ height: `${(workHeight / (workHeight + otHeight)) * 100}%` }} title={`Work Time: ${data.workHours} hrs`} />
+                      </div>
+                      <span className="chart-column-label">{data.day}</span>
                     </div>
-                    <span className="chart-column-label">Jan {data.day}</span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
       </div>
 
-      {/* MODAL: ADD EMPLOYEE */}
-      {isEmployeeModalOpen && (
+      {/* MODAL: ADD EMPLOYEE (Admin Only) */}
+      {isAdmin && isEmployeeModalOpen && (
         <div className="modal-overlay" onClick={() => setIsEmployeeModalOpen(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Add New Team Member</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Add New Team Member</h3>
               <button className="modal-close" onClick={() => setIsEmployeeModalOpen(false)}>&times;</button>
             </div>
             <form onSubmit={handleAddEmployee}>
@@ -645,12 +753,35 @@ export default function Dashboard() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Job Title / Role *</label>
+                  <label className="form-label">Password *</label>
                   <input 
                     type="text" 
                     className="form-control" 
                     required
-                    placeholder="e.g. UX Designer"
+                    value={empPass}
+                    onChange={(e) => setEmpPass(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Role Type *</label>
+                  <select 
+                    className="form-control"
+                    value={empType}
+                    onChange={(e) => setEmpType(e.target.value)}
+                  >
+                    <option value="employee">Employee</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Job Title *</label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    required
                     value={empRole}
                     onChange={(e) => setEmpRole(e.target.value)}
                   />
@@ -669,39 +800,43 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Work Status *</label>
-                <select 
-                  className="form-control"
-                  value={empStatus}
-                  onChange={(e) => setEmpStatus(e.target.value)}
-                >
-                  {statuses.map((status) => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Avatar Color Theme</label>
-                <div className="color-selector">
-                  {colors.map((color) => (
-                    <div 
-                      key={color}
-                      className={`color-option ${empColor === color ? 'selected' : ''}`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => setEmpColor(color)}
-                    />
-                  ))}
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Initial Status</label>
+                  <select 
+                    className="form-control"
+                    value={empStatus}
+                    onChange={(e) => setEmpStatus(e.target.value)}
+                  >
+                    {statuses.map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Theme Color</label>
+                  <div className="color-selector">
+                    {colors.map((color) => (
+                      <div 
+                        key={color}
+                        className="color-option"
+                        style={{ 
+                          backgroundColor: color,
+                          borderColor: empColor === color ? 'var(--text-primary)' : 'transparent'
+                        }}
+                        onClick={() => setEmpColor(color)}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsEmployeeModalOpen(false)}>
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={submittingEmp}>
-                  {submittingEmp ? 'Adding...' : 'Add Employee'}
+                  {submittingEmp ? 'Creating...' : 'Create Member'}
                 </button>
               </div>
             </form>
@@ -709,12 +844,12 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* MODAL: CREATE PROJECT (DEPARTMENT) */}
-      {isProjectModalOpen && (
+      {/* MODAL: NEW DEPARTMENT (Admin Only) */}
+      {isAdmin && isProjectModalOpen && (
         <div className="modal-overlay" onClick={() => setIsProjectModalOpen(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Create Department / Project</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Create New Department</h3>
               <button className="modal-close" onClick={() => setIsProjectModalOpen(false)}>&times;</button>
             </div>
             <form onSubmit={handleAddProject}>
@@ -724,30 +859,33 @@ export default function Dashboard() {
                   type="text" 
                   className="form-control" 
                   required
-                  placeholder="e.g. Design, Mobile Engineering"
+                  placeholder="e.g. Quality Assurance"
                   value={projName}
                   onChange={(e) => setProjName(e.target.value)}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label">Description</label>
+                <label className="form-label">Description (Optional)</label>
                 <textarea 
                   className="form-control" 
-                  placeholder="Write a brief overview..."
+                  placeholder="Details about this department scope..."
                   value={projDesc}
                   onChange={(e) => setProjDesc(e.target.value)}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label">Color Theme Badge</label>
+                <label className="form-label">Visual Dot Badge Color</label>
                 <div className="color-selector">
                   {colors.map((color) => (
                     <div 
                       key={color}
-                      className={`color-option ${projColor === color ? 'selected' : ''}`}
-                      style={{ backgroundColor: color }}
+                      className="color-option"
+                      style={{ 
+                        backgroundColor: color,
+                        borderColor: projColor === color ? 'var(--text-primary)' : 'transparent'
+                      }}
                       onClick={() => setProjColor(color)}
                     />
                   ))}
@@ -755,10 +893,10 @@ export default function Dashboard() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Assign Initial Members</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '150px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '12px' }}>
+                <label className="form-label">Assign Members</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '8px 10px' }}>
                   {employees.map(emp => (
-                    <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', cursor: 'pointer' }}>
+                    <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', cursor: 'pointer' }}>
                       <input 
                         type="checkbox"
                         checked={projMembers.includes(emp._id)}
@@ -767,10 +905,13 @@ export default function Dashboard() {
                       <span>{emp.name} ({emp.role})</span>
                     </label>
                   ))}
+                  {employees.length === 0 && (
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>No team members to assign. Create them first.</span>
+                  )}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsProjectModalOpen(false)}>
                   Cancel
                 </button>
@@ -788,7 +929,7 @@ export default function Dashboard() {
         <div className="modal-overlay" onClick={() => setIsWorkModalOpen(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Log Time Entry</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Log Time Entry</h3>
               <button className="modal-close" onClick={() => setIsWorkModalOpen(false)}>&times;</button>
             </div>
             <form onSubmit={handleAddWork}>
@@ -813,10 +954,15 @@ export default function Dashboard() {
                   required
                   value={workEmpId}
                   onChange={(e) => setWorkEmpId(e.target.value)}
+                  disabled={!isAdmin}
                 >
-                  {employees.map((emp) => (
-                    <option key={emp._id} value={emp._id}>{emp.name} ({emp.role})</option>
-                  ))}
+                  {isAdmin ? (
+                    employees.map((emp) => (
+                      <option key={emp._id} value={emp._id}>{emp.name} ({emp.role})</option>
+                    ))
+                  ) : (
+                    <option value={user?._id}>{user?.name} ({user?.role})</option>
+                  )}
                 </select>
               </div>
 
@@ -826,7 +972,7 @@ export default function Dashboard() {
                   type="text" 
                   className="form-control" 
                   required
-                  placeholder="e.g. Coded stacked hours layout"
+                  placeholder="e.g. Coded sidebar layouts"
                   value={workTitle}
                   onChange={(e) => setWorkTitle(e.target.value)}
                 />
@@ -870,25 +1016,24 @@ export default function Dashboard() {
                 <label className="form-label">Session Notes (Optional)</label>
                 <textarea 
                   className="form-control" 
-                  placeholder="Provide brief notes on accomplishments..."
+                  placeholder="Describe your progress, details, blockers..."
                   value={workDesc}
                   onChange={(e) => setWorkDesc(e.target.value)}
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsWorkModalOpen(false)}>
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={submittingWork}>
-                  {submittingWork ? 'Saving...' : 'Log Time'}
+                  {submittingWork ? 'Saving...' : 'Save Log'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
     </div>
   );
 }

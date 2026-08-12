@@ -32,6 +32,8 @@ export async function GET() {
           department: emp.department,
           status: emp.status,
           avatarColor: emp.avatarColor,
+          userType: emp.userType || 'employee',
+          password: emp.password || 'password123',
           createdAt: emp.createdAt,
           updatedAt: emp.updatedAt,
           totalMinutes,
@@ -50,7 +52,7 @@ export async function POST(request: Request) {
   try {
     await dbConnect();
     const body = await request.json();
-    const { name, email, role, department, status, avatarColor } = body;
+    const { name, email, role, department, status, avatarColor, password, userType } = body;
 
     if (!name || !email || !role || !department) {
       return NextResponse.json(
@@ -66,6 +68,8 @@ export async function POST(request: Request) {
       department,
       status: status || 'Active',
       avatarColor: avatarColor || '#7f56d9',
+      password: password || 'password123',
+      userType: userType || 'employee',
     });
 
     return NextResponse.json({ success: true, data: employee }, { status: 201 });

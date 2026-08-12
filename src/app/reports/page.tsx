@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   FileText, Calendar, Folder, Search, Printer, 
-  Clock, AlertCircle, Loader2, Edit3, Trash2, Users 
+  Clock, AlertCircle, Loader2, Edit3, Trash2, Download
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 
@@ -38,6 +39,9 @@ interface WorkEntry {
 }
 
 export default function ReportsPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+
   // State
   const [projects, setProjects] = useState<Project[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -64,6 +68,23 @@ export default function ReportsPage() {
   const [logEnd, setLogEnd] = useState('17:00');
   const [logDesc, setLogDesc] = useState('');
   const [savingLog, setSavingLog] = useState(false);
+
+  // Check login session on mount
+  useEffect(() => {
+    const storedUser = localStorage.getItem('worktracker_user');
+    if (!storedUser) {
+      router.push('/login');
+      return;
+    }
+
+    const parsed = JSON.parse(storedUser);
+    if (parsed.userType !== 'admin') {
+      router.push('/'); // Redirect employees to dashboard
+      return;
+    }
+
+    setUser(parsed);
+  }, [router]);
 
   // Fetch Projects & Employees lists (once)
   useEffect(() => {
@@ -149,8 +170,10 @@ export default function ReportsPage() {
   }, [selectedProject, selectedEmployee, dateRangePreset, startDate, endDate, searchQuery]);
 
   useEffect(() => {
-    fetchReportData();
-  }, [fetchReportData]);
+    if (user) {
+      fetchReportData();
+    }
+  }, [user, fetchReportData]);
 
   // Handle Edit Log Direct From Report
   const openEditModal = (log: WorkEntry) => {
@@ -212,18 +235,79 @@ export default function ReportsPage() {
     }
   };
 
+  // CSV Export Helper
+  const handleExportCSV = () => {
+    if (entries.length === 0) return alert('No records to export!');
+    
+    const csvHeaders = ['Date', 'Employee', 'Role', 'Department', 'Task Title', 'Description', 'Duration (mins)', 'Duration (formatted)'];
+    
+    const csvRows = entries.map(entry => {
+      const durationFormatted = formatMinutesToDuration(entry.actualTime);
+      return [
+        entry.date,
+        `"${entry.employeeName.replace(/"/g, '""')}"`,
+        `"${entry.employeeRole.replace(/"/g, '""')}"`,
+        `"${entry.projectName.replace(/"/g, '""')}"`,
+        `"${entry.title.replace(/"/g, '""')}"`,
+        `"${(entry.description || '').replace(/"/g, '""')}"`,
+        entry.actualTime,
+        durationFormatted
+      ].join(',');
+    });
+
+    const csvContent = [csvHeaders.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `worktracker_report_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Excel Export Helper (TSV representation compatible with MS Excel)
+  const handleExportExcel = () => {
+    if (entries.length === 0) return alert('No records to export!');
+
+    const headers = ['Date', 'Employee', 'Role', 'Department', 'Task Title', 'Description', 'Duration (mins)', 'Duration (formatted)'];
+    
+    const rows = entries.map(entry => {
+      const durationFormatted = formatMinutesToDuration(entry.actualTime);
+      return [
+        entry.date,
+        entry.employeeName,
+        entry.employeeRole,
+        entry.projectName,
+        entry.title,
+        entry.description || '',
+        entry.actualTime,
+        durationFormatted
+      ].join('\t');
+    });
+
+    const excelContent = [headers.join('\t'), ...rows].join('\n');
+    const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `worktracker_report_${new Date().toISOString().split('T')[0]}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Calculations
   const totalMinutes = entries.reduce((sum, entry) => sum + entry.actualTime, 0);
   const totalHours = (totalMinutes / 60).toFixed(1);
   const averageMins = entries.length > 0 ? Math.round(totalMinutes / entries.length) : 0;
 
-  // Group by project for local metrics
   const projectTimeMap: Record<string, { minutes: number; color: string; name: string }> = {};
   entries.forEach((entry) => {
     if (!projectTimeMap[entry.projectId]) {
       projectTimeMap[entry.projectId] = {
         minutes: 0,
-        color: entry.projectColor || '#64748b',
+        color: entry.projectColor || '#475569',
         name: entry.projectName,
       };
     }
@@ -248,22 +332,32 @@ export default function ReportsPage() {
       </div>
 
       {/* Main Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '32px' }} className="no-print">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }} className="no-print">
         <div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: 800 }}>Work Reports</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Generate comprehensive logs, filter by members, and print/export PDF files.</p>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Work Reports</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Generate comprehensive logs, filter by members, and export spreadsheet sheets.</p>
         </div>
         
-        <button className="btn btn-primary" onClick={() => window.print()}>
-          <Printer size={16} />
-          <span>Print Report</span>
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn-secondary" onClick={handleExportCSV}>
+            <Download size={14} />
+            <span>CSV</span>
+          </button>
+          <button className="btn btn-secondary" onClick={handleExportExcel}>
+            <Download size={14} />
+            <span>Excel</span>
+          </button>
+          <button className="btn btn-primary" onClick={() => window.print()}>
+            <Printer size={14} />
+            <span>Print PDF</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters Form */}
-      <div className="card no-print" style={{ marginBottom: '32px' }}>
-        <h3 className="card-title" style={{ fontSize: '1rem', marginBottom: '16px' }}>Filter Criteria</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+      <div className="card no-print" style={{ marginBottom: '20px' }}>
+        <h3 className="card-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>Filter Criteria</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
           
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Project / Department</label>
@@ -311,11 +405,11 @@ export default function ReportsPage() {
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Search Keyword</label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <Search size={16} style={{ position: 'absolute', left: '10px', color: 'var(--text-muted)' }} />
+              <Search size={14} style={{ position: 'absolute', left: '8px', color: 'var(--text-muted)' }} />
               <input 
                 type="text" 
                 className="form-control"
-                style={{ paddingLeft: '32px' }}
+                style={{ paddingLeft: '28px' }}
                 placeholder="Search notes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -325,7 +419,7 @@ export default function ReportsPage() {
         </div>
 
         {dateRangePreset === 'custom' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px', maxWidth: '500px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px', maxWidth: '400px' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Start Date</label>
               <input 
@@ -349,7 +443,7 @@ export default function ReportsPage() {
       </div>
 
       {error && (
-        <div className="card" style={{ borderLeft: '4px solid #ef4444', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+        <div className="card" style={{ borderLeft: '4px solid #ef4444', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
           <AlertCircle style={{ color: '#ef4444' }} />
           <p>{error}</p>
         </div>
@@ -359,7 +453,7 @@ export default function ReportsPage() {
       <div className="grid-stats">
         <div className="card stat-card">
           <div className="stat-icon-wrapper" style={{ color: 'var(--accent-primary)', background: '#eff6ff' }}>
-            <Clock size={24} />
+            <Clock size={20} />
           </div>
           <div className="stat-info">
             <span className="stat-value">{totalHours}h</span>
@@ -369,7 +463,7 @@ export default function ReportsPage() {
 
         <div className="card stat-card">
           <div className="stat-icon-wrapper" style={{ color: '#10b981', background: '#ecfdf5' }}>
-            <FileText size={24} />
+            <FileText size={20} />
           </div>
           <div className="stat-info">
             <span className="stat-value">{entries.length}</span>
@@ -379,7 +473,7 @@ export default function ReportsPage() {
 
         <div className="card stat-card">
           <div className="stat-icon-wrapper" style={{ color: '#f59e0b', background: '#fffbeb' }}>
-            <Printer size={24} />
+            <Printer size={20} />
           </div>
           <div className="stat-info">
             <span className="stat-value">{formatMinutesToDuration(averageMins)}</span>
@@ -390,24 +484,25 @@ export default function ReportsPage() {
 
       {/* Time Allocation chart */}
       {projectDistribution.length > 0 && (
-        <div className="card" style={{ marginBottom: '32px' }}>
-          <h3 className="card-title" style={{ fontSize: '1rem', marginBottom: '16px' }}>Department Time Distributions</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+        <div className="card" style={{ marginBottom: '20px' }}>
+          <h3 className="card-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>Department Time Distributions</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
             {projectDistribution.map((proj) => {
               const pct = totalMinutes > 0 ? Math.round((proj.minutes / totalMinutes) * 100) : 0;
               return (
                 <div key={proj.name} className="chart-bar-row">
-                  <div className="chart-bar-header">
+                  <div className="chart-bar-header" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
                     <span style={{ fontWeight: 650 }}>{proj.name}</span>
                     <span>{formatMinutesToDuration(proj.minutes)} ({pct}%)</span>
                   </div>
-                  <div className="chart-bar-outer">
+                  <div className="chart-bar-outer" style={{ background: 'var(--bg-tertiary)', borderRadius: '4px' }}>
                     <div 
                       className="chart-bar-inner" 
                       style={{ 
                         width: `${pct}%`, 
                         backgroundColor: proj.color,
-                        boxShadow: `0 0 10px ${proj.color}20`
+                        height: '100%',
+                        borderRadius: '4px'
                       }} 
                     />
                   </div>
@@ -420,14 +515,14 @@ export default function ReportsPage() {
 
       {/* Data Table */}
       <div className="card">
-        <h3 className="card-title">Detailed Records ({entries.length})</h3>
+        <h3 className="card-title" style={{ marginBottom: '10px' }}>Detailed Records ({entries.length})</h3>
 
         {loading && entries.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '32px' }}>
             <Loader2 className="animate-spin" size={32} style={{ color: 'var(--accent-primary)' }} />
           </div>
         ) : entries.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '32px' }}>
+          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '32px', fontSize: '0.8rem' }}>
             No records found matching filters.
           </p>
         ) : (
@@ -435,13 +530,13 @@ export default function ReportsPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th style={{ width: '120px' }}>Date</th>
-                  <th style={{ width: '180px' }}>Employee</th>
-                  <th style={{ width: '180px' }}>Department</th>
+                  <th style={{ width: '100px' }}>Date</th>
+                  <th style={{ width: '150px' }}>Employee</th>
+                  <th style={{ width: '140px' }}>Department</th>
                   <th>Log Description</th>
-                  <th style={{ width: '120px' }}>Time Frame</th>
-                  <th style={{ width: '100px', textAlign: 'right' }}>Tracked</th>
-                  <th style={{ width: '90px' }} className="no-print">Actions</th>
+                  <th style={{ width: '100px' }}>Time Frame</th>
+                  <th style={{ width: '80px', textAlign: 'right' }}>Tracked</th>
+                  <th style={{ width: '70px' }} className="no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -450,7 +545,7 @@ export default function ReportsPage() {
                     <td>{entry.date}</td>
                     <td>
                       <div className="avatar-wrapper">
-                        <div className="avatar" style={{ backgroundColor: entry.employeeAvatarColor, width: '28px', height: '28px', fontSize: '0.75rem' }}>
+                        <div className="avatar" style={{ backgroundColor: entry.employeeAvatarColor, width: '24px', height: '24px', fontSize: '0.65rem' }}>
                           {entry.employeeName.split(' ').map(n => n[0]).join('')}
                         </div>
                         <span style={{ fontWeight: 700 }}>{entry.employeeName}</span>
@@ -464,7 +559,7 @@ export default function ReportsPage() {
                     <td>
                       <div style={{ fontWeight: 600 }}>{entry.title}</div>
                       {entry.description && (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                           {entry.description}
                         </div>
                       )}
@@ -476,12 +571,12 @@ export default function ReportsPage() {
                       {formatMinutesToDuration(entry.actualTime)}
                     </td>
                     <td className="no-print">
-                      <div style={{ display: 'flex', gap: '4px' }}>
+                      <div style={{ display: 'flex', gap: '2px' }}>
                         <button className="action-btn" title="Edit Log" onClick={() => openEditModal(entry)}>
-                          <Edit3 size={14} />
+                          <Edit3 size={12} />
                         </button>
                         <button className="action-btn btn-delete-item" title="Delete Log" onClick={() => handleDeleteLog(entry._id)}>
-                          <Trash2 size={14} />
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     </td>
@@ -501,7 +596,7 @@ export default function ReportsPage() {
         }} style={{ zIndex: 2000 }}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Edit Task Log</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Edit Task Log</h3>
               <button className="modal-close" onClick={() => {
                 setIsEditLogOpen(false);
                 setEditingLog(null);
@@ -590,7 +685,7 @@ export default function ReportsPage() {
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '28px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => {
                   setIsEditLogOpen(false);
                   setEditingLog(null);

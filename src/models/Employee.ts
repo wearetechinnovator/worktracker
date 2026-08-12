@@ -7,6 +7,8 @@ export interface IEmployee extends Document {
   department: string;
   status: string; // e.g. "Active", "Sick Leave", "Work From Home"
   avatarColor: string; // Hex color code
+  password: string;
+  userType: 'admin' | 'employee';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,6 +21,8 @@ const EmployeeSchema = new Schema<IEmployee>(
     department: { type: String, required: true, trim: true },
     status: { type: String, default: 'Active', trim: true },
     avatarColor: { type: String, default: '#7f56d9' },
+    password: { type: String, required: true, default: 'password123' },
+    userType: { type: String, required: true, enum: ['admin', 'employee'], default: 'employee' },
   },
   { timestamps: true }
 );

@@ -30,6 +30,8 @@ export async function GET(
           department: employee.department,
           status: employee.status,
           avatarColor: employee.avatarColor,
+          userType: employee.userType,
+          password: employee.password,
           createdAt: employee.createdAt,
           updatedAt: employee.updatedAt,
         },
@@ -62,7 +64,7 @@ export async function PUT(
     await dbConnect();
     const { id } = await params;
     const body = await request.json();
-    const { name, email, role, department, status, avatarColor } = body;
+    const { name, email, role, department, status, avatarColor, password, userType } = body;
 
     const employee = await Employee.findById(id);
     if (!employee) {
@@ -75,6 +77,8 @@ export async function PUT(
     if (department) employee.department = department;
     if (status) employee.status = status;
     if (avatarColor) employee.avatarColor = avatarColor;
+    if (password) employee.password = password;
+    if (userType) employee.userType = userType;
 
     await employee.save();
 

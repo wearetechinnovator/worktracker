@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   Clock, Plus, Calendar, Edit3, Trash2, ArrowLeft, 
-  Search, AlertCircle, Loader2, Users, Mail, Briefcase 
+  Search, AlertCircle, Loader2, Users, Mail
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 
@@ -46,6 +46,7 @@ interface ProjectPageProps {
 export default function ProjectDetail({ params }: ProjectPageProps) {
   const { id } = use(params);
   const router = useRouter();
+  const [user, setUser] = useState<any>(null);
 
   // Project & Entries State
   const [project, setProject] = useState<Project | null>(null);
@@ -75,29 +76,41 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
   // Form States (Add/Edit Log)
   const [logEmpId, setLogEmpId] = useState('');
   const [logTitle, setLogTitle] = useState('');
-  const [logDate, setLogDate] = useState(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  });
+  const [logDate, setLogDate] = useState('');
   const [logStart, setLogStart] = useState('09:00');
   const [logEnd, setLogEnd] = useState('17:00');
   const [logDesc, setLogDesc] = useState('');
   const [savingLog, setSavingLog] = useState(false);
 
-  const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#e2e8f0'];
+  const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#475569'];
+
+  // Check login session on mount
+  useEffect(() => {
+    const storedUser = localStorage.getItem('worktracker_user');
+    if (!storedUser) {
+      router.push('/login');
+    } else {
+      setUser(JSON.parse(storedUser));
+      const todayStr = new Date().toISOString().split('T')[0];
+      setLogDate(todayStr);
+    }
+  }, [router]);
 
   // Fetch project details, entries, and all employees (for modals)
   const fetchProjectData = useCallback(async () => {
+    if (!user) return;
+
     try {
       setLoading(true);
       setError(null);
       
+      const isEmployee = user.userType === 'employee';
+      const projUrl = isEmployee ? `/api/projects/${id}?employeeId=${user._id}` : `/api/projects/${id}`;
+      const empsUrl = '/api/employees';
+
       const [projRes, empsRes] = await Promise.all([
-        fetch(`/api/projects/${id}`),
-        fetch('/api/employees')
+        fetch(projUrl),
+        fetch(empsUrl)
       ]);
 
       const result = await projRes.json();
@@ -121,7 +134,9 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
       setEditProjColor(result.data.project.color);
       setEditProjMembers(result.data.project.members.map((m: any) => m._id));
       
-      if (result.data.project.members.length > 0) {
+      if (isEmployee) {
+        setLogEmpId(user._id);
+      } else if (result.data.project.members.length > 0) {
         setLogEmpId(result.data.project.members[0]._id);
       } else if (empsData.data.length > 0) {
         setLogEmpId(empsData.data[0]._id);
@@ -132,11 +147,13 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, user]);
 
   useEffect(() => {
-    fetchProjectData();
-  }, [fetchProjectData]);
+    if (user) {
+      fetchProjectData();
+    }
+  }, [user, fetchProjectData]);
 
   // Handle Edit Project Submit
   const handleEditProjectSubmit = async (e: React.FormEvent) => {
@@ -153,10 +170,10 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
           description: editProjDesc,
           color: editProjColor,
           members: editProjMembers
-        }),
+        })
       });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to update project');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to update department details');
 
       setIsEditProjectOpen(false);
       await fetchProjectData();
@@ -167,26 +184,14 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     }
   };
 
-  // Toggle member selection in project edit
-  const toggleEditMember = (empId: string) => {
-    if (editProjMembers.includes(empId)) {
-      setEditProjMembers(editProjMembers.filter(id => id !== empId));
-    } else {
-      setEditProjMembers([...editProjMembers, empId]);
-    }
-  };
-
   // Handle Delete Project
   const handleDeleteProject = async () => {
-    const confirmation = confirm(
-      'WARNING: Deleting this project will permanently delete all logged work sessions under it. This cannot be undone. Are you sure?'
-    );
-    if (!confirmation) return;
+    if (!confirm('Are you sure you want to delete this department section? This will also cascade-delete all work logs registered in it!')) return;
 
     try {
       const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to delete project');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to delete');
 
       router.push('/');
     } catch (err: any) {
@@ -197,7 +202,8 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
   // Handle Add Work Log
   const handleAddLogSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!logEmpId || !logTitle.trim() || !logDate || !logStart || !logEnd) return;
+    const finalEmpId = user.userType === 'employee' ? user._id : logEmpId;
+    if (!finalEmpId || !logTitle.trim() || !logDate || !logStart || !logEnd) return;
 
     try {
       setSavingLog(true);
@@ -206,16 +212,16 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectId: id,
-          employeeId: logEmpId,
+          employeeId: finalEmpId,
           title: logTitle,
           date: logDate,
           startTime: logStart,
           endTime: logEnd,
-          description: logDesc,
-        }),
+          description: logDesc
+        })
       });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to log work');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to log session');
 
       setLogTitle('');
       setLogDesc('');
@@ -228,7 +234,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     }
   };
 
-  // Open Edit Log Modal
+  // Handle Edit Work Log
   const openEditLogModal = (log: WorkEntry) => {
     setEditingLog(log);
     setLogEmpId(log.employeeId);
@@ -240,10 +246,10 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     setIsEditLogOpen(true);
   };
 
-  // Handle Edit Log Submit
   const handleEditLogSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingLog || !logEmpId || !logTitle.trim() || !logDate || !logStart || !logEnd) return;
+    if (!editingLog) return;
+    const finalEmpId = user.userType === 'employee' ? user._id : logEmpId;
 
     try {
       setSavingLog(true);
@@ -251,16 +257,17 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          employeeId: logEmpId,
+          projectId: id,
+          employeeId: finalEmpId,
           title: logTitle,
           date: logDate,
           startTime: logStart,
           endTime: logEnd,
-          description: logDesc,
-        }),
+          description: logDesc
+        })
       });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to update work entry');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to update work log');
 
       setIsEditLogOpen(false);
       setEditingLog(null);
@@ -272,14 +279,14 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     }
   };
 
-  // Handle Delete Log
+  // Handle Delete Work Log
   const handleDeleteLog = async (logId: string) => {
     if (!confirm('Are you sure you want to delete this work session log?')) return;
 
     try {
       const res = await fetch(`/api/work/${logId}`, { method: 'DELETE' });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to delete work entry');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to delete log');
 
       await fetchProjectData();
     } catch (err: any) {
@@ -287,19 +294,28 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     }
   };
 
-  // Filter entries locally
+  const handleMemberSelectToggle = (empId: string) => {
+    if (editProjMembers.includes(empId)) {
+      setEditProjMembers(editProjMembers.filter(id => id !== empId));
+    } else {
+      setEditProjMembers([...editProjMembers, empId]);
+    }
+  };
+
+  // Filter logs locally
   const filteredEntries = entries.filter((entry) => {
     const matchesSearch = 
       entry.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      entry.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (entry.description && entry.description.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesDate = !dateFilter || entry.date === dateFilter;
+      (entry.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      entry.employeeName.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesDate = dateFilter ? entry.date === dateFilter : true;
     return matchesSearch && matchesDate;
   });
 
-  const filteredMinutes = filteredEntries.reduce((sum, entry) => sum + entry.actualTime, 0);
+  const isAdmin = user?.userType === 'admin';
 
-  if (loading && !project) {
+  if (loading && !project && !error) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px' }}>
         <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
@@ -310,140 +326,133 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
 
   if (error || !project) {
     return (
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', padding: '40px', maxWidth: '600px', margin: '40px auto', textAlign: 'center' }}>
-        <AlertCircle size={48} style={{ color: '#ef4444' }} />
-        <h3>Project not found</h3>
-        <p style={{ color: 'var(--text-secondary)' }}>{error || 'The requested project/section could not be found.'}</p>
-        <Link href="/" className="btn btn-primary">
-          <ArrowLeft size={18} />
-          <span>Back to Dashboard</span>
-        </Link>
+      <div className="card" style={{ borderLeft: '4px solid #ef4444', display: 'flex', alignItems: 'center', gap: '12px', margin: '24px' }}>
+        <AlertCircle style={{ color: '#ef4444' }} />
+        <p>{error || 'Project not found or unreachable.'}</p>
       </div>
     );
   }
 
   return (
     <div>
-      {/* Back Button */}
-      <div style={{ marginBottom: '24px' }}>
-        <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontWeight: 600 }} className="hover-link">
-          <ArrowLeft size={16} />
+      {/* Top Breadcrumb Nav */}
+      <div style={{ marginBottom: '16px' }} className="no-print">
+        <Link href="/" className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', gap: '6px' }}>
+          <ArrowLeft size={14} />
           <span>Back to Dashboard</span>
         </Link>
       </div>
 
-      {/* Main Grid: Info Sidebar + Work Logs */}
+      {/* Main Grid Layout */}
       <div className="dashboard-grid">
         
-        {/* Project Header Info */}
+        {/* Left Column: Project Header & Work Logs list */}
         <div className="col-8">
           <div className="card" style={{ height: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px' }}>
               <div>
-                <span className="badge-status active" style={{ backgroundColor: `${project.color}15`, color: project.color, marginBottom: '8px' }}>
+                <span className="badge-status active" style={{ backgroundColor: `${project.color}15`, color: project.color, marginBottom: '6px' }}>
                   DEPARTMENT
                 </span>
-                <h1 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '8px' }}>{project.name}</h1>
-                <p style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+                <h1 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '4px' }}>{project.name}</h1>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
                   {project.description || 'No description provided for this department.'}
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button className="btn btn-secondary" onClick={() => setIsEditProjectOpen(true)}>
-                  <Edit3 size={16} />
-                  <span>Edit</span>
-                </button>
-                <button className="btn btn-danger" onClick={handleDeleteProject}>
-                  <Trash2 size={16} />
-                  <span>Delete</span>
-                </button>
-              </div>
+
+              {isAdmin && (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="btn btn-secondary" onClick={() => setIsEditProjectOpen(true)}>
+                    <Edit3 size={14} />
+                    <span>Edit</span>
+                  </button>
+                  <button className="btn btn-danger" onClick={handleDeleteProject}>
+                    <Trash2 size={14} />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Filter Search */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderTop: '1px solid var(--border-color)', marginTop: '24px', paddingTop: '24px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderTop: '1px solid var(--border-color)', marginTop: '16px', paddingTop: '16px', marginBottom: '12px' }}>
               <h2 className="card-title">Work Logs ({filteredEntries.length})</h2>
               
-              <button className="btn btn-primary btn-sm" onClick={() => {
-                if (allEmployees.length === 0) {
-                  alert('Please create team members first!');
-                  return;
-                }
-                setLogTitle('');
-                setLogDesc('');
-                setIsAddLogOpen(true);
-              }}>
-                <Plus size={16} />
-                <span>Log Task</span>
-              </button>
-            </div>
-
-            <div className="filters-bar" style={{ marginBottom: '20px' }}>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1, minWidth: '200px' }}>
-                <Search size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)' }} />
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  placeholder="Search logs or member names..." 
-                  style={{ paddingLeft: '36px' }}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '180px' }}>
-                <Calendar size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)' }} />
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Search size={14} style={{ position: 'absolute', left: '8px', color: 'var(--text-muted)' }} />
+                  <input 
+                    type="text" 
+                    placeholder="Search logs/members..." 
+                    className="form-control" 
+                    style={{ paddingLeft: '28px', width: '180px', height: '28px', fontSize: '0.75rem' }}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
                 <input 
                   type="date" 
                   className="form-control" 
-                  style={{ paddingLeft: '36px' }}
+                  style={{ width: '120px', height: '28px', fontSize: '0.75rem', padding: '2px 6px' }}
                   value={dateFilter}
                   onChange={(e) => setDateFilter(e.target.value)}
                 />
+                <button className="btn btn-primary btn-sm" onClick={() => {
+                  if (!isAdmin && !user) return;
+                  setIsAddLogOpen(true);
+                }}>
+                  <Plus size={12} />
+                  <span>Log Work</span>
+                </button>
               </div>
             </div>
 
-            {/* Work Logs List */}
+            {/* Logs List Container */}
             {filteredEntries.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', padding: '24px', textAlign: 'center', border: '1px dashed var(--border-color)', borderRadius: 'var(--border-radius-sm)' }}>
-                No entries logged matching criteria.
+              <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '32px', fontSize: '0.8rem' }}>
+                No work sessions registered matching filters.
               </p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="work-entries-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {filteredEntries.map((entry) => (
-                  <div key={entry._id} className="list-row" style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', background: 'var(--bg-primary)' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <span style={{ fontWeight: 750, fontSize: '1rem' }}>{entry.title}</span>
-                        <span style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '1.05rem' }}>
-                          {formatMinutesToDuration(entry.actualTime)}
-                        </span>
+                  <div key={entry._id} className="card work-entry-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-tertiary)' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1 }}>
+                      <div className="avatar" style={{ backgroundColor: entry.employeeAvatarColor, width: '28px', height: '28px', fontSize: '0.7rem', flexShrink: 0 }}>
+                        {entry.employeeName.split(' ').map((n) => n[0]).join('')}
                       </div>
                       
-                      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span className="avatar" style={{ backgroundColor: entry.employeeAvatarColor, width: '20px', height: '20px', fontSize: '0.65rem' }}>
-                            {entry.employeeName.split(' ').map(n => n[0]).join('')}
-                          </span>
-                          <strong>{entry.employeeName}</strong>
-                        </span>
-                        <span>Date: <strong>{entry.date}</strong></span>
-                        <span>Time: <strong>{entry.startTime} - {entry.endTime}</strong></span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>{entry.employeeName}</span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{entry.date}</span>
+                        </div>
+                        <h4 style={{ fontWeight: 700, margin: '2px 0', fontSize: '0.8rem' }}>{entry.title}</h4>
+                        {entry.description && (
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '4px' }}>
+                            {entry.description}
+                          </p>
+                        )}
                       </div>
-
-                      {entry.description && (
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', background: 'white', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '4px' }}>
-                          {entry.description}
-                        </p>
-                      )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '8px', marginLeft: '24px' }} className="no-print">
-                      <button className="action-btn" title="Edit Log" onClick={() => openEditLogModal(entry)}>
-                        <Edit3 size={14} />
-                      </button>
-                      <button className="action-btn btn-delete-item" title="Delete Log" onClick={() => handleDeleteLog(entry._id)}>
-                        <Trash2 size={14} />
-                      </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--accent-primary)' }}>
+                          {formatMinutesToDuration(entry.actualTime)}
+                        </div>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{entry.startTime} - {entry.endTime}</span>
+                      </div>
+
+                      {(isAdmin || entry.employeeId === user?._id) && (
+                        <div style={{ display: 'flex', gap: '4px' }} className="no-print">
+                          <button className="action-btn" title="Edit Log" onClick={() => openEditLogModal(entry)}>
+                            <Edit3 size={12} />
+                          </button>
+                          <button className="action-btn btn-delete-item" title="Delete Log" onClick={() => handleDeleteLog(entry._id)}>
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -452,67 +461,70 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
           </div>
         </div>
 
-        {/* Right Info Details */}
-        <div className="col-4" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Right Column: Project stats & members summary */}
+        <div className="col-4" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           
           {/* Card: Stats Summary */}
           <div className="card">
-            <div className="project-color-banner" style={{ backgroundColor: project.color, height: '6px', borderRadius: '3px', marginBottom: '16px' }} />
-            <h3 className="card-title" style={{ fontSize: '1rem', marginBottom: '16px' }}>Department Metrics</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Hours Tracked</span>
-                <span style={{ display: 'block', fontSize: '1.6rem', fontWeight: 800, color: 'var(--accent-primary)', marginTop: '2px' }}>
-                  {formatMinutesToDuration(totalMinutes)}
-                </span>
+            <div className="project-color-banner" style={{ backgroundColor: project.color, height: '4px', borderRadius: '2px', marginBottom: '12px' }} />
+            <h3 className="card-title" style={{ marginBottom: '12px' }}>Department Tracker</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>Total Hours Tracked</span>
+                <span style={{ fontWeight: 800, color: 'var(--accent-primary)' }}>{formatMinutesToDuration(totalMinutes)}</span>
               </div>
-              <div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Entries Logged</span>
-                <span style={{ display: 'block', fontSize: '1.4rem', fontWeight: 800, marginTop: '2px' }}>
-                  {entries.length} logs
-                </span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>Work Sessions Count</span>
+                <span style={{ fontWeight: 800 }}>{entries.length} logs</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>Assigned Members</span>
+                <span style={{ fontWeight: 800 }}>{project.members.length} people</span>
               </div>
             </div>
           </div>
 
-          {/* Card: Assigned Members */}
+          {/* Card: Members Registry list */}
           <div className="card">
-            <h3 className="card-title" style={{ fontSize: '1rem', marginBottom: '16px' }}>Assigned Members ({project.members.length})</h3>
-            {project.members.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No team members assigned.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {project.members.map((member) => (
-                  <div key={member._id} className="list-row" style={{ padding: '2px 0' }}>
-                    <div className="avatar-wrapper">
-                      <div className="avatar" style={{ backgroundColor: member.avatarColor, width: '32px', height: '32px', fontSize: '0.8rem' }}>
-                        {member.name.split(' ').map(n => n[0]).join('')}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{member.name}</div>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>{member.role}</div>
-                      </div>
+            <h3 className="card-title" style={{ marginBottom: '12px' }}>Staff Assigned</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {project.members.map((m) => (
+                <div key={m._id} className="list-row" style={{ padding: '2px 0' }}>
+                  <div className="avatar-wrapper">
+                    <div className="avatar" style={{ backgroundColor: m.avatarColor, width: '28px', height: '28px', fontSize: '0.7rem' }}>
+                      {m.name.split(' ').map((n) => n[0]).join('')}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.8rem' }}>{m.name}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{m.role}</div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+              {project.members.length === 0 && (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textAlign: 'center', padding: '12px' }}>
+                  No staff members assigned to this department.
+                </p>
+              )}
+            </div>
           </div>
+
         </div>
 
       </div>
 
-      {/* EDIT DEPARTMENT MODAL */}
-      {isEditProjectOpen && (
+      {/* MODAL: EDIT PROJECT (Admin Only) */}
+      {isAdmin && isEditProjectOpen && (
         <div className="modal-overlay" onClick={() => setIsEditProjectOpen(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Edit Department Details</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Edit Department Info</h3>
               <button className="modal-close" onClick={() => setIsEditProjectOpen(false)}>&times;</button>
             </div>
             <form onSubmit={handleEditProjectSubmit}>
               <div className="form-group">
-                <label className="form-label">Department Name *</label>
+                <label className="form-label">Department / Project Name *</label>
                 <input 
                   type="text" 
                   className="form-control" 
@@ -523,7 +535,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Description</label>
+                <label className="form-label">Description (Optional)</label>
                 <textarea 
                   className="form-control" 
                   value={editProjDesc}
@@ -532,13 +544,16 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Color Theme</label>
+                <label className="form-label">Visual Badge Color</label>
                 <div className="color-selector">
                   {colors.map((color) => (
                     <div 
                       key={color}
-                      className={`color-option ${editProjColor === color ? 'selected' : ''}`}
-                      style={{ backgroundColor: color }}
+                      className="color-option"
+                      style={{ 
+                        backgroundColor: color,
+                        borderColor: editProjColor === color ? 'var(--text-primary)' : 'transparent'
+                      }}
                       onClick={() => setEditProjColor(color)}
                     />
                   ))}
@@ -546,14 +561,14 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Assigned Members</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '150px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '12px' }}>
+                <label className="form-label">Assign Members</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '10px' }}>
                   {allEmployees.map(emp => (
-                    <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', cursor: 'pointer' }}>
+                    <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', cursor: 'pointer' }}>
                       <input 
                         type="checkbox"
                         checked={editProjMembers.includes(emp._id)}
-                        onChange={() => toggleEditMember(emp._id)}
+                        onChange={() => handleMemberSelectToggle(emp._id)}
                       />
                       <span>{emp.name} ({emp.role})</span>
                     </label>
@@ -561,7 +576,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '28px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsEditProjectOpen(false)}>
                   Cancel
                 </button>
@@ -579,7 +594,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
         <div className="modal-overlay" onClick={() => setIsAddLogOpen(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Log Task Session</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Log Task Session</h3>
               <button className="modal-close" onClick={() => setIsAddLogOpen(false)}>&times;</button>
             </div>
             <form onSubmit={handleAddLogSubmit}>
@@ -590,13 +605,15 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
                   required
                   value={logEmpId}
                   onChange={(e) => setLogEmpId(e.target.value)}
+                  disabled={!isAdmin}
                 >
-                  {project.members.map((m) => (
-                    <option key={m._id} value={m._id}>{m.name} ({m.role})</option>
-                  ))}
-                  {project.members.length === 0 && allEmployees.map((e) => (
-                    <option key={e._id} value={e._id}>{e.name} ({e.role})</option>
-                  ))}
+                  {isAdmin ? (
+                    allEmployees.map((e) => (
+                      <option key={e._id} value={e._id}>{e.name} ({e.role})</option>
+                    ))
+                  ) : (
+                    <option value={user?._id}>{user?.name} ({user?.role})</option>
+                  )}
                 </select>
               </div>
 
@@ -606,7 +623,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
                   type="text" 
                   className="form-control" 
                   required
-                  placeholder="e.g. Coded stacked hours layout"
+                  placeholder="e.g. Coded sidebar layouts"
                   value={logTitle}
                   onChange={(e) => setLogTitle(e.target.value)}
                 />
@@ -650,13 +667,13 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
                 <label className="form-label">Session Notes (Optional)</label>
                 <textarea 
                   className="form-control" 
-                  placeholder="Provide brief notes on accomplishments..."
+                  placeholder="Details, status, updates..."
                   value={logDesc}
                   onChange={(e) => setLogDesc(e.target.value)}
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '28px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsAddLogOpen(false)}>
                   Cancel
                 </button>
@@ -677,7 +694,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
         }}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Edit Task Log</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Edit Task Log</h3>
               <button className="modal-close" onClick={() => {
                 setIsEditLogOpen(false);
                 setEditingLog(null);
@@ -691,10 +708,15 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
                   required
                   value={logEmpId}
                   onChange={(e) => setLogEmpId(e.target.value)}
+                  disabled={!isAdmin}
                 >
-                  {allEmployees.map((e) => (
-                    <option key={e._id} value={e._id}>{e.name} ({e.role})</option>
-                  ))}
+                  {isAdmin ? (
+                    allEmployees.map((e) => (
+                      <option key={e._id} value={e._id}>{e.name} ({e.role})</option>
+                    ))
+                  ) : (
+                    <option value={user?._id}>{user?.name} ({user?.role})</option>
+                  )}
                 </select>
               </div>
 
@@ -752,7 +774,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '28px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => {
                   setIsEditLogOpen(false);
                   setEditingLog(null);

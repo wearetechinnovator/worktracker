@@ -16,7 +16,15 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 });
     }
 
-    const entries = await WorkEntry.find({ projectId: id })
+    const { searchParams } = new URL(request.url);
+    const employeeId = searchParams.get('employeeId');
+
+    const logQuery: any = { projectId: id };
+    if (employeeId) {
+      logQuery.employeeId = employeeId;
+    }
+
+    const entries = await WorkEntry.find(logQuery)
       .populate('employeeId')
       .sort({ date: -1, startTime: -1 });
 
