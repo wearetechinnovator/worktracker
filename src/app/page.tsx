@@ -106,13 +106,19 @@ export default function Dashboard() {
         fetch('/api/work')
       ]);
 
-      const projData = await projRes.json();
-      const empData = await empRes.json();
-      const workData = await workRes.json();
+      const projData = await projRes.json().catch(() => null);
+      const empData = await empRes.json().catch(() => null);
+      const workData = await workRes.json().catch(() => null);
 
-      if (!projData.success) throw new Error(projData.error || 'Failed to load projects');
-      if (!empData.success) throw new Error(empData.error || 'Failed to load employees');
-      if (!workData.success) throw new Error(workData.error || 'Failed to load work entries');
+      if (!projRes.ok || !projData || !projData.success) {
+        throw new Error(projData?.error || 'Failed to connect to database. Please verify your MONGODB_URI connection string in Vercel project configurations.');
+      }
+      if (!empRes.ok || !empData || !empData.success) {
+        throw new Error(empData?.error || 'Failed to connect to database. Please verify your MONGODB_URI connection string in Vercel project configurations.');
+      }
+      if (!workRes.ok || !workData || !workData.success) {
+        throw new Error(workData?.error || 'Failed to connect to database. Please verify your MONGODB_URI connection string in Vercel project configurations.');
+      }
 
       setProjects(projData.data);
       setEmployees(empData.data);
@@ -305,7 +311,7 @@ export default function Dashboard() {
   // Featured Employee (Cody Fisher details or the top employee by hours)
   const featuredEmployee = employees.find(e => e.name === 'Cody Fisher') || employees[0];
 
-  if (loading && projects.length === 0) {
+  if (loading && projects.length === 0 && !error) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px' }}>
         <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
