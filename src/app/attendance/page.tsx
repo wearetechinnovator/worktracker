@@ -12,6 +12,8 @@ interface AttendanceRecord {
   avatarColor: string;
   attendanceStatus: 'Present' | 'Absent' | 'On Leave';
   attendanceId: string | null;
+  checkIn: string | null;
+  checkOut: string | null;
 }
 
 export default function AttendancePage() {
@@ -179,6 +181,8 @@ export default function AttendancePage() {
                   <th>Employee Name</th>
                   <th>Department</th>
                   <th>Job Title / Role</th>
+                  <th style={{ textAlign: 'center' }}>Check In</th>
+                  <th style={{ textAlign: 'center' }}>Check Out</th>
                   <th style={{ width: '320px', textAlign: 'right' }}>Daily Status</th>
                 </tr>
               </thead>
@@ -201,6 +205,12 @@ export default function AttendancePage() {
                       </span>
                     </td>
                     <td style={{ color: 'var(--text-secondary)' }}>{rec.role}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 600, fontFamily: 'monospace' }}>
+                      {rec.checkIn || '-'}
+                    </td>
+                    <td style={{ textAlign: 'center', fontWeight: 600, fontFamily: 'monospace' }}>
+                      {rec.checkOut || '-'}
+                    </td>
                     <td>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                         <button

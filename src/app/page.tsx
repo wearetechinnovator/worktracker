@@ -8,6 +8,7 @@ import {
   AlertCircle, Loader2
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
+import MyTasks from '@/components/MyTasks';
 
 interface Employee {
   _id: string;
@@ -479,6 +480,13 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                 })}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Employee Tasks Section */}
+        {!isAdmin && user && (
+          <div className="col-12" style={{ marginBottom: '20px' }}>
+            <MyTasks userId={user._id} />
           </div>
         )}
 

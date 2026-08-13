@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
+import PunchGuard from '@/components/PunchGuard';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -14,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'BordUp | Premium Work Tracker & Analytics Dashboard',
+  title: 'TIS Work Tracker',
   description: 'Manage projects, track time across members, and analyze productivity.',
 };
 
@@ -26,10 +27,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
-        <div className="app-layout">
-          <Sidebar />
-          <main className="main-content">{children}</main>
-        </div>
+        <PunchGuard>
+          <div className="app-layout">
+            <Sidebar />
+            <main className="main-content">{children}</main>
+          </div>
+        </PunchGuard>
       </body>
     </html>
   );

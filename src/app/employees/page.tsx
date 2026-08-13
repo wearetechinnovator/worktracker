@@ -33,6 +33,9 @@ export default function EmployeesPage() {
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [employeeDetails, setEmployeeDetails] = useState<any>(null);
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
 
   // Form State (Add/Edit)
@@ -189,6 +192,21 @@ export default function EmployeesPage() {
     }
   };
 
+  const openEmployeeDetails = async (emp: Employee) => {
+    setSelectedEmployee(emp);
+    setIsDetailModalOpen(true);
+
+    try {
+      const res = await fetch(`/api/attendance?employeeId=${emp._id}`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to load employee details');
+      setEmployeeDetails(data.data);
+    } catch (err: any) {
+      console.error(err);
+      setEmployeeDetails({ employee: emp, attendance: [] });
+    }
+  };
+
   const resetForm = () => {
     setName('');
     setEmail('');
@@ -245,7 +263,12 @@ export default function EmployeesPage() {
             if (emp.status === 'Work From Home') statusClass = 'wfh';
 
             return (
-              <div key={emp._id} className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px' }}>
+              <div
+                key={emp._id}
+                className="card"
+                onClick={() => openEmployeeDetails(emp)}
+                style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px', cursor: 'pointer' }}
+              >
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div className="avatar" style={{ backgroundColor: emp.avatarColor, width: '36px', height: '36px', fontSize: '0.95rem' }}>
@@ -282,7 +305,7 @@ export default function EmployeesPage() {
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '4px' }} className="no-print">
+                  <div style={{ display: 'flex', gap: '4px' }} className="no-print" onClick={(e) => e.stopPropagation()}>
                     <button className="action-btn" title="Edit Employee" onClick={() => openEditModal(emp)}>
                       <Edit3 size={12} />
                     </button>
@@ -296,6 +319,79 @@ export default function EmployeesPage() {
           })
         )}
       </div>
+
+      {/* EMPLOYEE DETAILS MODAL */}
+      {isDetailModalOpen && selectedEmployee && (
+        <div className="modal-overlay" onClick={() => setIsDetailModalOpen(false)}>
+          <div className="modal-container" style={{ maxWidth: '760px', width: '100%' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>{selectedEmployee.name}</h3>
+              <button className="modal-close" onClick={() => setIsDetailModalOpen(false)}>&times;</button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+              <div className="card" style={{ padding: '12px' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Role</div>
+                <div style={{ fontWeight: 700, marginTop: '4px' }}>{selectedEmployee.role}</div>
+              </div>
+              <div className="card" style={{ padding: '12px' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Department</div>
+                <div style={{ fontWeight: 700, marginTop: '4px' }}>{selectedEmployee.department}</div>
+              </div>
+              <div className="card" style={{ padding: '12px' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Type</div>
+                <div style={{ fontWeight: 700, marginTop: '4px', textTransform: 'capitalize' }}>{selectedEmployee.userType}</div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, marginBottom: '10px' }}>Recent Attendance</h4>
+
+              {employeeDetails?.attendance?.length ? (
+                <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Check In</th>
+                        <th>Check Out</th>
+                        <th>Location</th>
+                        <th>IP</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {employeeDetails.attendance.map((record: any) => (
+                        <tr key={record._id}>
+                          <td>{record.date}</td>
+                          <td>{record.checkIn || '-'}</td>
+                          <td>{record.checkOut || '-'}</td>
+                          <td>
+                            {record.checkInLocation || record.checkOutLocation || '-'}
+                            {record.checkInLatitude && record.checkInLongitude ? (
+                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                {record.checkInLatitude.toFixed(4)}, {record.checkInLongitude.toFixed(4)}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td>{record.checkInIpAddress || record.checkOutIpAddress || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="card" style={{ padding: '18px', color: 'var(--text-secondary)' }}>
+                  No attendance records found for this employee yet.
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setIsDetailModalOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ADD EMPLOYEE MODAL */}
       {isAddModalOpen && (
