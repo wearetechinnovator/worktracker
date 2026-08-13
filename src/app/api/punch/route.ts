@@ -52,14 +52,16 @@ export async function GET(request: Request) {
     // Check if attendance record exists for today
     const attendance = await Attendance.findOne({ employeeId, date: today });
 
-    // Determine what actions are allowed
-    const canPunchIn = !attendance?.checkIn && isWithinTimeWindow(
+    // Determine what actions are allowed (currently checked in means checkIn exists and checkOut does not)
+    const isCurrentlyCheckedIn = !!attendance?.checkIn && !attendance?.checkOut;
+
+    const canPunchIn = !isCurrentlyCheckedIn && isWithinTimeWindow(
       currentTime,
       settings.punchInStartTime,
       settings.punchInEndTime
     );
 
-    const canPunchOut = attendance?.checkIn && !attendance?.checkOut && isWithinTimeWindow(
+    const canPunchOut = isCurrentlyCheckedIn && isWithinTimeWindow(
       currentTime,
       settings.punchOutStartTime,
       settings.punchOutEndTime
@@ -72,6 +74,14 @@ export async function GET(request: Request) {
           checkIn: attendance.checkIn,
           checkOut: attendance.checkOut,
           status: attendance.status,
+          checkInIpAddress: attendance.checkInIpAddress,
+          checkInLocation: attendance.checkInLocation,
+          checkInLatitude: attendance.checkInLatitude,
+          checkInLongitude: attendance.checkInLongitude,
+          checkOutIpAddress: attendance.checkOutIpAddress,
+          checkOutLocation: attendance.checkOutLocation,
+          checkOutLatitude: attendance.checkOutLatitude,
+          checkOutLongitude: attendance.checkOutLongitude,
         } : null,
         canPunchIn,
         canPunchOut,
@@ -131,27 +141,36 @@ export async function POST(request: Request) {
         );
       }
 
-      // Check if already punched in
+      // Check if currently punched in (checkIn exists and checkOut does not)
       const existing = await Attendance.findOne({ employeeId, date: today });
-      if (existing?.checkIn) {
+      if (existing?.checkIn && !existing?.checkOut) {
         return NextResponse.json(
-          { success: false, error: 'You have already punched in today' },
+          { success: false, error: 'You are currently punched in' },
           { status: 400 }
         );
       }
 
-      // Create or update attendance record
+      // Create or update attendance record (resets checkOut to allow re-punch in session)
       const attendance = await Attendance.findOneAndUpdate(
         { employeeId, date: today },
         {
-          employeeId,
-          date: today,
-          status: 'Present',
-          checkIn: currentTime,
-          checkInIpAddress: ipAddress,
-          checkInLocation: location?.label || location?.address || 'Location captured',
-          checkInLatitude: location?.latitude ?? undefined,
-          checkInLongitude: location?.longitude ?? undefined,
+          $set: {
+            employeeId,
+            date: today,
+            status: 'Present',
+            checkIn: currentTime,
+            checkInIpAddress: ipAddress,
+            checkInLocation: location?.label || location?.address || 'Location captured',
+            checkInLatitude: location?.latitude ?? undefined,
+            checkInLongitude: location?.longitude ?? undefined,
+          },
+          $unset: {
+            checkOut: 1,
+            checkOutIpAddress: 1,
+            checkOutLocation: 1,
+            checkOutLatitude: 1,
+            checkOutLongitude: 1,
+          },
         },
         { upsert: true, new: true }
       );
@@ -189,12 +208,12 @@ export async function POST(request: Request) {
         );
       }
 
-      // Update with punch out time
+      // Update with punch out time, IP address, and Geolocation
       existing.checkOut = currentTime;
       existing.checkOutIpAddress = ipAddress;
-      existing.checkOutLocation = location?.label || location?.address || 'Location captured';
-      existing.checkOutLatitude = location?.latitude ?? existing.checkOutLatitude;
-      existing.checkOutLongitude = location?.longitude ?? existing.checkOutLongitude;
+      existing.checkOutLocation = location?.label || location?.address || (location?.latitude ? `${location.latitude}, ${location.longitude}` : 'Location captured');
+      existing.checkOutLatitude = location?.latitude ?? undefined;
+      existing.checkOutLongitude = location?.longitude ?? undefined;
       await existing.save();
 
       return NextResponse.json({

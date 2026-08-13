@@ -43,7 +43,10 @@ export default function Sidebar() {
         const res = await fetch(`/api/punch?employeeId=${user._id}`);
         const result = await res.json();
         
-        if (result.success && result.data.attendance?.checkIn) {
+        const attendance = result.data?.attendance;
+        const isCurrentlyCheckedIn = !!attendance?.checkIn && !attendance?.checkOut;
+
+        if (result.success && isCurrentlyCheckedIn) {
           setIsPunchedIn(true);
         } else {
           setIsPunchedIn(false);

@@ -9,6 +9,14 @@ interface PunchData {
     checkIn: string;
     checkOut: string;
     status: string;
+    checkInIpAddress?: string;
+    checkInLocation?: string;
+    checkInLatitude?: number;
+    checkInLongitude?: number;
+    checkOutIpAddress?: string;
+    checkOutLocation?: string;
+    checkOutLatitude?: number;
+    checkOutLongitude?: number;
   } | null;
   canPunchIn: boolean;
   canPunchOut: boolean;
@@ -443,7 +451,7 @@ export default function PunchPage() {
       {punchData?.attendance && (
         <div className="card">
           <h3 className="card-title" style={{ marginBottom: '16px' }}>Today's Record</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
             <div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
                 Status
@@ -466,6 +474,41 @@ export default function PunchPage() {
               </div>
               <div style={{ fontWeight: 700 }}>
                 {punchData.attendance.checkOut || '-'}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr', 
+            gap: '16px', 
+            borderTop: '1px solid var(--border-color)', 
+            paddingTop: '14px',
+            fontSize: '0.8rem'
+          }}>
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                Check In Details
+              </div>
+              <div style={{ color: 'var(--text-secondary)' }}>
+                <div>• <strong>IP Address:</strong> {punchData.attendance.checkInIpAddress || '-'}</div>
+                <div>• <strong>Location:</strong> {punchData.attendance.checkInLocation || '-'}</div>
+                {punchData.attendance.checkInLatitude !== undefined && punchData.attendance.checkInLongitude !== undefined && (
+                  <div>• <strong>Geo Coordinates:</strong> {punchData.attendance.checkInLatitude.toFixed(4)}, {punchData.attendance.checkInLongitude.toFixed(4)}</div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                Check Out Details
+              </div>
+              <div style={{ color: 'var(--text-secondary)' }}>
+                <div>• <strong>IP Address:</strong> {punchData.attendance.checkOutIpAddress || '-'}</div>
+                <div>• <strong>Location:</strong> {punchData.attendance.checkOutLocation || '-'}</div>
+                {punchData.attendance.checkOutLatitude !== undefined && punchData.attendance.checkOutLongitude !== undefined && (
+                  <div>• <strong>Geo Coordinates:</strong> {punchData.attendance.checkOutLatitude.toFixed(4)}, {punchData.attendance.checkOutLongitude.toFixed(4)}</div>
+                )}
               </div>
             </div>
           </div>

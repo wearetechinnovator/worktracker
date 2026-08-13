@@ -30,7 +30,10 @@ export default function MiddlewareCheckPage() {
         const res = await fetch(`/api/punch?employeeId=${parsed._id}`);
         const result = await res.json();
 
-        if (result.success && result.data.attendance?.checkIn) {
+        const attendance = result.data?.attendance;
+        const isCurrentlyCheckedIn = !!attendance?.checkIn && !attendance?.checkOut;
+
+        if (result.success && isCurrentlyCheckedIn) {
           // Employee has punched in, allow access
           router.push('/');
         } else {
