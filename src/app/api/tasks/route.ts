@@ -17,9 +17,20 @@ export async function GET(request: Request) {
 
     let query: any = {};
 
-    // Filter by assigned employee
+    // Filter by assigned employee or creator employee
     if (employeeId) {
-      query.assignedTo = employeeId;
+      if (mongoose.Types.ObjectId.isValid(employeeId)) {
+        const empObjId = new mongoose.Types.ObjectId(employeeId);
+        query.$or = [
+          { assignedTo: { $in: [empObjId, employeeId] } },
+          { createdBy: { $in: [empObjId, employeeId] } },
+        ];
+      } else {
+        query.$or = [
+          { assignedTo: employeeId },
+          { createdBy: employeeId },
+        ];
+      }
     }
 
     // Filter by project
@@ -38,7 +49,7 @@ export async function GET(request: Request) {
     }
 
     const tasks = await Task.find(query)
-      .populate('assignedTo', 'name email avatarColor')
+      .populate('assignedTo', 'name email avatarColor role department')
       .populate('createdBy', 'name email')
       .populate('projectId', 'name color')
       .sort({ createdAt: -1 });
@@ -58,8 +69,8 @@ export async function POST(request: Request) {
       title,
       description,
       projectId,
-      department,
-      assignedTo,
+      department: reqDepartment,
+      assignedTo: reqAssignedTo,
       createdBy,
       priority,
       status,
@@ -75,6 +86,36 @@ export async function POST(request: Request) {
       );
     }
 
+    // Find creator by _id or email fallback
+    let creator = null;
+    if (mongoose.Types.ObjectId.isValid(createdBy)) {
+      creator = await Employee.findById(createdBy);
+    }
+    if (!creator) {
+      creator = await Employee.findOne({
+        $or: [
+          { email: createdBy.toString().toLowerCase().trim() },
+          ...(mongoose.Types.ObjectId.isValid(createdBy) ? [{ _id: createdBy }] : [])
+        ]
+      });
+    }
+
+    if (!creator) {
+      return NextResponse.json(
+        { success: false, error: 'Creator not found' },
+        { status: 404 }
+      );
+    }
+
+    const creatorIdStr = creator._id.toString();
+    const isAdmin = creator.userType === 'admin';
+
+    // Auto-default department from creator if neither project nor department is specified
+    let department = reqDepartment;
+    if (!projectId && !department && creator.department) {
+      department = creator.department;
+    }
+
     // Must have either projectId or department
     if (!projectId && !department) {
       return NextResponse.json(
@@ -83,24 +124,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate createdBy is an admin or the employee themselves
-    const creator = await Employee.findById(createdBy);
-    if (!creator) {
-      return NextResponse.json(
-        { success: false, error: 'Creator not found' },
-        { status: 404 }
-      );
+    // Assigned employees array setup
+    let finalAssignedTo: string[] = Array.isArray(reqAssignedTo) ? reqAssignedTo : [];
+    
+    // If employee is creating and assignedTo is empty, default assignedTo to themselves
+    if (!isAdmin && finalAssignedTo.length === 0) {
+      finalAssignedTo = [creatorIdStr];
     }
 
-    // Allow admin to create tasks, or allow employees to create tasks for themselves
-    const isAdmin = creator.userType === 'admin';
-    const isSelfAssignment = assignedTo && assignedTo.length === 1 && assignedTo[0] === createdBy;
-    
-    if (!isAdmin && !isSelfAssignment) {
-      return NextResponse.json(
-        { success: false, error: 'Employees can only create tasks assigned to themselves' },
-        { status: 403 }
-      );
+    // Validate employee creation restriction: non-admins can only assign to themselves
+    if (!isAdmin) {
+      const isSelfOnly = finalAssignedTo.every(id => id.toString() === creatorIdStr);
+      if (!isSelfOnly) {
+        return NextResponse.json(
+          { success: false, error: 'Employees can only create tasks assigned to themselves' },
+          { status: 403 }
+        );
+      }
     }
 
     // Validate projectId if provided
@@ -115,9 +155,19 @@ export async function POST(request: Request) {
     }
 
     // Validate assigned employees
-    if (assignedTo && assignedTo.length > 0) {
-      const employees = await Employee.find({ _id: { $in: assignedTo } });
-      if (employees.length !== assignedTo.length) {
+    if (finalAssignedTo.length > 0) {
+      const validEmpObjectIds = finalAssignedTo
+        .filter(id => mongoose.Types.ObjectId.isValid(id))
+        .map(id => new mongoose.Types.ObjectId(id));
+
+      const employees = await Employee.find({
+        $or: [
+          { _id: { $in: validEmpObjectIds } },
+          { _id: { $in: finalAssignedTo } }
+        ]
+      });
+
+      if (employees.length === 0) {
         return NextResponse.json(
           { success: false, error: 'One or more assigned employees not found' },
           { status: 404 }
@@ -130,8 +180,8 @@ export async function POST(request: Request) {
       description,
       projectId: projectId || undefined,
       department: department || undefined,
-      assignedTo: assignedTo || [],
-      createdBy,
+      assignedTo: finalAssignedTo,
+      createdBy: creator._id,
       priority: priority || 'Medium',
       status: status || 'To Do',
       dueDate,
@@ -139,7 +189,7 @@ export async function POST(request: Request) {
     });
 
     const populatedTask = await Task.findById(task._id)
-      .populate('assignedTo', 'name email avatarColor')
+      .populate('assignedTo', 'name email avatarColor role department')
       .populate('createdBy', 'name email')
       .populate('projectId', 'name color');
 

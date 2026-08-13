@@ -186,7 +186,8 @@ export default function TasksPage() {
 
   const canManageTask = (task: Task) => {
     if (!user) return false;
-    return user.userType === 'admin' || task.createdBy?._id === user._id;
+    const isAssigned = Array.isArray(task.assignedTo) && task.assignedTo.some(e => e._id === user._id);
+    return user.userType === 'admin' || task.createdBy?._id === user._id || isAssigned;
   };
 
   const handleDelete = async (taskId: string) => {
@@ -212,7 +213,7 @@ export default function TasksPage() {
       description: task.description || '',
       projectId: task.projectId?._id || '',
       department: task.department || '',
-      assignedTo: task.assignedTo.map(e => e._id),
+      assignedTo: Array.isArray(task.assignedTo) ? task.assignedTo.map(e => e._id) : [],
       priority: task.priority,
       status: task.status,
       dueDate: task.dueDate || '',
@@ -224,7 +225,11 @@ export default function TasksPage() {
   const openCreateModal = () => {
     resetForm();
     if (!isAdmin && user) {
-      setFormData((current) => ({ ...current, assignedTo: [user._id] }));
+      setFormData((current) => ({
+        ...current,
+        assignedTo: [user._id],
+        department: user.department || '',
+      }));
     }
     setShowModal(true);
   };
@@ -638,26 +643,50 @@ export default function TasksPage() {
 
               {isAdmin && (
                 <div style={{ marginBottom: '16px' }}>
-                  <label className="form-label">Assign To</label>
-                  <select
-                    className="form-control"
-                    multiple
-                    value={formData.assignedTo}
-                    onChange={(e) => {
-                      const selected = Array.from(e.target.selectedOptions, option => option.value);
-                      setFormData({ ...formData, assignedTo: selected });
-                    }}
-                    style={{ height: '120px' }}
-                  >
-                    {employees.map((emp) => (
-                      <option key={emp._id} value={emp._id}>
-                        {emp.name} - {emp.department}
-                      </option>
-                    ))}
-                  </select>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Hold Ctrl/Cmd to select multiple
-                  </p>
+                  <label className="form-label">Assign To *</label>
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '8px', 
+                    maxHeight: '140px', 
+                    overflowY: 'auto', 
+                    border: '1px solid var(--border-color)', 
+                    borderRadius: 'var(--border-radius-sm)', 
+                    padding: '10px',
+                    background: 'var(--bg-secondary)'
+                  }}>
+                    {employees.map((emp) => {
+                      const isChecked = formData.assignedTo.includes(emp._id);
+                      return (
+                        <label 
+                          key={emp._id} 
+                          style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '10px', 
+                            fontSize: '0.85rem', 
+                            cursor: 'pointer',
+                            padding: '4px 6px',
+                            borderRadius: '4px',
+                            background: isChecked ? 'var(--bg-tertiary)' : 'transparent'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({ ...formData, assignedTo: [...formData.assignedTo, emp._id] });
+                              } else {
+                                setFormData({ ...formData, assignedTo: formData.assignedTo.filter(id => id !== emp._id) });
+                              }
+                            }}
+                          />
+                          <span style={{ fontWeight: isChecked ? 700 : 400 }}>{emp.name} ({emp.department})</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
