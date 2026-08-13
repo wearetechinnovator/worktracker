@@ -5,15 +5,21 @@ import Settings from '@/models/Settings';
 
 // Helper function to check if current time is within allowed window
 function isWithinTimeWindow(currentTime: string, startTime: string, endTime: string): boolean {
-  const current = currentTime.split(':').map(Number);
-  const start = startTime.split(':').map(Number);
-  const end = endTime.split(':').map(Number);
+  const toMinutes = (time: string) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
 
-  const currentMinutes = current[0] * 60 + current[1];
-  const startMinutes = start[0] * 60 + start[1];
-  const endMinutes = end[0] * 60 + end[1];
+  const currentMinutes = toMinutes(currentTime);
+  const startMinutes = toMinutes(startTime);
+  const endMinutes = toMinutes(endTime);
 
-  return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+  if (startMinutes <= endMinutes) {
+    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+  }
+
+  // Overnight window: e.g. 14:00 - 12:00 means 14:00 to 23:59 and 00:00 to 12:00
+  return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
 }
 
 // GET - Get punch status for today
