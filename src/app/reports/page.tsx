@@ -319,7 +319,7 @@ export default function ReportsPage() {
   return (
     <div>
       {/* Print Header */}
-      <div className="print-header">
+      {/* <div className="print-header">
         <h1>WorkTracker - Executive Summary Report</h1>
         <p>Generated: {new Date().toLocaleString()}</p>
         <p>
@@ -329,7 +329,7 @@ export default function ReportsPage() {
           {' | '}
           Range: {dateRangePreset.toUpperCase()} {dateRangePreset === 'custom' ? `(${startDate} to ${endDate})` : ''}
         </p>
-      </div>
+      </div> */}
 
       {/* Main Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }} className="no-print">

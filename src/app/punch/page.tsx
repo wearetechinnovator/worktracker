@@ -306,7 +306,7 @@ export default function PunchPage() {
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: '32px' }}>
         <h1 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: '8px' }}>
-          Attendance Punch System
+          Punch Here
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
           {today}

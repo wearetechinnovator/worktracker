@@ -284,7 +284,7 @@ export default function SettingsPage() {
       </form>
 
       {/* Info Card */}
-      <div className="card" style={{ marginTop: '24px', background: 'var(--bg-secondary)' }}>
+      {/* <div className="card" style={{ marginTop: '24px', background: 'var(--bg-secondary)' }}>
         <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '12px' }}>
           How It Works
         </h4>
@@ -295,7 +295,7 @@ export default function SettingsPage() {
           <li>Outside these windows, the respective buttons will be blurred and disabled</li>
           <li>Changes take effect immediately for all employees</li>
         </ul>
-      </div>
+      </div> */}
     </div>
   );
 }

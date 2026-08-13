@@ -111,7 +111,7 @@ export default function Sidebar() {
                 <div style={{ fontWeight: 700, fontSize: '0.8rem' }}>TIS Pvt. Ltd.</div>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Team - {memberCount} Members</div>
               </div>
-              <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+              {/* <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} /> */}
             </div>
           </div>
 

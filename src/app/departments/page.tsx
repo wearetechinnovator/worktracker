@@ -346,10 +346,10 @@ export default function DepartmentsPage() {
     <div>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <div>
+        {/* <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Departments Manager</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Inspect specific projects, assign members, and manage logged task records.</p>
-        </div>
+        </div> */}
 
         <div style={{ display: 'flex', gap: '8px' }}>
           {isAdmin && (
@@ -364,13 +364,13 @@ export default function DepartmentsPage() {
               <span>New Department</span>
             </button>
           )}
-          <button className="btn btn-primary" onClick={() => {
+          {/* <button className="btn btn-primary" onClick={() => {
             if (projects.length === 0) return alert('Create a department first!');
             setIsLogWorkOpen(true);
           }}>
             <Plus size={14} />
             <span>Log Work</span>
-          </button>
+          </button> */}
         </div>
       </div>
 

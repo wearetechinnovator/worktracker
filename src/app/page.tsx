@@ -405,14 +405,14 @@ Summary: ${entry.description || 'Completed work task details.'}`;
     <div>
       {/* Welcome Panel */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }} className="no-print">
-        <div>
+        {/* <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Dashboard Overview</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
             {isAdmin 
               ? 'Manage your organization departments, monitor employee schedule, and track tasks.'
               : 'Log your work sessions, view assigned departments, and manage your schedules.'}
           </p>
-        </div>
+        </div> */}
         <div style={{ display: 'flex', gap: '8px' }}>
           {isAdmin && (
             <>
@@ -426,13 +426,13 @@ Summary: ${entry.description || 'Completed work task details.'}`;
               </button>
             </>
           )}
-          <button className="btn btn-primary" onClick={() => {
+          {/* <button className="btn btn-primary" onClick={() => {
             if (projects.length === 0) return alert('Create a department first!');
             setIsWorkModalOpen(true);
           }}>
             <Plus size={14} />
             <span>Log Work</span>
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -502,13 +502,13 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                   onChange={(e) => setSelectedTimelineDate(e.target.value)}
                   style={{ border: '1px solid var(--border-color)', borderRadius: '6px', padding: '4px 6px', fontSize: '0.75rem', fontWeight: 650 }}
                 />
-                <button className="btn btn-secondary btn-sm" onClick={() => {
+                {/* <button className="btn btn-secondary btn-sm" onClick={() => {
                   if (projects.length === 0) return;
                   setWorkDate(selectedTimelineDate);
                   setIsWorkModalOpen(true);
                 }}>
                   Add Task
-                </button>
+                </button> */}
               </div>
             </div>
 

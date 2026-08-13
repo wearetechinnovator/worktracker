@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  CheckSquare, Plus, Loader2, AlertCircle, CheckCircle2, 
+import {
+  CheckSquare, Plus, Loader2, AlertCircle, CheckCircle2,
   Calendar, Users, Folder, Flag, Filter, X, Edit, Trash2
 } from 'lucide-react';
 
@@ -59,15 +59,15 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  
+
   // Filter states
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterPriority, setFilterPriority] = useState<string>('');
-  
+
   // Modal state
   const [showModal, setShowModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  
+
   // Form state
   const [formData, setFormData] = useState({
     title: '',
@@ -175,7 +175,7 @@ export default function TasksPage() {
 
       setSuccessMsg(editingTask ? 'Task updated successfully!' : 'Task created successfully!');
       setTimeout(() => setSuccessMsg(null), 3000);
-      
+
       setShowModal(false);
       resetForm();
       loadTasks();
@@ -520,6 +520,20 @@ export default function TasksPage() {
           <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
             {tasks.length === 0 ? 'Create your first task to get started' : 'Try adjusting your filters'}
           </p>
+          <button
+            onClick={openCreateModal}
+            className="btn btn-primary"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              margin: '0 auto'
+            }}
+          >
+            <Plus size={16} />
+            <span>{isAdmin ? 'Create Task' : 'Add My Task'}</span>
+          </button>
         </div>
       )}
 
