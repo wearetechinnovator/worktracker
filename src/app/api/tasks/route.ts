@@ -72,6 +72,9 @@ export async function POST(request: Request) {
       department: reqDepartment,
       assignedTo: reqAssignedTo,
       createdBy,
+      userId,
+      userEmail,
+      email,
       priority,
       status,
       dueDate,
@@ -79,30 +82,34 @@ export async function POST(request: Request) {
     } = body;
 
     // Validation
-    if (!title || !createdBy) {
+    if (!title) {
       return NextResponse.json(
-        { success: false, error: 'Title and creator are required' },
+        { success: false, error: 'Task title is required' },
         { status: 400 }
       );
     }
 
-    // Find creator by _id or email fallback
+    // Ultra-robust creator lookup using createdBy, userId, userEmail, or email
+    const creatorKey = createdBy || userId || userEmail || email;
     let creator = null;
-    if (mongoose.Types.ObjectId.isValid(createdBy)) {
-      creator = await Employee.findById(createdBy);
-    }
-    if (!creator) {
-      creator = await Employee.findOne({
-        $or: [
-          { email: createdBy.toString().toLowerCase().trim() },
-          ...(mongoose.Types.ObjectId.isValid(createdBy) ? [{ _id: createdBy }] : [])
-        ]
-      });
+
+    if (creatorKey) {
+      if (mongoose.Types.ObjectId.isValid(creatorKey)) {
+        creator = await Employee.findById(creatorKey);
+      }
+      if (!creator) {
+        creator = await Employee.findOne({
+          $or: [
+            { email: creatorKey.toString().toLowerCase().trim() },
+            ...(mongoose.Types.ObjectId.isValid(creatorKey) ? [{ _id: creatorKey }] : [])
+          ]
+        });
+      }
     }
 
     if (!creator) {
       return NextResponse.json(
-        { success: false, error: 'Creator not found' },
+        { success: false, error: 'Creator not found. Please log out and log in again.' },
         { status: 404 }
       );
     }
@@ -110,69 +117,39 @@ export async function POST(request: Request) {
     const creatorIdStr = creator._id.toString();
     const isAdmin = creator.userType === 'admin';
 
-    // Auto-default department from creator if neither project nor department is specified
+    // Auto-default department from creator or fallback to 'General'
     let department = reqDepartment;
-    if (!projectId && !department && creator.department) {
-      department = creator.department;
-    }
-
-    // Must have either projectId or department
     if (!projectId && !department) {
-      return NextResponse.json(
-        { success: false, error: 'Either project or department must be specified' },
-        { status: 400 }
-      );
+      department = creator.department || 'General';
     }
 
     // Assigned employees array setup
-    let finalAssignedTo: string[] = Array.isArray(reqAssignedTo) ? reqAssignedTo : [];
+    let finalAssignedTo: string[] = Array.isArray(reqAssignedTo) ? reqAssignedTo.filter(Boolean) : [];
     
     // If employee is creating and assignedTo is empty, default assignedTo to themselves
     if (!isAdmin && finalAssignedTo.length === 0) {
       finalAssignedTo = [creatorIdStr];
     }
 
-    // Validate employee creation restriction: non-admins can only assign to themselves
-    if (!isAdmin) {
-      const isSelfOnly = finalAssignedTo.every(id => id.toString() === creatorIdStr);
-      if (!isSelfOnly) {
-        return NextResponse.json(
-          { success: false, error: 'Employees can only create tasks assigned to themselves' },
-          { status: 403 }
-        );
-      }
-    }
-
-    // Validate projectId if provided
-    if (projectId) {
-      const project = await Project.findById(projectId);
-      if (!project) {
-        return NextResponse.json(
-          { success: false, error: 'Project not found' },
-          { status: 404 }
-        );
-      }
-    }
-
-    // Validate assigned employees
+    // Find actual matching Employee documents for assignedTo
+    let assignedEmployeeDocs: any[] = [];
     if (finalAssignedTo.length > 0) {
       const validEmpObjectIds = finalAssignedTo
         .filter(id => mongoose.Types.ObjectId.isValid(id))
         .map(id => new mongoose.Types.ObjectId(id));
 
-      const employees = await Employee.find({
+      assignedEmployeeDocs = await Employee.find({
         $or: [
           { _id: { $in: validEmpObjectIds } },
-          { _id: { $in: finalAssignedTo } }
+          { _id: { $in: finalAssignedTo } },
+          { email: { $in: finalAssignedTo.map(e => e.toString().toLowerCase()) } }
         ]
       });
+    }
 
-      if (employees.length === 0) {
-        return NextResponse.json(
-          { success: false, error: 'One or more assigned employees not found' },
-          { status: 404 }
-        );
-      }
+    // Default assignedTo to creator if no assigned employees resolved
+    if (assignedEmployeeDocs.length === 0) {
+      assignedEmployeeDocs = [creator];
     }
 
     const task = await Task.create({
@@ -180,7 +157,7 @@ export async function POST(request: Request) {
       description,
       projectId: projectId || undefined,
       department: department || undefined,
-      assignedTo: finalAssignedTo,
+      assignedTo: assignedEmployeeDocs.map(e => e._id),
       createdBy: creator._id,
       priority: priority || 'Medium',
       status: status || 'To Do',

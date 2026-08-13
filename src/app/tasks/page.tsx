@@ -148,15 +148,18 @@ export default function TasksPage() {
       setError(null);
       setSuccessMsg(null);
 
-      const safeAssignedTo = isAdmin ? formData.assignedTo : [user._id];
+      const userId = user._id || user.id || user.email;
+      const safeAssignedTo = isAdmin ? formData.assignedTo : [userId];
 
       const payload = {
         ...formData,
         assignedTo: safeAssignedTo,
-        createdBy: user._id,
-        userId: user._id,
+        createdBy: userId,
+        userId: userId,
+        userEmail: user.email,
+        email: user.email,
         projectId: formData.projectId || undefined,
-        department: formData.department || undefined,
+        department: formData.department || user.department || undefined,
         dueDate: formData.dueDate || undefined,
         tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
       };
