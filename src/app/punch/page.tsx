@@ -33,6 +33,19 @@ export default function PunchPage() {
   const [isPreparingReport, setIsPreparingReport] = useState(false);
   const [locationStatus, setLocationStatus] = useState<string>('');
 
+  const getLocalDateValue = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getLocalTimeValue = (date: Date) => {
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
   // Update current time every second
   useEffect(() => {
     const updateTime = () => {
@@ -63,7 +76,11 @@ export default function PunchPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/punch?employeeId=${user._id}`);
+      const now = new Date();
+      const localDate = getLocalDateValue(now);
+      const localTime = getLocalTimeValue(now);
+
+      const res = await fetch(`/api/punch?employeeId=${user._id}&date=${localDate}&time=${localTime}`);
       const result = await res.json();
       
       if (!result.success) throw new Error(result.error || 'Failed to load punch status');
@@ -132,7 +149,7 @@ export default function PunchPage() {
     try {
       setIsPreparingReport(true);
       setError(null);
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateValue(new Date());
       const [tasksRes, worksRes] = await Promise.all([
         fetch(`/api/tasks?employeeId=${user._id}`),
         fetch(`/api/task-work?employeeId=${user._id}&date=${today}`),
@@ -196,6 +213,10 @@ export default function PunchPage() {
         });
       }
 
+      const now = new Date();
+      const localDate = getLocalDateValue(now);
+      const localTime = getLocalTimeValue(now);
+
       const res = await fetch('/api/punch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -203,6 +224,8 @@ export default function PunchPage() {
           employeeId: user._id,
           action,
           location,
+          localDate,
+          localTime,
         }),
       });
 

@@ -22,13 +22,15 @@ export async function GET(request: Request) {
     await dbConnect();
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get('employeeId');
+    const clientDate = searchParams.get('date');
+    const clientTime = searchParams.get('time');
 
     if (!employeeId) {
       return NextResponse.json({ success: false, error: 'Employee ID is required' }, { status: 400 });
     }
 
-    const today = new Date().toISOString().split('T')[0];
-    const currentTime = new Date().toTimeString().slice(0, 5); // HH:MM format
+    const today = clientDate || new Date().toISOString().split('T')[0];
+    const currentTime = clientTime || new Date().toTimeString().slice(0, 5); // HH:MM format
 
     // Get settings
     let settings = await Settings.findOne();
@@ -84,7 +86,7 @@ export async function POST(request: Request) {
   try {
     await dbConnect();
     const body = await request.json();
-    const { employeeId, action, location } = body; // action: 'punchIn' or 'punchOut'
+    const { employeeId, action, location, localDate, localTime } = body; // action: 'punchIn' or 'punchOut'
 
     if (!employeeId || !action) {
       return NextResponse.json(
@@ -97,8 +99,8 @@ export async function POST(request: Request) {
     const realIp = request.headers.get('x-real-ip');
     const ipAddress = forwarded ? forwarded.split(',')[0].trim() : realIp || 'unknown';
 
-    const today = new Date().toISOString().split('T')[0];
-    const currentTime = new Date().toTimeString().slice(0, 5); // HH:MM format
+    const today = localDate || new Date().toISOString().split('T')[0];
+    const currentTime = localTime || new Date().toTimeString().slice(0, 5); // HH:MM format
 
     // Get settings
     let settings = await Settings.findOne();
