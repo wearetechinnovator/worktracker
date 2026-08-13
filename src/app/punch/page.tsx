@@ -144,7 +144,7 @@ export default function PunchPage() {
       if (!tasksData.success) throw new Error(tasksData.error || 'Failed to load tasks');
       if (!worksData.success) throw new Error(worksData.error || 'Failed to load work report');
 
-      const taskMap = new Map((tasksData.data || []).map((task: any) => [task._id, task]));
+      const taskMap = new Map<string, any>((tasksData.data || []).map((task: any) => [task._id, task]));
       const completedEntries = (worksData.data || []).filter((entry: any) => entry.status === 'Completed');
       const report = buildDailyReport(completedEntries, taskMap);
 
