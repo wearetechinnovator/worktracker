@@ -33,18 +33,18 @@ export default function PunchGuard({ children }: { children: React.ReactNode }) 
       const parsed = JSON.parse(storedUser);
       setUser(parsed);
 
+      // Admin bypasses punch requirement completely and is never restricted
+      if (parsed.userType === 'admin') {
+        setIsPunchedIn(true);
+        setLoading(false);
+        return;
+      }
+
       const punchStatus = localStorage.getItem('worktracker_punch_status');
       if (punchStatus === 'out' && pathname !== '/punch') {
         setIsPunchedIn(false);
         setLoading(false);
         router.replace('/punch');
-        return;
-      }
-
-      // Admin can bypass punch requirement
-      if (parsed.userType === 'admin') {
-        setIsPunchedIn(true);
-        setLoading(false);
         return;
       }
 

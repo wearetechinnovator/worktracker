@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Attendance from '@/models/Attendance';
 import Settings from '@/models/Settings';
+import Employee from '@/models/Employee';
 
 // Helper function to check if current time is within allowed window
 function isWithinTimeWindow(currentTime: string, startTime: string, endTime: string): boolean {
@@ -38,6 +39,10 @@ export async function GET(request: Request) {
     const today = clientDate || new Date().toISOString().split('T')[0];
     const currentTime = clientTime || new Date().toTimeString().slice(0, 5); // HH:MM format
 
+    // Check employee role
+    const employee = await Employee.findById(employeeId);
+    const isAdmin = employee?.userType === 'admin';
+
     // Get settings
     let settings = await Settings.findOne();
     if (!settings) {
@@ -55,17 +60,17 @@ export async function GET(request: Request) {
     // Determine what actions are allowed (currently checked in means checkIn exists and checkOut does not)
     const isCurrentlyCheckedIn = !!attendance?.checkIn && !attendance?.checkOut;
 
-    const canPunchIn = !isCurrentlyCheckedIn && isWithinTimeWindow(
+    const canPunchIn = isAdmin ? !isCurrentlyCheckedIn : (!isCurrentlyCheckedIn && isWithinTimeWindow(
       currentTime,
       settings.punchInStartTime,
       settings.punchInEndTime
-    );
+    ));
 
-    const canPunchOut = isCurrentlyCheckedIn && isWithinTimeWindow(
+    const canPunchOut = isAdmin ? isCurrentlyCheckedIn : (isCurrentlyCheckedIn && isWithinTimeWindow(
       currentTime,
       settings.punchOutStartTime,
       settings.punchOutEndTime
-    );
+    ));
 
     return NextResponse.json({
       success: true,
@@ -111,6 +116,10 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check employee role
+    const employee = await Employee.findById(employeeId);
+    const isAdmin = employee?.userType === 'admin';
+
     const forwarded = request.headers.get('x-forwarded-for');
     const realIp = request.headers.get('x-real-ip');
     const ipAddress = forwarded ? forwarded.split(',')[0].trim() : realIp || 'unknown';
@@ -130,8 +139,8 @@ export async function POST(request: Request) {
     }
 
     if (action === 'punchIn') {
-      // Check if within punch in window
-      if (!isWithinTimeWindow(currentTime, settings.punchInStartTime, settings.punchInEndTime)) {
+      // Check if within punch in window (skipped for Admin)
+      if (!isAdmin && !isWithinTimeWindow(currentTime, settings.punchInStartTime, settings.punchInEndTime)) {
         return NextResponse.json(
           {
             success: false,
@@ -181,8 +190,8 @@ export async function POST(request: Request) {
         data: attendance,
       });
     } else if (action === 'punchOut') {
-      // Check if within punch out window
-      if (!isWithinTimeWindow(currentTime, settings.punchOutStartTime, settings.punchOutEndTime)) {
+      // Check if within punch out window (skipped for Admin)
+      if (!isAdmin && !isWithinTimeWindow(currentTime, settings.punchOutStartTime, settings.punchOutEndTime)) {
         return NextResponse.json(
           {
             success: false,
