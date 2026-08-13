@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   try {
     await dbConnect();
     const body = await request.json();
-    const { taskId, employeeId, notes } = body;
+    const { taskId, employeeId, notes, localDate, localTime } = body;
 
     if (!taskId || !employeeId) {
       return NextResponse.json(
@@ -61,8 +61,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const today = new Date().toISOString().split('T')[0];
-    const currentTime = new Date().toTimeString().slice(0, 8); // HH:MM:SS
+    const today = localDate || new Date().toISOString().split('T')[0];
+    const currentTime = localTime || new Date().toTimeString().slice(0, 8); // HH:MM:SS
 
     // Check if there's already an in-progress work session for this task today
     const existingWork = await TaskWork.findOne({

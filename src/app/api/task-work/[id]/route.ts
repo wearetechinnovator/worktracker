@@ -8,7 +8,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     await dbConnect();
     const { id } = await params;
     const body = await request.json();
-    const { notes } = body;
+    const { notes, localTime } = body;
 
     const taskWork = await TaskWork.findById(id);
     if (!taskWork) {
@@ -22,7 +22,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       );
     }
 
-    const currentTime = new Date().toTimeString().slice(0, 8); // HH:MM:SS
+    const currentTime = localTime || new Date().toTimeString().slice(0, 8); // HH:MM:SS
 
     // Calculate duration in minutes
     const startParts = taskWork.startTime.split(':').map(Number);

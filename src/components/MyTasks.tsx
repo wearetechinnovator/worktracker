@@ -77,6 +77,20 @@ export default function MyTasks({ userId }: { userId: string }) {
   // Calculate elapsed time for in-progress tasks
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  const getLocalDateValue = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getLocalTimeValue = (date: Date) => {
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+  };
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -89,9 +103,10 @@ export default function MyTasks({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
+      const today = getLocalDateValue(new Date());
       const [tasksRes, worksRes] = await Promise.all([
         fetch(`/api/tasks?employeeId=${userId}`),
-        fetch(`/api/task-work?employeeId=${userId}&date=${new Date().toISOString().split('T')[0]}`),
+        fetch(`/api/task-work?employeeId=${userId}&date=${today}`),
       ]);
 
       const tasksData = await tasksRes.json();
@@ -116,10 +131,13 @@ export default function MyTasks({ userId }: { userId: string }) {
       setError(null);
       setSuccessMsg(null);
 
+      const localDate = getLocalDateValue(new Date());
+      const localTime = getLocalTimeValue(new Date());
+
       const res = await fetch('/api/task-work', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId, employeeId: userId }),
+        body: JSON.stringify({ taskId, employeeId: userId, localDate, localTime }),
       });
 
       const result = await res.json();
@@ -148,10 +166,12 @@ export default function MyTasks({ userId }: { userId: string }) {
 
       console.log('Sending request with notes:', notes);
 
+      const localTime = getLocalTimeValue(new Date());
+
       const res = await fetch(`/api/task-work/${workId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes }),
+        body: JSON.stringify({ notes, localTime }),
       });
 
       const result = await res.json();
@@ -215,7 +235,10 @@ export default function MyTasks({ userId }: { userId: string }) {
     const start = new Date();
     start.setHours(hours, minutes, seconds);
     
-    const elapsed = Math.floor((currentTime.getTime() - start.getTime()) / 1000);
+    let elapsed = Math.floor((currentTime.getTime() - start.getTime()) / 1000);
+    if (elapsed < 0) {
+      elapsed += 24 * 60 * 60;
+    }
     const h = Math.floor(elapsed / 3600);
     const m = Math.floor((elapsed % 3600) / 60);
     const s = elapsed % 60;
