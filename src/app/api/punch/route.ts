@@ -34,10 +34,10 @@ export async function GET(request: Request) {
     let settings = await Settings.findOne();
     if (!settings) {
       settings = await Settings.create({
-        punchInStartTime: '09:00',
-        punchInEndTime: '10:00',
-        punchOutStartTime: '17:00',
-        punchOutEndTime: '19:00',
+        punchInStartTime: '00:00',
+        punchInEndTime: '23:59',
+        punchOutStartTime: '00:00',
+        punchOutEndTime: '23:59',
       });
     }
 
@@ -101,12 +101,14 @@ export async function POST(request: Request) {
     const currentTime = new Date().toTimeString().slice(0, 5); // HH:MM format
 
     // Get settings
-    const settings = await Settings.findOne();
+    let settings = await Settings.findOne();
     if (!settings) {
-      return NextResponse.json(
-        { success: false, error: 'Settings not configured. Contact admin.' },
-        { status: 400 }
-      );
+      settings = await Settings.create({
+        punchInStartTime: '00:00',
+        punchInEndTime: '23:59',
+        punchOutStartTime: '00:00',
+        punchOutEndTime: '23:59',
+      });
     }
 
     if (action === 'punchIn') {

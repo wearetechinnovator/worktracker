@@ -11,10 +11,10 @@ export interface ISettings extends Document {
 
 const SettingsSchema = new Schema<ISettings>(
   {
-    punchInStartTime: { type: String, required: true, default: '09:00' },
-    punchInEndTime: { type: String, required: true, default: '10:00' },
-    punchOutStartTime: { type: String, required: true, default: '17:00' },
-    punchOutEndTime: { type: String, required: true, default: '19:00' },
+    punchInStartTime: { type: String, required: true, default: '00:00' },
+    punchInEndTime: { type: String, required: true, default: '23:59' },
+    punchOutStartTime: { type: String, required: true, default: '00:00' },
+    punchOutEndTime: { type: String, required: true, default: '23:59' },
   },
   { timestamps: true }
 );
