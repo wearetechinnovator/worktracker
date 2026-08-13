@@ -33,6 +33,14 @@ export default function PunchGuard({ children }: { children: React.ReactNode }) 
       const parsed = JSON.parse(storedUser);
       setUser(parsed);
 
+      const punchStatus = localStorage.getItem('worktracker_punch_status');
+      if (punchStatus === 'out' && pathname !== '/punch') {
+        setIsPunchedIn(false);
+        setLoading(false);
+        router.replace('/punch');
+        return;
+      }
+
       // Admin can bypass punch requirement
       if (parsed.userType === 'admin') {
         setIsPunchedIn(true);
@@ -41,7 +49,18 @@ export default function PunchGuard({ children }: { children: React.ReactNode }) 
       }
 
       try {
-        const res = await fetch(`/api/punch?employeeId=${parsed._id}`);
+        const now = new Date();
+        const localDate = [
+          now.getFullYear(),
+          String(now.getMonth() + 1).padStart(2, '0'),
+          String(now.getDate()).padStart(2, '0'),
+        ].join('-');
+        const localTime = [
+          String(now.getHours()).padStart(2, '0'),
+          String(now.getMinutes()).padStart(2, '0'),
+        ].join(':');
+
+        const res = await fetch(`/api/punch?employeeId=${parsed._id}&date=${localDate}&time=${localTime}`);
         const result = await res.json();
 
         if (!result.success) {
@@ -50,15 +69,20 @@ export default function PunchGuard({ children }: { children: React.ReactNode }) 
           return;
         }
 
-        if (result.data.attendance?.checkIn) {
-          // Employee has punched in
+        const attendance = result.data?.attendance;
+        const isCurrentlyCheckedIn = !!attendance?.checkIn && !attendance?.checkOut;
+
+        if (isCurrentlyCheckedIn) {
+          localStorage.setItem('worktracker_punch_status', 'in');
           setIsPunchedIn(true);
           setLoading(false);
         } else {
-          // Not punched in, redirect to punch page
+          localStorage.setItem('worktracker_punch_status', 'out');
           setIsPunchedIn(false);
           setLoading(false);
-          router.push('/punch');
+          if (pathname !== '/punch') {
+            router.replace('/punch');
+          }
         }
       } catch (err: any) {
         console.error('Error checking punch status:', err);
@@ -122,7 +146,7 @@ export default function PunchGuard({ children }: { children: React.ReactNode }) 
           maxWidth: '450px',
           lineHeight: '1.6'
         }}>
-          You need to punch in before accessing other features. Please visit the Punch page to mark your attendance for today.
+          You have already punched out for today, so access to other pages is temporarily blocked. Please visit the Punch page to check your attendance status or punch in again for a new session.
         </p>
 
         <div className="card" style={{ 
@@ -137,7 +161,7 @@ export default function PunchGuard({ children }: { children: React.ReactNode }) 
                 Access Restricted
               </strong>
               <p style={{ color: '#78350f', fontSize: '0.85rem', margin: 0 }}>
-                All features are locked until you complete your punch in for the day.
+                Your work session has ended for today. Access is restricted until your next punch in.
               </p>
             </div>
           </div>

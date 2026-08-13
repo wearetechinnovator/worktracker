@@ -233,6 +233,13 @@ export default function PunchPage() {
       
       if (!result.success) throw new Error(result.error || 'Failed to punch');
 
+      if (action === 'punchIn') {
+        localStorage.setItem('worktracker_punch_status', 'in');
+      } else {
+        localStorage.setItem('worktracker_punch_status', 'out');
+        router.replace('/punch');
+      }
+
       setSuccessMsg(result.message);
       setTimeout(() => setSuccessMsg(null), 4000);
       
