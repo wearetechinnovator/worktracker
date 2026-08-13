@@ -353,27 +353,46 @@ export default function EmployeesPage() {
                     <thead>
                       <tr>
                         <th>Date</th>
-                        <th>Check In</th>
-                        <th>Check Out</th>
-                        <th>Location</th>
-                        <th>IP</th>
+                        <th>Check In (Time / IP / Geo)</th>
+                        <th>Check Out (Time / IP / Geo)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {employeeDetails.attendance.map((record: any) => (
                         <tr key={record._id}>
                           <td>{record.date}</td>
-                          <td>{record.checkIn || '-'}</td>
-                          <td>{record.checkOut || '-'}</td>
                           <td>
-                            {record.checkInLocation || record.checkOutLocation || '-'}
-                            {record.checkInLatitude && record.checkInLongitude ? (
-                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                                {record.checkInLatitude.toFixed(4)}, {record.checkInLongitude.toFixed(4)}
+                            {record.checkIn ? (
+                              <div>
+                                <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{record.checkIn}</div>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>IP: {record.checkInIpAddress || '-'}</div>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                                  {record.checkInLocation || '-'}
+                                  {record.checkInLatitude != null && record.checkInLongitude != null && (
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                      ({record.checkInLatitude.toFixed(4)}, {record.checkInLongitude.toFixed(4)})
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            ) : null}
+                            ) : '-'}
                           </td>
-                          <td>{record.checkInIpAddress || record.checkOutIpAddress || '-'}</td>
+                          <td>
+                            {record.checkOut ? (
+                              <div>
+                                <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{record.checkOut}</div>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>IP: {record.checkOutIpAddress || '-'}</div>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                                  {record.checkOutLocation || '-'}
+                                  {record.checkOutLatitude != null && record.checkOutLongitude != null && (
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                      ({record.checkOutLatitude.toFixed(4)}, {record.checkOutLongitude.toFixed(4)})
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ) : '-'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

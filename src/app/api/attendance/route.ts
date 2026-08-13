@@ -72,6 +72,14 @@ export async function GET(request: Request) {
         attendanceId: record ? record._id.toString() : null,
         checkIn: record?.checkIn || null,
         checkOut: record?.checkOut || null,
+        checkInIpAddress: record?.checkInIpAddress || null,
+        checkInLocation: record?.checkInLocation || null,
+        checkInLatitude: record?.checkInLatitude ?? null,
+        checkInLongitude: record?.checkInLongitude ?? null,
+        checkOutIpAddress: record?.checkOutIpAddress || null,
+        checkOutLocation: record?.checkOutLocation || null,
+        checkOutLatitude: record?.checkOutLatitude ?? null,
+        checkOutLongitude: record?.checkOutLongitude ?? null,
       };
     });
 

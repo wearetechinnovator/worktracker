@@ -14,6 +14,14 @@ interface AttendanceRecord {
   attendanceId: string | null;
   checkIn: string | null;
   checkOut: string | null;
+  checkInIpAddress?: string | null;
+  checkInLocation?: string | null;
+  checkInLatitude?: number | null;
+  checkInLongitude?: number | null;
+  checkOutIpAddress?: string | null;
+  checkOutLocation?: string | null;
+  checkOutLatitude?: number | null;
+  checkOutLongitude?: number | null;
 }
 
 export default function AttendancePage() {
@@ -181,9 +189,9 @@ export default function AttendancePage() {
                   <th>Employee Name</th>
                   <th>Department</th>
                   <th>Job Title / Role</th>
-                  <th style={{ textAlign: 'center' }}>Check In</th>
-                  <th style={{ textAlign: 'center' }}>Check Out</th>
-                  <th style={{ width: '320px', textAlign: 'right' }}>Daily Status</th>
+                  <th>Check In (Time / IP / Geo)</th>
+                  <th>Check Out (Time / IP / Geo)</th>
+                  <th style={{ width: '240px', textAlign: 'right' }}>Daily Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -205,11 +213,45 @@ export default function AttendancePage() {
                       </span>
                     </td>
                     <td style={{ color: 'var(--text-secondary)' }}>{rec.role}</td>
-                    <td style={{ textAlign: 'center', fontWeight: 600, fontFamily: 'monospace' }}>
-                      {rec.checkIn || '-'}
+                    <td>
+                      {rec.checkIn ? (
+                        <div>
+                          <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{rec.checkIn}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            IP: {rec.checkInIpAddress || '-'}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                            {rec.checkInLocation || '-'}
+                            {rec.checkInLatitude != null && rec.checkInLongitude != null && (
+                              <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                ({rec.checkInLatitude.toFixed(4)}, {rec.checkInLongitude.toFixed(4)})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>-</span>
+                      )}
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 600, fontFamily: 'monospace' }}>
-                      {rec.checkOut || '-'}
+                    <td>
+                      {rec.checkOut ? (
+                        <div>
+                          <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{rec.checkOut}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            IP: {rec.checkOutIpAddress || '-'}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                            {rec.checkOutLocation || '-'}
+                            {rec.checkOutLatitude != null && rec.checkOutLongitude != null && (
+                              <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                ({rec.checkOutLatitude.toFixed(4)}, {rec.checkOutLongitude.toFixed(4)})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>-</span>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
