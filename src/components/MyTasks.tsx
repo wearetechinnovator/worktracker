@@ -281,7 +281,7 @@ export default function MyTasks({ userId }: { userId: string }) {
   if (loading) {
     return (
       <div className="card">
-        <PageShimmer compact />
+        <PageShimmer variant="compact" />
       </div>
     );
   }
