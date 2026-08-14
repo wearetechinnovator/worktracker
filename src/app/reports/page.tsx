@@ -7,6 +7,7 @@ import {
   Clock, AlertCircle, Loader2, Edit3, Trash2, Download
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
+import PageShimmer from '@/components/PageShimmer';
 
 interface Project {
   _id: string;
@@ -315,6 +316,10 @@ export default function ReportsPage() {
   });
 
   const projectDistribution = Object.values(projectTimeMap).sort((a, b) => b.minutes - a.minutes);
+
+  if (loading && entries.length === 0 && !error) {
+    return <PageShimmer variant="reports" />;
+  }
 
   return (
     <div>

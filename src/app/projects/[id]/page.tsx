@@ -8,6 +8,7 @@ import {
   Search, AlertCircle, Loader2, Users, Mail
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
+import PageShimmer from '@/components/PageShimmer';
 
 interface Employee {
   _id: string;
@@ -316,12 +317,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
   const isAdmin = user?.userType === 'admin';
 
   if (loading && !project && !error) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px' }}>
-        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>Loading project details...</p>
-      </div>
-    );
+    return <PageShimmer variant="project" />;
   }
 
   if (error || !project) {

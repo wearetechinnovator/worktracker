@@ -6,6 +6,7 @@ import {
   CheckSquare, Plus, Loader2, AlertCircle, CheckCircle2,
   Calendar, Users, Folder, Flag, Filter, X, Edit, Trash2
 } from 'lucide-react';
+import PageShimmer from '@/components/PageShimmer';
 
 interface Task {
   _id: string;
@@ -279,12 +280,7 @@ export default function TasksPage() {
   };
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px' }}>
-        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>Loading tasks...</p>
-      </div>
-    );
+    return <PageShimmer variant="tasks" />;
   }
 
   return (

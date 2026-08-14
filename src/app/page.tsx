@@ -380,7 +380,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
   const isAdmin = user?.userType === 'admin';
 
   if (loading && projects.length === 0 && !error) {
-    return <PageShimmer />;
+    return <PageShimmer variant="dashboard" />;
   }
 
   return (

@@ -133,7 +133,7 @@ export default function AttendancePage() {
   };
 
   if (loading && records.length === 0) {
-    return <PageShimmer />;
+    return <PageShimmer variant="attendance" />;
   }
 
   return (

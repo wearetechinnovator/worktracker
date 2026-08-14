@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, Calendar, CheckSquare, Loader2, AlertCircle, Filter } from 'lucide-react';
+import PageShimmer from '@/components/PageShimmer';
 
 interface TaskWorkRecord {
   _id: string;
@@ -113,12 +114,7 @@ export default function TaskHistoryPage() {
   };
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px' }}>
-        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>Loading task history...</p>
-      </div>
-    );
+    return <PageShimmer variant="history" />;
   }
 
   return (

@@ -211,7 +211,7 @@ export default function EmployeesPage() {
   };
 
   if (loading && employees.length === 0) {
-    return <PageShimmer />;
+    return <PageShimmer variant="employees" />;
   }
 
   return (

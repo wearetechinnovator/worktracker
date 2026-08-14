@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Settings as SettingsIcon, Clock, Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import PageShimmer from '@/components/PageShimmer';
 
 interface SettingsData {
   punchInStartTime: string;
@@ -105,12 +106,7 @@ export default function SettingsPage() {
   };
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px' }}>
-        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>Loading settings...</p>
-      </div>
-    );
+    return <PageShimmer variant="settings" />;
   }
 
   return (

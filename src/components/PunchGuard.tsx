@@ -97,7 +97,7 @@ export default function PunchGuard({ children }: { children: React.ReactNode }) 
 
   // Show loading state
   if (loading) {
-    return <PageShimmer />;
+    return <PageShimmer variant="punch" />;
   }
 
   // Show error state

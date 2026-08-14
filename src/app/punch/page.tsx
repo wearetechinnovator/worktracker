@@ -287,7 +287,7 @@ export default function PunchPage() {
   };
 
   if (loading) {
-    return <PageShimmer />;
+    return <PageShimmer variant="punch" />;
   }
 
   const today = new Date().toLocaleDateString('en-US', { 

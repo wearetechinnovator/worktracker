@@ -335,7 +335,7 @@ export default function DepartmentsPage() {
   const isAdmin = user?.userType === 'admin';
 
   if (loading && projects.length === 0 && !error) {
-    return <PageShimmer />;
+    return <PageShimmer variant="departments" />;
   }
 
   return (
