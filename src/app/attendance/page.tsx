@@ -98,6 +98,15 @@ export default function AttendancePage() {
     );
   };
 
+  // Edit time locally (Admin manual override)
+  const handleTimeChange = (employeeId: string, field: 'checkIn' | 'checkOut', value: string) => {
+    setRecords((prev) =>
+      prev.map((rec) =>
+        rec._id === employeeId ? { ...rec, [field]: value } : rec
+      )
+    );
+  };
+
   // Submit bulk attendance
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,6 +121,8 @@ export default function AttendancePage() {
         employeeId: rec._id,
         date: selectedDate,
         status: rec.attendanceStatus,
+        checkIn: rec.checkIn || null,
+        checkOut: rec.checkOut || null,
       }));
 
       const res = await fetch('/api/attendance', {
@@ -231,44 +242,36 @@ export default function AttendancePage() {
                     </td>
                     <td style={{ color: 'var(--text-secondary)' }}>{rec.role}</td>
                     <td>
-                      {rec.checkIn ? (
-                        <div>
-                          <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{rec.checkIn}</div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                            IP: {rec.checkInIpAddress || '-'}
-                          </div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                            {rec.checkInLocation || '-'}
-                            {rec.checkInLatitude != null && rec.checkInLongitude != null && (
-                              <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                                ({rec.checkInLatitude.toFixed(4)}, {rec.checkInLongitude.toFixed(4)})
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)' }}>-</span>
-                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <input
+                          type="text"
+                          placeholder="e.g. 09:30"
+                          className="form-control"
+                          style={{ padding: '3px 8px', fontSize: '0.78rem', width: '95px', fontWeight: 700, fontFamily: 'monospace' }}
+                          value={rec.checkIn || ''}
+                          onChange={(e) => handleTimeChange(rec._id, 'checkIn', e.target.value)}
+                          title="Admin can edit or enable Check-In time manually"
+                        />
+                        {rec.checkInLocation && (
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{rec.checkInLocation}</span>
+                        )}
+                      </div>
                     </td>
                     <td>
-                      {rec.checkOut ? (
-                        <div>
-                          <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{rec.checkOut}</div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                            IP: {rec.checkOutIpAddress || '-'}
-                          </div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                            {rec.checkOutLocation || '-'}
-                            {rec.checkOutLatitude != null && rec.checkOutLongitude != null && (
-                              <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                                ({rec.checkOutLatitude.toFixed(4)}, {rec.checkOutLongitude.toFixed(4)})
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)' }}>-</span>
-                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <input
+                          type="text"
+                          placeholder="e.g. 18:00"
+                          className="form-control"
+                          style={{ padding: '3px 8px', fontSize: '0.78rem', width: '95px', fontWeight: 700, fontFamily: 'monospace' }}
+                          value={rec.checkOut || ''}
+                          onChange={(e) => handleTimeChange(rec._id, 'checkOut', e.target.value)}
+                          title="Admin can edit or enable Check-Out time manually"
+                        />
+                        {rec.checkOutLocation && (
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{rec.checkOutLocation}</span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>

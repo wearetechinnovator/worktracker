@@ -262,6 +262,26 @@ export default function Dashboard() {
     }
   };
 
+  const handleGrantPermission = async (empId: string, action: 'allowPunchIn' | 'allowPunchOut') => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const res = await fetch('/api/punch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: empId,
+          action,
+          localDate: today,
+        }),
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'Failed to update permission');
+      await fetchData();
+    } catch (err: any) {
+      alert(err.message || 'Error updating punch permission');
+    }
+  };
+
   const handleMemberSelectToggle = (empId: string) => {
     if (projMembers.includes(empId)) {
       setProjMembers(projMembers.filter(id => id !== empId));
@@ -428,35 +448,104 @@ Summary: ${entry.description || 'Completed work task details.'}`;
       {/* Main Grid Layout */}
       <div className="dashboard-grid">
         
-        {/* ROW 2: LEFT COLUMN: Employee status (Admin Only) */}
+        {/* ROW 2: LEFT COLUMN: Team Punch & Permission Monitor (Admin Only) */}
         {isAdmin && (
-          <div className="col-5" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div className="card" style={{ flex: 1 }}>
-              <div className="card-header">
-                <h3 className="card-title">Employee Status Monitor</h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Status today</span>
+          <div className="col-5">
+            <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <div className="card-header" style={{ marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <h3 className="card-title" style={{ fontSize: '1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Clock size={18} style={{ color: 'var(--accent-primary)' }} />
+                    Team Punch & Permissions
+                  </h3>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Live presence & 1-day punch override</span>
+                </div>
+                <span className="tag-badge" style={{ fontSize: '0.68rem', padding: '2px 8px', fontWeight: 700 }}>
+                  {employees.filter((e: any) => e.todayAttendance?.checkIn).length} / {employees.length} Active
+                </span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {employees.slice(0, 5).map((emp) => {
-                  let statusClass = 'active';
-                  if (emp.status === 'Sick Leave') statusClass = 'sick';
-                  if (emp.status === 'Annual Leave') statusClass = 'annual';
-                  if (emp.status === 'Work From Home') statusClass = 'wfh';
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', flex: 1, maxHeight: '340px', paddingRight: '2px' }}>
+                {employees.map((emp: any) => {
+                  const att = emp.todayAttendance;
+                  const hasCheckIn = !!att?.checkIn;
+                  const hasCheckOut = !!att?.checkOut;
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  const isPunchInAllowed = att?.allowPunchInDate === todayStr;
+                  const isPunchOutAllowed = att?.allowPunchOutDate === todayStr;
 
                   return (
-                    <div key={emp._id} className="list-row" style={{ padding: '2px 0' }}>
-                      <div className="avatar-wrapper">
-                        <div className="avatar" style={{ backgroundColor: emp.avatarColor, width: '28px', height: '28px', fontSize: '0.7rem' }}>
-                          {emp.name.split(' ').map(n => n[0]).join('')}
+                    <div key={emp._id} style={{ padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {/* Member Info & Live Status Badge */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <div className="avatar" style={{ backgroundColor: emp.avatarColor, width: '30px', height: '30px', fontSize: '0.72rem', fontWeight: 700 }}>
+                            {emp.name.split(' ').map((n: string) => n[0]).join('')}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.8rem' }}>{emp.name}</div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{emp.role}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="avatar-title" style={{ fontSize: '0.8rem' }}>{emp.name}</div>
-                          <div className="avatar-subtitle" style={{ fontSize: '0.7rem' }}>{emp.role}</div>
-                        </div>
+
+                        {/* Status pill */}
+                        {hasCheckOut ? (
+                          <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#fee2e2', color: '#991b1b', fontWeight: 700 }}>
+                            Checked Out
+                          </span>
+                        ) : hasCheckIn ? (
+                          <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#dcfce7', color: '#166534', fontWeight: 700 }}>
+                            Working
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>
+                            Not Punched
+                          </span>
+                        )}
                       </div>
-                      <span className={`badge-status ${statusClass}`}>
-                        {emp.status}
-                      </span>
+
+                      {/* Time details */}
+                      <div style={{ fontSize: '0.68rem', background: 'var(--bg-tertiary)', padding: '4px 8px', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                        <span>In: <b>{att?.checkIn || '—'}</b></span>
+                        <span>Out: <b>{att?.checkOut || '—'}</b></span>
+                      </div>
+
+                      {/* Admin Action Buttons */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{
+                            fontSize: '0.65rem',
+                            padding: '4px 6px',
+                            fontWeight: 700,
+                            background: isPunchInAllowed ? '#dcfce7' : 'var(--bg-primary)',
+                            color: isPunchInAllowed ? '#15803d' : 'var(--text-primary)',
+                            border: '1px solid ' + (isPunchInAllowed ? '#86efac' : 'var(--border-color)'),
+                          }}
+                          onClick={() => handleGrantPermission(emp._id, 'allowPunchIn')}
+                          title="Grant 1-day Punch In permission for this employee"
+                        >
+                          {isPunchInAllowed ? '✓ In Allowed' : 'Allow Punch In'}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{
+                            fontSize: '0.65rem',
+                            padding: '4px 6px',
+                            fontWeight: 700,
+                            background: isPunchOutAllowed ? '#fee2e2' : 'var(--bg-primary)',
+                            color: isPunchOutAllowed ? '#b91c1c' : 'var(--text-primary)',
+                            border: '1px solid ' + (isPunchOutAllowed ? '#fca5a5' : 'var(--border-color)'),
+                          }}
+                          onClick={() => handleGrantPermission(emp._id, 'allowPunchOut')}
+                          title="Grant 1-day Punch Out permission for this employee"
+                        >
+                          {isPunchOutAllowed ? '✓ Out Allowed' : 'Allow Punch Out'}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

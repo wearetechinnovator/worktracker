@@ -74,17 +74,16 @@ export async function GET(request: Request) {
     // Determine what actions are allowed (currently checked in means checkIn exists and checkOut does not)
     const isCurrentlyCheckedIn = !!attendance?.checkIn && !attendance?.checkOut;
 
-    const canPunchIn = isAdmin ? !isCurrentlyCheckedIn : (!isCurrentlyCheckedIn && isWithinTimeWindow(
-      currentTime,
-      settings.punchInStartTime,
-      settings.punchInEndTime
-    ));
+    const isPunchInAllowedByAdmin = attendance?.allowPunchInDate === today;
+    const isPunchOutAllowedByAdmin = attendance?.allowPunchOutDate === today;
 
-    const canPunchOut = isAdmin ? isCurrentlyCheckedIn : (isCurrentlyCheckedIn && isWithinTimeWindow(
-      currentTime,
-      settings.punchOutStartTime,
-      settings.punchOutEndTime
-    ));
+    const canPunchIn = isCurrentlyCheckedIn
+      ? false
+      : (isAdmin || isPunchInAllowedByAdmin || isWithinTimeWindow(currentTime, settings.punchInStartTime, settings.punchInEndTime));
+
+    const canPunchOut = !isCurrentlyCheckedIn
+      ? false
+      : (isAdmin || isPunchOutAllowedByAdmin || isWithinTimeWindow(currentTime, settings.punchOutStartTime, settings.punchOutEndTime));
 
     return NextResponse.json({
       success: true,
@@ -93,6 +92,8 @@ export async function GET(request: Request) {
           checkIn: attendance.checkIn,
           checkOut: attendance.checkOut,
           status: attendance.status,
+          allowPunchInDate: attendance.allowPunchInDate,
+          allowPunchOutDate: attendance.allowPunchOutDate,
           checkInIpAddress: attendance.checkInIpAddress,
           checkInLocation: attendance.checkInLocation,
           checkInLatitude: attendance.checkInLatitude,
@@ -104,6 +105,8 @@ export async function GET(request: Request) {
         } : null,
         canPunchIn,
         canPunchOut,
+        isPunchInAllowedByAdmin,
+        isPunchOutAllowedByAdmin,
         currentTime,
         settings: {
           punchInWindow: `${settings.punchInStartTime} - ${settings.punchInEndTime}`,
@@ -157,9 +160,37 @@ export async function POST(request: Request) {
       });
     }
 
+    // Handle Admin Grant Permission actions
+    if (action === 'allowPunchIn' || action === 'allowPunchOut') {
+      const requestingUser = await Employee.findById(user.id);
+      if (requestingUser?.userType !== 'admin') {
+        return NextResponse.json({ success: false, error: 'Only admins can grant punch permissions' }, { status: 403 });
+      }
+
+      const updateField = action === 'allowPunchIn' ? 'allowPunchInDate' : 'allowPunchOutDate';
+      const existingRecord = await Attendance.findOne({ employeeId: targetEmployeeId, date: today });
+      const currentVal = (existingRecord as any)?.[updateField];
+      const newVal = currentVal === today ? null : today;
+
+      const attendance = await Attendance.findOneAndUpdate(
+        { employeeId: targetEmployeeId, date: today },
+        { $set: { [updateField]: newVal, status: 'Present' } },
+        { upsert: true, new: true }
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: newVal ? `${action === 'allowPunchIn' ? 'Punch In' : 'Punch Out'} permission granted for today` : 'Permission revoked',
+        data: attendance,
+      });
+    }
+
     if (action === 'punchIn') {
-      // Check if within punch in window (skipped for Admin)
-      if (!isAdmin && !isWithinTimeWindow(currentTime, settings.punchInStartTime, settings.punchInEndTime)) {
+      const existingRecord = await Attendance.findOne({ employeeId: targetEmployeeId, date: today });
+      const isAllowedByAdmin = existingRecord?.allowPunchInDate === today;
+
+      // Check if within punch in window (skipped for Admin or if Admin explicitly granted permission)
+      if (!isAdmin && !isAllowedByAdmin && !isWithinTimeWindow(currentTime, settings.punchInStartTime, settings.punchInEndTime)) {
         return NextResponse.json(
           {
             success: false,
@@ -209,8 +240,11 @@ export async function POST(request: Request) {
         data: attendance,
       });
     } else if (action === 'punchOut') {
-      // Check if within punch out window (skipped for Admin)
-      if (!isAdmin && !isWithinTimeWindow(currentTime, settings.punchOutStartTime, settings.punchOutEndTime)) {
+      const existingRecord = await Attendance.findOne({ employeeId: targetEmployeeId, date: today });
+      const isAllowedByAdmin = existingRecord?.allowPunchOutDate === today;
+
+      // Check if within punch out window (skipped for Admin or if Admin explicitly granted permission)
+      if (!isAdmin && !isAllowedByAdmin && !isWithinTimeWindow(currentTime, settings.punchOutStartTime, settings.punchOutEndTime)) {
         return NextResponse.json(
           {
             success: false,

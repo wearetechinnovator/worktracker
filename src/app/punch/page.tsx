@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, LogIn, LogOut, CheckCircle2, AlertCircle, Calendar } from 'lucide-react';
+import { Clock, LogIn, LogOut, CheckCircle2, AlertCircle, Calendar, Users } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
 
 interface PunchData {
@@ -42,6 +42,12 @@ export default function PunchPage() {
   const [isPreparingReport, setIsPreparingReport] = useState(false);
   const [locationStatus, setLocationStatus] = useState<string>('');
 
+  // Admin Override States
+  const [employeesList, setEmployeesList] = useState<any[]>([]);
+  const [selectedEmpId, setSelectedEmpId] = useState<string>('');
+  const [customTime, setCustomTime] = useState<string>('');
+  const [useCustomTime, setUseCustomTime] = useState<boolean>(false);
+
   const getLocalDateValue = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -66,7 +72,7 @@ export default function PunchPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Authenticate user
+  // Authenticate user & load employees for Admin
   useEffect(() => {
     const storedUser = localStorage.getItem('worktracker_user');
     if (!storedUser) {
@@ -76,6 +82,16 @@ export default function PunchPage() {
 
     const parsed = JSON.parse(storedUser);
     setUser(parsed);
+    if (parsed?.userType === 'admin') {
+      fetch('/api/employees')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) {
+            setEmployeesList(data.data);
+          }
+        })
+        .catch((err) => console.error(err));
+    }
   }, [router]);
 
   // Load punch status
@@ -88,8 +104,9 @@ export default function PunchPage() {
       const now = new Date();
       const localDate = getLocalDateValue(now);
       const localTime = getLocalTimeValue(now);
+      const targetEmpId = selectedEmpId || user._id;
 
-      const res = await fetch(`/api/punch?employeeId=${user._id}&date=${localDate}&time=${localTime}`);
+      const res = await fetch(`/api/punch?employeeId=${targetEmpId}&date=${localDate}&time=${localTime}`);
       const result = await res.json();
       
       if (!result.success) throw new Error(result.error || 'Failed to load punch status');
@@ -106,11 +123,10 @@ export default function PunchPage() {
   useEffect(() => {
     if (user) {
       loadPunchStatus();
-      // Refresh every 30 seconds
       const interval = setInterval(loadPunchStatus, 30000);
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user, selectedEmpId]);
 
   const formatTimeTo12Hour = (time24: string) => {
     if (!time24) return '';
@@ -226,15 +242,18 @@ export default function PunchPage() {
       const localDate = getLocalDateValue(now);
       const localTime = getLocalTimeValue(now);
 
+      const targetEmpId = selectedEmpId || user._id;
+      const punchTime = (useCustomTime && customTime) ? customTime : localTime;
+
       const res = await fetch('/api/punch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          employeeId: user._id,
+          employeeId: targetEmpId,
           action,
           location,
           localDate,
-          localTime,
+          localTime: punchTime,
         }),
       });
 
@@ -343,6 +362,55 @@ export default function PunchPage() {
         }}>
           <CheckCircle2 style={{ color: '#10b981' }} />
           <p style={{ color: '#065f46', fontWeight: 700 }}>{successMsg}</p>
+        </div>
+      )}
+
+      {/* Admin Manual Override Section */}
+      {user?.userType === 'admin' && (
+        <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--accent-primary)', background: 'var(--bg-secondary)' }}>
+          <h4 style={{ fontWeight: 800, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Users size={18} style={{ color: 'var(--accent-primary)' }} />
+            Admin Manual Punch Override
+          </h4>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+            Select an employee to manually punch in/out on their behalf or specify custom punch time if they forgot.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'flex-start' }}>
+            <div>
+              <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>Select Employee</label>
+              <select
+                className="form-control"
+                style={{ padding: '7px 10px', fontSize: '0.82rem', fontWeight: 600 }}
+                value={selectedEmpId || user._id}
+                onChange={(e) => setSelectedEmpId(e.target.value)}
+              >
+                {employeesList.map((emp) => (
+                  <option key={emp._id} value={emp._id}>
+                    {emp.name} ({emp.department} - {emp.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={useCustomTime}
+                  onChange={(e) => setUseCustomTime(e.target.checked)}
+                />
+                Custom Punch Time
+              </label>
+              <input
+                type="time"
+                className="form-control"
+                disabled={!useCustomTime}
+                style={{ padding: '7px 10px', fontSize: '0.82rem', opacity: useCustomTime ? 1 : 0.5, fontWeight: 700, fontFamily: 'monospace' }}
+                value={customTime}
+                onChange={(e) => setCustomTime(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
       )}
 

@@ -14,6 +14,8 @@ export interface IAttendance extends Document {
   checkInLongitude?: number;
   checkOutLatitude?: number;
   checkOutLongitude?: number;
+  allowPunchInDate?: string;
+  allowPunchOutDate?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +35,8 @@ const AttendanceSchema = new Schema<IAttendance>(
     checkInLongitude: { type: Number },
     checkOutLatitude: { type: Number },
     checkOutLongitude: { type: Number },
+    allowPunchInDate: { type: String },
+    allowPunchOutDate: { type: String },
   },
   { timestamps: true }
 );

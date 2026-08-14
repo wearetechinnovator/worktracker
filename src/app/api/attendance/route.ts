@@ -115,12 +115,18 @@ export async function POST(request: Request) {
     }
 
     const upsertPromises = records.map(async (record) => {
-      const { employeeId, date, status } = record;
+      const { employeeId, date, status, checkIn, checkOut, checkInLocation, checkOutLocation } = record;
       if (!employeeId || !date || !status) return;
+
+      const updateData: Record<string, any> = { employeeId, date, status };
+      if (checkIn !== undefined) updateData.checkIn = checkIn || null;
+      if (checkOut !== undefined) updateData.checkOut = checkOut || null;
+      if (checkInLocation !== undefined) updateData.checkInLocation = checkInLocation;
+      if (checkOutLocation !== undefined) updateData.checkOutLocation = checkOutLocation;
 
       return Attendance.findOneAndUpdate(
         { employeeId, date },
-        { employeeId, date, status },
+        { $set: updateData },
         { upsert: true, new: true }
       );
     });
