@@ -169,19 +169,34 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
     setSelectedDateForDetails(dateStr);
     setDailyDetails(null);
 
+    // Fallback attendance record from month data
+    const monthAttRecord = attendanceRecords.find((r) => r.date === dateStr) || null;
+
     try {
       setLoadingDaily(true);
       const res = await fetch(`/api/attendance/daily-details?employeeId=${employee._id}&date=${dateStr}`);
       const result = await res.json();
-      if (result.success) {
+      if (result.success && result.data) {
         setDailyDetails({
-          attendance: result.data.attendance,
+          attendance: result.data.attendance || monthAttRecord,
           workEntries: result.data.workEntries || [],
           taskWorks: result.data.taskWorks || [],
+        });
+      } else {
+        // Fallback to month attendance record if API fails
+        setDailyDetails({
+          attendance: monthAttRecord,
+          workEntries: [],
+          taskWorks: [],
         });
       }
     } catch (err) {
       console.error('Error fetching daily details:', err);
+      setDailyDetails({
+        attendance: monthAttRecord,
+        workEntries: [],
+        taskWorks: [],
+      });
     } finally {
       setLoadingDaily(false);
     }
