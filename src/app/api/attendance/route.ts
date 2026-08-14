@@ -10,13 +10,25 @@ export async function GET(request: Request) {
     const date = searchParams.get('date');
     const employeeId = searchParams.get('employeeId');
 
+    const month = searchParams.get('month'); // YYYY-MM
+
     if (employeeId) {
       const employee = await Employee.findById(employeeId);
       if (!employee) {
         return NextResponse.json({ success: false, error: 'Employee not found' }, { status: 404 });
       }
 
-      const records = await Attendance.find({ employeeId }).sort({ date: -1 }).limit(30);
+      let query: any = { employeeId };
+      if (month) {
+        query.date = { $regex: `^${month}` };
+      }
+
+      const recordsQuery = Attendance.find(query).sort({ date: 1 });
+      if (!month) {
+        recordsQuery.limit(60);
+      }
+      const records = await recordsQuery;
+
       return NextResponse.json({
         success: true,
         data: {

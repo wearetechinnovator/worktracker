@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Users, UserPlus, Mail, Edit3, 
-  Trash2, AlertCircle, Loader2, Clock, Check, Briefcase 
+  Trash2, AlertCircle, Loader2, Clock, Check, Briefcase, Calendar
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
+import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
 
 interface Employee {
   _id: string;
@@ -192,19 +193,9 @@ export default function EmployeesPage() {
     }
   };
 
-  const openEmployeeDetails = async (emp: Employee) => {
+  const openEmployeeDetails = (emp: Employee) => {
     setSelectedEmployee(emp);
     setIsDetailModalOpen(true);
-
-    try {
-      const res = await fetch(`/api/attendance?employeeId=${emp._id}`);
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to load employee details');
-      setEmployeeDetails(data.data);
-    } catch (err: any) {
-      console.error(err);
-      setEmployeeDetails({ employee: emp, attendance: [] });
-    }
   };
 
   const resetForm = () => {
@@ -320,97 +311,12 @@ export default function EmployeesPage() {
         )}
       </div>
 
-      {/* EMPLOYEE DETAILS MODAL */}
-      {isDetailModalOpen && selectedEmployee && (
-        <div className="modal-overlay" onClick={() => setIsDetailModalOpen(false)}>
-          <div className="modal-container" style={{ maxWidth: '760px', width: '100%' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>{selectedEmployee.name}</h3>
-              <button className="modal-close" onClick={() => setIsDetailModalOpen(false)}>&times;</button>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '20px' }}>
-              <div className="card" style={{ padding: '12px' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Role</div>
-                <div style={{ fontWeight: 700, marginTop: '4px' }}>{selectedEmployee.role}</div>
-              </div>
-              <div className="card" style={{ padding: '12px' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Department</div>
-                <div style={{ fontWeight: 700, marginTop: '4px' }}>{selectedEmployee.department}</div>
-              </div>
-              <div className="card" style={{ padding: '12px' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Type</div>
-                <div style={{ fontWeight: 700, marginTop: '4px', textTransform: 'capitalize' }}>{selectedEmployee.userType}</div>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, marginBottom: '10px' }}>Recent Attendance</h4>
-
-              {employeeDetails?.attendance?.length ? (
-                <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Check In (Time / IP / Geo)</th>
-                        <th>Check Out (Time / IP / Geo)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {employeeDetails.attendance.map((record: any) => (
-                        <tr key={record._id}>
-                          <td>{record.date}</td>
-                          <td>
-                            {record.checkIn ? (
-                              <div>
-                                <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{record.checkIn}</div>
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>IP: {record.checkInIpAddress || '-'}</div>
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                                  {record.checkInLocation || '-'}
-                                  {record.checkInLatitude != null && record.checkInLongitude != null && (
-                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                                      ({record.checkInLatitude.toFixed(4)}, {record.checkInLongitude.toFixed(4)})
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ) : '-'}
-                          </td>
-                          <td>
-                            {record.checkOut ? (
-                              <div>
-                                <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{record.checkOut}</div>
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>IP: {record.checkOutIpAddress || '-'}</div>
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                                  {record.checkOutLocation || '-'}
-                                  {record.checkOutLatitude != null && record.checkOutLongitude != null && (
-                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                                      ({record.checkOutLatitude.toFixed(4)}, {record.checkOutLongitude.toFixed(4)})
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ) : '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="card" style={{ padding: '18px', color: 'var(--text-secondary)' }}>
-                  No attendance records found for this employee yet.
-                </div>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setIsDetailModalOpen(false)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* EMPLOYEE MONTHLY ATTENDANCE & WORK DETAILS MODAL */}
+      <EmployeeAttendanceCalendarModal 
+        employee={selectedEmployee} 
+        isOpen={isDetailModalOpen} 
+        onClose={() => setIsDetailModalOpen(false)} 
+      />
 
       {/* ADD EMPLOYEE MODAL */}
       {isAddModalOpen && (

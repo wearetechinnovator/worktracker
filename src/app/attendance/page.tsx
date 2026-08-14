@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, CheckCircle2, User, Loader2, AlertCircle, Save } from 'lucide-react';
+import { Calendar, CheckCircle2, User, Loader2, AlertCircle, Save, CalendarDays } from 'lucide-react';
+import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
 
 interface AttendanceRecord {
   _id: string; // Employee ID
@@ -35,6 +36,10 @@ export default function AttendancePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Calendar Modal state
+  const [selectedEmpForCalendar, setSelectedEmpForCalendar] = useState<any | null>(null);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // Authenticate and set date on mount
   useEffect(() => {
@@ -198,12 +203,28 @@ export default function AttendancePage() {
                 {records.map((rec) => (
                   <tr key={rec._id}>
                     <td>
-                      <div className="avatar-wrapper">
+                      <div 
+                        className="avatar-wrapper" 
+                        style={{ cursor: 'pointer' }}
+                        title="Click to view month attendance calendar & daily work details"
+                        onClick={() => {
+                          setSelectedEmpForCalendar({
+                            _id: rec._id,
+                            name: rec.name,
+                            email: '',
+                            role: rec.role,
+                            department: rec.department,
+                            avatarColor: rec.avatarColor,
+                          });
+                          setIsCalendarOpen(true);
+                        }}
+                      >
                         <div className="avatar" style={{ backgroundColor: rec.avatarColor, width: '28px', height: '28px', fontSize: '0.7rem' }}>
                           {rec.name.split(' ').map((n) => n[0]).join('')}
                         </div>
                         <div>
-                          <div style={{ fontWeight: 700 }}>{rec.name}</div>
+                          <div style={{ fontWeight: 700, color: 'var(--accent-primary)', textDecoration: 'underline' }}>{rec.name}</div>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Click for monthly chart &rarr;</span>
                         </div>
                       </div>
                     </td>
@@ -336,6 +357,13 @@ export default function AttendancePage() {
           </div>
         )}
       </form>
+
+      {/* MONTHLY ATTENDANCE & WORK DETAILS MODAL */}
+      <EmployeeAttendanceCalendarModal
+        employee={selectedEmpForCalendar}
+        isOpen={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+      />
     </div>
   );
 }
