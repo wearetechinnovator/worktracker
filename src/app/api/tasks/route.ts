@@ -4,13 +4,16 @@ import Task from '@/models/Task';
 import Employee from '@/models/Employee';
 import mongoose from 'mongoose';
 import { getPagination, paginatedResponse } from '@/lib/api';
+import { isErrorResponse, requireUser } from '@/lib/auth';
 
 // GET - Fetch all tasks or filtered tasks
 export async function GET(request: Request) {
   try {
     await dbConnect();
+    const user = await requireUser();
+    if (isErrorResponse(user)) return user;
     const { searchParams } = new URL(request.url);
-    const employeeId = searchParams.get('employeeId');
+    const employeeId = user.userType === 'admin' ? searchParams.get('employeeId') : user.id;
     const projectId = searchParams.get('projectId');
     const department = searchParams.get('department');
     const status = searchParams.get('status');
@@ -70,6 +73,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     await dbConnect();
+    const user = await requireUser();
+    if (isErrorResponse(user)) return user;
     const body = await request.json();
     const {
       title,
@@ -96,7 +101,7 @@ export async function POST(request: Request) {
     }
 
     // Ultra-robust creator lookup using createdBy, userId, userEmail, or email
-    const creatorKey = createdBy || userId || userEmail || email;
+    const creatorKey = user.userType === 'admin' ? (createdBy || userId || userEmail || email) : user.id;
     let creator = null;
 
     if (creatorKey) {
@@ -121,7 +126,7 @@ export async function POST(request: Request) {
     }
 
     const creatorIdStr = creator._id.toString();
-    const isAdmin = creator.userType === 'admin';
+    const isAdmin = user.userType === 'admin';
 
     // Auto-default department from creator or fallback to 'General'
     let department = reqDepartment;
@@ -130,7 +135,7 @@ export async function POST(request: Request) {
     }
 
     // Assigned employees array setup
-    let finalAssignedTo: string[] = Array.isArray(reqAssignedTo) ? reqAssignedTo.filter(Boolean) : [];
+    let finalAssignedTo: string[] = isAdmin && Array.isArray(reqAssignedTo) ? reqAssignedTo.filter(Boolean) : [];
     
     // If employee is creating and assignedTo is empty, default assignedTo to themselves
     if (!isAdmin && finalAssignedTo.length === 0) {

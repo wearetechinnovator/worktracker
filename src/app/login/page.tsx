@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { Mail, Lock, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +40,7 @@ export default function LoginPage() {
         throw new Error(result.error || 'Login failed. Please check your credentials.');
       }
 
-      // Store user session data in local storage
+      // UI cache only: the HttpOnly server cookie is the authentication authority.
       localStorage.setItem('worktracker_user', JSON.stringify(result.data));
 
       // Redirect to main page
@@ -114,15 +115,37 @@ export default function LoginPage() {
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Lock size={16} style={{ position: 'absolute', left: '10px', color: 'var(--text-muted)' }} />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 className="form-control"
-                style={{ paddingLeft: '32px' }}
+                style={{ paddingLeft: '32px', paddingRight: '42px' }}
                 placeholder="••••••••"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                title={showPassword ? 'Hide password' : 'Show password'}
+                disabled={loading}
+                style={{
+                  position: 'absolute',
+                  right: '6px',
+                  display: 'grid',
+                  placeItems: 'center',
+                  width: '30px',
+                  height: '30px',
+                  border: 0,
+                  borderRadius: '8px',
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
             </div>
           </div>
 
@@ -149,22 +172,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Demo Accounts Alert Box */}
-        <div style={{
-          marginTop: '24px',
-          background: 'var(--bg-tertiary)',
-          padding: '10px 12px',
-          borderRadius: 'var(--border-radius-sm)',
-          fontSize: '0.72rem',
-          color: 'var(--text-secondary)',
-          border: '1px solid var(--border-color)',
-        }}>
-          <div style={{ fontWeight: 700, marginBottom: '4px', color: 'var(--text-primary)' }}>
-            Default Admin Login:
-          </div>
-          <div>Email: <code style={{ fontWeight: 650 }}>admin@mail.com</code></div>
-          <div>Password: <code style={{ fontWeight: 650 }}>admin123</code></div>
-        </div>
       </div>
     </div>
   );

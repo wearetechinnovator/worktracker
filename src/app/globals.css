@@ -68,6 +68,67 @@ button, input, select, textarea {
   color: inherit;
 }
 
+/* Loading and progressive-image primitives */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--border-radius-sm);
+  background: #e8edf4;
+}
+
+.shimmer::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+  animation: shimmer 1.35s infinite;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+.page-loading { width: 100%; padding: 8px 0; }
+.page-loading__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+.page-loading__header > div { display: grid; gap: 9px; }
+.page-loading__stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.page-loading__content { display: grid; grid-template-columns: 7fr 5fr; gap: 12px; }
+.shimmer--title { width: 190px; height: 24px; }
+.shimmer--subtitle { width: 280px; max-width: 60vw; height: 13px; }
+.shimmer--button { width: 92px; height: 34px; }
+.shimmer--stat { height: 92px; border-radius: var(--border-radius-md); }
+.shimmer--panel { height: 330px; border-radius: var(--border-radius-md); }
+
+/* Apply `.lqi` to image wrappers to create a blur-up transition. */
+.lqi { position: relative; overflow: hidden; background: #dbe4ef; }
+.lqi::before { content: ''; position: absolute; inset: -12px; z-index: 0; background: inherit; filter: blur(18px); transform: scale(1.08); }
+.lqi > img, .lqi > span { position: relative; z-index: 1; transition: opacity 220ms ease, filter 220ms ease; }
+.lqi[data-loaded='false'] > img { opacity: 0; filter: blur(12px); }
+.lqi[data-loaded='true'] > img { opacity: 1; filter: blur(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer::after { animation: none; }
+  .lqi > img, .lqi > span { transition: none; }
+}
+
+@media (max-width: 768px) {
+  .page-loading__stats, .page-loading__content { grid-template-columns: 1fr; }
+  .shimmer--panel { height: 220px; }
+}
+
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 4px;

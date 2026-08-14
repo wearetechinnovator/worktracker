@@ -127,36 +127,22 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
 
-      const isEmployee = user.userType === 'employee';
-      const projUrl = isEmployee ? `/api/projects?employeeId=${user._id}` : '/api/projects';
-      const empUrl = '/api/employees';
-      const workUrl = isEmployee ? `/api/work?employeeId=${user._id}` : '/api/work';
+      const response = await fetch('/api/dashboard');
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) throw new Error(result?.error || 'Failed to connect to database');
+      const { projects: nextProjects, employees: nextEmployees, entries: nextEntries } = result.data;
 
-      const [projRes, empRes, workRes] = await Promise.all([
-        fetch(projUrl),
-        fetch(empUrl),
-        fetch(workUrl)
-      ]);
+      setProjects(nextProjects);
+      setEmployees(nextEmployees);
+      setEntries(nextEntries);
 
-      const projData = await projRes.json().catch(() => null);
-      const empData = await empRes.json().catch(() => null);
-      const workData = await workRes.json().catch(() => null);
-
-      if (!projRes.ok || !projData || !projData.success) throw new Error(projData?.error || 'Failed to connect to database');
-      if (!empRes.ok || !empData || !empData.success) throw new Error(empData?.error || 'Failed to connect to database');
-      if (!workRes.ok || !workData || !workData.success) throw new Error(workData?.error || 'Failed to connect to database');
-
-      setProjects(projData.data);
-      setEmployees(empData.data);
-      setEntries(workData.data);
-
-      if (projData.data.length > 0 && !workProjId) {
-        setWorkProjId(projData.data[0]._id);
+      if (nextProjects.length > 0 && !workProjId) {
+        setWorkProjId(nextProjects[0]._id);
       }
       if (user.userType === 'employee') {
         setWorkEmpId(user._id);
-      } else if (empData.data.length > 0 && !workEmpId) {
-        setWorkEmpId(empData.data[0]._id);
+      } else if (nextEmployees.length > 0 && !workEmpId) {
+        setWorkEmpId(nextEmployees[0]._id);
       }
     } catch (err: any) {
       console.error(err);

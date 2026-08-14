@@ -90,7 +90,9 @@ export default function Sidebar() {
 
   const handleLogout = () => {
     localStorage.removeItem('worktracker_user');
-    window.location.href = '/login';
+    void fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
+      window.location.assign('/login');
+    });
   };
 
   const isAdmin = user?.userType === 'admin';
