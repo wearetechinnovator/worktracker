@@ -13,31 +13,23 @@ export async function GET(request: Request) {
     const query = employeeId ? { members: employeeId } : {};
 
     // Fetch projects and populate their members
-    const projects = await Project.find(query)
-      .populate('members')
-      .sort({ createdAt: -1 });
+    const workMatch = employeeId && mongoose.Types.ObjectId.isValid(employeeId)
+      ? { employeeId: new mongoose.Types.ObjectId(employeeId) }
+      : {};
+    const [projects, stats] = await Promise.all([
+      Project.find(query)
+        .populate('members', 'name role avatarColor')
+        .sort({ createdAt: -1 })
+        .lean(),
+      WorkEntry.aggregate<{ _id: string; totalMinutes: number; entryCount: number }>([
+        { $match: workMatch },
+        { $group: { _id: '$projectId', totalMinutes: { $sum: '$actualTime' }, entryCount: { $sum: 1 } } },
+      ]),
+    ]);
+    const statsByProject = new Map(stats.map((stat) => [stat._id.toString(), stat]));
 
-    const projectsWithStats = await Promise.all(
-      projects.map(async (project) => {
-        // Aggregate statistics. If employeeId filter is set, only aggregate their logs
-        const matchStage: any = { projectId: project._id };
-        if (employeeId) {
-          matchStage.employeeId = new mongoose.Types.ObjectId(employeeId);
-        }
-
-        const stats = await WorkEntry.aggregate([
-          { $match: matchStage },
-          {
-            $group: {
-              _id: null,
-              totalMinutes: { $sum: '$actualTime' },
-              entryCount: { $sum: 1 },
-            },
-          },
-        ]);
-
-        const totalMinutes = stats.length > 0 ? stats[0].totalMinutes : 0;
-        const entryCount = stats.length > 0 ? stats[0].entryCount : 0;
+    const projectsWithStats = projects.map((project) => {
+        const stat = statsByProject.get(project._id.toString());
 
         return {
           _id: project._id.toString(),
@@ -50,13 +42,12 @@ export async function GET(request: Request) {
             role: m.role,
             avatarColor: m.avatarColor,
           })),
-          totalMinutes,
-          entryCount,
+          totalMinutes: stat?.totalMinutes ?? 0,
+          entryCount: stat?.entryCount ?? 0,
           createdAt: project.createdAt,
           updatedAt: project.updatedAt,
         };
-      })
-    );
+      });
 
     return NextResponse.json({ success: true, data: projectsWithStats });
   } catch (error: any) {

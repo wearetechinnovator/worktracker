@@ -27,11 +27,10 @@ const WorkEntrySchema = new Schema<IWorkEntry>(
   { timestamps: true }
 );
 
-// Clear model cache in development to prevent schema caching issues
-if (mongoose.models.WorkEntry) {
-  delete mongoose.models.WorkEntry;
-}
+WorkEntrySchema.index({ employeeId: 1, date: -1, startTime: -1 });
+WorkEntrySchema.index({ projectId: 1, date: -1, startTime: -1 });
+WorkEntrySchema.index({ date: -1, startTime: -1 });
 
-const WorkEntry: Model<IWorkEntry> = mongoose.model<IWorkEntry>('WorkEntry', WorkEntrySchema);
+const WorkEntry: Model<IWorkEntry> = mongoose.models.WorkEntry || mongoose.model<IWorkEntry>('WorkEntry', WorkEntrySchema);
 
 export default WorkEntry;

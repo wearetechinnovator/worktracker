@@ -27,11 +27,8 @@ const EmployeeSchema = new Schema<IEmployee>(
   { timestamps: true }
 );
 
-// Clear model cache in development to prevent schema caching issues
-if (mongoose.models.Employee) {
-  delete mongoose.models.Employee;
-}
+EmployeeSchema.index({ department: 1, status: 1 });
 
-const Employee: Model<IEmployee> = mongoose.model<IEmployee>('Employee', EmployeeSchema);
+const Employee: Model<IEmployee> = mongoose.models.Employee || mongoose.model<IEmployee>('Employee', EmployeeSchema);
 
 export default Employee;

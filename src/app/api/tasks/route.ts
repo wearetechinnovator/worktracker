@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Task from '@/models/Task';
 import Employee from '@/models/Employee';
-import Project from '@/models/Project';
 import mongoose from 'mongoose';
+import { getPagination, paginatedResponse } from '@/lib/api';
 
 // GET - Fetch all tasks or filtered tasks
 export async function GET(request: Request) {
@@ -15,7 +15,8 @@ export async function GET(request: Request) {
     const department = searchParams.get('department');
     const status = searchParams.get('status');
 
-    let query: any = {};
+    const query: Record<string, unknown> = {};
+    const { page, limit, skip } = getPagination(searchParams);
 
     // Filter by assigned employee or creator employee
     if (employeeId) {
@@ -23,7 +24,6 @@ export async function GET(request: Request) {
         const empObjId = new mongoose.Types.ObjectId(employeeId);
         query.$or = [
           { assignedTo: { $in: [empObjId, employeeId] } },
-          { createdBy: { $in: [empObjId, employeeId] } },
         ];
       } else {
         query.$or = [
@@ -48,13 +48,19 @@ export async function GET(request: Request) {
       query.status = status;
     }
 
-    const tasks = await Task.find(query)
+    const [tasks, total] = await Promise.all([
+      Task.find(query)
       .populate('assignedTo', 'name email avatarColor role department')
       .populate('createdBy', 'name email')
       .populate('projectId', 'name color')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+      Task.countDocuments(query),
+    ]);
 
-    return NextResponse.json({ success: true, data: tasks });
+    return paginatedResponse(tasks, page, limit, total);
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

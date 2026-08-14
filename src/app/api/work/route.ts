@@ -4,6 +4,7 @@ import WorkEntry from '@/models/WorkEntry';
 import Project from '@/models/Project';
 import Employee from '@/models/Employee';
 import { calculateElapsedMinutes } from '@/lib/time';
+import { getPagination, paginatedResponse } from '@/lib/api';
 
 export async function GET(request: Request) {
   try {
@@ -15,7 +16,8 @@ export async function GET(request: Request) {
     const endDate = searchParams.get('endDate');
     const search = searchParams.get('search');
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
+    const { page, limit, skip } = getPagination(searchParams);
 
     if (projectId) {
       query.projectId = projectId;
@@ -26,9 +28,10 @@ export async function GET(request: Request) {
     }
 
     if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = startDate;
-      if (endDate) query.date.$lte = endDate;
+      const dateRange: { $gte?: string; $lte?: string } = {};
+      if (startDate) dateRange.$gte = startDate;
+      if (endDate) dateRange.$lte = endDate;
+      query.date = dateRange;
     }
 
     if (search) {
@@ -38,10 +41,16 @@ export async function GET(request: Request) {
       ];
     }
 
-    const entries = await WorkEntry.find(query)
+    const [entries, total] = await Promise.all([
+      WorkEntry.find(query)
       .populate('projectId', 'name color')
       .populate('employeeId', 'name avatarColor role')
-      .sort({ date: -1, startTime: -1 });
+      .sort({ date: -1, startTime: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+      WorkEntry.countDocuments(query),
+    ]);
 
     const formattedEntries = entries.map(entry => {
       const proj = entry.projectId as any;
@@ -66,7 +75,7 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json({ success: true, data: formattedEntries });
+    return paginatedResponse(formattedEntries, page, limit, total);
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

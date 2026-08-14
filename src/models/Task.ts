@@ -41,10 +41,11 @@ const TaskSchema = new Schema<ITask>(
   { timestamps: true }
 );
 
-if (mongoose.models.Task) {
-  delete mongoose.models.Task;
-}
+TaskSchema.index({ assignedTo: 1, createdAt: -1 });
+TaskSchema.index({ createdBy: 1, createdAt: -1 });
+TaskSchema.index({ projectId: 1, status: 1, createdAt: -1 });
+TaskSchema.index({ department: 1, status: 1, createdAt: -1 });
 
-const Task: Model<ITask> = mongoose.model<ITask>('Task', TaskSchema);
+const Task: Model<ITask> = mongoose.models.Task || mongoose.model<ITask>('Task', TaskSchema);
 
 export default Task;

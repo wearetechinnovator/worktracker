@@ -19,11 +19,8 @@ const ProjectSchema = new Schema<IProject>(
   { timestamps: true }
 );
 
-// Clear model cache in development to prevent schema caching issues
-if (mongoose.models.Project) {
-  delete mongoose.models.Project;
-}
+ProjectSchema.index({ members: 1, createdAt: -1 });
 
-const Project: Model<IProject> = mongoose.model<IProject>('Project', ProjectSchema);
+const Project: Model<IProject> = mongoose.models.Project || mongoose.model<IProject>('Project', ProjectSchema);
 
 export default Project;

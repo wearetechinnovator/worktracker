@@ -138,7 +138,7 @@ export default function EmployeesPage() {
     setDepartment(emp.department);
     setStatus(emp.status);
     setColor(emp.avatarColor);
-    setPassword(emp.password || 'password123');
+    setPassword('');
     setUserType(emp.userType || 'employee');
     setIsEditModalOpen(true);
   };

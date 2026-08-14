@@ -37,10 +37,9 @@ const AttendanceSchema = new Schema<IAttendance>(
   { timestamps: true }
 );
 
-if (mongoose.models.Attendance) {
-  delete mongoose.models.Attendance;
-}
+AttendanceSchema.index({ employeeId: 1, date: 1 }, { unique: true });
+AttendanceSchema.index({ date: 1 });
 
-const Attendance: Model<IAttendance> = mongoose.model<IAttendance>('Attendance', AttendanceSchema);
+const Attendance: Model<IAttendance> = mongoose.models.Attendance || mongoose.model<IAttendance>('Attendance', AttendanceSchema);
 
 export default Attendance;

@@ -32,10 +32,9 @@ const TaskWorkSchema = new Schema<ITaskWork>(
   { timestamps: true }
 );
 
-if (mongoose.models.TaskWork) {
-  delete mongoose.models.TaskWork;
-}
+TaskWorkSchema.index({ employeeId: 1, date: 1, createdAt: -1 });
+TaskWorkSchema.index({ taskId: 1, employeeId: 1, date: 1, status: 1 });
 
-const TaskWork: Model<ITaskWork> = mongoose.model<ITaskWork>('TaskWork', TaskWorkSchema);
+const TaskWork: Model<ITaskWork> = mongoose.models.TaskWork || mongoose.model<ITaskWork>('TaskWork', TaskWorkSchema);
 
 export default TaskWork;

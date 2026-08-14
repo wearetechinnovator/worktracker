@@ -2,27 +2,24 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Employee from '@/models/Employee';
 import WorkEntry from '@/models/WorkEntry';
+import { hashPassword } from '@/lib/password';
 
 export async function GET() {
   try {
     await dbConnect();
-    const employees = await Employee.find({}).sort({ createdAt: -1 });
+    const [employees, stats] = await Promise.all([
+      Employee.find({})
+        .select('name email role department status avatarColor userType createdAt updatedAt')
+        .sort({ createdAt: -1 })
+        .lean(),
+      WorkEntry.aggregate<{ _id: string; totalMinutes: number; entryCount: number }>([
+        { $group: { _id: '$employeeId', totalMinutes: { $sum: '$actualTime' }, entryCount: { $sum: 1 } } },
+      ]),
+    ]);
+    const statsByEmployee = new Map(stats.map((stat) => [stat._id.toString(), stat]));
 
-    const employeesWithStats = await Promise.all(
-      employees.map(async (emp) => {
-        const stats = await WorkEntry.aggregate([
-          { $match: { employeeId: emp._id } },
-          {
-            $group: {
-              _id: null,
-              totalMinutes: { $sum: '$actualTime' },
-              entryCount: { $sum: 1 },
-            },
-          },
-        ]);
-
-        const totalMinutes = stats.length > 0 ? stats[0].totalMinutes : 0;
-        const entryCount = stats.length > 0 ? stats[0].entryCount : 0;
+    const employeesWithStats = employees.map((emp) => {
+        const stat = statsByEmployee.get(emp._id.toString());
 
         return {
           _id: emp._id.toString(),
@@ -33,14 +30,12 @@ export async function GET() {
           status: emp.status,
           avatarColor: emp.avatarColor,
           userType: emp.userType || 'employee',
-          password: emp.password || 'password123',
           createdAt: emp.createdAt,
           updatedAt: emp.updatedAt,
-          totalMinutes,
-          entryCount,
+          totalMinutes: stat?.totalMinutes ?? 0,
+          entryCount: stat?.entryCount ?? 0,
         };
-      })
-    );
+      });
 
     return NextResponse.json({ success: true, data: employeesWithStats });
   } catch (error: any) {
@@ -68,7 +63,7 @@ export async function POST(request: Request) {
       department,
       status: status || 'Active',
       avatarColor: avatarColor || '#7f56d9',
-      password: password || 'password123',
+      password: await hashPassword(password || 'password123'),
       userType: userType || 'employee',
     });
 

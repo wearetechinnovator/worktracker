@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Employee from '@/models/Employee';
+import { hashPassword, verifyPassword } from '@/lib/password';
 
 export async function POST(request: Request) {
   try {
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
         department: 'Management',
         status: 'Active',
         avatarColor: '#f43f5e',
-        password: 'admin123',
+        password: await hashPassword('admin123'),
         userType: 'admin'
       });
     }
@@ -40,12 +41,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify plain-text password
-    if (employee.password !== password) {
+    if (!await verifyPassword(password, employee.password)) {
       return NextResponse.json(
         { success: false, error: 'Invalid email or password' },
         { status: 401 }
       );
+    }
+
+    // Upgrade legacy plain-text credentials after a successful login.
+    if (!employee.password.startsWith('scrypt:')) {
+      employee.password = await hashPassword(password);
+      await employee.save();
     }
 
     // Return session payload

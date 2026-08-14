@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import TaskWork from '@/models/TaskWork';
 import Task from '@/models/Task';
+import { getPagination, paginatedResponse } from '@/lib/api';
 
 // GET - Get task work records
 export async function GET(request: Request) {
@@ -12,18 +13,25 @@ export async function GET(request: Request) {
     const taskId = searchParams.get('taskId');
     const date = searchParams.get('date');
 
-    let query: any = {};
+    const query: Record<string, unknown> = {};
+    const { page, limit, skip } = getPagination(searchParams);
 
     if (employeeId) query.employeeId = employeeId;
     if (taskId) query.taskId = taskId;
     if (date) query.date = date;
 
-    const taskWorks = await TaskWork.find(query)
+    const [taskWorks, total] = await Promise.all([
+      TaskWork.find(query)
       .populate('taskId', 'title description priority status')
       .populate('employeeId', 'name email avatarColor')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+      TaskWork.countDocuments(query),
+    ]);
 
-    return NextResponse.json({ success: true, data: taskWorks });
+    return paginatedResponse(taskWorks, page, limit, total);
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Employee from '@/models/Employee';
 import WorkEntry from '@/models/WorkEntry';
+import { hashPassword } from '@/lib/password';
 
 export async function GET(
   request: Request,
@@ -31,7 +32,6 @@ export async function GET(
           status: employee.status,
           avatarColor: employee.avatarColor,
           userType: employee.userType,
-          password: employee.password,
           createdAt: employee.createdAt,
           updatedAt: employee.updatedAt,
         },
@@ -77,7 +77,7 @@ export async function PUT(
     if (department) employee.department = department;
     if (status) employee.status = status;
     if (avatarColor) employee.avatarColor = avatarColor;
-    if (password) employee.password = password;
+    if (password) employee.password = await hashPassword(password);
     if (userType) employee.userType = userType;
 
     await employee.save();
