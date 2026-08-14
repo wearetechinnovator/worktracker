@@ -27,26 +27,33 @@ export async function GET() {
     const employeeTotals = new Map(employeeStats.map((item) => [item._id.toString(), item.totalMinutes]));
     const projectTotals = new Map(projectStats.map((item) => [item._id.toString(), item]));
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        employees: employees.map((employee) => ({ ...employee, _id: employee._id.toString(), totalMinutes: employeeTotals.get(employee._id.toString()) ?? 0 })),
-        projects: projects.map((project) => {
-          const stats = projectTotals.get(project._id.toString());
-          return { ...project, _id: project._id.toString(), totalMinutes: stats?.totalMinutes ?? 0, entryCount: stats?.entryCount ?? 0 };
-        }),
-        entries: entries.map((entry) => {
-          const project = entry.projectId as unknown as { _id: mongoose.Types.ObjectId; name: string; color: string } | null;
-          const employee = entry.employeeId as unknown as { _id: mongoose.Types.ObjectId; name: string; avatarColor: string; role: string } | null;
-          return {
-            ...entry,
-            _id: entry._id.toString(),
-            projectId: project?._id.toString() ?? '', projectName: project?.name ?? 'Unknown Project', projectColor: project?.color ?? '#cbd5e1',
-            employeeId: employee?._id.toString() ?? '', employeeName: employee?.name ?? 'Unknown Employee', employeeAvatarColor: employee?.avatarColor ?? '#7f56d9', employeeRole: employee?.role ?? '',
-          };
-        }),
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          employees: employees.map((employee) => ({ ...employee, _id: employee._id.toString(), totalMinutes: employeeTotals.get(employee._id.toString()) ?? 0 })),
+          projects: projects.map((project) => {
+            const stats = projectTotals.get(project._id.toString());
+            return { ...project, _id: project._id.toString(), totalMinutes: stats?.totalMinutes ?? 0, entryCount: stats?.entryCount ?? 0 };
+          }),
+          entries: entries.map((entry) => {
+            const project = entry.projectId as unknown as { _id: mongoose.Types.ObjectId; name: string; color: string } | null;
+            const employee = entry.employeeId as unknown as { _id: mongoose.Types.ObjectId; name: string; avatarColor: string; role: string } | null;
+            return {
+              ...entry,
+              _id: entry._id.toString(),
+              projectId: project?._id.toString() ?? '', projectName: project?.name ?? 'Unknown Project', projectColor: project?.color ?? '#cbd5e1',
+              employeeId: employee?._id.toString() ?? '', employeeName: employee?.name ?? 'Unknown Employee', employeeAvatarColor: employee?.avatarColor ?? '#7f56d9', employeeRole: employee?.role ?? '',
+            };
+          }),
+        },
       },
-    });
+      {
+        headers: {
+          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+        },
+      }
+    );
   } catch (error) {
     console.error('Dashboard request failed', error);
     return NextResponse.json({ success: false, error: 'Unable to load dashboard data' }, { status: 500 });

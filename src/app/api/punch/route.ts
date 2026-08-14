@@ -3,6 +3,21 @@ import dbConnect from '@/lib/dbConnect';
 import Attendance from '@/models/Attendance';
 import Settings from '@/models/Settings';
 import Employee from '@/models/Employee';
+import { isErrorResponse, requireUser } from '@/lib/auth';
+
+// Helper function to validate and sanitize client date against server date
+function getValidatedDate(clientDate?: string | null): string {
+  const serverToday = new Date().toISOString().split('T')[0];
+  if (!clientDate || !/^\d{4}-\d{2}-\d{2}$/.test(clientDate)) {
+    return serverToday;
+  }
+  const clientMs = new Date(clientDate).getTime();
+  const serverMs = new Date(serverToday).getTime();
+  if (isNaN(clientMs) || Math.abs(clientMs - serverMs) > 86400000 * 2) {
+    return serverToday;
+  }
+  return clientDate;
+}
 
 // Helper function to check if current time is within allowed window
 function isWithinTimeWindow(currentTime: string, startTime: string, endTime: string): boolean {
@@ -27,16 +42,15 @@ function isWithinTimeWindow(currentTime: string, startTime: string, endTime: str
 export async function GET(request: Request) {
   try {
     await dbConnect();
+    const user = await requireUser();
+    if (isErrorResponse(user)) return user;
+
     const { searchParams } = new URL(request.url);
-    const employeeId = searchParams.get('employeeId');
+    const employeeId = searchParams.get('employeeId') || user.id;
     const clientDate = searchParams.get('date');
     const clientTime = searchParams.get('time');
 
-    if (!employeeId) {
-      return NextResponse.json({ success: false, error: 'Employee ID is required' }, { status: 400 });
-    }
-
-    const today = clientDate || new Date().toISOString().split('T')[0];
+    const today = getValidatedDate(clientDate);
     const currentTime = clientTime || new Date().toTimeString().slice(0, 5); // HH:MM format
 
     // Check employee role
@@ -106,10 +120,15 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     await dbConnect();
+    const user = await requireUser();
+    if (isErrorResponse(user)) return user;
+
     const body = await request.json();
     const { employeeId, action, location, localDate, localTime } = body; // action: 'punchIn' or 'punchOut'
 
-    if (!employeeId || !action) {
+    const targetEmployeeId = employeeId || user.id;
+
+    if (!targetEmployeeId || !action) {
       return NextResponse.json(
         { success: false, error: 'Employee ID and action are required' },
         { status: 400 }
@@ -117,14 +136,14 @@ export async function POST(request: Request) {
     }
 
     // Check employee role
-    const employee = await Employee.findById(employeeId);
+    const employee = await Employee.findById(targetEmployeeId);
     const isAdmin = employee?.userType === 'admin';
 
     const forwarded = request.headers.get('x-forwarded-for');
     const realIp = request.headers.get('x-real-ip');
     const ipAddress = forwarded ? forwarded.split(',')[0].trim() : realIp || 'unknown';
 
-    const today = localDate || new Date().toISOString().split('T')[0];
+    const today = getValidatedDate(localDate);
     const currentTime = localTime || new Date().toTimeString().slice(0, 5); // HH:MM format
 
     // Get settings

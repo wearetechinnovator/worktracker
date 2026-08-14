@@ -3,10 +3,13 @@ import dbConnect from '@/lib/dbConnect';
 import Employee from '@/models/Employee';
 import WorkEntry from '@/models/WorkEntry';
 import { hashPassword } from '@/lib/password';
+import { isErrorResponse, requireUser } from '@/lib/auth';
 
 export async function GET() {
   try {
     await dbConnect();
+    const user = await requireUser();
+    if (isErrorResponse(user)) return user;
     const [employees, stats] = await Promise.all([
       Employee.find({})
         .select('name email role department status avatarColor userType createdAt updatedAt')

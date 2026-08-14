@@ -105,14 +105,29 @@ export default function TasksPage() {
     }
   }, [user, isAdmin]);
 
-  const loadTasks = async () => {
+  // Load data in parallel
+  const loadAllData = async () => {
+    if (!user) return;
     try {
       setLoading(true);
-      const endpoint = isAdmin ? '/api/tasks' : `/api/tasks?employeeId=${user?._id}`;
-      const res = await fetch(endpoint);
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to load tasks');
-      setTasks(result.data);
+      const endpoint = isAdmin ? '/api/tasks' : `/api/tasks?employeeId=${user._id}`;
+      
+      const promises: Promise<Response>[] = [fetch(endpoint), fetch('/api/projects')];
+      if (isAdmin) {
+        promises.push(fetch('/api/employees'));
+      }
+
+      const results = await Promise.all(promises);
+      const tasksRes = await results[0].json();
+      const projectsRes = await results[1].json();
+
+      if (tasksRes.success) setTasks(tasksRes.data);
+      if (projectsRes.success) setProjects(projectsRes.data);
+
+      if (isAdmin && results[2]) {
+        const empRes = await results[2].json();
+        if (empRes.success) setEmployees(empRes.data);
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message);
@@ -121,25 +136,9 @@ export default function TasksPage() {
     }
   };
 
-  const loadEmployees = async () => {
-    try {
-      const res = await fetch('/api/employees');
-      const result = await res.json();
-      if (result.success) setEmployees(result.data);
-    } catch (err) {
-      console.error('Error loading employees:', err);
-    }
-  };
-
-  const loadProjects = async () => {
-    try {
-      const res = await fetch('/api/projects');
-      const result = await res.json();
-      if (result.success) setProjects(result.data);
-    } catch (err) {
-      console.error('Error loading projects:', err);
-    }
-  };
+  const loadTasks = loadAllData;
+  const loadEmployees = loadAllData;
+  const loadProjects = loadAllData;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
