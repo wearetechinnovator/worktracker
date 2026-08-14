@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Clock, AlertCircle, Loader2, LogIn } from 'lucide-react';
+import { Clock, AlertCircle, LogIn } from 'lucide-react';
+import PageShimmer from '@/components/PageShimmer';
 
 export default function PunchGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -96,12 +97,7 @@ export default function PunchGuard({ children }: { children: React.ReactNode }) 
 
   // Show loading state
   if (loading) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: '16px' }}>
-        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>Verifying attendance status...</p>
-      </div>
-    );
+    return <PageShimmer />;
   }
 
   // Show error state

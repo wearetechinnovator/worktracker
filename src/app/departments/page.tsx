@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Folder, Plus, Search, Edit3, Trash2, Clock, 
-  Loader2, AlertCircle, Users, Briefcase
+  AlertCircle, Users, Briefcase
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
+import PageShimmer from '@/components/PageShimmer';
 
 interface Employee {
   _id: string;
@@ -334,12 +335,7 @@ export default function DepartmentsPage() {
   const isAdmin = user?.userType === 'admin';
 
   if (loading && projects.length === 0 && !error) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px' }}>
-        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>Loading Departments...</p>
-      </div>
-    );
+    return <PageShimmer />;
   }
 
   return (

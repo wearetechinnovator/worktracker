@@ -4,10 +4,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Users, UserPlus, Mail, Edit3, 
-  Trash2, AlertCircle, Loader2, Clock, Check, Briefcase, Calendar
+  Trash2, AlertCircle, Clock, Check, Briefcase, Calendar
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
+import PageShimmer from '@/components/PageShimmer';
 
 interface Employee {
   _id: string;
@@ -210,12 +211,7 @@ export default function EmployeesPage() {
   };
 
   if (loading && employees.length === 0) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px' }}>
-        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>Loading directory registry...</p>
-      </div>
-    );
+    return <PageShimmer />;
   }
 
   return (

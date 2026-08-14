@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
   Clock, Plus, Folder, Calendar, Users, UserPlus, Mail, ChevronRight,
-  AlertCircle, Loader2
+  AlertCircle
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import MyTasks from '@/components/MyTasks';
+import PageShimmer from '@/components/PageShimmer';
 
 interface Employee {
   _id: string;
@@ -379,12 +380,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
   const isAdmin = user?.userType === 'admin';
 
   if (loading && projects.length === 0 && !error) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px' }}>
-        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>Loading dashboard...</p>
-      </div>
-    );
+    return <PageShimmer />;
   }
 
   return (

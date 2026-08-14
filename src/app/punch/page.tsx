@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, LogIn, LogOut, CheckCircle2, AlertCircle, Loader2, Calendar } from 'lucide-react';
+import { Clock, LogIn, LogOut, CheckCircle2, AlertCircle, Calendar } from 'lucide-react';
+import PageShimmer from '@/components/PageShimmer';
 
 interface PunchData {
   attendance: {
@@ -286,12 +287,7 @@ export default function PunchPage() {
   };
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px' }}>
-        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>Loading punch status...</p>
-      </div>
-    );
+    return <PageShimmer />;
   }
 
   const today = new Date().toLocaleDateString('en-US', { 

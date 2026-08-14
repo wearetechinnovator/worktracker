@@ -111,6 +111,13 @@ button, input, select, textarea {
 .shimmer--button { width: 92px; height: 34px; }
 .shimmer--stat { height: 92px; border-radius: var(--border-radius-md); }
 .shimmer--panel { height: 330px; border-radius: var(--border-radius-md); }
+.content-shimmer { display: grid; align-content: center; gap: 14px; width: min(100%, 920px); min-height: 50vh; margin: 0 auto; }
+.content-shimmer__title { width: 210px; height: 24px; }
+.content-shimmer__line { width: min(420px, 85%); height: 14px; }
+.content-shimmer__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 8px; }
+.content-shimmer__card { height: 140px; border-radius: var(--border-radius-md); }
+.content-shimmer--compact { min-height: 190px; padding: 8px; }
+.content-shimmer--compact .content-shimmer__card { height: 76px; }
 
 /* Apply `.lqi` to image wrappers to create a blur-up transition. */
 .lqi { position: relative; overflow: hidden; background: #dbe4ef; }
@@ -126,6 +133,7 @@ button, input, select, textarea {
 
 @media (max-width: 768px) {
   .page-loading__stats, .page-loading__content { grid-template-columns: 1fr; }
+  .content-shimmer__grid { grid-template-columns: 1fr; }
   .shimmer--panel { height: 220px; }
 }
 

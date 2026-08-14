@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, CheckCircle2, User, Loader2, AlertCircle, Save, CalendarDays } from 'lucide-react';
 import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
+import PageShimmer from '@/components/PageShimmer';
 
 interface AttendanceRecord {
   _id: string; // Employee ID
@@ -132,12 +133,7 @@ export default function AttendancePage() {
   };
 
   if (loading && records.length === 0) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px' }}>
-        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>Loading attendance registry...</p>
-      </div>
-    );
+    return <PageShimmer />;
   }
 
   return (
