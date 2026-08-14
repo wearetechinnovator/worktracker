@@ -71,19 +71,30 @@ export async function GET(request: Request) {
     // Check if attendance record exists for today
     const attendance = await Attendance.findOne({ employeeId, date: today });
 
-    // Determine what actions are allowed (currently checked in means checkIn exists and checkOut does not)
-    const isCurrentlyCheckedIn = !!attendance?.checkIn && !attendance?.checkOut;
+    // Determine what actions are allowed
+    const hasCheckedIn = !!attendance?.checkIn;
+    const hasCheckedOut = !!attendance?.checkOut;
+    const isCurrentlyCheckedIn = hasCheckedIn && !hasCheckedOut;
 
     const isPunchInAllowedByAdmin = attendance?.allowPunchInDate === today;
     const isPunchOutAllowedByAdmin = attendance?.allowPunchOutDate === today;
 
-    const canPunchIn = isCurrentlyCheckedIn
-      ? false
-      : (isAdmin || isPunchInAllowedByAdmin || isWithinTimeWindow(currentTime, settings.punchInStartTime, settings.punchInEndTime));
+    let canPunchIn = false;
+    let canPunchOut = false;
 
-    const canPunchOut = !isCurrentlyCheckedIn
-      ? false
-      : (isAdmin || isPunchOutAllowedByAdmin || isWithinTimeWindow(currentTime, settings.punchOutStartTime, settings.punchOutEndTime));
+    if (hasCheckedOut) {
+      // Employee has already completed shift today. Block re-punching unless Admin granted explicit permission.
+      canPunchIn = isAdmin || isPunchInAllowedByAdmin;
+      canPunchOut = false;
+    } else if (isCurrentlyCheckedIn) {
+      // Currently checked in and working
+      canPunchIn = false;
+      canPunchOut = isAdmin || isPunchOutAllowedByAdmin || isWithinTimeWindow(currentTime, settings.punchOutStartTime, settings.punchOutEndTime);
+    } else {
+      // Not checked in yet today
+      canPunchIn = isAdmin || isPunchInAllowedByAdmin || isWithinTimeWindow(currentTime, settings.punchInStartTime, settings.punchInEndTime);
+      canPunchOut = false;
+    }
 
     return NextResponse.json({
       success: true,
@@ -189,6 +200,17 @@ export async function POST(request: Request) {
       const existingRecord = await Attendance.findOne({ employeeId: targetEmployeeId, date: today });
       const isAllowedByAdmin = existingRecord?.allowPunchInDate === today;
 
+      // If employee has ALREADY completed punch out today: block re-punching for regular employees
+      if (existingRecord?.checkOut && !isAdmin && !isAllowedByAdmin) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'You have already completed your punch out for today. Re-punching is not allowed.',
+          },
+          { status: 400 }
+        );
+      }
+
       // Check if within punch in window (skipped for Admin or if Admin explicitly granted permission)
       if (!isAdmin && !isAllowedByAdmin && !isWithinTimeWindow(currentTime, settings.punchInStartTime, settings.punchInEndTime)) {
         return NextResponse.json(
@@ -201,8 +223,7 @@ export async function POST(request: Request) {
       }
 
       // Check if currently punched in (checkIn exists and checkOut does not)
-      const existing = await Attendance.findOne({ employeeId, date: today });
-      if (existing?.checkIn && !existing?.checkOut) {
+      if (existingRecord?.checkIn && !existingRecord?.checkOut) {
         return NextResponse.json(
           { success: false, error: 'You are currently punched in' },
           { status: 400 }

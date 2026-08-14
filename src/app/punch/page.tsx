@@ -414,6 +414,21 @@ export default function PunchPage() {
         </div>
       )}
 
+      {/* Shift Completed Banner */}
+      {punchData?.attendance?.checkOut && !punchData?.canPunchIn && (
+        <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid #10b981', background: '#ecfdf5', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <CheckCircle2 style={{ color: '#10b981' }} />
+          <div>
+            <p style={{ fontWeight: 700, color: '#065f46', fontSize: '0.85rem', margin: 0 }}>
+              Shift Completed for Today
+            </p>
+            <p style={{ color: '#047857', fontSize: '0.78rem', margin: '2px 0 0 0' }}>
+              You punched out at <b>{formatTimeTo12Hour(punchData.attendance.checkOut)}</b>. Re-punching is disabled for the rest of today.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Punch Buttons */}
       <div className="card" style={{ marginBottom: '24px' }}>
         <h3 className="card-title" style={{ marginBottom: '20px' }}>Today's Attendance</h3>
