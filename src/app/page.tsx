@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { 
+import {
   Clock, Plus, Folder, Calendar, Users, UserPlus, Mail, ChevronRight,
   AlertCircle
 } from 'lucide-react';
@@ -121,11 +121,11 @@ export default function Dashboard() {
   }, [router]);
 
   // Fetch Data based on user role
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isSilent = false) => {
     if (!user) return;
 
     try {
-      setLoading(true);
+      if (!isSilent) setLoading(true);
       setError(null);
 
       const response = await fetch('/api/dashboard');
@@ -137,21 +137,18 @@ export default function Dashboard() {
       setEmployees(nextEmployees);
       setEntries(nextEntries);
 
-      if (nextProjects.length > 0 && !workProjId) {
-        setWorkProjId(nextProjects[0]._id);
-      }
-      if (user.userType === 'employee') {
-        setWorkEmpId(user._id);
-      } else if (nextEmployees.length > 0 && !workEmpId) {
-        setWorkEmpId(nextEmployees[0]._id);
-      }
+      setWorkProjId((prev) => prev || (nextProjects.length > 0 ? nextProjects[0]._id : ''));
+      setWorkEmpId((prev) => {
+        if (user.userType === 'employee') return user._id;
+        return prev || (nextEmployees.length > 0 ? nextEmployees[0]._id : '');
+      });
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Error occurred while loading data.');
     } finally {
       setLoading(false);
     }
-  }, [user, workProjId, workEmpId]);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -376,7 +373,7 @@ export default function Dashboard() {
       const hours = (entry.actualTime / 60).toFixed(1);
       const start12 = formatTimeTo12Hour(entry.startTime);
       const end12 = formatTimeTo12Hour(entry.endTime);
-      
+
       return `Task ${index + 1}:
 
 Project: ${entry.projectName}
@@ -447,7 +444,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
 
       {/* Main Grid Layout */}
       <div className="dashboard-grid">
-        
+
         {/* ROW 2: LEFT COLUMN: Team Punch & Permission Monitor (Admin Only) */}
         {isAdmin && (
           <div className="col-5">
@@ -567,9 +564,9 @@ Summary: ${entry.description || 'Completed work task details.'}`;
             <div className="card-header">
               <h3 className="card-title">Today Schedule</h3>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <input 
-                  type="date" 
-                  value={selectedTimelineDate} 
+                <input
+                  type="date"
+                  value={selectedTimelineDate}
                   onChange={(e) => setSelectedTimelineDate(e.target.value)}
                   style={{ border: '1px solid var(--border-color)', borderRadius: '6px', padding: '4px 6px', fontSize: '0.75rem', fontWeight: 650 }}
                 />
@@ -594,7 +591,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                 <span>17.00</span>
                 <span>18.00</span>
               </div>
-              
+
               <div className="timeline-grid">
                 {timelineEntries.slice(0, 3).map((entry, index) => {
                   const pos = calculateTimelinePosition(entry.startTime, entry.endTime);
@@ -602,13 +599,13 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                   const topOffset = 15 + index * 40;
 
                   return (
-                    <div 
-                      key={entry._id} 
+                    <div
+                      key={entry._id}
                       className={`timeline-block ${colorClass}`}
-                      style={{ 
-                        left: pos.left, 
-                        width: pos.width, 
-                        top: `${topOffset}px` 
+                      style={{
+                        left: pos.left,
+                        width: pos.width,
+                        top: `${topOffset}px`
                       }}
                       title={`${entry.employeeName}: ${entry.title} (${entry.startTime} - ${entry.endTime})`}
                     >
@@ -678,8 +675,8 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                   <h3 className="card-title">My Tracked Logs</h3>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Recent work sessions</span>
                 </div>
-                <button 
-                  className="btn btn-secondary btn-sm" 
+                <button
+                  className="btn btn-secondary btn-sm"
                   style={{ padding: '4px 8px', fontSize: '0.72rem' }}
                   onClick={handleOpenMailModal}
                 >
@@ -735,7 +732,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
               <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '4px' }}>
                 {isAdmin ? (featuredEmployee?.role || 'Administrator') : meEmployee.role}
               </h3>
-              
+
               <div className="employee-badge-container" style={{ marginBottom: '12px' }}>
                 <span className="tag-badge" style={{ backgroundColor: '#eff6ff', color: 'var(--accent-primary)', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
                   {isAdmin ? (featuredEmployee?.department || 'Management') : meEmployee.department}
@@ -826,9 +823,9 @@ Summary: ${entry.description || 'Completed work task details.'}`;
             <form onSubmit={handleAddEmployee}>
               <div className="form-group">
                 <label className="form-label">Full Name *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   required
                   placeholder="e.g. Brooklyn Simmons"
                   value={empName}
@@ -838,9 +835,9 @@ Summary: ${entry.description || 'Completed work task details.'}`;
 
               <div className="form-group">
                 <label className="form-label">Email Address *</label>
-                <input 
-                  type="email" 
-                  className="form-control" 
+                <input
+                  type="email"
+                  className="form-control"
                   required
                   placeholder="e.g. brok-simms@mail.com"
                   value={empEmail}
@@ -851,9 +848,9 @@ Summary: ${entry.description || 'Completed work task details.'}`;
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Password *</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
+                  <input
+                    type="text"
+                    className="form-control"
                     required
                     value={empPass}
                     onChange={(e) => setEmpPass(e.target.value)}
@@ -861,7 +858,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                 </div>
                 <div className="form-group">
                   <label className="form-label">Role Type *</label>
-                  <select 
+                  <select
                     className="form-control"
                     value={empType}
                     onChange={(e) => setEmpType(e.target.value)}
@@ -875,9 +872,9 @@ Summary: ${entry.description || 'Completed work task details.'}`;
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Job Title *</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
+                  <input
+                    type="text"
+                    className="form-control"
                     required
                     value={empRole}
                     onChange={(e) => setEmpRole(e.target.value)}
@@ -885,7 +882,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                 </div>
                 <div className="form-group">
                   <label className="form-label">Department *</label>
-                  <select 
+                  <select
                     className="form-control"
                     value={empDept}
                     onChange={(e) => setEmpDept(e.target.value)}
@@ -900,7 +897,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Presence Status</label>
-                  <select 
+                  <select
                     className="form-control"
                     value={empStatus}
                     onChange={(e) => setEmpStatus(e.target.value)}
@@ -914,10 +911,10 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                   <label className="form-label">Theme Color</label>
                   <div className="color-selector">
                     {colors.map((c) => (
-                      <div 
+                      <div
                         key={c}
                         className="color-option"
-                        style={{ 
+                        style={{
                           backgroundColor: c,
                           borderColor: empColor === c ? 'var(--text-primary)' : 'transparent'
                         }}
@@ -950,9 +947,9 @@ Summary: ${entry.description || 'Completed work task details.'}`;
             <form onSubmit={handleAddProject}>
               <div className="form-group">
                 <label className="form-label">Department / Project Name *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   required
                   placeholder="e.g. Quality Assurance"
                   value={projName}
@@ -962,8 +959,8 @@ Summary: ${entry.description || 'Completed work task details.'}`;
 
               <div className="form-group">
                 <label className="form-label">Description (Optional)</label>
-                <textarea 
-                  className="form-control" 
+                <textarea
+                  className="form-control"
                   placeholder="Define scope..."
                   value={projDesc}
                   onChange={(e) => setProjDesc(e.target.value)}
@@ -974,10 +971,10 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                 <label className="form-label">Visual Badge Color</label>
                 <div className="color-selector">
                   {colors.map((c) => (
-                    <div 
+                    <div
                       key={c}
                       className="color-option"
-                      style={{ 
+                      style={{
                         backgroundColor: c,
                         borderColor: projColor === c ? 'var(--text-primary)' : 'transparent'
                       }}
@@ -992,7 +989,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '10px' }}>
                   {employees.map(emp => (
                     <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', cursor: 'pointer' }}>
-                      <input 
+                      <input
                         type="checkbox"
                         checked={projMembers.includes(emp._id)}
                         onChange={() => handleMemberSelectToggle(emp._id)}
@@ -1025,7 +1022,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
             <form onSubmit={handleAddWork}>
               <div className="form-group">
                 <label className="form-label">Department / Project *</label>
-                <select 
+                <select
                   className="form-control"
                   required
                   value={workProjId}
@@ -1039,7 +1036,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
 
               <div className="form-group">
                 <label className="form-label">Logging Member *</label>
-                <select 
+                <select
                   className="form-control"
                   required
                   value={workEmpId}
@@ -1058,9 +1055,9 @@ Summary: ${entry.description || 'Completed work task details.'}`;
 
               <div className="form-group">
                 <label className="form-label">What work was performed? *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   required
                   placeholder="e.g. Coded sidebar layouts"
                   value={workTitle}
@@ -1070,9 +1067,9 @@ Summary: ${entry.description || 'Completed work task details.'}`;
 
               <div className="form-group">
                 <label className="form-label">Date *</label>
-                <input 
-                  type="date" 
-                  className="form-control" 
+                <input
+                  type="date"
+                  className="form-control"
                   required
                   value={workDate}
                   onChange={(e) => setWorkDate(e.target.value)}
@@ -1082,9 +1079,9 @@ Summary: ${entry.description || 'Completed work task details.'}`;
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Start Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
+                  <input
+                    type="time"
+                    className="form-control"
                     required
                     value={workStart}
                     onChange={(e) => setWorkStart(e.target.value)}
@@ -1092,9 +1089,9 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                 </div>
                 <div className="form-group">
                   <label className="form-label">End Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
+                  <input
+                    type="time"
+                    className="form-control"
                     required
                     value={workEnd}
                     onChange={(e) => setWorkEnd(e.target.value)}
@@ -1104,8 +1101,8 @@ Summary: ${entry.description || 'Completed work task details.'}`;
 
               <div className="form-group">
                 <label className="form-label">Session Notes (Optional)</label>
-                <textarea 
-                  className="form-control" 
+                <textarea
+                  className="form-control"
                   placeholder="Details, progress, blockers..."
                   value={workDesc}
                   onChange={(e) => setWorkDesc(e.target.value)}
@@ -1136,8 +1133,8 @@ Summary: ${entry.description || 'Completed work task details.'}`;
               </p>
             </div>
             <div className="form-group">
-              <textarea 
-                className="form-control" 
+              <textarea
+                className="form-control"
                 readOnly
                 style={{ minHeight: '220px', fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: '1.4', background: 'var(--bg-tertiary)' }}
                 value={mailContent}

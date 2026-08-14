@@ -95,11 +95,11 @@ export default function PunchPage() {
   }, [router]);
 
   // Load punch status
-  const loadPunchStatus = async () => {
+  const loadPunchStatus = async (showLoading = true) => {
     if (!user) return;
 
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       setError(null);
       const now = new Date();
       const localDate = getLocalDateValue(now);
@@ -116,16 +116,20 @@ export default function PunchPage() {
       console.error(err);
       setError(err.message || 'Error loading punch status');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (user) {
-      loadPunchStatus();
-      const interval = setInterval(loadPunchStatus, 30000);
-      return () => clearInterval(interval);
-    }
+    if (!user) return;
+    loadPunchStatus(true);
+
+    const handleFocus = () => {
+      loadPunchStatus(false);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, [user, selectedEmpId]);
 
   const formatTimeTo12Hour = (time24: string) => {

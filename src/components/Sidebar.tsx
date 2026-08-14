@@ -61,9 +61,6 @@ export default function Sidebar() {
 
     if (user && pathname !== '/login') {
       checkPunchStatus();
-      // Refresh punch status every minute
-      const interval = setInterval(checkPunchStatus, 60000);
-      return () => clearInterval(interval);
     } else {
       setCheckingPunch(false);
     }
