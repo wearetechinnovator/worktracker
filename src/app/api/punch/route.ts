@@ -3,6 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import Attendance from '@/models/Attendance';
 import Settings from '@/models/Settings';
 import Employee from '@/models/Employee';
+import Notification from '@/models/Notification';
 import { isErrorResponse, requireUser } from '@/lib/auth';
 
 // Helper function to validate and sanitize client date against server date
@@ -188,6 +189,21 @@ export async function POST(request: Request) {
         { $set: { [updateField]: newVal, status: 'Present' } },
         { upsert: true, new: true }
       );
+
+      if (newVal) {
+        try {
+          await Notification.create({
+            userId: targetEmployeeId,
+            title: '🔓 Punch Permission Granted',
+            message: `Admin granted you 1-day ${action === 'allowPunchIn' ? 'Punch In' : 'Punch Out'} permission for today.`,
+            type: 'punch',
+            link: '/punch',
+            read: false,
+          });
+        } catch (notifErr) {
+          console.error('Failed to send punch permission notification:', notifErr);
+        }
+      }
 
       return NextResponse.json({
         success: true,

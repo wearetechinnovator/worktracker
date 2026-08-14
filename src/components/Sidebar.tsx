@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, LogOut, Clock, Settings, CheckSquare, History
 } from 'lucide-react';
+import NotificationCenter from '@/components/NotificationCenter';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -101,16 +102,18 @@ export default function Sidebar() {
         <div>
           {/* Brand Header */}
           <div className="sidebar-header" style={{ marginBottom: '14px' }}>
-            <Link href="/" className="sidebar-brand">
-              <span style={{ fontWeight: 800 }}>TIS Work Tracker</span>
-            </Link>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <Link href="/" className="sidebar-brand">
+                <span style={{ fontWeight: 800 }}>TIS Work Tracker</span>
+              </Link>
+              <NotificationCenter />
+            </div>
 
             <div className="sidebar-team-card" style={{ padding: '6px 8px' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: '0.8rem' }}>TIS Pvt. Ltd.</div>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Team - {memberCount} Members</div>
               </div>
-              {/* <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} /> */}
             </div>
           </div>
 

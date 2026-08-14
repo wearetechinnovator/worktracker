@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Task from '@/models/Task';
 import Employee from '@/models/Employee';
+import Notification from '@/models/Notification';
 import mongoose from 'mongoose';
 import { getPagination, paginatedResponse } from '@/lib/api';
 import { isErrorResponse, requireUser } from '@/lib/auth';
@@ -175,6 +176,24 @@ export async function POST(request: Request) {
       dueDate,
       tags: tags || [],
     });
+
+    // Send in-app notification to assigned employees
+    try {
+      for (const empDoc of assignedEmployeeDocs) {
+        if (empDoc._id.toString() !== creatorIdStr) {
+          await Notification.create({
+            userId: empDoc._id,
+            title: '📋 New Task Assigned',
+            message: `Admin assigned you a new task: "${title}"`,
+            type: 'task',
+            link: '/tasks',
+            read: false,
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error('Failed to create assignment notification:', notifErr);
+    }
 
     const populatedTask = await Task.findById(task._id)
       .populate('assignedTo', 'name email avatarColor role department')
