@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const employeeId = user.userType === 'admin' ? searchParams.get('employeeId') : user.id;
     const projectId = searchParams.get('projectId');
-    const department = searchParams.get('department');
+    const Project = searchParams.get('Project');
     const status = searchParams.get('status');
 
     const query: Record<string, unknown> = {};
@@ -42,9 +42,9 @@ export async function GET(request: Request) {
       query.projectId = projectId;
     }
 
-    // Filter by department
-    if (department) {
-      query.department = department;
+    // Filter by Project
+    if (Project) {
+      query.Project = Project;
     }
 
     // Filter by status
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
 
     const [tasks, total] = await Promise.all([
       Task.find(query)
-      .populate('assignedTo', 'name email avatarColor role department')
+      .populate('assignedTo', 'name email avatarColor role Project')
       .populate('createdBy', 'name email')
       .populate('projectId', 'name color')
       .sort({ createdAt: -1 })
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       title,
       description,
       projectId,
-      department: reqDepartment,
+      Project: reqProject,
       assignedTo: reqAssignedTo,
       createdBy,
       userId,
@@ -129,10 +129,10 @@ export async function POST(request: Request) {
     const creatorIdStr = creator._id.toString();
     const isAdmin = user.userType === 'admin';
 
-    // Auto-default department from creator or fallback to 'General'
-    let department = reqDepartment;
-    if (!projectId && !department) {
-      department = creator.department || 'General';
+    // Auto-default Project from creator or fallback to 'General'
+    let Project = reqProject;
+    if (!projectId && !Project) {
+      Project = creator.Project || 'General';
     }
 
     // Assigned employees array setup
@@ -168,7 +168,7 @@ export async function POST(request: Request) {
       title,
       description,
       projectId: projectId || undefined,
-      department: department || undefined,
+      Project: Project || undefined,
       assignedTo: assignedEmployeeDocs.map(e => e._id),
       createdBy: creator._id,
       priority: priority || 'Medium',
@@ -196,7 +196,7 @@ export async function POST(request: Request) {
     }
 
     const populatedTask = await Task.findById(task._id)
-      .populate('assignedTo', 'name email avatarColor role department')
+      .populate('assignedTo', 'name email avatarColor role Project')
       .populate('createdBy', 'name email')
       .populate('projectId', 'name color');
 

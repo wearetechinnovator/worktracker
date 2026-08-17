@@ -1,976 +1,522 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { 
-  Folder, Plus, Search, Edit3, Trash2, Clock, 
-  AlertCircle, Users, Briefcase
+import { useMemo, useState } from 'react';
+import {
+  Briefcase,
+  Building2,
+  Filter,
+  Search,
+  TrendingUp,
+  Users
 } from 'lucide-react';
-import { formatMinutesToDuration } from '@/lib/time';
-import PageShimmer from '@/components/PageShimmer';
 
-interface Employee {
-  _id: string;
+type DepartmentStatus = 'Healthy' | 'Hiring' | 'At Risk';
+
+interface Department {
+  id: string;
   name: string;
-  email: string;
-  role: string;
-  department: string;
-  status: string;
-  avatarColor: string;
-  userType: 'admin' | 'employee';
-  password?: string;
-  totalMinutes: number;
+  lead: string;
+  members: number;
+  activeProjects: number;
+  monthlyHours: number;
+
+  status: DepartmentStatus;
+  focus: string;
 }
 
-interface Project {
-  _id: string;
-  name: string;
-  description?: string;
-  color: string;
-  totalMinutes: number;
-  entryCount: number;
-  members: any[];
-}
+const departmentData: Department[] = [
+  {
+    id: 'dep-design',
+    name: 'Design Studio',
+    lead: 'Aarav Menon',
+    members: 11,
+    activeProjects: 4,
+    monthlyHours: 1392,
 
-interface WorkEntry {
-  _id: string;
-  projectId: string;
-  projectName: string;
-  projectColor: string;
-  employeeId: string;
-  employeeName: string;
-  employeeAvatarColor: string;
-  employeeRole: string;
-  title: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  actualTime: number;
-  description?: string;
-  createdAt: string;
-}
+    status: 'Healthy',
+    focus: 'Product flows, motion systems, accessibility polish'
+  },
+  {
+    id: 'dep-engineering',
+    name: 'Engineering',
+    lead: 'Rhea Patel',
+    members: 24,
+    activeProjects: 8,
+    monthlyHours: 3056,
 
-export default function DepartmentsPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+    status: 'Hiring',
+    focus: 'Platform reliability, API throughput, observability'
+  },
+  {
+    id: 'dep-growth',
+    name: 'Growth Lab',
+    lead: 'Kabir Sinha',
+    members: 9,
+    activeProjects: 5,
+    monthlyHours: 1138,
 
-  // Shared Data State
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [entries, setEntries] = useState<WorkEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Split View State
-  const [selectedProjId, setSelectedProjId] = useState<string | null>(null);
-  const [editMode, setEditMode] = useState(false);
-  const [logSearchQuery, setLogSearchQuery] = useState('');
-  const [logDateFilter, setLogDateFilter] = useState('');
-
-  // Modals
-  const [isAddDeptOpen, setIsAddDeptOpen] = useState(false);
-  const [isLogWorkOpen, setIsLogWorkOpen] = useState(false);
-  const [isEditLogOpen, setIsEditLogOpen] = useState(false);
-  const [editingLog, setEditingLog] = useState<WorkEntry | null>(null);
-
-  // Form States (Add/Edit Department)
-  const [deptName, setDeptName] = useState('');
-  const [deptDesc, setDeptDesc] = useState('');
-  const [deptColor, setDeptColor] = useState('#3b82f6');
-  const [deptMembers, setDeptMembers] = useState<string[]>([]);
-  const [savingDept, setSavingDept] = useState(false);
-
-  // Form States (Log Work)
-  const [workProjId, setWorkProjId] = useState('');
-  const [workEmpId, setWorkEmpId] = useState('');
-  const [workTitle, setWorkTitle] = useState('');
-  const [workDate, setWorkDate] = useState('');
-  const [workStart, setWorkStart] = useState('09:00');
-  const [workEnd, setWorkEnd] = useState('17:00');
-  const [workDesc, setWorkDesc] = useState('');
-  const [submittingWork, setSubmittingWork] = useState(false);
-
-  // Form States (Edit Task Log)
-  const [logProjId, setLogProjId] = useState('');
-  const [logEmpId, setLogEmpId] = useState('');
-  const [logTitle, setLogTitle] = useState('');
-  const [logDate, setLogDate] = useState('');
-  const [logStart, setLogStart] = useState('09:00');
-  const [logEnd, setLogEnd] = useState('17:00');
-  const [logDesc, setLogDesc] = useState('');
-
-  const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#475569'];
-
-  // Check login session on mount
-  useEffect(() => {
-    const storedUser = localStorage.getItem('worktracker_user');
-    if (!storedUser) {
-      router.push('/login');
-    } else {
-      const parsed = JSON.parse(storedUser);
-      setUser(parsed);
-      const todayStr = new Date().toISOString().split('T')[0];
-      setWorkDate(todayStr);
-    }
-  }, [router]);
-
-  // Fetch Core Data
-  const fetchData = useCallback(async () => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const isEmployee = user.userType === 'employee';
-      const projUrl = isEmployee ? `/api/projects?employeeId=${user._id}` : '/api/projects';
-      const empUrl = '/api/employees';
-      const workUrl = isEmployee ? `/api/work?employeeId=${user._id}` : '/api/work';
-
-      const [projRes, empRes, workRes] = await Promise.all([
-        fetch(projUrl),
-        fetch(empUrl),
-        fetch(workUrl)
-      ]);
-
-      const projData = await projRes.json().catch(() => null);
-      const empData = await empRes.json().catch(() => null);
-      const workData = await workRes.json().catch(() => null);
-
-      if (!projRes.ok || !projData || !projData.success) throw new Error(projData?.error || 'Failed to load projects');
-      if (!empRes.ok || !empData || !empData.success) throw new Error(empData?.error || 'Failed to load employees');
-      if (!workRes.ok || !workData || !workData.success) throw new Error(workData?.error || 'Failed to load work entries');
-
-      setProjects(projData.data);
-      setEmployees(empData.data);
-      setEntries(workData.data);
-
-      if (projData.data.length > 0 && !workProjId) {
-        setWorkProjId(projData.data[0]._id);
-      }
-      if (user.userType === 'employee') {
-        setWorkEmpId(user._id);
-      } else if (empData.data.length > 0 && !workEmpId) {
-        setWorkEmpId(empData.data[0]._id);
-      }
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Error occurred while loading department data.');
-    } finally {
-      setLoading(false);
-    }
-  }, [user, workProjId, workEmpId]);
-
-  useEffect(() => {
-    if (user) {
-      fetchData();
-    }
-  }, [user, fetchData]);
-
-  // --- Department Actions ---
-  const handleAddDeptSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!deptName.trim()) return;
-
-    try {
-      setSavingDept(true);
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: deptName, description: deptDesc, color: deptColor, members: deptMembers })
-      });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to create department');
-
-      setDeptName('');
-      setDeptDesc('');
-      setDeptMembers([]);
-      setIsAddDeptOpen(false);
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setSavingDept(false);
-    }
-  };
-
-  const handleEditDeptSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProjId || !deptName.trim()) return;
-
-    try {
-      setSavingDept(true);
-      const res = await fetch(`/api/projects/${selectedProjId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: deptName, description: deptDesc, color: deptColor, members: deptMembers })
-      });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to save department changes');
-
-      setEditMode(false);
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setSavingDept(false);
-    }
-  };
-
-  const handleDeleteDept = async () => {
-    if (!selectedProjId || !confirm('Are you sure you want to delete this department? All associated logs will be deleted!')) return;
-
-    try {
-      const res = await fetch(`/api/projects/${selectedProjId}`, { method: 'DELETE' });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to delete department');
-
-      setSelectedProjId(null);
-      setEditMode(false);
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message);
-    }
-  };
-
-  // --- Work Log Actions ---
-  const handleAddWorkSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const finalEmpId = user.userType === 'employee' ? user._id : workEmpId;
-    if (!workProjId || !finalEmpId || !workTitle.trim() || !workDate || !workStart || !workEnd) return;
-
-    try {
-      setSubmittingWork(true);
-      const res = await fetch('/api/work', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: workProjId, employeeId: finalEmpId, title: workTitle, date: workDate, startTime: workStart, endTime: workEnd, description: workDesc })
-      });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to log work session');
-
-      setWorkTitle('');
-      setWorkDesc('');
-      setIsLogWorkOpen(false);
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setSubmittingWork(false);
-    }
-  };
-
-  const openEditLogModal = (log: WorkEntry) => {
-    setEditingLog(log);
-    setLogProjId(log.projectId);
-    setLogEmpId(log.employeeId);
-    setLogTitle(log.title);
-    setLogDate(log.date);
-    setLogStart(log.startTime);
-    setLogEnd(log.endTime);
-    setLogDesc(log.description || '');
-    setIsEditLogOpen(true);
-  };
-
-  const handleEditLogSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingLog || !logProjId || !logEmpId || !logTitle.trim() || !logDate || !logStart || !logEnd) return;
-
-    try {
-      setSubmittingWork(true);
-      const res = await fetch(`/api/work/${editingLog._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: logProjId, employeeId: logEmpId, title: logTitle, date: logDate, startTime: logStart, endTime: logEnd, description: logDesc })
-      });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to update work entry');
-
-      setIsEditLogOpen(false);
-      setEditingLog(null);
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setSubmittingWork(false);
-    }
-  };
-
-  const handleDeleteLog = async (logId: string) => {
-    if (!confirm('Are you sure you want to delete this work log?')) return;
-
-    try {
-      const res = await fetch(`/api/work/${logId}`, { method: 'DELETE' });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to delete');
-
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message);
-    }
-  };
-
-  const handleDeptMemberToggle = (empId: string) => {
-    if (deptMembers.includes(empId)) {
-      setDeptMembers(deptMembers.filter(id => id !== empId));
-    } else {
-      setDeptMembers([...deptMembers, empId]);
-    }
-  };
-
-  // Calculations
-  const activeProject = projects.find((p) => p._id === selectedProjId);
-  const activeProjEntries = entries.filter((e) => e.projectId === selectedProjId);
-  const activeProjMinutes = activeProjEntries.reduce((sum, e) => sum + e.actualTime, 0);
-
-  const filteredProjEntries = activeProjEntries.filter((e) => {
-    const matchesSearch = 
-      e.title.toLowerCase().includes(logSearchQuery.toLowerCase()) ||
-      (e.description || '').toLowerCase().includes(logSearchQuery.toLowerCase()) ||
-      e.employeeName.toLowerCase().includes(logSearchQuery.toLowerCase());
-    const matchesDate = logDateFilter ? e.date === logDateFilter : true;
-    return matchesSearch && matchesDate;
-  });
-
-  const isAdmin = user?.userType === 'admin';
-
-  if (loading && projects.length === 0 && !error) {
-    return <PageShimmer variant="departments" />;
+    status: 'Healthy',
+    focus: 'Acquisition funnels, lifecycle automation'
+  },
+  {
+    id: 'dep-operations',
+    name: 'Operations',
+    lead: 'Naina Sharma',
+    members: 7,
+    activeProjects: 3,
+    monthlyHours: 816,
+    
+    status: 'At Risk',
+    focus: 'Resource balancing, vendor turnaround time'
+  },
+  {
+    id: 'dep-people',
+    name: 'People & Culture',
+    lead: 'Ishita Rao',
+    members: 6,
+    activeProjects: 2,
+    monthlyHours: 702,
+    status: 'Hiring',
+    focus: 'Onboarding system, policy modernization'
   }
+];
+
+const statusStyles: Record<DepartmentStatus, { bg: string; color: string }> = {
+  Healthy: { bg: '#dcfce7', color: '#166534' },
+  Hiring: { bg: '#ffedd5', color: '#9a3412' },
+  'At Risk': { bg: '#fee2e2', color: '#991b1b' }
+};
+
+const DepartmentPage = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'All' | DepartmentStatus>('All');
+
+  const filteredDepartments = useMemo(() => {
+    return departmentData.filter((department) => {
+      const matchesSearch =
+        department.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        department.lead.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        department.focus.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesStatus = statusFilter === 'All' || department.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [searchQuery, statusFilter]);
+
+  const summary = useMemo(() => {
+    const totals = filteredDepartments.reduce(
+      (acc, department) => {
+        acc.members += department.members;
+        acc.projects += department.activeProjects;
+        acc.hours += department.monthlyHours;
+
+        return acc;
+      },
+      { members: 0, projects: 0, hours: 0, budget: 0 }
+    );
+
+    const utilization = totals.members > 0 ? Math.round((totals.hours / (totals.members * 160)) * 100) : 0;
+
+    return {
+      departments: filteredDepartments.length,
+      members: totals.members,
+      projects: totals.projects,
+      utilization,
+      budget: totals.budget
+    };
+  }, [filteredDepartments]);
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        {/* <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Departments Manager</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Inspect specific projects, assign members, and manage logged task records.</p>
-        </div> */}
-
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {isAdmin && (
-            <button className="btn btn-secondary" onClick={() => {
-              setDeptName('');
-              setDeptDesc('');
-              setDeptColor('#3b82f6');
-              setDeptMembers([]);
-              setIsAddDeptOpen(true);
-            }}>
-              <Plus size={14} />
-              <span>New Department</span>
-            </button>
-          )}
-          {/* <button className="btn btn-primary" onClick={() => {
-            if (projects.length === 0) return alert('Create a department first!');
-            setIsLogWorkOpen(true);
-          }}>
-            <Plus size={14} />
-            <span>Log Work</span>
-          </button> */}
+    <div style={{ display: 'grid', gap: '14px' }}>
+      <section className="department-hero">
+        <div>
+          <p className="hero-eyebrow">Workspace Overview</p>
+          <h1 className="hero-title">Departments</h1>
+          <p className="hero-copy">
+            Track department capacity, hiring pressure, and active delivery streams in one place.
+          </p>
         </div>
-      </div>
+        <button className="btn btn-primary" type="button">
+          Create Department
+        </button>
+      </section>
 
-      {error && (
-        <div className="card" style={{ borderLeft: '4px solid #ef4444', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-          <AlertCircle style={{ color: '#ef4444' }} />
-          <p style={{ fontWeight: 650 }}>{error}</p>
-        </div>
-      )}
+      <section className="summary-grid">
+        <article className="summary-card reveal delay-1">
+          <div className="summary-icon"><Building2 size={14} /></div>
+          <p className="summary-label">Departments</p>
+          <p className="summary-value">{summary.departments}</p>
+        </article>
+        <article className="summary-card reveal delay-2">
+          <div className="summary-icon"><Users size={14} /></div>
+          <p className="summary-label">Team Members</p>
+          <p className="summary-value">{summary.members}</p>
+        </article>
+        <article className="summary-card reveal delay-3">
+          <div className="summary-icon"><Briefcase size={14} /></div>
+          <p className="summary-label">Active Projects</p>
+          <p className="summary-value">{summary.projects}</p>
+        </article>
+        <article className="summary-card reveal delay-4">
+          <div className="summary-icon"><TrendingUp size={14} /></div>
+          <p className="summary-label">Capacity Utilization</p>
+          <p className="summary-value">{summary.utilization}%</p>
+        </article>
+      </section>
 
-      {/* Split layout */}
-      <div className="split-layout">
-        {/* Left column master list */}
-        <div className="split-master">
-          <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
-            Select Department
+      <section className="control-bar card">
+        <label className="search-box" htmlFor="department-search">
+          <Search size={14} />
+          <input
+            id="department-search"
+            type="text"
+            placeholder="Search by department, lead, or focus"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
+        </label>
+
+        <label className="filter-box" htmlFor="department-status">
+          <Filter size={14} />
+          <select
+            id="department-status"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as 'All' | DepartmentStatus)}
+          >
+            <option value="All">All status</option>
+            <option value="Healthy">Healthy</option>
+            <option value="Hiring">Hiring</option>
+            <option value="At Risk">At Risk</option>
+          </select>
+        </label>
+      </section>
+
+      <section className="department-grid">
+        {filteredDepartments.length === 0 ? (
+          <div className="card empty-state">
+            <p>No departments match the current search and filter.</p>
           </div>
+        ) : (
+          filteredDepartments.map((department, index) => {
+            const statusStyle = statusStyles[department.status];
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, overflowY: 'auto' }}>
-            {projects.map((proj) => {
-              const isActive = selectedProjId === proj._id;
-              return (
-                <div
-                  key={proj._id}
-                  className={`department-item ${isActive ? 'active' : ''}`}
-                  onClick={() => {
-                    setSelectedProjId(proj._id);
-                    setEditMode(false);
-                    // Pre-fill department states
-                    setDeptName(proj.name);
-                    setDeptDesc(proj.description || '');
-                    setDeptColor(proj.color);
-                    setDeptMembers(proj.members.map((m: any) => m._id));
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: proj.color, flexShrink: 0 }} />
-                    <span style={{ fontWeight: 700, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {proj.name}
-                    </span>
+            return (
+              <article key={department.id} className={`card department-card reveal delay-${(index % 4) + 1}`}>
+                <div className="department-top">
+                  <div>
+                    <h3>{department.name}</h3>
+                    <p>Lead: {department.lead}</p>
                   </div>
-                  <span className="tag-badge" style={{ fontSize: '0.65rem', padding: '1px 4px' }}>
-                    {proj.members?.length || 0}
+                  <span
+                    className="status-pill"
+                    style={{ background: statusStyle.bg, color: statusStyle.color }}
+                  >
+                    {department.status}
                   </span>
                 </div>
-              );
-            })}
 
-            {projects.length === 0 && (
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', padding: '12px' }}>
-                No departments available.
-              </p>
-            )}
-          </div>
-        </div>
+                <p className="department-focus">{department.focus}</p>
 
-        {/* Right column detail panel */}
-        <div className="split-detail">
-          {!selectedProjId || !activeProject ? (
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px', minHeight: '300px', color: 'var(--text-muted)' }}>
-              <Folder size={44} style={{ marginBottom: '16px', opacity: 0.5 }} />
-              <p style={{ fontSize: '0.85rem', fontWeight: 650 }}>Select a department from the left panel to inspect details.</p>
-            </div>
-          ) : (
-            <div className="card" style={{ padding: '16px 20px' }}>
-              <div style={{ backgroundColor: activeProject.color, height: '4px', borderRadius: '2px', marginBottom: '16px' }} />
-
-              {!editMode ? (
-                /* --- DISPLAY MODE --- */
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px' }}>
-                    <div>
-                      <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{activeProject.name}</h2>
-                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginTop: '4px', whiteSpace: 'pre-wrap' }}>
-                        {activeProject.description || 'No description added for this department.'}
-                      </p>
-                    </div>
-
-                    {isAdmin && (
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="btn btn-secondary" onClick={() => setEditMode(true)}>
-                          <Edit3 size={14} />
-                          <span>Edit Info</span>
-                        </button>
-                        <button className="btn btn-danger" onClick={handleDeleteDept}>
-                          <Trash2 size={14} />
-                          <span>Delete</span>
-                        </button>
-                      </div>
-                    )}
+                <div className="department-metrics">
+                  <div>
+                    <span>Members</span>
+                    <strong>{department.members}</strong>
                   </div>
-
-                  {/* Stats */}
-                  <div className="grid-stats" style={{ marginBottom: '20px' }}>
-                    <div className="card stat-card" style={{ background: 'var(--bg-tertiary)' }}>
-                      <div className="stat-icon-wrapper" style={{ color: 'var(--accent-primary)', background: '#eff6ff' }}>
-                        <Clock size={16} />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-value" style={{ fontSize: '0.95rem' }}>{formatMinutesToDuration(activeProjMinutes)}</span>
-                        <span className="stat-label">Total Duration</span>
-                      </div>
-                    </div>
-
-                    <div className="card stat-card" style={{ background: 'var(--bg-tertiary)' }}>
-                      <div className="stat-icon-wrapper" style={{ color: '#10b981', background: '#ecfdf5' }}>
-                        <Users size={16} />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-value" style={{ fontSize: '0.95rem' }}>{activeProjEntries.length}</span>
-                        <span className="stat-label">Logged Logs</span>
-                      </div>
-                    </div>
-
-                    <div className="card stat-card" style={{ background: 'var(--bg-tertiary)' }}>
-                      <div className="stat-icon-wrapper" style={{ color: '#7f56d9', background: '#f3e8ff' }}>
-                        <Users size={16} />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-value" style={{ fontSize: '0.95rem' }}>{activeProject.members?.length || 0}</span>
-                        <span className="stat-label">Assigned Staff</span>
-                      </div>
-                    </div>
+                  <div>
+                    <span>Projects</span>
+                    <strong>{department.activeProjects}</strong>
                   </div>
-
-                  {/* Splits: Logs on left, Members on right */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: '16px' }}>
-                    
-                    {/* Left: Logs */}
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <h3 className="card-title" style={{ fontSize: '0.85rem' }}>Work Logs ({filteredProjEntries.length})</h3>
-
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                            <Search size={12} style={{ position: 'absolute', left: '6px', color: 'var(--text-muted)' }} />
-                            <input 
-                              type="text"
-                              className="form-control"
-                              placeholder="Search logs..."
-                              style={{ height: '24px', paddingLeft: '22px', fontSize: '0.72rem', width: '120px' }}
-                              value={logSearchQuery}
-                              onChange={(e) => setLogSearchQuery(e.target.value)}
-                            />
-                          </div>
-                          <input 
-                            type="date"
-                            className="form-control"
-                            style={{ height: '24px', fontSize: '0.72rem', width: '100px', padding: '1px 4px' }}
-                            value={logDateFilter}
-                            onChange={(e) => setLogDateFilter(e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      {filteredProjEntries.length === 0 ? (
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', padding: '24px', textAlign: 'center', background: 'var(--bg-tertiary)', borderRadius: '6px' }}>
-                          No logged entries match filter criteria.
-                        </p>
-                      ) : (
-                        <div className="work-entries-list" style={{ maxHeight: '350px', overflowY: 'auto' }}>
-                          {filteredProjEntries.map((log) => (
-                            <div key={log._id} className="card work-entry-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-tertiary)', padding: '8px 12px' }}>
-                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flex: 1 }}>
-                                <div className="avatar" style={{ backgroundColor: log.employeeAvatarColor, width: '24px', height: '24px', fontSize: '0.65rem', flexShrink: 0 }}>
-                                  {log.employeeName.split(' ').map(n => n[0]).join('')}
-                                </div>
-                                <div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem' }}>
-                                    <span style={{ fontWeight: 700 }}>{log.employeeName}</span>
-                                    <span style={{ color: 'var(--text-muted)' }}>{log.date}</span>
-                                  </div>
-                                  <h5 style={{ fontWeight: 700, fontSize: '0.78rem', margin: '1px 0' }}>{log.title}</h5>
-                                  {log.description && (
-                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '2px' }}>
-                                      {log.description}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '12px' }}>
-                                <div style={{ textAlign: 'right' }}>
-                                  <div style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '0.8rem' }}>{formatMinutesToDuration(log.actualTime)}</div>
-                                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{log.startTime}-{log.endTime}</div>
-                                </div>
-                                {(isAdmin || log.employeeId === user?._id) && (
-                                  <div style={{ display: 'flex', gap: '2px' }}>
-                                    <button className="action-btn" onClick={() => openEditLogModal(log)}>
-                                      <Edit3 size={10} />
-                                    </button>
-                                    <button className="action-btn btn-delete-item" onClick={() => handleDeleteLog(log._id)}>
-                                      <Trash2 size={10} />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Right: Members */}
-                    <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
-                      <h3 className="card-title" style={{ fontSize: '0.85rem', marginBottom: '8px' }}>Staff Assigned</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto' }}>
-                        {activeProject.members.map((m: any) => (
-                          <div key={m._id} className="list-row" style={{ padding: '2px 0' }}>
-                            <div className="avatar-wrapper">
-                              <div className="avatar" style={{ backgroundColor: m.avatarColor, width: '24px', height: '24px', fontSize: '0.65rem' }}>
-                                {m.name.split(' ').map((n: string) => n[0]).join('')}
-                              </div>
-                              <div style={{ overflow: 'hidden' }}>
-                                <div style={{ fontWeight: 700, fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.role}</div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                        {activeProject.members.length === 0 && (
-                          <p style={{ color: 'var(--text-muted)', fontSize: '0.72rem', textAlign: 'center', padding: '12px' }}>No members assigned.</p>
-                        )}
-                      </div>
-                    </div>
-
+                  <div>
+                    <span>Hours</span>
+                    <strong>{department.monthlyHours}</strong>
                   </div>
                 </div>
-              ) : (
-                /* --- EDIT INLINE MODE --- */
-                <form onSubmit={handleEditDeptSubmit}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', marginBottom: '14px' }}>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>Edit Department Settings</h3>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button type="button" className="btn btn-secondary" onClick={() => setEditMode(false)} disabled={savingDept}>
-                        Cancel
-                      </button>
-                      <button type="submit" className="btn btn-primary" disabled={savingDept}>
-                        {savingDept ? 'Saving...' : 'Save Settings'}
-                      </button>
-                    </div>
-                  </div>
 
-                  <div className="form-group">
-                    <label className="form-label">Department / Project Name *</label>
-                    <input 
-                      type="text"
-                      className="form-control"
-                      required
-                      value={deptName}
-                      onChange={(e) => setDeptName(e.target.value)}
-                    />
-                  </div>
+            
+              </article>
+            );
+          })
+        )}
+      </section>
 
-                  <div className="form-group">
-                    <label className="form-label">Description (Optional)</label>
-                    <textarea 
-                      className="form-control"
-                      placeholder="Define department scope..."
-                      value={deptDesc}
-                      onChange={(e) => setDeptDesc(e.target.value)}
-                    />
-                  </div>
+     
+      <style jsx>{`
+        .department-hero {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 18px;
+          padding: 16px;
+          border: 1px solid var(--border-color);
+          border-radius: var(--border-radius-lg);
+          background:
+            radial-gradient(circle at 18% 16%, rgba(59, 130, 246, 0.18), transparent 44%),
+            radial-gradient(circle at 82% 12%, rgba(16, 185, 129, 0.15), transparent 40%),
+            var(--bg-secondary);
+        }
 
-                  <div className="form-group">
-                    <label className="form-label">Visual Theme Color</label>
-                    <div className="color-selector">
-                      {colors.map((c) => (
-                        <div 
-                          key={c}
-                          className="color-option"
-                          style={{ 
-                            backgroundColor: c,
-                            borderColor: deptColor === c ? 'var(--text-primary)' : 'transparent'
-                          }}
-                          onClick={() => setDeptColor(c)}
-                        />
-                      ))}
-                    </div>
-                  </div>
+        .hero-eyebrow {
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.11em;
+          font-size: 0.63rem;
+          font-weight: 700;
+        }
 
-                  <div className="form-group">
-                    <label className="form-label">Assign / Re-assign Team Members</label>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '10px' }}>
-                      {employees.map(emp => (
-                        <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', cursor: 'pointer' }}>
-                          <input 
-                            type="checkbox"
-                            checked={deptMembers.includes(emp._id)}
-                            onChange={() => handleDeptMemberToggle(emp._id)}
-                          />
-                          <span style={{ fontWeight: 600 }}>{emp.name} ({emp.role})</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </form>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+        .hero-title {
+          font-size: 1.45rem;
+          font-weight: 800;
+          margin-top: 4px;
+        }
 
-      {/* MODAL: ADD DEPARTMENT */}
-      {isAddDeptOpen && (
-        <div className="modal-overlay" onClick={() => setIsAddDeptOpen(false)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Create New Department</h3>
-              <button className="modal-close" onClick={() => setIsAddDeptOpen(false)}>&times;</button>
-            </div>
-            <form onSubmit={handleAddDeptSubmit}>
-              <div className="form-group">
-                <label className="form-label">Department Name *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  required
-                  placeholder="e.g. Development"
-                  value={deptName}
-                  onChange={(e) => setDeptName(e.target.value)}
-                />
-              </div>
+        .hero-copy {
+          margin-top: 4px;
+          color: var(--text-secondary);
+          max-width: 560px;
+        }
 
-              <div className="form-group">
-                <label className="form-label">Description (Optional)</label>
-                <textarea 
-                  className="form-control" 
-                  placeholder="Define scope..."
-                  value={deptDesc}
-                  onChange={(e) => setDeptDesc(e.target.value)}
-                />
-              </div>
+        .summary-grid {
+          display: grid;
+          gap: 10px;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
 
-              <div className="form-group">
-                <label className="form-label">Badge Theme Color</label>
-                <div className="color-selector">
-                  {colors.map((c) => (
-                    <div 
-                      key={c}
-                      className="color-option"
-                      style={{ 
-                        backgroundColor: c,
-                        borderColor: deptColor === c ? 'var(--text-primary)' : 'transparent'
-                      }}
-                      onClick={() => setDeptColor(c)}
-                    />
-                  ))}
-                </div>
-              </div>
+        .summary-card {
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-color);
+          border-radius: var(--border-radius-md);
+          padding: 10px;
+          display: grid;
+          gap: 5px;
+        }
 
-              <div className="form-group">
-                <label className="form-label">Assign Members</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '10px' }}>
-                  {employees.map(emp => (
-                    <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', cursor: 'pointer' }}>
-                      <input 
-                        type="checkbox"
-                        checked={deptMembers.includes(emp._id)}
-                        onChange={() => handleDeptMemberToggle(emp._id)}
-                      />
-                      <span style={{ fontWeight: 600 }}>{emp.name} ({emp.role})</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+        .summary-icon {
+          width: 24px;
+          height: 24px;
+          border-radius: 7px;
+          display: grid;
+          place-items: center;
+          background: var(--bg-tertiary);
+          color: var(--accent-primary);
+        }
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsAddDeptOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={savingDept}>
-                  {savingDept ? 'Creating...' : 'Create Department'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        .summary-label {
+          color: var(--text-secondary);
+          font-size: 0.72rem;
+        }
 
-      {/* MODAL: LOG WORK */}
-      {isLogWorkOpen && (
-        <div className="modal-overlay" onClick={() => setIsLogWorkOpen(false)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Log Task Session</h3>
-              <button className="modal-close" onClick={() => setIsLogWorkOpen(false)}>&times;</button>
-            </div>
-            <form onSubmit={handleAddWorkSubmit}>
-              <div className="form-group">
-                <label className="form-label">Department / Project *</label>
-                <select 
-                  className="form-control"
-                  required
-                  value={workProjId}
-                  onChange={(e) => setWorkProjId(e.target.value)}
-                >
-                  {projects.map((p) => (
-                    <option key={p._id} value={p._id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
+        .summary-value {
+          font-size: 1.22rem;
+          font-weight: 780;
+          letter-spacing: -0.015em;
+        }
 
-              <div className="form-group">
-                <label className="form-label">Logging Member *</label>
-                <select 
-                  className="form-control"
-                  required
-                  value={workEmpId}
-                  onChange={(e) => setWorkEmpId(e.target.value)}
-                  disabled={!isAdmin}
-                >
-                  {isAdmin ? (
-                    employees.map((emp) => (
-                      <option key={emp._id} value={emp._id}>{emp.name} ({emp.role})</option>
-                    ))
-                  ) : (
-                    <option value={user?._id}>{user?.name} ({user?.role})</option>
-                  )}
-                </select>
-              </div>
+        .control-bar {
+          display: grid;
+          grid-template-columns: 1fr 190px;
+          gap: 10px;
+          align-items: center;
+          padding: 10px;
+        }
 
-              <div className="form-group">
-                <label className="form-label">What work was performed? *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  required
-                  placeholder="e.g. Created login page templates"
-                  value={workTitle}
-                  onChange={(e) => setWorkTitle(e.target.value)}
-                />
-              </div>
+        .search-box,
+        .filter-box {
+          border: 1px solid var(--border-color);
+          background: var(--bg-secondary);
+          border-radius: var(--border-radius-sm);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: var(--text-muted);
+          padding: 0 10px;
+          height: 36px;
+        }
 
-              <div className="form-group">
-                <label className="form-label">Date *</label>
-                <input 
-                  type="date" 
-                  className="form-control" 
-                  required
-                  value={workDate}
-                  onChange={(e) => setWorkDate(e.target.value)}
-                />
-              </div>
+        .search-box input,
+        .filter-box select {
+          border: none;
+          background: transparent;
+          outline: none;
+          width: 100%;
+          color: var(--text-primary);
+        }
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Start Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
-                    required
-                    value={workStart}
-                    onChange={(e) => setWorkStart(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">End Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
-                    required
-                    value={workEnd}
-                    onChange={(e) => setWorkEnd(e.target.value)}
-                  />
-                </div>
-              </div>
+        .department-grid {
+          display: grid;
+          gap: 10px;
+          grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+        }
 
-              <div className="form-group">
-                <label className="form-label">Session Notes (Optional)</label>
-                <textarea 
-                  className="form-control" 
-                  placeholder="Details, progress..."
-                  value={workDesc}
-                  onChange={(e) => setWorkDesc(e.target.value)}
-                />
-              </div>
+        .department-card {
+          display: grid;
+          gap: 10px;
+          padding: 12px;
+          border: 1px solid var(--border-color);
+          border-radius: var(--border-radius-md);
+          background: var(--bg-secondary);
+        }
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsLogWorkOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={submittingWork}>
-                  {submittingWork ? 'Saving...' : 'Save Log'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        .department-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: flex-start;
+        }
 
-      {/* MODAL: EDIT WORK */}
-      {isEditLogOpen && (
-        <div className="modal-overlay" onClick={() => {
-          setIsEditLogOpen(false);
-          setEditingLog(null);
-        }}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Edit Task Log</h3>
-              <button className="modal-close" onClick={() => {
-                setIsEditLogOpen(false);
-                setEditingLog(null);
-              }}>&times;</button>
-            </div>
-            <form onSubmit={handleEditLogSubmit}>
-              <div className="form-group">
-                <label className="form-label">Department / Project *</label>
-                <select 
-                  className="form-control"
-                  required
-                  value={logProjId}
-                  onChange={(e) => setLogProjId(e.target.value)}
-                >
-                  {projects.map((p) => (
-                    <option key={p._id} value={p._id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
+        .department-top h3 {
+          font-size: 0.95rem;
+          font-weight: 780;
+        }
 
-              <div className="form-group">
-                <label className="form-label">Logging Member *</label>
-                <select 
-                  className="form-control"
-                  required
-                  value={logEmpId}
-                  onChange={(e) => setLogEmpId(e.target.value)}
-                  disabled={!isAdmin}
-                >
-                  {isAdmin ? (
-                    employees.map((emp) => (
-                      <option key={emp._id} value={emp._id}>{emp.name} ({emp.role})</option>
-                    ))
-                  ) : (
-                    <option value={user?._id}>{user?.name} ({user?.role})</option>
-                  )}
-                </select>
-              </div>
+        .department-top p {
+          color: var(--text-secondary);
+          font-size: 0.74rem;
+          margin-top: 2px;
+        }
 
-              <div className="form-group">
-                <label className="form-label">What work was performed? *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  required
-                  value={logTitle}
-                  onChange={(e) => setLogTitle(e.target.value)}
-                />
-              </div>
+        .status-pill {
+          padding: 4px 8px;
+          border-radius: 999px;
+          font-size: 0.65rem;
+          font-weight: 700;
+          white-space: nowrap;
+        }
 
-              <div className="form-group">
-                <label className="form-label">Date *</label>
-                <input 
-                  type="date" 
-                  className="form-control" 
-                  required
-                  value={logDate}
-                  onChange={(e) => setLogDate(e.target.value)}
-                />
-              </div>
+        .department-focus {
+          color: var(--text-secondary);
+          font-size: 0.74rem;
+          min-height: 32px;
+        }
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Start Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
-                    required
-                    value={logStart}
-                    onChange={(e) => setLogStart(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">End Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
-                    required
-                    value={logEnd}
-                    onChange={(e) => setLogEnd(e.target.value)}
-                  />
-                </div>
-              </div>
+        .department-metrics {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 6px;
+        }
 
-              <div className="form-group">
-                <label className="form-label">Session Notes (Optional)</label>
-                <textarea 
-                  className="form-control" 
-                  value={logDesc}
-                  onChange={(e) => setLogDesc(e.target.value)}
-                />
-              </div>
+        .department-metrics div {
+          border: 1px solid var(--border-color);
+          border-radius: var(--border-radius-sm);
+          padding: 7px;
+          display: grid;
+          gap: 3px;
+          background: var(--bg-tertiary);
+        }
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => {
-                  setIsEditLogOpen(false);
-                  setEditingLog(null);
-                }}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={submittingWork}>
-                  {submittingWork ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        .department-metrics span {
+          color: var(--text-secondary);
+          font-size: 0.67rem;
+        }
+
+        .department-metrics strong {
+          font-size: 0.86rem;
+        }
+
+        .department-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .department-footer p {
+          color: var(--text-secondary);
+          font-size: 0.72rem;
+        }
+
+        .department-footer strong {
+          color: var(--text-primary);
+          font-size: 0.8rem;
+        }
+
+        .empty-state {
+          text-align: center;
+          color: var(--text-muted);
+          padding: 24px;
+        }
+
+        .budget-callout {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+          background:
+            linear-gradient(95deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.96)),
+            var(--bg-secondary);
+          color: #f8fafc;
+          border-radius: var(--border-radius-md);
+          border: none;
+          padding: 12px;
+        }
+
+        .budget-callout p {
+          font-size: 0.76rem;
+          color: rgba(248, 250, 252, 0.8);
+        }
+
+        .budget-callout h2 {
+          font-size: 1.2rem;
+          font-weight: 820;
+          letter-spacing: -0.01em;
+        }
+
+        .reveal {
+          opacity: 0;
+          transform: translateY(10px);
+          animation: rise-in 520ms ease forwards;
+        }
+
+        .delay-1 {
+          animation-delay: 60ms;
+        }
+
+        .delay-2 {
+          animation-delay: 120ms;
+        }
+
+        .delay-3 {
+          animation-delay: 180ms;
+        }
+
+        .delay-4 {
+          animation-delay: 240ms;
+        }
+
+        @keyframes rise-in {
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @media (max-width: 900px) {
+          .summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 768px) {
+          .department-hero {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .control-bar {
+            grid-template-columns: 1fr;
+          }
+
+          .department-footer {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+
+          .summary-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </div>
   );
-}
+};
+
+export default DepartmentPage;

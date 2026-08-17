@@ -240,7 +240,7 @@ export default function ReportsPage() {
   const handleExportCSV = () => {
     if (entries.length === 0) return alert('No records to export!');
     
-    const csvHeaders = ['Date', 'Employee', 'Role', 'Department', 'Task Title', 'Description', 'Duration (mins)', 'Duration (formatted)'];
+    const csvHeaders = ['Date', 'Employee', 'Role', 'Project', 'Task Title', 'Description', 'Duration (mins)', 'Duration (formatted)'];
     
     const csvRows = entries.map(entry => {
       const durationFormatted = formatMinutesToDuration(entry.actualTime);
@@ -271,7 +271,7 @@ export default function ReportsPage() {
   const handleExportExcel = () => {
     if (entries.length === 0) return alert('No records to export!');
 
-    const headers = ['Date', 'Employee', 'Role', 'Department', 'Task Title', 'Description', 'Duration (mins)', 'Duration (formatted)'];
+    const headers = ['Date', 'Employee', 'Role', 'Project', 'Task Title', 'Description', 'Duration (mins)', 'Duration (formatted)'];
     
     const rows = entries.map(entry => {
       const durationFormatted = formatMinutesToDuration(entry.actualTime);
@@ -365,7 +365,7 @@ export default function ReportsPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
           
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Project / Department</label>
+            <label className="form-label">Project / Project</label>
             <select 
               className="form-control"
               value={selectedProject}
@@ -490,7 +490,7 @@ export default function ReportsPage() {
       {/* Time Allocation chart */}
       {projectDistribution.length > 0 && (
         <div className="card" style={{ marginBottom: '20px' }}>
-          <h3 className="card-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>Department Time Distributions</h3>
+          <h3 className="card-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>Project Time Distributions</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
             {projectDistribution.map((proj) => {
               const pct = totalMinutes > 0 ? Math.round((proj.minutes / totalMinutes) * 100) : 0;
@@ -537,7 +537,7 @@ export default function ReportsPage() {
                 <tr>
                   <th style={{ width: '100px' }}>Date</th>
                   <th style={{ width: '150px' }}>Employee</th>
-                  <th style={{ width: '140px' }}>Department</th>
+                  <th style={{ width: '140px' }}>Project</th>
                   <th>Log Description</th>
                   <th style={{ width: '100px' }}>Time Frame</th>
                   <th style={{ width: '80px', textAlign: 'right' }}>Tracked</th>
@@ -609,7 +609,7 @@ export default function ReportsPage() {
             </div>
             <form onSubmit={handleEditLogSubmit}>
               <div className="form-group">
-                <label className="form-label">Department / Project *</label>
+                <label className="form-label">Project / Project *</label>
                 <select 
                   className="form-control"
                   required

@@ -17,7 +17,7 @@ interface Task {
     name: string;
     color: string;
   };
-  department?: string;
+  Project?: string;
   assignedTo: Array<{
     _id: string;
     name: string;
@@ -40,7 +40,7 @@ interface Employee {
   _id: string;
   name: string;
   email: string;
-  department: string;
+  Project: string;
   avatarColor: string;
 }
 
@@ -74,7 +74,7 @@ export default function TasksPage() {
     title: '',
     description: '',
     projectId: '',
-    department: '',
+    Project: '',
     assignedTo: [] as string[],
     priority: 'Medium' as 'Low' | 'Medium' | 'High' | 'Urgent',
     status: 'To Do' as 'To Do' | 'In Progress' | 'Review' | 'Completed',
@@ -159,7 +159,7 @@ export default function TasksPage() {
         userEmail: user.email,
         email: user.email,
         projectId: formData.projectId || undefined,
-        department: formData.department || user.department || undefined,
+        Project: formData.Project || user.Project || undefined,
         dueDate: formData.dueDate || undefined,
         tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
       };
@@ -215,7 +215,7 @@ export default function TasksPage() {
       title: task.title,
       description: task.description || '',
       projectId: task.projectId?._id || '',
-      department: task.department || '',
+      Project: task.Project || '',
       assignedTo: Array.isArray(task.assignedTo) ? task.assignedTo.map(e => e._id) : [],
       priority: task.priority,
       status: task.status,
@@ -231,7 +231,7 @@ export default function TasksPage() {
       setFormData((current) => ({
         ...current,
         assignedTo: [user._id],
-        department: user.department || '',
+        Project: user.Project || '',
       }));
     }
     setShowModal(true);
@@ -242,7 +242,7 @@ export default function TasksPage() {
       title: '',
       description: '',
       projectId: '',
-      department: '',
+      Project: '',
       assignedTo: [],
       priority: 'Medium',
       status: 'To Do',
@@ -293,7 +293,7 @@ export default function TasksPage() {
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
             {isAdmin
-              ? 'Create and manage tasks for projects and departments'
+              ? 'Create and manage tasks for projects and Projects'
               : 'Create your own tasks and keep them visible to the admin team'}
           </p>
         </div>
@@ -457,7 +457,7 @@ export default function TasksPage() {
                 </span>
               </div>
 
-              {/* Project/Department */}
+              {/* Project/Project */}
               <div style={{ marginBottom: '12px', fontSize: '0.8rem' }}>
                 {task.projectId && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
@@ -465,10 +465,10 @@ export default function TasksPage() {
                     <span>{task.projectId.name}</span>
                   </div>
                 )}
-                {task.department && !task.projectId && (
+                {task.Project && !task.projectId && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
                     <Folder size={14} />
-                    <span>{task.department}</span>
+                    <span>{task.Project}</span>
                   </div>
                 )}
               </div>
@@ -615,7 +615,7 @@ export default function TasksPage() {
                   <select
                     className="form-control"
                     value={formData.projectId}
-                    onChange={(e) => setFormData({ ...formData, projectId: e.target.value, department: '' })}
+                    onChange={(e) => setFormData({ ...formData, projectId: e.target.value, Project: '' })}
                   >
                     <option value="">None</option>
                     {projects.map((proj) => (
@@ -627,12 +627,12 @@ export default function TasksPage() {
                 </div>
 
                 <div>
-                  <label className="form-label">Department</label>
+                  <label className="form-label">Project</label>
                   <input
                     type="text"
                     className="form-control"
-                    value={formData.department}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value, projectId: '' })}
+                    value={formData.Project}
+                    onChange={(e) => setFormData({ ...formData, Project: e.target.value, projectId: '' })}
                     disabled={!!formData.projectId}
                     placeholder={formData.projectId ? 'Using project' : 'e.g., Engineering'}
                   />
@@ -680,7 +680,7 @@ export default function TasksPage() {
                               }
                             }}
                           />
-                          <span style={{ fontWeight: isChecked ? 700 : 400 }}>{emp.name} ({emp.department})</span>
+                          <span style={{ fontWeight: isChecked ? 700 : 400 }}>{emp.name} ({emp.Project})</span>
                         </label>
                       );
                     })}

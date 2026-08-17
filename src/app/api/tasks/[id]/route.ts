@@ -11,7 +11,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { id } = await params;
 
     const task = await Task.findById(id)
-      .populate('assignedTo', 'name email avatarColor role department')
+      .populate('assignedTo', 'name email avatarColor role Project')
       .populate('createdBy', 'name email')
       .populate('projectId', 'name color description');
 
@@ -80,7 +80,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       'title',
       'description',
       'projectId',
-      'department',
+      'Project',
       'assignedTo',
       'priority',
       'status',
@@ -97,7 +97,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     await task.save();
 
     const updatedTask = await Task.findById(id)
-      .populate('assignedTo', 'name email avatarColor role department')
+      .populate('assignedTo', 'name email avatarColor role Project')
       .populate('createdBy', 'name email')
       .populate('projectId', 'name color');
 

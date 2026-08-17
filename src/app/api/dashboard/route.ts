@@ -19,7 +19,7 @@ export async function GET() {
     const today = new Date().toISOString().split('T')[0];
 
     const [employees, projects, entries, employeeStats, projectStats, todayAttendances] = await Promise.all([
-      Employee.find({}).select('name email role department status avatarColor userType').sort({ createdAt: -1 }).lean(),
+      Employee.find({}).select('name email role Project status avatarColor userType').sort({ createdAt: -1 }).lean(),
       Project.find(projectQuery).populate('members', 'name role avatarColor').sort({ createdAt: -1 }).lean(),
       WorkEntry.find(workQuery).populate('projectId', 'name color').populate('employeeId', 'name avatarColor role').sort({ date: -1, startTime: -1 }).limit(100).lean(),
       WorkEntry.aggregate([{ $match: workQuery }, { $group: { _id: '$employeeId', totalMinutes: { $sum: '$actualTime' } } }]),

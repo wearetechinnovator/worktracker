@@ -174,7 +174,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
         })
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to update department details');
+      if (!data.success) throw new Error(data.error || 'Failed to update Project details');
 
       setIsEditProjectOpen(false);
       await fetchProjectData();
@@ -187,7 +187,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
 
   // Handle Delete Project
   const handleDeleteProject = async () => {
-    if (!confirm('Are you sure you want to delete this department section? This will also cascade-delete all work logs registered in it!')) return;
+    if (!confirm('Are you sure you want to delete this Project section? This will also cascade-delete all work logs registered in it!')) return;
 
     try {
       const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
@@ -348,11 +348,11 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px' }}>
               <div>
                 <span className="badge-status active" style={{ backgroundColor: `${project.color}15`, color: project.color, marginBottom: '6px' }}>
-                  DEPARTMENT
+                  Project
                 </span>
                 <h1 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '4px' }}>{project.name}</h1>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                  {project.description || 'No description provided for this department.'}
+                  {project.description || 'No description provided for this Project.'}
                 </p>
               </div>
 
@@ -463,7 +463,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
           {/* Card: Stats Summary */}
           <div className="card">
             <div className="project-color-banner" style={{ backgroundColor: project.color, height: '4px', borderRadius: '2px', marginBottom: '12px' }} />
-            <h3 className="card-title" style={{ marginBottom: '12px' }}>Department Tracker</h3>
+            <h3 className="card-title" style={{ marginBottom: '12px' }}>Project Tracker</h3>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px' }}>
@@ -500,7 +500,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
               ))}
               {project.members.length === 0 && (
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textAlign: 'center', padding: '12px' }}>
-                  No staff members assigned to this department.
+                  No staff members assigned to this Project.
                 </p>
               )}
             </div>
@@ -515,12 +515,12 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
         <div className="modal-overlay" onClick={() => setIsEditProjectOpen(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Edit Department Info</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Edit Project Info</h3>
               <button className="modal-close" onClick={() => setIsEditProjectOpen(false)}>&times;</button>
             </div>
             <form onSubmit={handleEditProjectSubmit}>
               <div className="form-group">
-                <label className="form-label">Department / Project Name *</label>
+                <label className="form-label">Project / Project Name *</label>
                 <input 
                   type="text" 
                   className="form-control" 

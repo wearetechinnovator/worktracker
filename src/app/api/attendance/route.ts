@@ -37,7 +37,7 @@ export async function GET(request: Request) {
             name: employee.name,
             email: employee.email,
             role: employee.role,
-            department: employee.department,
+            Project: employee.Project,
             status: employee.status,
             avatarColor: employee.avatarColor,
             userType: employee.userType,
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
         _id: emp._id.toString(),
         name: emp.name,
         role: emp.role,
-        department: emp.department,
+        Project: emp.Project,
         avatarColor: emp.avatarColor,
         attendanceStatus: record ? record.status : 'Present', // Default to Present if not marked
         attendanceId: record ? record._id.toString() : null,

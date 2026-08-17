@@ -1,7 +1,7 @@
 export type ShimmerVariant = 
   | 'dashboard' 
   | 'employees' 
-  | 'departments' 
+  | 'Projects' 
   | 'tasks' 
   | 'punch' 
   | 'attendance' 
@@ -82,7 +82,7 @@ export default function PageShimmer({ variant = 'dashboard' }: { variant?: Shimm
     );
   }
 
-  if (variant === 'departments') {
+  if (variant === 'Projects') {
     return (
       <div className="shimmer-container" aria-busy="true">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>

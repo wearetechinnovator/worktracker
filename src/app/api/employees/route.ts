@@ -12,7 +12,7 @@ export async function GET() {
     if (isErrorResponse(user)) return user;
     const [employees, stats] = await Promise.all([
       Employee.find({})
-        .select('name email role department status avatarColor userType createdAt updatedAt')
+        .select('name email role Project status avatarColor userType createdAt updatedAt')
         .sort({ createdAt: -1 })
         .lean(),
       WorkEntry.aggregate<{ _id: string; totalMinutes: number; entryCount: number }>([
@@ -29,7 +29,7 @@ export async function GET() {
           name: emp.name,
           email: emp.email,
           role: emp.role,
-          department: emp.department,
+          Project: emp.Project,
           status: emp.status,
           avatarColor: emp.avatarColor,
           userType: emp.userType || 'employee',
@@ -50,11 +50,11 @@ export async function POST(request: Request) {
   try {
     await dbConnect();
     const body = await request.json();
-    const { name, email, role, department, status, avatarColor, password, userType } = body;
+    const { name, email, role, Project, status, avatarColor, password, userType } = body;
 
-    if (!name || !email || !role || !department) {
+    if (!name || !email || !role || !Project) {
       return NextResponse.json(
-        { success: false, error: 'Name, email, role, and department are required' },
+        { success: false, error: 'Name, email, role, and Project are required' },
         { status: 400 }
       );
     }
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       name,
       email,
       role,
-      department,
+      Project,
       status: status || 'Active',
       avatarColor: avatarColor || '#7f56d9',
       password: await hashPassword(password || 'password123'),

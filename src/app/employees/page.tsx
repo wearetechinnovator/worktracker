@@ -15,7 +15,7 @@ interface Employee {
   name: string;
   email: string;
   role: string;
-  department: string;
+  Project: string;
   status: string;
   avatarColor: string;
   userType: 'admin' | 'employee';
@@ -44,7 +44,7 @@ export default function EmployeesPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('UI UX Designer');
-  const [department, setDepartment] = useState('Design');
+  const [Project, setProject] = useState('Design');
   const [status, setStatus] = useState('Active');
   const [color, setColor] = useState('#3b82f6');
   const [password, setPassword] = useState('password123');
@@ -52,7 +52,7 @@ export default function EmployeesPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#475569'];
-  const departments = ['Design', 'Development', 'Marketing', 'Human Resource', 'Management'];
+  const Projects = ['Design', 'Development', 'Marketing', 'Human Resource', 'Management'];
   const statuses = ['Active', 'Sick Leave', 'Annual Leave', 'Work From Home'];
 
   // Check login session on mount
@@ -110,7 +110,7 @@ export default function EmployeesPage() {
           name, 
           email, 
           role, 
-          department, 
+          Project, 
           status, 
           avatarColor: color, 
           password, 
@@ -136,7 +136,7 @@ export default function EmployeesPage() {
     setName(emp.name);
     setEmail(emp.email);
     setRole(emp.role);
-    setDepartment(emp.department);
+    setProject(emp.Project);
     setStatus(emp.status);
     setColor(emp.avatarColor);
     setPassword('');
@@ -158,7 +158,7 @@ export default function EmployeesPage() {
           name, 
           email, 
           role, 
-          department, 
+          Project, 
           status, 
           avatarColor: color, 
           password, 
@@ -203,7 +203,7 @@ export default function EmployeesPage() {
     setName('');
     setEmail('');
     setRole('UI UX Designer');
-    setDepartment('Design');
+    setProject('Design');
     setStatus('Active');
     setColor('#3b82f6');
     setPassword('password123');
@@ -269,7 +269,7 @@ export default function EmployeesPage() {
                   <div style={{ marginTop: '10px' }}>
                     <h3 style={{ fontSize: '0.95rem', fontWeight: 800 }}>{emp.name}</h3>
                     <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
-                      <span className="tag-badge" style={{ fontSize: '0.65rem' }}>{emp.department}</span>
+                      <span className="tag-badge" style={{ fontSize: '0.65rem' }}>{emp.Project}</span>
                       <span className="tag-badge" style={{ fontSize: '0.65rem', textTransform: 'capitalize' }}>{emp.userType}</span>
                     </div>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
@@ -383,13 +383,13 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Department *</label>
+                  <label className="form-label">Project *</label>
                   <select 
                     className="form-control"
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
+                    value={Project}
+                    onChange={(e) => setProject(e.target.value)}
                   >
-                    {departments.map((dept) => (
+                    {Projects.map((dept) => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>
@@ -507,13 +507,13 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Department *</label>
+                  <label className="form-label">Project *</label>
                   <select 
                     className="form-control"
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
+                    value={Project}
+                    onChange={(e) => setProject(e.target.value)}
                   >
-                    {departments.map((dept) => (
+                    {Projects.map((dept) => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>

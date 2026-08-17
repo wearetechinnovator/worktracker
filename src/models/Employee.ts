@@ -4,7 +4,7 @@ export interface IEmployee extends Document {
   name: string;
   email: string;
   role: string;
-  department: string;
+  Project: string;
   status: string; // e.g. "Active", "Sick Leave", "Work From Home"
   avatarColor: string; // Hex color code
   password: string;
@@ -18,7 +18,7 @@ const EmployeeSchema = new Schema<IEmployee>(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, trim: true, lowercase: true },
     role: { type: String, required: true, trim: true },
-    department: { type: String, required: true, trim: true },
+    Project: { type: String, required: true, trim: true },
     status: { type: String, default: 'Active', trim: true },
     avatarColor: { type: String, default: '#7f56d9' },
     password: { type: String, required: true, default: 'password123' },
@@ -27,7 +27,7 @@ const EmployeeSchema = new Schema<IEmployee>(
   { timestamps: true }
 );
 
-EmployeeSchema.index({ department: 1, status: 1 });
+EmployeeSchema.index({ Project: 1, status: 1 });
 
 const Employee: Model<IEmployee> = mongoose.models.Employee || mongoose.model<IEmployee>('Employee', EmployeeSchema);
 

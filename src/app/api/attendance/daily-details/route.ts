@@ -51,7 +51,7 @@ export async function GET(request: Request) {
 
     // 3. Fetch Task Work sessions for this employee on this date
     const taskWorksRaw = await TaskWork.find({ employeeId, date })
-      .populate('taskId', 'title description priority status department')
+      .populate('taskId', 'title description priority status Project')
       .sort({ createdAt: 1 });
 
     const taskWorks = taskWorksRaw.map((tw) => {
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
         taskDescription: task ? task.description : '',
         taskPriority: task ? task.priority : 'Medium',
         taskStatus: task ? task.status : 'In Progress',
-        department: task ? task.department : '',
+        Project: task ? task.Project : '',
         startTime: tw.startTime,
         endTime: tw.endTime || null,
         totalMinutes: tw.totalMinutes || 0,
@@ -80,7 +80,7 @@ export async function GET(request: Request) {
           name: employee.name,
           email: employee.email,
           role: employee.role,
-          department: employee.department,
+          Project: employee.Project,
           status: employee.status,
           avatarColor: employee.avatarColor,
           userType: employee.userType,

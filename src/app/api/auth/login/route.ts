@@ -46,7 +46,7 @@ export async function POST(request: Request) {
         name: 'System Admin',
         email: bootstrapEmail.toLowerCase().trim(),
         role: 'Administrator',
-        department: 'Management',
+        Project: 'Management',
         status: 'Active',
         avatarColor: '#f43f5e',
         password: await hashPassword(bootstrapPassword),
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       role: employee.role,
       userType: employee.userType,
       avatarColor: employee.avatarColor,
-      department: employee.department
+      Project: employee.Project
     };
 
     const { token, expiresAt } = createSession(employee._id.toString(), employee.userType);

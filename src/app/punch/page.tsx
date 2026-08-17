@@ -157,7 +157,7 @@ export default function PunchPage() {
 
     return entries.map((entry, index) => {
       const task = taskMap.get(entry.taskId?._id || entry.taskId);
-      const projectName = task?.projectId?.name || task?.department || 'General';
+      const projectName = task?.projectId?.name || task?.Project || 'General';
       const taskTitle = task?.title || entry.taskId?.title || 'Untitled task';
       const summary = entry.notes || task?.description || 'Completed work task details.';
       const duration = formatDurationText(entry.totalMinutes || 0);
@@ -371,7 +371,7 @@ export default function PunchPage() {
 
       {/* Admin Manual Override Section */}
       {user?.userType === 'admin' && (
-        <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--accent-primary)', background: 'var(--bg-secondary)' }}>
+        <div className="card" style={{ marginBottom: '20px', background: 'var(--bg-secondary)' }}>
           <h4 style={{ fontWeight: 800, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Users size={18} style={{ color: 'var(--accent-primary)' }} />
             Admin Manual Punch Override
@@ -390,7 +390,7 @@ export default function PunchPage() {
               >
                 {employeesList.map((emp) => (
                   <option key={emp._id} value={emp._id}>
-                    {emp.name} ({emp.department} - {emp.role})
+                    {emp.name} ({emp.Project} - {emp.role})
                   </option>
                 ))}
               </select>

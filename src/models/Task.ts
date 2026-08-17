@@ -4,7 +4,7 @@ export interface ITask extends Document {
   title: string;
   description?: string;
   projectId?: mongoose.Types.ObjectId;
-  department?: string;
+  Project?: string;
   assignedTo: mongoose.Types.ObjectId[]; // Array of employee IDs
   createdBy: mongoose.Types.ObjectId; // Admin/Manager who created it
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
@@ -20,7 +20,7 @@ const TaskSchema = new Schema<ITask>(
     title: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     projectId: { type: Schema.Types.ObjectId, ref: 'Project' },
-    department: { type: String, trim: true },
+    Project: { type: String, trim: true },
     assignedTo: [{ type: Schema.Types.ObjectId, ref: 'Employee' }],
     createdBy: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
     priority: { 
@@ -44,7 +44,7 @@ const TaskSchema = new Schema<ITask>(
 TaskSchema.index({ assignedTo: 1, createdAt: -1 });
 TaskSchema.index({ createdBy: 1, createdAt: -1 });
 TaskSchema.index({ projectId: 1, status: 1, createdAt: -1 });
-TaskSchema.index({ department: 1, status: 1, createdAt: -1 });
+TaskSchema.index({ Project: 1, status: 1, createdAt: -1 });
 
 const Task: Model<ITask> = mongoose.models.Task || mongoose.model<ITask>('Task', TaskSchema);
 

@@ -13,7 +13,7 @@ interface Employee {
   name: string;
   email: string;
   role: string;
-  department: string;
+  Project: string;
   avatarColor: string;
   status?: string;
   userType?: string;
@@ -54,7 +54,7 @@ interface TaskWorkItem {
   taskDescription: string;
   taskPriority: string;
   taskStatus: string;
-  department: string;
+  Project: string;
   startTime: string;
   endTime: string | null;
   totalMinutes: number;
@@ -238,7 +238,7 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>{employee.name}</h2>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
-                {employee.role} &bull; <span className="tag-badge">{employee.department}</span>
+                {employee.role} &bull; <span className="tag-badge">{employee.Project}</span>
               </p>
             </div>
           </div>

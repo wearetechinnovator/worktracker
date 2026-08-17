@@ -28,7 +28,7 @@ export async function GET(
           name: employee.name,
           email: employee.email,
           role: employee.role,
-          department: employee.department,
+          Project: employee.Project,
           status: employee.status,
           avatarColor: employee.avatarColor,
           userType: employee.userType,
@@ -64,7 +64,7 @@ export async function PUT(
     await dbConnect();
     const { id } = await params;
     const body = await request.json();
-    const { name, email, role, department, status, avatarColor, password, userType } = body;
+    const { name, email, role, Project, status, avatarColor, password, userType } = body;
 
     const employee = await Employee.findById(id);
     if (!employee) {
@@ -74,7 +74,7 @@ export async function PUT(
     if (name) employee.name = name;
     if (email) employee.email = email;
     if (role) employee.role = role;
-    if (department) employee.department = department;
+    if (Project) employee.Project = Project;
     if (status) employee.status = status;
     if (avatarColor) employee.avatarColor = avatarColor;
     if (password) employee.password = await hashPassword(password);

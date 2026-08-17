@@ -9,9 +9,9 @@ export async function currentUser() {
   const token = (await cookies()).get(sessionCookie.name)?.value;
   const session = readSession(token);
   if (!session) return null;
-  const employee = await Employee.findById(session.userId).select('_id userType department status').lean();
+  const employee = await Employee.findById(session.userId).select('_id userType Project status').lean();
   if (!employee || employee.status !== 'Active' || employee.userType !== session.userType) return null;
-  return { id: employee._id.toString(), userType: employee.userType, department: employee.department };
+  return { id: employee._id.toString(), userType: employee.userType, Project: employee.Project };
 }
 
 export async function requireUser() {

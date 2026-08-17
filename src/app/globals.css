@@ -782,7 +782,7 @@ textarea.form-control {
   height: 8px;
 }
 
-/* Split Layout for Departments master-detail */
+/* Split Layout for Projects master-detail */
 .split-layout {
   display: flex;
   gap: 16px;
@@ -807,7 +807,7 @@ textarea.form-control {
   gap: 16px;
 }
 
-.department-item {
+.Project-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -819,11 +819,11 @@ textarea.form-control {
   transition: var(--transition-fast);
 }
 
-.department-item:hover {
+.Project-item:hover {
   background: var(--bg-tertiary);
 }
 
-.department-item.active {
+.Project-item.active {
   border-color: var(--accent-primary);
   background: #eef2ff;
 }

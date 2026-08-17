@@ -16,7 +16,7 @@ interface Employee {
   name: string;
   email: string;
   role: string;
-  department: string;
+  Project: string;
   status: string;
   avatarColor: string;
   totalMinutes: number;
@@ -103,7 +103,7 @@ export default function Dashboard() {
 
   // Presets
   const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#475569'];
-  const departments = ['Design', 'Development', 'Marketing', 'Human Resource', 'Management'];
+  const Projects = ['Design', 'Development', 'Marketing', 'Human Resource', 'Management'];
   const statuses = ['Active', 'Sick Leave', 'Annual Leave', 'Work From Home'];
 
   // Check login session on mount
@@ -170,7 +170,7 @@ export default function Dashboard() {
           name: empName,
           email: empEmail,
           role: empRole,
-          department: empDept,
+          Project: empDept,
           status: empStatus,
           avatarColor: empColor,
           password: empPass,
@@ -408,8 +408,8 @@ Summary: ${entry.description || 'Completed work task details.'}`;
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Dashboard Overview</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
             {isAdmin 
-              ? 'Manage your organization departments, monitor employee schedule, and track tasks.'
-              : 'Log your work sessions, view assigned departments, and manage your schedules.'}
+              ? 'Manage your organization Projects, monitor employee schedule, and track tasks.'
+              : 'Log your work sessions, view assigned Projects, and manage your schedules.'}
           </p>
         </div> */}
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -421,12 +421,12 @@ Summary: ${entry.description || 'Completed work task details.'}`;
               </button>
               <button className="btn btn-secondary" onClick={() => setIsProjectModalOpen(true)}>
                 <Folder size={14} />
-                <span>New Department</span>
+                <span>New Project</span>
               </button>
             </>
           )}
           {/* <button className="btn btn-primary" onClick={() => {
-            if (projects.length === 0) return alert('Create a department first!');
+            if (projects.length === 0) return alert('Create a Project first!');
             setIsWorkModalOpen(true);
           }}>
             <Plus size={14} />
@@ -639,7 +639,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                 <thead>
                   <tr>
                     <th>Employee Name</th>
-                    <th>Department</th>
+                    <th>Project</th>
                     <th>Job Title</th>
                   </tr>
                 </thead>
@@ -659,7 +659,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                       </td>
                       <td>
                         <span className="tag-badge" style={{ borderColor: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-primary)', background: '#eff6ff' }}>
-                          {emp.department}
+                          {emp.Project}
                         </span>
                       </td>
                       <td style={{ color: 'var(--text-secondary)' }}>{emp.role}</td>
@@ -688,7 +688,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                   <thead>
                     <tr>
                       <th>Date</th>
-                      <th>Department</th>
+                      <th>Project</th>
                       <th>Work Performed</th>
                       <th>Time</th>
                       <th style={{ textAlign: 'right' }}>Tracked</th>
@@ -735,7 +735,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
 
               <div className="employee-badge-container" style={{ marginBottom: '12px' }}>
                 <span className="tag-badge" style={{ backgroundColor: '#eff6ff', color: 'var(--accent-primary)', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
-                  {isAdmin ? (featuredEmployee?.department || 'Management') : meEmployee.department}
+                  {isAdmin ? (featuredEmployee?.Project || 'Management') : meEmployee.Project}
                 </span>
                 <span className="tag-badge">Full Time</span>
                 <span className="tag-badge">Active</span>
@@ -881,13 +881,13 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Department *</label>
+                  <label className="form-label">Project *</label>
                   <select
                     className="form-control"
                     value={empDept}
                     onChange={(e) => setEmpDept(e.target.value)}
                   >
-                    {departments.map((dept) => (
+                    {Projects.map((dept) => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>
@@ -936,17 +936,17 @@ Summary: ${entry.description || 'Completed work task details.'}`;
         </div>
       )}
 
-      {/* MODAL: NEW DEPARTMENT (Admin Only) */}
+      {/* MODAL: NEW Project (Admin Only) */}
       {isAdmin && isProjectModalOpen && (
         <div className="modal-overlay" onClick={() => setIsProjectModalOpen(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Create New Department</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Create New Project</h3>
               <button className="modal-close" onClick={() => setIsProjectModalOpen(false)}>&times;</button>
             </div>
             <form onSubmit={handleAddProject}>
               <div className="form-group">
-                <label className="form-label">Department / Project Name *</label>
+                <label className="form-label">Project / Project Name *</label>
                 <input
                   type="text"
                   className="form-control"
@@ -1003,7 +1003,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsProjectModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={submittingProj}>
-                  {submittingProj ? 'Creating...' : 'Create Department'}
+                  {submittingProj ? 'Creating...' : 'Create Project'}
                 </button>
               </div>
             </form>
@@ -1021,7 +1021,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
             </div>
             <form onSubmit={handleAddWork}>
               <div className="form-group">
-                <label className="form-label">Department / Project *</label>
+                <label className="form-label">Project / Project *</label>
                 <select
                   className="form-control"
                   required

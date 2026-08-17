@@ -167,12 +167,12 @@ export default function Sidebar() {
                   <span>Dashboard</span>
                 </div>
               )}
-
               {canAccessFeatures ? (
                 <Link href="/departments" className={`sidebar-link ${pathname === '/departments' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
                   <Folder size={14} />
-                  <span>Department</span>
+                  <span>Departments</span>
                 </Link>
+                
               ) : (
                 <div 
                   className="sidebar-link" 
@@ -186,7 +186,29 @@ export default function Sidebar() {
                   }}
                 >
                   <Folder size={14} />
-                  <span>Department</span>
+                  <span>Project</span>
+                </div>
+              )}
+              {canAccessFeatures ? (
+                <Link href="/project" className={`sidebar-link ${pathname === '/project' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
+                  <Folder size={14} />
+                  <span>Project</span>
+                </Link>
+                
+              ) : (
+                <div 
+                  className="sidebar-link" 
+                  style={{ 
+                    padding: '6px 8px', 
+                    fontSize: '0.78rem', 
+                    opacity: 0.4,
+                    filter: 'blur(0.5px)',
+                    cursor: 'not-allowed',
+                    pointerEvents: 'none'
+                  }}
+                >
+                  <Folder size={14} />
+                  <span>Project</span>
                 </div>
               )}
 

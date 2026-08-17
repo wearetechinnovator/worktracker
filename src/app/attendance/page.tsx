@@ -10,7 +10,7 @@ interface AttendanceRecord {
   _id: string; // Employee ID
   name: string;
   role: string;
-  department: string;
+  Project: string;
   avatarColor: string;
   attendanceStatus: 'Present' | 'Absent' | 'On Leave';
   attendanceId: string | null;
@@ -199,7 +199,7 @@ export default function AttendancePage() {
               <thead>
                 <tr>
                   <th>Employee Name</th>
-                  <th>Department</th>
+                  <th>Project</th>
                   <th>Job Title / Role</th>
                   <th>Check In (Time / IP / Geo)</th>
                   <th>Check Out (Time / IP / Geo)</th>
@@ -220,7 +220,7 @@ export default function AttendancePage() {
                             name: rec.name,
                             email: '',
                             role: rec.role,
-                            department: rec.department,
+                            Project: rec.Project,
                             avatarColor: rec.avatarColor,
                           });
                           setIsCalendarOpen(true);
@@ -237,7 +237,7 @@ export default function AttendancePage() {
                     </td>
                     <td>
                       <span className="tag-badge">
-                        {rec.department}
+                        {rec.Project}
                       </span>
                     </td>
                     <td style={{ color: 'var(--text-secondary)' }}>{rec.role}</td>

@@ -16,7 +16,7 @@ interface Task {
     name: string;
     color: string;
   };
-  department?: string;
+  Project?: string;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   status: 'To Do' | 'In Progress' | 'Review' | 'Completed';
   dueDate?: string;
@@ -397,9 +397,9 @@ export default function MyTasks({ userId }: { userId: string }) {
                             {task.projectId.name}
                           </span>
                         )}
-                        {task.department && !task.projectId && (
+                        {task.Project && !task.projectId && (
                           <span className="tag-badge" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>
-                            {task.department}
+                            {task.Project}
                           </span>
                         )}
                         {completedToday && !isWorking && (
