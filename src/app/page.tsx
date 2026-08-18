@@ -1,5 +1,9 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/exhaustive-deps */
+
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -65,6 +69,9 @@ export default function Dashboard() {
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [isWorkModalOpen, setIsWorkModalOpen] = useState(false);
+
+  // Team Punch Pagination
+  const [teamPage, setTeamPage] = useState(1);
 
   // Selected Day for Timeline (default to today)
   const [selectedTimelineDate, setSelectedTimelineDate] = useState('');
@@ -259,25 +266,6 @@ export default function Dashboard() {
     }
   };
 
-  const handleGrantPermission = async (empId: string, action: 'allowPunchIn' | 'allowPunchOut') => {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const res = await fetch('/api/punch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employeeId: empId,
-          action,
-          localDate: today,
-        }),
-      });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to update permission');
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message || 'Error updating punch permission');
-    }
-  };
 
   const handleMemberSelectToggle = (empId: string) => {
     if (projMembers.includes(empId)) {
@@ -446,110 +434,120 @@ Summary: ${entry.description || 'Completed work task details.'}`;
       <div className="dashboard-grid">
 
         {/* ROW 2: LEFT COLUMN: Team Punch & Permission Monitor (Admin Only) */}
-        {isAdmin && (
-          <div className="col-5">
-            <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <div className="card-header" style={{ marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                <div>
-                  <h3 className="card-title" style={{ fontSize: '1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Clock size={18} style={{ color: 'var(--accent-primary)' }} />
-                    Team Punch & Permissions
-                  </h3>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Live presence & 1-day punch override</span>
+        {isAdmin && (() => {
+          const TEAM_ITEMS_PER_PAGE = 3;
+          const activeCount = employees.filter((e: any) => e.todayAttendance?.checkIn && !e.todayAttendance?.checkOut).length;
+          const inactiveCount = employees.length - activeCount;
+          const paginatedTeam = employees.slice((teamPage - 1) * TEAM_ITEMS_PER_PAGE, teamPage * TEAM_ITEMS_PER_PAGE);
+          const totalTeamPages = Math.ceil(employees.length / TEAM_ITEMS_PER_PAGE);
+
+          return (
+            <div className="col-5">
+              <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div className="card-header" style={{ marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <h3 className="card-title" style={{ fontSize: '1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Clock size={18} style={{ color: 'var(--accent-primary)' }} />
+                      Team Punch & Permissions
+                    </h3>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Live presence & 1-day punch override</span>
+                  </div>
+                  <span className="tag-badge" style={{ fontSize: '0.68rem', padding: '2px 8px', fontWeight: 700, backgroundColor: 'rgba(127, 86, 217, 0.08)', color: 'var(--accent-primary)', border: '1px solid rgba(127, 86, 217, 0.15)' }}>
+                    Active: {activeCount} • Inactive: {inactiveCount}
+                  </span>
                 </div>
-                <span className="tag-badge" style={{ fontSize: '0.68rem', padding: '2px 8px', fontWeight: 700 }}>
-                  {employees.filter((e: any) => e.todayAttendance?.checkIn).length} / {employees.length} Active
-                </span>
-              </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', flex: 1, maxHeight: '340px', paddingRight: '2px' }}>
-                {employees.map((emp: any) => {
-                  const att = emp.todayAttendance;
-                  const hasCheckIn = !!att?.checkIn;
-                  const hasCheckOut = !!att?.checkOut;
-                  const todayStr = new Date().toISOString().split('T')[0];
-                  const isPunchInAllowed = att?.allowPunchInDate === todayStr;
-                  const isPunchOutAllowed = att?.allowPunchOutDate === todayStr;
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, paddingRight: '2px' }}>
+                  {paginatedTeam.length === 0 ? (
+                    <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px', fontSize: '0.8rem' }}>No employees found.</p>
+                  ) : (
+                    paginatedTeam.map((emp: any) => {
+                      const att = emp.todayAttendance;
+                      const hasCheckIn = !!att?.checkIn;
+                      const hasCheckOut = !!att?.checkOut;
+                      const isWorkingNow = !!att?.isWorking;
 
-                  return (
-                    <div key={emp._id} style={{ padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {/* Member Info & Live Status Badge */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                          <div className="avatar" style={{ backgroundColor: emp.avatarColor, width: '30px', height: '30px', fontSize: '0.72rem', fontWeight: 700 }}>
-                            {emp.name.split(' ').map((n: string) => n[0]).join('')}
+                      return (
+                        <div key={emp._id} style={{ padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {/* Member Info & Live Status Badge */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div
+                              onClick={() => router.push(`/employees?select=${emp._id}`)}
+                              style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}
+                              title="Click to view details & manage punch permissions"
+                            >
+                              <div className="avatar" style={{ backgroundColor: emp.avatarColor, width: '30px', height: '30px', fontSize: '0.72rem', fontWeight: 700 }}>
+                                {emp.name.split(' ').map((n: string) => n[0]).join('')}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--accent-primary)', textDecoration: 'underline' }}>{emp.name}</div>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{emp.role}</div>
+                              </div>
+                            </div>
+
+                            {/* Status pill */}
+                            {hasCheckOut ? (
+                              <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#fee2e2', color: '#991b1b', fontWeight: 700 }}>
+                                Checked Out
+                              </span>
+                            ) : hasCheckIn ? (
+                              isWorkingNow ? (
+                                <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#dcfce7', color: '#166534', fontWeight: 700 }}>
+                                  Working
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#e0f2fe', color: '#0369a1', fontWeight: 700 }}>
+                                  Idle
+                                </span>
+                              )
+                            ) : (
+                              <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>
+                                Not Punched
+                              </span>
+                            )}
                           </div>
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: '0.8rem' }}>{emp.name}</div>
-                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{emp.role}</div>
+
+                          {/* Time details */}
+                          <div style={{ fontSize: '0.68rem', background: 'var(--bg-tertiary)', padding: '4px 8px', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                            <span>In: <b>{att?.checkIn || '—'}</b></span>
+                            <span>Out: <b>{att?.checkOut || '—'}</b></span>
                           </div>
                         </div>
+                      );
+                    })
+                  )}
+                </div>
 
-                        {/* Status pill */}
-                        {hasCheckOut ? (
-                          <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#fee2e2', color: '#991b1b', fontWeight: 700 }}>
-                            Checked Out
-                          </span>
-                        ) : hasCheckIn ? (
-                          <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#dcfce7', color: '#166534', fontWeight: 700 }}>
-                            Working
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>
-                            Not Punched
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Time details */}
-                      <div style={{ fontSize: '0.68rem', background: 'var(--bg-tertiary)', padding: '4px 8px', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                        <span>In: <b>{att?.checkIn || '—'}</b></span>
-                        <span>Out: <b>{att?.checkOut || '—'}</b></span>
-                      </div>
-
-                      {/* Admin Action Buttons */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                        <button
-                          type="button"
-                          className="btn"
-                          style={{
-                            fontSize: '0.65rem',
-                            padding: '4px 6px',
-                            fontWeight: 700,
-                            background: isPunchInAllowed ? '#dcfce7' : 'var(--bg-primary)',
-                            color: isPunchInAllowed ? '#15803d' : 'var(--text-primary)',
-                            border: '1px solid ' + (isPunchInAllowed ? '#86efac' : 'var(--border-color)'),
-                          }}
-                          onClick={() => handleGrantPermission(emp._id, 'allowPunchIn')}
-                          title="Grant 1-day Punch In permission for this employee"
-                        >
-                          {isPunchInAllowed ? '✓ In Allowed' : 'Allow Punch In'}
-                        </button>
-
-                        <button
-                          type="button"
-                          className="btn"
-                          style={{
-                            fontSize: '0.65rem',
-                            padding: '4px 6px',
-                            fontWeight: 700,
-                            background: isPunchOutAllowed ? '#fee2e2' : 'var(--bg-primary)',
-                            color: isPunchOutAllowed ? '#b91c1c' : 'var(--text-primary)',
-                            border: '1px solid ' + (isPunchOutAllowed ? '#fca5a5' : 'var(--border-color)'),
-                          }}
-                          onClick={() => handleGrantPermission(emp._id, 'allowPunchOut')}
-                          title="Grant 1-day Punch Out permission for this employee"
-                        >
-                          {isPunchOutAllowed ? '✓ Out Allowed' : 'Allow Punch Out'}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {/* Team Pagination controls */}
+                {totalTeamPages > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => setTeamPage((p) => Math.max(1, p - 1))}
+                      disabled={teamPage === 1}
+                      style={{ padding: '3px 8px', fontSize: '0.7rem', opacity: teamPage === 1 ? 0.5 : 1 }}
+                    >
+                      Previous
+                    </button>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                      Page {teamPage} of {totalTeamPages}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => setTeamPage((p) => Math.min(totalTeamPages, p + 1))}
+                      disabled={teamPage === totalTeamPages}
+                      style={{ padding: '3px 8px', fontSize: '0.7rem', opacity: teamPage === totalTeamPages ? 0.5 : 1 }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Employee Tasks Section */}
         {!isAdmin && user && (

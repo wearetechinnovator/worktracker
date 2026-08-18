@@ -25,6 +25,10 @@ interface Employee {
   userType: 'admin' | 'employee';
   password?: string;
   totalMinutes: number;
+  todayAttendance?: {
+    allowPunchInDate?: string | null;
+    allowPunchOutDate?: string | null;
+  } | null;
 }
 
 export default function EmployeesPage() {
@@ -102,6 +106,19 @@ export default function EmployeesPage() {
       fetchEmployees();
     }
   }, [user, fetchEmployees]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && employees.length > 0) {
+      const selectId = new URLSearchParams(window.location.search).get('select');
+      if (selectId) {
+        const matched = employees.find(emp => emp._id === selectId);
+        if (matched) {
+          setSelectedEmployee(matched);
+          setIsDetailModalOpen(true);
+        }
+      }
+    }
+  }, [employees]);
 
   // Handle Add Employee Submit
   const handleAddSubmit = async (e: React.FormEvent) => {
@@ -198,6 +215,29 @@ export default function EmployeesPage() {
       await fetchEmployees();
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const handleTogglePunchOverride = async (empId: string, action: 'allowPunchIn' | 'allowPunchOut') => {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const res = await fetch('/api/punch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: empId,
+          action,
+          localDate: todayStr,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchEmployees();
+      } else {
+        alert(data.error || 'Failed to update punch override');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error updating punch override');
     }
   };
 
@@ -340,6 +380,42 @@ export default function EmployeesPage() {
                       <Mail size={12} />
                       {emp.email}
                     </p>
+
+                    {/* Punch Overrides directly on Card */}
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{
+                          fontSize: '0.65rem',
+                          padding: '4px 8px',
+                          fontWeight: 700,
+                          background: emp.todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#dcfce7' : 'var(--bg-tertiary)',
+                          color: emp.todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#15803d' : 'var(--text-secondary)',
+                          border: '1px solid ' + (emp.todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#86efac' : 'var(--border-color)'),
+                        }}
+                        onClick={() => handleTogglePunchOverride(emp._id, 'allowPunchIn')}
+                        title="Allow explicit Punch In override for today"
+                      >
+                        {emp.todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '✓ In Allowed' : 'Allow In'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{
+                          fontSize: '0.65rem',
+                          padding: '4px 8px',
+                          fontWeight: 700,
+                          background: emp.todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#fee2e2' : 'var(--bg-tertiary)',
+                          color: emp.todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#b91c1c' : 'var(--text-secondary)',
+                          border: '1px solid ' + (emp.todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#fca5a5' : 'var(--border-color)'),
+                        }}
+                        onClick={() => handleTogglePunchOverride(emp._id, 'allowPunchOut')}
+                        title="Allow explicit Punch Out override for today"
+                      >
+                        {emp.todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '✓ Out Allowed' : 'Allow Out'}
+                      </button>
+                    </div>
                   </div>
                 </div>
 

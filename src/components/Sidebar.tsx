@@ -286,6 +286,10 @@ export default function Sidebar() {
                     <History size={14} />
                     <span>My Work History</span>
                   </Link>
+                  <Link href="/attendance" className={`sidebar-link ${pathname === '/attendance' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
+                    <Calendar size={14} />
+                    <span>My Punch Logs</span>
+                  </Link>
                 </>
               )}
 
@@ -301,7 +305,7 @@ export default function Sidebar() {
                   </Link>
                   <Link href="/attendance" className={`sidebar-link ${pathname === '/attendance' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
                     <Calendar size={14} />
-                    <span>Attendance</span>
+                    <span>Punch Logs</span>
                   </Link>
                   <Link href="/employees" className={`sidebar-link ${pathname === '/employees' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
                     <Users size={14} />

@@ -5,6 +5,7 @@ import Employee from '@/models/Employee';
 import Project from '@/models/Project';
 import WorkEntry from '@/models/WorkEntry';
 import Attendance from '@/models/Attendance';
+import TaskWork from '@/models/TaskWork';
 import { currentUser } from '@/lib/auth';
 
 export async function GET() {
@@ -18,18 +19,20 @@ export async function GET() {
     const workQuery = employeeId ? { employeeId } : {};
     const today = new Date().toISOString().split('T')[0];
 
-    const [employees, projects, entries, employeeStats, projectStats, todayAttendances] = await Promise.all([
-      Employee.find({}).select('name email role Project status avatarColor userType').sort({ createdAt: -1 }).lean(),
+    const [employees, projects, entries, employeeStats, projectStats, todayAttendances, activeTaskWorks] = await Promise.all([
+      Employee.find({ userType: { $ne: 'admin' } }).select('name email role Project status avatarColor userType').sort({ createdAt: -1 }).lean(),
       Project.find(projectQuery).populate('members', 'name role avatarColor').sort({ createdAt: -1 }).lean(),
       WorkEntry.find(workQuery).populate('projectId', 'name color').populate('employeeId', 'name avatarColor role').sort({ date: -1, startTime: -1 }).limit(100).lean(),
       WorkEntry.aggregate([{ $match: workQuery }, { $group: { _id: '$employeeId', totalMinutes: { $sum: '$actualTime' } } }]),
       WorkEntry.aggregate([{ $match: workQuery }, { $group: { _id: '$projectId', totalMinutes: { $sum: '$actualTime' }, entryCount: { $sum: 1 } } }]),
       Attendance.find({ date: today }).lean(),
+      TaskWork.find({ date: today, status: 'In Progress' }).lean(),
     ]);
 
     const employeeTotals = new Map(employeeStats.map((item) => [item._id.toString(), item.totalMinutes]));
     const projectTotals = new Map(projectStats.map((item) => [item._id.toString(), item]));
     const attendanceMap = new Map(todayAttendances.map((att) => [att.employeeId.toString(), att]));
+    const activeEmployeeIds = new Set(activeTaskWorks.map((tw) => tw.employeeId.toString()));
 
     return NextResponse.json(
       {
@@ -47,6 +50,7 @@ export async function GET() {
                 status: att.status,
                 allowPunchInDate: att.allowPunchInDate || null,
                 allowPunchOutDate: att.allowPunchOutDate || null,
+                isWorking: activeEmployeeIds.has(employee._id.toString()),
               } : null,
             };
           }),

@@ -2,10 +2,14 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Attendance from '@/models/Attendance';
 import Employee from '@/models/Employee';
+import { isErrorResponse, requireUser } from '@/lib/auth';
 
 export async function GET(request: Request) {
   try {
     await dbConnect();
+    const user = await requireUser();
+    if (isErrorResponse(user)) return user;
+
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
     const employeeId = searchParams.get('employeeId');
@@ -62,10 +66,33 @@ export async function GET(request: Request) {
     }
 
     if (!date) {
-      return NextResponse.json({ success: false, error: 'Date parameter is required' }, { status: 400 });
+      const filterEmployeeId = user.userType === 'admin' ? searchParams.get('filterEmployeeId') : user.id;
+      const filterStatus = searchParams.get('filterStatus');
+      const startDate = searchParams.get('startDate');
+      const endDate = searchParams.get('endDate');
+
+      const query: any = {};
+      if (filterEmployeeId) {
+        query.employeeId = filterEmployeeId;
+      }
+      if (filterStatus) {
+        query.status = filterStatus;
+      }
+      if (startDate || endDate) {
+        query.date = {};
+        if (startDate) query.date.$gte = startDate;
+        if (endDate) query.date.$lte = endDate;
+      }
+
+      const records = await Attendance.find(query)
+        .populate('employeeId', 'name role avatarColor Project')
+        .sort({ date: -1, createdAt: -1 })
+        .lean();
+
+      return NextResponse.json({ success: true, data: records });
     }
 
-    const employees = await Employee.find({}).sort({ name: 1 });
+    const employees = await Employee.find({ userType: { $ne: 'admin' } }).sort({ name: 1 });
     const attendanceRecords = await Attendance.find({ date });
 
     const attendanceMap = new Map(

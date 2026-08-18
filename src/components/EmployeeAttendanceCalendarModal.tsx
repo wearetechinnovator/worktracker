@@ -1,5 +1,9 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/exhaustive-deps */
+
 import { useState, useEffect, useCallback } from 'react';
 import { 
   ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, 
@@ -93,7 +97,66 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
     workEntries: WorkEntryItem[];
     taskWorks: TaskWorkItem[];
   } | null>(null);
-  const [loadingDaily, setLoadingDaily] = useState<boolean>(false);
+  // Admin punch overrides state
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [todayAttendance, setTodayAttendance] = useState<any | null>(null);
+  const [submittingOverride, setSubmittingOverride] = useState<boolean>(false);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('worktracker_user');
+    if (storedUser) {
+      const parsed = JSON.parse(storedUser);
+      setIsAdmin(parsed.userType === 'admin');
+    }
+  }, []);
+
+  const fetchTodayPunchStatus = useCallback(async () => {
+    if (!employee) return;
+    try {
+      const res = await fetch(`/api/punch?employeeId=${employee._id}`);
+      const data = await res.json();
+      if (data.success) {
+        setTodayAttendance(data.data.attendance);
+      }
+    } catch (err) {
+      console.error('Error fetching today punch status in modal:', err);
+    }
+  }, [employee]);
+
+  useEffect(() => {
+    if (isOpen && employee) {
+      fetchTodayPunchStatus();
+    } else {
+      setTodayAttendance(null);
+    }
+  }, [isOpen, employee, fetchTodayPunchStatus]);
+
+  const handleToggleOverride = async (action: 'allowPunchIn' | 'allowPunchOut') => {
+    if (!employee) return;
+    try {
+      setSubmittingOverride(true);
+      const todayStr = new Date().toISOString().split('T')[0];
+      const res = await fetch('/api/punch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: employee._id,
+          action,
+          localDate: todayStr,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchTodayPunchStatus();
+      } else {
+        alert(data.error || 'Failed to update punch override');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error updating punch override');
+    } finally {
+      setSubmittingOverride(false);
+    }
+  };
 
   const monthFormatted = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
 
@@ -245,6 +308,50 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
 
           <button className="modal-close" onClick={onClose} style={{ fontSize: '1.4rem' }}>&times;</button>
         </div>
+
+        {/* Admin Punch Override Controls */}
+        {isAdmin && todayAttendance !== undefined && (
+          <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '12px 14px', borderRadius: '8px', marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>1-Day Admin Punch Override</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Grant temporal authorization to bypass schedule restrictions for today.</div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn"
+                disabled={submittingOverride}
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '5px 10px',
+                  fontWeight: 700,
+                  background: todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#dcfce7' : 'var(--bg-primary)',
+                  color: todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#15803d' : 'var(--text-primary)',
+                  border: '1px solid ' + (todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#86efac' : 'var(--border-color)'),
+                }}
+                onClick={() => handleToggleOverride('allowPunchIn')}
+              >
+                {todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '✓ In Allowed' : 'Allow Punch In'}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={submittingOverride}
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '5px 10px',
+                  fontWeight: 700,
+                  background: todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#fee2e2' : 'var(--bg-primary)',
+                  color: todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#b91c1c' : 'var(--text-primary)',
+                  border: '1px solid ' + (todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#fca5a5' : 'var(--border-color)'),
+                }}
+                onClick={() => handleToggleOverride('allowPunchOut')}
+              >
+                {todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '✓ Out Allowed' : 'Allow Punch Out'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Month Navigator & Summary Stats */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', margin: '18px 0' }}>
