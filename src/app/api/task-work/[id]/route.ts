@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import TaskWork from '@/models/TaskWork';
+import Task from '@/models/Task';
 
 // PUT - End work on a task
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -8,7 +9,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     await dbConnect();
     const { id } = await params;
     const body = await request.json();
-    const { notes, localTime } = body;
+    const { notes, localTime, isFullyCompleted } = body;
 
     const taskWork = await TaskWork.findById(id);
     if (!taskWork) {
@@ -40,6 +41,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (notes) taskWork.notes = notes;
     
     await taskWork.save();
+
+    // Update parent task completion status
+    const parentTask = await Task.findById(taskWork.taskId);
+    if (parentTask) {
+      parentTask.status = isFullyCompleted ? 'Completed' : 'In Progress';
+      await parentTask.save();
+    }
 
     const populatedWork = await TaskWork.findById(id)
       .populate('taskId', 'title description priority status')

@@ -97,6 +97,12 @@ export async function POST(request: Request) {
       notes: notes || undefined,
     });
 
+    // Update parent task status to In Progress
+    if (task.status !== 'In Progress') {
+      task.status = 'In Progress';
+      await task.save();
+    }
+
     const populatedWork = await TaskWork.findById(taskWork._id)
       .populate('taskId', 'title description priority status')
       .populate('employeeId', 'name email avatarColor');

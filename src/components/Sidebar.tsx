@@ -43,7 +43,7 @@ export default function Sidebar() {
       try {
         const res = await fetch(`/api/punch?employeeId=${user._id}`);
         const result = await res.json();
-        
+
         const attendance = result.data?.attendance;
         const isCurrentlyCheckedIn = !!attendance?.checkIn && !attendance?.checkOut;
 
@@ -119,19 +119,18 @@ export default function Sidebar() {
 
           {/* Punch Status Indicator for Employees */}
           {!isAdmin && !checkingPunch && (
-            <div 
-              className="card" 
-              style={{ 
-                margin: '8px', 
+            <div
+              className="card"
+              style={{
+                margin: '8px',
                 padding: '8px',
                 background: isPunchedIn ? '#ecfdf5' : '#fef2f2',
-                borderLeft: `3px solid ${isPunchedIn ? '#10b981' : '#ef4444'}`,
                 fontSize: '0.7rem'
               }}
             >
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
                 gap: '6px',
                 color: isPunchedIn ? '#065f46' : '#991b1b',
                 fontWeight: 600
@@ -152,11 +151,11 @@ export default function Sidebar() {
                   <span>Dashboard</span>
                 </Link>
               ) : (
-                <div 
-                  className="sidebar-link" 
-                  style={{ 
-                    padding: '6px 8px', 
-                    fontSize: '0.78rem', 
+                <div
+                  className="sidebar-link"
+                  style={{
+                    padding: '6px 8px',
+                    fontSize: '0.78rem',
                     opacity: 0.4,
                     filter: 'blur(0.5px)',
                     cursor: 'not-allowed',
@@ -172,13 +171,13 @@ export default function Sidebar() {
                   <Folder size={14} />
                   <span>Departments</span>
                 </Link>
-                
+
               ) : (
-                <div 
-                  className="sidebar-link" 
-                  style={{ 
-                    padding: '6px 8px', 
-                    fontSize: '0.78rem', 
+                <div
+                  className="sidebar-link"
+                  style={{
+                    padding: '6px 8px',
+                    fontSize: '0.78rem',
                     opacity: 0.4,
                     filter: 'blur(0.5px)',
                     cursor: 'not-allowed',
@@ -194,13 +193,13 @@ export default function Sidebar() {
                   <Folder size={14} />
                   <span>Project</span>
                 </Link>
-                
+
               ) : (
-                <div 
-                  className="sidebar-link" 
-                  style={{ 
-                    padding: '6px 8px', 
-                    fontSize: '0.78rem', 
+                <div
+                  className="sidebar-link"
+                  style={{
+                    padding: '6px 8px',
+                    fontSize: '0.78rem',
                     opacity: 0.4,
                     filter: 'blur(0.5px)',
                     cursor: 'not-allowed',
@@ -275,8 +274,8 @@ export default function Sidebar() {
                 <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.userType}</div>
               </div>
             </div>
-            <button 
-              onClick={handleLogout} 
+            <button
+              onClick={handleLogout}
               className="btn btn-danger"
               style={{ width: '100%', padding: '4px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
             >

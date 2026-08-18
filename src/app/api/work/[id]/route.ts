@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import dbConnect from '@/lib/dbConnect';
-import WorkEntry from '@/models/WorkEntry';
+import TaskWork from '@/models/TaskWork';
+import Task from '@/models/Task';
 import Project from '@/models/Project';
 import Employee from '@/models/Employee';
 import { calculateElapsedMinutes } from '@/lib/time';
@@ -15,17 +17,9 @@ export async function PUT(
     const body = await request.json();
     const { projectId, employeeId, title, date, startTime, endTime, description } = body;
 
-    const entry = await WorkEntry.findById(id);
+    const entry = await TaskWork.findById(id);
     if (!entry) {
-      return NextResponse.json({ success: false, error: 'Work entry not found' }, { status: 404 });
-    }
-
-    if (projectId) {
-      const projectExists = await Project.findById(projectId);
-      if (!projectExists) {
-        return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 });
-      }
-      entry.projectId = projectId;
+      return NextResponse.json({ success: false, error: 'Work session not found' }, { status: 404 });
     }
 
     if (employeeId) {
@@ -33,45 +27,67 @@ export async function PUT(
       if (!employeeExists) {
         return NextResponse.json({ success: false, error: 'Employee not found' }, { status: 404 });
       }
-      entry.employeeId = employeeId;
+      entry.employeeId = employeeId as any;
     }
 
-    if (title) entry.title = title;
     if (date) entry.date = date;
     if (startTime) entry.startTime = startTime;
     if (endTime) entry.endTime = endTime;
-    if (description !== undefined) entry.description = description;
+    if (description !== undefined) entry.notes = description;
 
     if (startTime || endTime) {
-      entry.actualTime = calculateElapsedMinutes(entry.startTime, entry.endTime);
+      entry.totalMinutes = calculateElapsedMinutes(entry.startTime, entry.endTime || '');
     }
 
     await entry.save();
 
-    const populated = await entry.populate([
-      { path: 'projectId', select: 'name color' },
-      { path: 'employeeId', select: 'name avatarColor role' }
-    ]);
-    const proj = populated.projectId as any;
-    const emp = populated.employeeId as any;
+    // If title or projectId is changed, update parent task
+    if (title || projectId) {
+      const task = await Task.findById(entry.taskId);
+      if (task) {
+        if (title) task.title = title;
+        if (projectId) {
+          const projectExists = await Project.findById(projectId);
+          if (projectExists) {
+            task.projectId = projectId as any;
+          }
+        }
+        await task.save();
+      }
+    }
+
+    const populated = await TaskWork.findById(entry._id)
+      .populate({
+        path: 'taskId',
+        populate: {
+          path: 'projectId',
+          model: 'Project',
+          select: 'name color'
+        }
+      })
+      .populate('employeeId', 'name avatarColor role');
+
+    const task = populated?.taskId as any;
+    const proj = task?.projectId;
+    const emp = populated?.employeeId as any;
 
     const formattedEntry = {
-      _id: populated._id.toString(),
-      projectId: proj ? proj._id.toString() : populated.projectId.toString(),
-      projectName: proj ? proj.name : 'Unknown Project',
-      projectColor: proj ? proj.color : '#cbd5e1',
-      employeeId: emp ? emp._id.toString() : populated.employeeId.toString(),
+      _id: populated?._id.toString(),
+      projectId: proj ? proj._id.toString() : '',
+      projectName: proj ? proj.name : (task?.Project || 'General'),
+      projectColor: proj ? proj.color : '#7f56d9',
+      employeeId: emp ? emp._id.toString() : '',
       employeeName: emp ? emp.name : 'Unknown Employee',
       employeeAvatarColor: emp ? emp.avatarColor : '#7f56d9',
       employeeRole: emp ? emp.role : '',
-      title: populated.title,
-      date: populated.date,
-      startTime: populated.startTime,
-      endTime: populated.endTime,
-      actualTime: populated.actualTime,
-      description: populated.description,
-      createdAt: populated.createdAt,
-      updatedAt: populated.updatedAt,
+      title: task ? task.title : 'Untitled Task',
+      date: populated?.date,
+      startTime: populated?.startTime,
+      endTime: populated?.endTime || '',
+      actualTime: populated?.totalMinutes || 0,
+      description: populated?.notes || '',
+      createdAt: populated?.createdAt,
+      updatedAt: populated?.updatedAt,
     };
 
     return NextResponse.json({ success: true, data: formattedEntry });
@@ -88,12 +104,12 @@ export async function DELETE(
     await dbConnect();
     const { id } = await params;
 
-    const entry = await WorkEntry.findByIdAndDelete(id);
+    const entry = await TaskWork.findByIdAndDelete(id);
     if (!entry) {
-      return NextResponse.json({ success: false, error: 'Work entry not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Work session not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, message: 'Work entry deleted successfully' });
+    return NextResponse.json({ success: true, message: 'Work session deleted successfully' });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

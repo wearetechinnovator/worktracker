@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, Calendar, CheckSquare, Loader2, AlertCircle, Filter } from 'lucide-react';
+import { Clock, Calendar, CheckSquare, AlertCircle, Filter } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
 
 interface TaskWorkRecord {
@@ -30,7 +30,7 @@ interface TaskWorkRecord {
 
 export default function TaskHistoryPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ userType?: string } | null>(null);
   const [records, setRecords] = useState<TaskWorkRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,31 +44,9 @@ export default function TaskHistoryPage() {
   const [selectedRecord, setSelectedRecord] = useState<TaskWorkRecord | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-  // Authenticate
-  useEffect(() => {
-    const storedUser = localStorage.getItem('worktracker_user');
-    if (!storedUser) {
-      router.push('/login');
-      return;
-    }
-
-    const parsed = JSON.parse(storedUser);
-    setUser(parsed);
-
-    // Default to today
-    setFilterDate(new Date().toISOString().split('T')[0]);
-  }, [router]);
-
-  // Load data
-  useEffect(() => {
-    if (user) {
-      loadRecords();
-    }
-  }, [user, filterDate, filterEmployee, filterStatus]);
-
-  const loadRecords = async () => {
+  const loadRecords = useCallback(async () => {
     try {
-      setLoading(true);
+      setTimeout(() => setLoading(true), 0);
       let url = '/api/task-work?';
       
       if (filterDate) url += `date=${filterDate}&`;
@@ -81,19 +59,59 @@ export default function TaskHistoryPage() {
       if (!result.success) throw new Error(result.error);
       
       setRecords(result.data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterDate, filterEmployee, filterStatus]);
+
+  // Authenticate
+  useEffect(() => {
+    const storedUser = localStorage.getItem('worktracker_user');
+    if (!storedUser) {
+      router.push('/login');
+      return;
+    }
+
+    const parsed = JSON.parse(storedUser);
+    const timer = setTimeout(() => {
+      setUser(parsed);
+      // Default to today
+      setFilterDate(new Date().toISOString().split('T')[0]);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [router]);
+
+  // Load data
+  useEffect(() => {
+    if (user) {
+      const timer = setTimeout(() => {
+        loadRecords();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [user, loadRecords]);
 
   const formatDuration = (minutes?: number): string => {
-    if (!minutes) return '-';
+    if (minutes === undefined || minutes === null) return '-';
+    if (minutes === 0) return '< 1m';
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
-    return `${h}h ${m}m`;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  const formatNotesHtml = (notes: string): string => {
+    if (!notes) return '';
+    const urlRegex = /(https?:\/\/[^\s<]+)/g;
+    let formatted = notes.replace(urlRegex, (url) => {
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: var(--accent-primary); font-weight: 600; text-decoration: underline;">🔗 ${url}</a>`;
+    });
+    if (!/<[a-z][\s\S]*>/i.test(notes)) {
+      formatted = formatted.replace(/\n/g, '<br/>');
+    }
+    return formatted;
   };
 
   const getTotalHours = (): string => {
@@ -314,6 +332,7 @@ export default function TaskHistoryPage() {
                         color: record.status === 'Completed' ? '#065f46' : '#92400e',
                         fontSize: '0.7rem',
                         padding: '3px 10px',
+                        border: `1px solid ${record.status === 'Completed' ? '#10b98130' : '#f59e0b30'}`,
                       }}
                     >
                       {record.status}
@@ -418,43 +437,18 @@ export default function TaskHistoryPage() {
                 <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '12px', color: 'var(--text-secondary)' }}>
                   Work Notes & Links
                 </h4>
-                <div style={{
-                  background: 'var(--bg-secondary)',
-                  padding: '16px',
-                  borderRadius: '8px',
-                  fontSize: '0.85rem',
-                  lineHeight: '1.6',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  fontFamily: 'system-ui, sans-serif',
-                }}>
-                  {selectedRecord.notes.split('\n').map((line, idx) => {
-                    // Check if line is a URL
-                    const urlRegex = /(https?:\/\/[^\s]+)/g;
-                    if (urlRegex.test(line)) {
-                      return (
-                        <div key={idx} style={{ marginBottom: '8px' }}>
-                          <a
-                            href={line.trim()}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              color: 'var(--accent-primary)',
-                              textDecoration: 'none',
-                              fontWeight: 600,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                          >
-                            🔗 {line.trim()}
-                          </a>
-                        </div>
-                      );
-                    }
-                    return <div key={idx}>{line || '\u00A0'}</div>;
-                  })}
-                </div>
+                <div 
+                  style={{
+                    background: 'var(--bg-secondary)',
+                    padding: '16px',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    lineHeight: '1.6',
+                    wordBreak: 'break-word',
+                    fontFamily: 'system-ui, sans-serif',
+                  }}
+                  dangerouslySetInnerHTML={{ __html: formatNotesHtml(selectedRecord.notes) }}
+                />
               </div>
             )}
 

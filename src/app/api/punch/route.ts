@@ -39,6 +39,27 @@ function isWithinTimeWindow(currentTime: string, startTime: string, endTime: str
   return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
 }
 
+// Helper function to check if current time is within allowed punch-out window
+function isPunchOutAllowedTime(currentTime: string, startTime: string, endTime: string): boolean {
+  const toMinutes = (time: string) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+
+  const currentMinutes = toMinutes(currentTime);
+  const startMinutes = toMinutes(startTime);
+  const endMinutes = toMinutes(endTime);
+
+  if (startMinutes <= endMinutes) {
+    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+  }
+
+  // Overnight window (e.g. 14:00 - 12:00):
+  // Since check-in and check-out are performed on the same calendar day,
+  // they can only punch out once the shift is completed, i.e., after the start time (14:00).
+  return currentMinutes >= startMinutes;
+}
+
 // GET - Get punch status for today
 export async function GET(request: Request) {
   try {
@@ -90,7 +111,7 @@ export async function GET(request: Request) {
     } else if (isCurrentlyCheckedIn) {
       // Currently checked in and working
       canPunchIn = false;
-      canPunchOut = isAdmin || isPunchOutAllowedByAdmin || isWithinTimeWindow(currentTime, settings.punchOutStartTime, settings.punchOutEndTime);
+      canPunchOut = isAdmin || isPunchOutAllowedByAdmin || isPunchOutAllowedTime(currentTime, settings.punchOutStartTime, settings.punchOutEndTime);
     } else {
       // Not checked in yet today
       canPunchIn = isAdmin || isPunchInAllowedByAdmin || isWithinTimeWindow(currentTime, settings.punchInStartTime, settings.punchInEndTime);
@@ -281,7 +302,7 @@ export async function POST(request: Request) {
       const isAllowedByAdmin = existingRecord?.allowPunchOutDate === today;
 
       // Check if within punch out window (skipped for Admin or if Admin explicitly granted permission)
-      if (!isAdmin && !isAllowedByAdmin && !isWithinTimeWindow(currentTime, settings.punchOutStartTime, settings.punchOutEndTime)) {
+      if (!isAdmin && !isAllowedByAdmin && !isPunchOutAllowedTime(currentTime, settings.punchOutStartTime, settings.punchOutEndTime)) {
         return NextResponse.json(
           {
             success: false,

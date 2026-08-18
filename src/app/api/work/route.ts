@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import dbConnect from '@/lib/dbConnect';
-import WorkEntry from '@/models/WorkEntry';
+import TaskWork from '@/models/TaskWork';
+import Task from '@/models/Task';
 import Project from '@/models/Project';
 import Employee from '@/models/Employee';
 import { calculateElapsedMinutes } from '@/lib/time';
@@ -16,11 +18,31 @@ export async function GET(request: Request) {
     const endDate = searchParams.get('endDate');
     const search = searchParams.get('search');
 
+    const taskId = searchParams.get('taskId');
+
     const query: Record<string, unknown> = {};
     const { page, limit, skip } = getPagination(searchParams);
 
     if (projectId) {
-      query.projectId = projectId;
+      if (projectId === 'none') {
+        const tasks = await Task.find({
+          $or: [
+            { projectId: { $exists: false } },
+            { projectId: null },
+            { projectId: '' }
+          ]
+        }).select('_id').lean();
+        const taskIds = tasks.map(t => t._id);
+        query.taskId = { $in: taskIds };
+      } else {
+        const tasks = await Task.find({ projectId }).select('_id').lean();
+        const taskIds = tasks.map(t => t._id);
+        query.taskId = { $in: taskIds };
+      }
+    }
+
+    if (taskId) {
+      query.taskId = taskId;
     }
 
     if (employeeId) {
@@ -35,41 +57,57 @@ export async function GET(request: Request) {
     }
 
     if (search) {
+      const matchingTasks = await Task.find({
+        $or: [
+          { title: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } }
+        ]
+      }).select('_id').lean();
+      const matchingTaskIds = matchingTasks.map(t => t._id);
+
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
+        { notes: { $regex: search, $options: 'i' } },
+        { taskId: { $in: matchingTaskIds } }
       ];
     }
 
     const [entries, total] = await Promise.all([
-      WorkEntry.find(query)
-      .populate('projectId', 'name color')
+      TaskWork.find(query)
+      .populate({
+        path: 'taskId',
+        populate: {
+          path: 'projectId',
+          model: 'Project',
+          select: 'name color'
+        }
+      })
       .populate('employeeId', 'name avatarColor role')
       .sort({ date: -1, startTime: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),
-      WorkEntry.countDocuments(query),
+      TaskWork.countDocuments(query),
     ]);
 
-    const formattedEntries = entries.map(entry => {
-      const proj = entry.projectId as any;
-      const emp = entry.employeeId as any;
+    const formattedEntries = entries.map((entry: any) => {
+      const task = entry.taskId;
+      const proj = task?.projectId;
+      const emp = entry.employeeId;
       return {
         _id: entry._id.toString(),
-        projectId: proj ? proj._id.toString() : (entry.projectId?.toString() || ''),
-        projectName: proj ? proj.name : 'Unknown Project',
-        projectColor: proj ? proj.color : '#cbd5e1',
+        projectId: proj ? proj._id.toString() : '',
+        projectName: proj ? proj.name : (task?.Project || 'General'),
+        projectColor: proj ? proj.color : '#7f56d9',
         employeeId: emp ? emp._id.toString() : (entry.employeeId?.toString() || ''),
         employeeName: emp ? emp.name : 'Unknown Employee',
         employeeAvatarColor: emp ? emp.avatarColor : '#7f56d9',
         employeeRole: emp ? emp.role : '',
-        title: entry.title,
+        title: task ? task.title : 'Untitled Task',
         date: entry.date,
         startTime: entry.startTime,
-        endTime: entry.endTime,
-        actualTime: entry.actualTime,
-        description: entry.description,
+        endTime: entry.endTime || '',
+        actualTime: entry.totalMinutes || 0,
+        description: entry.notes || '',
         createdAt: entry.createdAt,
         updatedAt: entry.updatedAt,
       };
@@ -108,41 +146,49 @@ export async function POST(request: Request) {
 
     const actualTime = calculateElapsedMinutes(startTime, endTime);
 
-    const entry = await WorkEntry.create({
-      projectId,
-      employeeId,
+    // Create a completed Task for this manual log
+    const task = await Task.create({
       title,
-      date,
-      startTime,
-      endTime,
-      actualTime,
-      description,
+      description: description || 'Manual work entry',
+      projectId,
+      assignedTo: [employeeId],
+      status: 'Completed',
+      priority: 'Medium',
+      dueDate: date,
+      createdBy: employeeId,
     });
 
-    const populated = await entry.populate([
-      { path: 'projectId', select: 'name color' },
-      { path: 'employeeId', select: 'name avatarColor role' }
-    ]);
-    const proj = populated.projectId as any;
-    const emp = populated.employeeId as any;
+    const taskWork = await TaskWork.create({
+      taskId: task._id,
+      employeeId,
+      date,
+      startTime: startTime.length === 5 ? startTime + ':00' : startTime,
+      endTime: endTime.length === 5 ? endTime + ':00' : endTime,
+      totalMinutes: actualTime,
+      status: 'Completed',
+      notes: description || undefined,
+    });
+
+    const proj = projectExists;
+    const emp = employeeExists;
 
     const formattedEntry = {
-      _id: populated._id.toString(),
-      projectId: proj ? proj._id.toString() : (populated.projectId?.toString() || ''),
+      _id: taskWork._id.toString(),
+      projectId: proj ? proj._id.toString() : '',
       projectName: proj ? proj.name : 'Unknown Project',
       projectColor: proj ? proj.color : '#cbd5e1',
-      employeeId: emp ? emp._id.toString() : (populated.employeeId?.toString() || ''),
+      employeeId: emp ? emp._id.toString() : '',
       employeeName: emp ? emp.name : 'Unknown Employee',
       employeeAvatarColor: emp ? emp.avatarColor : '#7f56d9',
       employeeRole: emp ? emp.role : '',
-      title: populated.title,
-      date: populated.date,
-      startTime: populated.startTime,
-      endTime: populated.endTime,
-      actualTime: populated.actualTime,
-      description: populated.description,
-      createdAt: populated.createdAt,
-      updatedAt: populated.updatedAt,
+      title: task.title,
+      date: taskWork.date,
+      startTime: taskWork.startTime,
+      endTime: taskWork.endTime || '',
+      actualTime: taskWork.totalMinutes || 0,
+      description: taskWork.notes || '',
+      createdAt: taskWork.createdAt,
+      updatedAt: taskWork.updatedAt,
     };
 
     return NextResponse.json({ success: true, data: formattedEntry }, { status: 201 });

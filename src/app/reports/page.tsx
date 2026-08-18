@@ -1,5 +1,9 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/exhaustive-deps */
+
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
@@ -53,6 +57,8 @@ export default function ReportsPage() {
   // Filters State
   const [selectedProject, setSelectedProject] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [selectedTask, setSelectedTask] = useState('');
   const [dateRangePreset, setDateRangePreset] = useState('all'); // all, today, week, month, custom
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -91,21 +97,29 @@ export default function ReportsPage() {
   useEffect(() => {
     async function loadFilterOptions() {
       try {
-        const [projRes, empRes] = await Promise.all([
+        const [projRes, empRes, tasksRes] = await Promise.all([
           fetch('/api/projects'),
-          fetch('/api/employees')
+          fetch('/api/employees'),
+          fetch('/api/tasks')
         ]);
         const projData = await projRes.json();
         const empData = await empRes.json();
+        const tasksData = await tasksRes.json();
         
         if (projData.success) setProjects(projData.data);
         if (empData.success) setEmployees(empData.data);
+        if (tasksData.success) setTasks(tasksData.data);
       } catch (err) {
         console.error('Error loading report filters options', err);
       }
     }
     loadFilterOptions();
   }, []);
+
+  // Reset selected task when project changes
+  useEffect(() => {
+    setSelectedTask('');
+  }, [selectedProject]);
 
   // Fetch Filtered Entries
   const fetchReportData = useCallback(async () => {
@@ -116,6 +130,7 @@ export default function ReportsPage() {
       // Build Query Params
       const params = new URLSearchParams();
       if (selectedProject) params.append('projectId', selectedProject);
+      if (selectedTask) params.append('taskId', selectedTask);
       if (selectedEmployee) params.append('employeeId', selectedEmployee);
       if (searchQuery) params.append('search', searchQuery);
 
@@ -168,7 +183,7 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedProject, selectedEmployee, dateRangePreset, startDate, endDate, searchQuery]);
+  }, [selectedProject, selectedTask, selectedEmployee, dateRangePreset, startDate, endDate, searchQuery]);
 
   useEffect(() => {
     if (user) {
@@ -328,7 +343,7 @@ export default function ReportsPage() {
         <h1>WorkTracker - Executive Summary Report</h1>
         <p>Generated: {new Date().toLocaleString()}</p>
         <p>
-          Filters: {selectedProject ? `Project: ${projects.find((p) => p._id === selectedProject)?.name}` : 'All Projects'}
+          Filters: {selectedProject ? `Project: ${selectedProject === 'none' ? 'No Project' : (projects.find((p) => p._id === selectedProject)?.name || 'Unknown')}` : 'All Projects'}
           {' | '}
           Employee: {selectedEmployee ? `Employee: ${employees.find((e) => e._id === selectedEmployee)?.name}` : 'All Employees'}
           {' | '}
@@ -372,6 +387,7 @@ export default function ReportsPage() {
               onChange={(e) => setSelectedProject(e.target.value)}
             >
               <option value="">All Projects</option>
+              <option value="none">No Project (None)</option>
               {projects.map((p) => (
                 <option key={p._id} value={p._id}>{p.name}</option>
               ))}
@@ -389,6 +405,31 @@ export default function ReportsPage() {
               {employees.map((e) => (
                 <option key={e._id} value={e._id}>{e.name}</option>
               ))}
+            </select>
+          </div>
+
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">Task</label>
+            <select 
+              className="form-control"
+              value={selectedTask}
+              onChange={(e) => setSelectedTask(e.target.value)}
+            >
+              <option value="">All Tasks</option>
+              {tasks
+                .filter(task => {
+                  if (selectedProject) {
+                    if (selectedProject === 'none') {
+                      return !task.projectId;
+                    }
+                    return task.projectId?._id === selectedProject || task.projectId === selectedProject;
+                  }
+                  return true;
+                })
+                .map((t) => (
+                  <option key={t._id} value={t._id}>{t.title}</option>
+                ))
+              }
             </select>
           </div>
 
@@ -564,9 +605,10 @@ export default function ReportsPage() {
                     <td>
                       <div style={{ fontWeight: 600 }}>{entry.title}</div>
                       {entry.description && (
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                          {entry.description}
-                        </div>
+                        <div 
+                          style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}
+                          dangerouslySetInnerHTML={{ __html: entry.description }}
+                        />
                       )}
                     </td>
                     <td style={{ color: 'var(--text-secondary)' }}>

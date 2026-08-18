@@ -1,12 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  CheckSquare, Plus, Loader2, AlertCircle, CheckCircle2,
-  Calendar, Users, Folder, Flag, Filter, X, Edit, Trash2
+  CheckSquare, Plus, AlertCircle, CheckCircle2,
+  Calendar, Users, Folder, Filter, X, Edit, Trash2
 } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
+import dynamic from 'next/dynamic';
+
+const CKEditorComponent = dynamic(
+  () => import('@/components/CKEditorWrapper'),
+  { ssr: false }
+);
 
 interface Task {
   _id: string;
@@ -50,9 +56,18 @@ interface Project {
   color: string;
 }
 
+interface UserProfile {
+  _id?: string;
+  id?: string;
+  name?: string;
+  email?: string;
+  userType?: string;
+  Project?: string;
+}
+
 export default function TasksPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -91,27 +106,19 @@ export default function TasksPage() {
     }
 
     const parsed = JSON.parse(storedUser);
-    setUser(parsed);
+    const timer = setTimeout(() => {
+      setUser(parsed);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [router]);
 
-  // Load data
-  useEffect(() => {
-    if (user) {
-      loadTasks();
-      if (isAdmin) {
-        loadEmployees();
-      }
-      loadProjects();
-    }
-  }, [user, isAdmin]);
-
   // Load data in parallel
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     if (!user) return;
     try {
-      setLoading(true);
+      setTimeout(() => setLoading(true), 0);
       const endpoint = isAdmin ? '/api/tasks' : `/api/tasks?employeeId=${user._id}`;
-      
+
       const promises: Promise<Response>[] = [fetch(endpoint), fetch('/api/projects')];
       if (isAdmin) {
         promises.push(fetch('/api/employees'));
@@ -128,17 +135,25 @@ export default function TasksPage() {
         const empRes = await results[2].json();
         if (empRes.success) setEmployees(empRes.data);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, isAdmin]);
 
   const loadTasks = loadAllData;
-  const loadEmployees = loadAllData;
-  const loadProjects = loadAllData;
+
+  // Load data
+  useEffect(() => {
+    if (user) {
+      const timer = setTimeout(() => {
+        loadAllData();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [user, loadAllData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,8 +197,8 @@ export default function TasksPage() {
       setShowModal(false);
       resetForm();
       loadTasks();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -204,8 +219,8 @@ export default function TasksPage() {
       setSuccessMsg('Task deleted successfully!');
       setTimeout(() => setSuccessMsg(null), 3000);
       loadTasks();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -230,7 +245,7 @@ export default function TasksPage() {
     if (!isAdmin && user) {
       setFormData((current) => ({
         ...current,
-        assignedTo: [user._id],
+        assignedTo: user._id ? [user._id] : [],
         Project: user.Project || '',
       }));
     }
@@ -253,7 +268,11 @@ export default function TasksPage() {
   };
 
   const filteredTasks = tasks.filter(task => {
-    if (filterStatus && task.status !== filterStatus) return false;
+    if (filterStatus) {
+      if (task.status !== filterStatus) return false;
+    } else {
+      if (task.status === 'Completed') return false;
+    }
     if (filterPriority && task.priority !== filterPriority) return false;
     return true;
   });
@@ -404,9 +423,10 @@ export default function TasksPage() {
                     {task.title}
                   </h3>
                   {task.description && (
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                      {task.description}
-                    </p>
+                    <div 
+                      style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}
+                      dangerouslySetInnerHTML={{ __html: task.description }}
+                    />
                   )}
                 </div>
 
@@ -601,17 +621,15 @@ export default function TasksPage() {
 
               <div style={{ marginBottom: '16px' }}>
                 <label className="form-label">Description</label>
-                <textarea
-                  className="form-control"
-                  rows={3}
+                <CKEditorComponent
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(val) => setFormData({ ...formData, description: val })}
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div>
-                  <label className="form-label">Project</label>
+                  <label className="form-label">Choose</label>
                   <select
                     className="form-control"
                     value={formData.projectId}
@@ -642,27 +660,27 @@ export default function TasksPage() {
               {isAdmin && (
                 <div style={{ marginBottom: '16px' }}>
                   <label className="form-label">Assign To *</label>
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: '8px', 
-                    maxHeight: '140px', 
-                    overflowY: 'auto', 
-                    border: '1px solid var(--border-color)', 
-                    borderRadius: 'var(--border-radius-sm)', 
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    maxHeight: '140px',
+                    overflowY: 'auto',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--border-radius-sm)',
                     padding: '10px',
                     background: 'var(--bg-secondary)'
                   }}>
                     {employees.map((emp) => {
                       const isChecked = formData.assignedTo.includes(emp._id);
                       return (
-                        <label 
-                          key={emp._id} 
-                          style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '10px', 
-                            fontSize: '0.85rem', 
+                        <label
+                          key={emp._id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            fontSize: '0.85rem',
                             cursor: 'pointer',
                             padding: '4px 6px',
                             borderRadius: '4px',
@@ -703,7 +721,7 @@ export default function TasksPage() {
                   <select
                     className="form-control"
                     value={formData.priority}
-                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'Low' | 'Medium' | 'High' | 'Urgent' })}
                   >
                     <option value="Low">Low</option>
                     <option value="Medium">Medium</option>
@@ -717,7 +735,7 @@ export default function TasksPage() {
                   <select
                     className="form-control"
                     value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'To Do' | 'In Progress' | 'Review' | 'Completed' })}
                   >
                     <option value="To Do">To Do</option>
                     <option value="In Progress">In Progress</option>
