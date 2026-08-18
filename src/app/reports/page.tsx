@@ -6,8 +6,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  FileText, Calendar, Folder, Search, Printer, 
+import {
+  FileText, Calendar, Folder, Search, Printer,
   Clock, AlertCircle, Loader2, Edit3, Trash2, Download
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
@@ -105,7 +105,7 @@ export default function ReportsPage() {
         const projData = await projRes.json();
         const empData = await empRes.json();
         const tasksData = await tasksRes.json();
-        
+
         if (projData.success) setProjects(projData.data);
         if (empData.success) setEmployees(empData.data);
         if (tasksData.success) setTasks(tasksData.data);
@@ -254,9 +254,9 @@ export default function ReportsPage() {
   // CSV Export Helper
   const handleExportCSV = () => {
     if (entries.length === 0) return alert('No records to export!');
-    
+
     const csvHeaders = ['Date', 'Employee', 'Role', 'Project', 'Task Title', 'Description', 'Duration (mins)', 'Duration (formatted)'];
-    
+
     const csvRows = entries.map(entry => {
       const durationFormatted = formatMinutesToDuration(entry.actualTime);
       return [
@@ -287,7 +287,7 @@ export default function ReportsPage() {
     if (entries.length === 0) return alert('No records to export!');
 
     const headers = ['Date', 'Employee', 'Role', 'Project', 'Task Title', 'Description', 'Duration (mins)', 'Duration (formatted)'];
-    
+
     const rows = entries.map(entry => {
       const durationFormatted = formatMinutesToDuration(entry.actualTime);
       return [
@@ -357,7 +357,7 @@ export default function ReportsPage() {
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Work Reports</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Generate comprehensive logs, filter by members, and export spreadsheet sheets.</p>
         </div>
-        
+
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="btn btn-secondary" onClick={handleExportCSV}>
             <Download size={14} />
@@ -367,10 +367,10 @@ export default function ReportsPage() {
             <Download size={14} />
             <span>Excel</span>
           </button>
-          <button className="btn btn-primary" onClick={() => window.print()}>
+          {/* <button className="btn btn-primary" onClick={() => window.print()}>
             <Printer size={14} />
             <span>Print PDF</span>
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -378,10 +378,10 @@ export default function ReportsPage() {
       <div className="card no-print" style={{ marginBottom: '20px' }}>
         <h3 className="card-title" style={{ fontSize: '0.9rem', marginBottom: '12px' }}>Filter Criteria</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-          
+
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Project / Project</label>
-            <select 
+            <select
               className="form-control"
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
@@ -396,7 +396,7 @@ export default function ReportsPage() {
 
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Employee</label>
-            <select 
+            <select
               className="form-control"
               value={selectedEmployee}
               onChange={(e) => setSelectedEmployee(e.target.value)}
@@ -410,7 +410,7 @@ export default function ReportsPage() {
 
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Task</label>
-            <select 
+            <select
               className="form-control"
               value={selectedTask}
               onChange={(e) => setSelectedTask(e.target.value)}
@@ -435,7 +435,7 @@ export default function ReportsPage() {
 
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Timeframe</label>
-            <select 
+            <select
               className="form-control"
               value={dateRangePreset}
               onChange={(e) => setDateRangePreset(e.target.value)}
@@ -452,8 +452,8 @@ export default function ReportsPage() {
             <label className="form-label">Search Keyword</label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Search size={14} style={{ position: 'absolute', left: '8px', color: 'var(--text-muted)' }} />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 className="form-control"
                 style={{ paddingLeft: '28px' }}
                 placeholder="Search notes..."
@@ -468,18 +468,18 @@ export default function ReportsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px', maxWidth: '400px' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Start Date</label>
-              <input 
-                type="date" 
-                className="form-control" 
+              <input
+                type="date"
+                className="form-control"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">End Date</label>
-              <input 
-                type="date" 
-                className="form-control" 
+              <input
+                type="date"
+                className="form-control"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
@@ -542,14 +542,14 @@ export default function ReportsPage() {
                     <span>{formatMinutesToDuration(proj.minutes)} ({pct}%)</span>
                   </div>
                   <div className="chart-bar-outer" style={{ background: 'var(--bg-tertiary)', borderRadius: '4px' }}>
-                    <div 
-                      className="chart-bar-inner" 
-                      style={{ 
-                        width: `${pct}%`, 
+                    <div
+                      className="chart-bar-inner"
+                      style={{
+                        width: `${pct}%`,
                         backgroundColor: proj.color,
                         height: '100%',
                         borderRadius: '4px'
-                      }} 
+                      }}
                     />
                   </div>
                 </div>
@@ -605,7 +605,7 @@ export default function ReportsPage() {
                     <td>
                       <div style={{ fontWeight: 600 }}>{entry.title}</div>
                       {entry.description && (
-                        <div 
+                        <div
                           style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}
                           dangerouslySetInnerHTML={{ __html: entry.description }}
                         />
@@ -652,7 +652,7 @@ export default function ReportsPage() {
             <form onSubmit={handleEditLogSubmit}>
               <div className="form-group">
                 <label className="form-label">Project / Project *</label>
-                <select 
+                <select
                   className="form-control"
                   required
                   value={logProjId}
@@ -666,7 +666,7 @@ export default function ReportsPage() {
 
               <div className="form-group">
                 <label className="form-label">Logging Member *</label>
-                <select 
+                <select
                   className="form-control"
                   required
                   value={logEmpId}
@@ -680,9 +680,9 @@ export default function ReportsPage() {
 
               <div className="form-group">
                 <label className="form-label">What work was performed? *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   required
                   value={logTitle}
                   onChange={(e) => setLogTitle(e.target.value)}
@@ -691,9 +691,9 @@ export default function ReportsPage() {
 
               <div className="form-group">
                 <label className="form-label">Date *</label>
-                <input 
-                  type="date" 
-                  className="form-control" 
+                <input
+                  type="date"
+                  className="form-control"
                   required
                   value={logDate}
                   onChange={(e) => setLogDate(e.target.value)}
@@ -703,9 +703,9 @@ export default function ReportsPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Start Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
+                  <input
+                    type="time"
+                    className="form-control"
                     required
                     value={logStart}
                     onChange={(e) => setLogStart(e.target.value)}
@@ -713,9 +713,9 @@ export default function ReportsPage() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">End Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
+                  <input
+                    type="time"
+                    className="form-control"
                     required
                     value={logEnd}
                     onChange={(e) => setLogEnd(e.target.value)}
@@ -725,8 +725,8 @@ export default function ReportsPage() {
 
               <div className="form-group">
                 <label className="form-label">Session Notes (Optional)</label>
-                <textarea 
-                  className="form-control" 
+                <textarea
+                  className="form-control"
                   value={logDesc}
                   onChange={(e) => setLogDesc(e.target.value)}
                 />
