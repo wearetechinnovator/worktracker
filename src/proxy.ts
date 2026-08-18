@@ -1,14 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { readSession } from '@/lib/session';
-
-const publicPaths = new Set(['/login', '/api/auth/login']);
+import { NextRequest } from 'next/server';
+import { authMiddleware } from './middleware/middleware';
 
 export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  if (publicPaths.has(pathname) || pathname.startsWith('/_next') || pathname === '/favicon.ico') return NextResponse.next();
-  if (readSession(request.cookies.get('worktracker_session')?.value)) return NextResponse.next();
-  if (pathname.startsWith('/api/')) return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  return NextResponse.redirect(new URL('/login', request.url));
+  return authMiddleware(request);
 }
 
-export const config = { matcher: ['/((?!_next/static|_next/image|.*\\.svg$).*)'] };
+export const config = {
+  matcher: [
+    // Match all routes except files with extensions (e.g. .svg, .png, .jpg, .css, .js)
+    '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)',
+  ],
+};
