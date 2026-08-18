@@ -60,9 +60,16 @@ export default function ReportsPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState('');
   const [dateRangePreset, setDateRangePreset] = useState('all'); // all, today, week, month, custom
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedProject, selectedTask, selectedEmployee, dateRangePreset, searchQuery]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Modals (For editing work logs direct from report)
   const [isEditLogOpen, setIsEditLogOpen] = useState(false);
@@ -249,6 +256,59 @@ export default function ReportsPage() {
     } catch (err: any) {
       alert(err.message);
     }
+  };
+
+  const ITEMS_PER_PAGE = 10;
+  const paginatedEntries = entries.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  const renderPagination = (totalItems: number, itemsPerPage: number, page: number, onPageChange: (p: number) => void) => {
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    if (totalPages <= 1) return null;
+
+    return (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }} className="no-print">
+        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+          Showing <strong>{Math.min(totalItems, (page - 1) * itemsPerPage + 1)}-{Math.min(totalItems, page * itemsPerPage)}</strong> of <strong>{totalItems}</strong> entries
+        </div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => onPageChange(page - 1)}
+            disabled={page === 1}
+            style={{ padding: '4px 10px', fontSize: '0.75rem', opacity: page === 1 ? 0.5 : 1 }}
+          >
+            Previous
+          </button>
+          {Array.from({ length: totalPages }).map((_, i) => {
+            const pageNum = i + 1;
+            if (pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - page) <= 1) {
+              return (
+                <button
+                  key={pageNum}
+                  className={page === pageNum ? "btn btn-primary" : "btn btn-secondary"}
+                  onClick={() => onPageChange(pageNum)}
+                  style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                >
+                  {pageNum}
+                </button>
+              );
+            }
+            if (pageNum === 2 || pageNum === totalPages - 1) {
+              return <span key={pageNum} style={{ color: 'var(--text-muted)', alignSelf: 'center', padding: '0 4px' }}>...</span>;
+            }
+            return null;
+          })}
+          <button
+            className="btn btn-secondary"
+            onClick={() => onPageChange(page + 1)}
+            disabled={page === totalPages}
+            style={{ padding: '4px 10px', fontSize: '0.75rem', opacity: page === totalPages ? 0.5 : 1 }}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    );
   };
 
   // CSV Export Helper
@@ -586,7 +646,7 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry) => (
+                {paginatedEntries.map((entry) => (
                   <tr key={entry._id}>
                     <td>{entry.date}</td>
                     <td>
@@ -633,6 +693,7 @@ export default function ReportsPage() {
             </table>
           </div>
         )}
+        {renderPagination(entries.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
       </div>
 
       {/* EDIT WORK SESSION MODAL */}

@@ -267,8 +267,10 @@ export default function PunchPage() {
 
       if (action === 'punchIn') {
         localStorage.setItem('worktracker_punch_status', 'in');
+        window.dispatchEvent(new Event('punch-status-changed'));
       } else {
         localStorage.setItem('worktracker_punch_status', 'out');
+        window.dispatchEvent(new Event('punch-status-changed'));
         router.replace('/punch');
       }
 

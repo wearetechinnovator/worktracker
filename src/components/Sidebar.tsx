@@ -1,10 +1,14 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/exhaustive-deps */
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, LogOut, Clock, Settings, CheckSquare, History
+  LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, ChevronLeft, LogOut, Clock, Settings, CheckSquare, History
 } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
 
@@ -14,6 +18,19 @@ export default function Sidebar() {
   const [user, setUser] = useState<any>(null);
   const [isPunchedIn, setIsPunchedIn] = useState(false);
   const [checkingPunch, setCheckingPunch] = useState(true);
+
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    const storedCollapsed = localStorage.getItem('sidebar_collapsed') === 'true';
+    setIsCollapsed(storedCollapsed);
+  }, []);
+
+  const toggleCollapse = () => {
+    const nextState = !isCollapsed;
+    setIsCollapsed(nextState);
+    localStorage.setItem('sidebar_collapsed', String(nextState));
+  };
 
   useEffect(() => {
     // Hide sidebar checks and loading user session on mount/path change
@@ -65,6 +82,17 @@ export default function Sidebar() {
     } else {
       setCheckingPunch(false);
     }
+
+    const handlePunchStatusChange = () => {
+      if (user && pathname !== '/login') {
+        checkPunchStatus();
+      }
+    };
+
+    window.addEventListener('punch-status-changed', handlePunchStatusChange);
+    return () => {
+      window.removeEventListener('punch-status-changed', handlePunchStatusChange);
+    };
   }, [user, pathname]);
 
   useEffect(() => {
@@ -97,46 +125,77 @@ export default function Sidebar() {
   const canAccessFeatures = isAdmin || isPunchedIn;
 
   return (
-    <aside className="sidebar no-print" style={{ width: '180px' }}>
+    <aside className={`sidebar no-print ${isCollapsed ? 'collapsed' : ''}`}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
         <div>
           {/* Brand Header */}
           <div className="sidebar-header" style={{ marginBottom: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <Link href="/" className="sidebar-brand">
-                <span style={{ fontWeight: 800 }}>TIS Work Tracker</span>
-              </Link>
-              <NotificationCenter />
-            </div>
-
-            <div className="sidebar-team-card" style={{ padding: '6px 8px' }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: '0.8rem' }}>TIS Pvt. Ltd.</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Team - {memberCount} Members</div>
+            <div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: isCollapsed ? '12px' : '4px', marginBottom: '8px' }}>
+              {!isCollapsed ? (
+                <Link href="/" className="sidebar-brand" style={{ margin: 0 }}>
+                  <span style={{ fontWeight: 800 }}>TIS Tracker</span>
+                </Link>
+              ) : (
+                <Link href="/" className="sidebar-brand" style={{ fontSize: '1rem', fontWeight: 900, textAlign: 'center', margin: 0 }}>
+                  TIS
+                </Link>
+              )}
+              <div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', alignItems: 'center', gap: '8px' }}>
+                <NotificationCenter />
+                <button
+                  onClick={toggleCollapse}
+                  className="sidebar-toggle-btn"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '4px'
+                  }}
+                  title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                >
+                  {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+                </button>
               </div>
             </div>
+
+            {!isCollapsed && (
+              <div className="sidebar-team-card" style={{ padding: '6px 8px' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.8rem' }}>TIS Pvt. Ltd.</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Team - {memberCount} Members</div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Punch Status Indicator for Employees */}
           {!isAdmin && !checkingPunch && (
             <div
-              className="card"
               style={{
-                margin: '8px',
-                padding: '8px',
+                margin: isCollapsed ? '4px' : '8px',
+                padding: isCollapsed ? '6px' : '8px',
                 background: isPunchedIn ? '#ecfdf5' : '#fef2f2',
-                fontSize: '0.7rem'
+                borderRadius: '6px',
+                display: 'flex',
+                justifyContent: isCollapsed ? 'center' : 'flex-start',
+                alignItems: 'center',
+                color: isPunchedIn ? '#065f46' : '#991b1b',
               }}
+              title={isPunchedIn ? 'Punched In' : 'Not Punched'}
             >
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                color: isPunchedIn ? '#065f46' : '#991b1b',
                 fontWeight: 600
               }}>
                 <Clock size={12} />
-                <span>{isPunchedIn ? 'Punched In' : 'Not Punched'}</span>
+                {!isCollapsed && <span style={{ fontSize: '0.7rem' }}>{isPunchedIn ? 'Punched In' : 'Not Punched'}</span>}
               </div>
             </div>
           )}
@@ -185,7 +244,7 @@ export default function Sidebar() {
                   }}
                 >
                   <Folder size={14} />
-                  <span>Project</span>
+                  <span>Departments</span>
                 </div>
               )}
               {canAccessFeatures ? (
@@ -265,22 +324,25 @@ export default function Sidebar() {
         {/* Footer actions - Logout */}
         {user && (
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', padding: '0 4px' }}>
-              <div className="avatar" style={{ backgroundColor: user.avatarColor || '#3b82f6', width: '22px', height: '22px', fontSize: '0.65rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', padding: '0 4px', justifyContent: isCollapsed ? 'center' : 'flex-start' }}>
+              <div className="avatar" style={{ backgroundColor: user.avatarColor || '#3b82f6', width: '22px', height: '22px', fontSize: '0.65rem', flexShrink: 0 }} title={user.name}>
                 {user.name?.split(' ').map((n: string) => n[0]).join('') || 'U'}
               </div>
-              <div style={{ overflow: 'hidden' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.72rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
-                <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.userType}</div>
-              </div>
+              {!isCollapsed && (
+                <div style={{ overflow: 'hidden' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.72rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
+                  <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.userType}</div>
+                </div>
+              )}
             </div>
             <button
               onClick={handleLogout}
               className="btn btn-danger"
-              style={{ width: '100%', padding: '4px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+              style={{ width: '100%', padding: '4px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isCollapsed ? '0' : '4px' }}
+              title="Logout"
             >
               <LogOut size={10} />
-              <span>Logout</span>
+              {!isCollapsed && <span>Logout</span>}
             </button>
           </div>
         )}

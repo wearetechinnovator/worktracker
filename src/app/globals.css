@@ -173,7 +173,7 @@ button, input, select, textarea {
   }
 }
 
-/* Sidebar Styling - Compact */
+/* Sidebar Styling - Compact & Sticky */
 .sidebar {
   width: 200px;
   background: var(--bg-secondary);
@@ -183,14 +183,62 @@ button, input, select, textarea {
   flex-direction: column;
   justify-content: space-between;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), padding 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100;
+}
+
+.sidebar.collapsed {
+  width: 68px;
+  padding: 16px 8px;
+}
+
+.sidebar.collapsed .sidebar-menu-title {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-link span {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-link {
+  justify-content: center;
+  padding: 6px 0;
+  width: 100%;
+}
+
+.sidebar-toggle-btn:hover {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--accent-primary) !important;
 }
 
 @media (max-width: 768px) {
   .sidebar {
     width: 100%;
+    height: auto;
+    position: relative;
     border-right: none;
     border-bottom: 1px solid var(--border-color);
     padding: 12px;
+  }
+  .sidebar.collapsed {
+    width: 100%;
+    padding: 12px;
+  }
+  .sidebar.collapsed .sidebar-link span {
+    display: inline;
+  }
+  .sidebar.collapsed .sidebar-link {
+    justify-content: flex-start;
+    padding: 6px 8px;
+  }
+  .sidebar.collapsed .sidebar-menu-title {
+    display: block;
+  }
+  .sidebar-toggle-btn {
+    display: none !important;
   }
 }
 

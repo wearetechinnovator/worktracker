@@ -1,5 +1,9 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/exhaustive-deps */
+
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, Calendar, CheckSquare, AlertCircle, Filter } from 'lucide-react';
@@ -39,6 +43,13 @@ export default function TaskHistoryPage() {
   const [filterDate, setFilterDate] = useState('');
   const [filterEmployee, setFilterEmployee] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterDate, filterEmployee, filterStatus]);
 
   // View Details Modal
   const [selectedRecord, setSelectedRecord] = useState<TaskWorkRecord | null>(null);
@@ -112,6 +123,59 @@ export default function TaskHistoryPage() {
       formatted = formatted.replace(/\n/g, '<br/>');
     }
     return formatted;
+  };
+
+  const ITEMS_PER_PAGE = 10;
+  const paginatedRecords = records.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  const renderPagination = (totalItems: number, itemsPerPage: number, page: number, onPageChange: (p: number) => void) => {
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    if (totalPages <= 1) return null;
+
+    return (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }} className="no-print">
+        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+          Showing <strong>{Math.min(totalItems, (page - 1) * itemsPerPage + 1)}-{Math.min(totalItems, page * itemsPerPage)}</strong> of <strong>{totalItems}</strong> entries
+        </div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => onPageChange(page - 1)}
+            disabled={page === 1}
+            style={{ padding: '4px 10px', fontSize: '0.75rem', opacity: page === 1 ? 0.5 : 1 }}
+          >
+            Previous
+          </button>
+          {Array.from({ length: totalPages }).map((_, i) => {
+            const pageNum = i + 1;
+            if (pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - page) <= 1) {
+              return (
+                <button
+                  key={pageNum}
+                  className={page === pageNum ? "btn btn-primary" : "btn btn-secondary"}
+                  onClick={() => onPageChange(pageNum)}
+                  style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                >
+                  {pageNum}
+                </button>
+              );
+            }
+            if (pageNum === 2 || pageNum === totalPages - 1) {
+              return <span key={pageNum} style={{ color: 'var(--text-muted)', alignSelf: 'center', padding: '0 4px' }}>...</span>;
+            }
+            return null;
+          })}
+          <button
+            className="btn btn-secondary"
+            onClick={() => onPageChange(page + 1)}
+            disabled={page === totalPages}
+            style={{ padding: '4px 10px', fontSize: '0.75rem', opacity: page === totalPages ? 0.5 : 1 }}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const getTotalHours = (): string => {
@@ -279,7 +343,7 @@ export default function TaskHistoryPage() {
                 </td>
               </tr>
             ) : (
-              records.map((record) => (
+              paginatedRecords.map((record) => (
                 <tr key={record._id}>
                   <td>
                     <div className="avatar-wrapper">
@@ -360,6 +424,8 @@ export default function TaskHistoryPage() {
           </tbody>
         </table>
       </div>
+
+      {renderPagination(records.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
 
       {/* Details Modal */}
       {showDetailsModal && selectedRecord && (

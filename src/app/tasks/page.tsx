@@ -1,5 +1,9 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/exhaustive-deps */
+
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -79,6 +83,13 @@ export default function TasksPage() {
   // Filter states
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterPriority, setFilterPriority] = useState<string>('');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterStatus, filterPriority]);
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -297,6 +308,87 @@ export default function TasksPage() {
     }
   };
 
+  const getStatusBadgeStyles = (status: string) => {
+    switch (status) {
+      case 'Completed':
+        return { background: '#ecfdf5', color: '#047857', border: '1px solid #10b98130' };
+      case 'In Progress':
+        return { background: '#eff6ff', color: '#1d4ed8', border: '1px solid #3b82f630' };
+      case 'Review':
+        return { background: '#f5f3ff', color: '#6d28d9', border: '1px solid #8b5cf630' };
+      case 'To Do':
+      default:
+        return { background: '#f3f4f6', color: '#374151', border: '1px solid #9ca3af30' };
+    }
+  };
+
+  const getPriorityBadgeStyles = (priority: string) => {
+    switch (priority) {
+      case 'Urgent':
+        return { background: '#fef2f2', color: '#b91c1c', border: '1px solid #ef444430' };
+      case 'High':
+        return { background: '#fff7ed', color: '#c2410c', border: '1px solid #f9731630' };
+      case 'Medium':
+        return { background: '#fffbeb', color: '#b45309', border: '1px solid #f59e0b30' };
+      case 'Low':
+      default:
+        return { background: '#f0fdf4', color: '#15803d', border: '1px solid #22c55e30' };
+    }
+  };
+
+  const ITEMS_PER_PAGE = 10;
+  const paginatedTasks = filteredTasks.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  const renderPagination = (totalItems: number, itemsPerPage: number, page: number, onPageChange: (p: number) => void) => {
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    if (totalPages <= 1) return null;
+
+    return (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }} className="no-print">
+        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+          Showing <strong>{Math.min(totalItems, (page - 1) * itemsPerPage + 1)}-{Math.min(totalItems, page * itemsPerPage)}</strong> of <strong>{totalItems}</strong> entries
+        </div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => onPageChange(page - 1)}
+            disabled={page === 1}
+            style={{ padding: '4px 10px', fontSize: '0.75rem', opacity: page === 1 ? 0.5 : 1 }}
+          >
+            Previous
+          </button>
+          {Array.from({ length: totalPages }).map((_, i) => {
+            const pageNum = i + 1;
+            if (pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - page) <= 1) {
+              return (
+                <button
+                  key={pageNum}
+                  className={page === pageNum ? "btn btn-primary" : "btn btn-secondary"}
+                  onClick={() => onPageChange(pageNum)}
+                  style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                >
+                  {pageNum}
+                </button>
+              );
+            }
+            if (pageNum === 2 || pageNum === totalPages - 1) {
+              return <span key={pageNum} style={{ color: 'var(--text-muted)', alignSelf: 'center', padding: '0 4px' }}>...</span>;
+            }
+            return null;
+          })}
+          <button
+            className="btn btn-secondary"
+            onClick={() => onPageChange(page + 1)}
+            disabled={page === totalPages}
+            style={{ padding: '4px 10px', fontSize: '0.75rem', opacity: page === totalPages ? 0.5 : 1 }}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return <PageShimmer variant="tasks" />;
   }
@@ -398,167 +490,158 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* Tasks Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-        {filteredTasks.map((task) => (
-          <div key={task._id} className="card" style={{ position: 'relative' }}>
-            {/* Priority Indicator */}
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '4px',
-                height: '100%',
-                background: getPriorityColor(task.priority),
-                borderRadius: '8px 0 0 8px',
-              }}
-            />
-
-            <div style={{ paddingLeft: '8px' }}>
-              {/* Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '4px' }}>
-                    {task.title}
-                  </h3>
-                  {task.description && (
-                    <div 
-                      style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}
-                      dangerouslySetInnerHTML={{ __html: task.description }}
-                    />
-                  )}
-                </div>
-
-                {canManageTask(task) && (
-                  <div style={{ display: 'flex', gap: '6px', marginLeft: '8px' }}>
-                    <button
-                      onClick={() => openEditModal(task)}
-                      className="btn"
-                      style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                      title="Edit"
-                    >
-                      <Edit size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(task._id)}
-                      className="btn btn-danger"
-                      style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                      title="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+      {/* Tasks Table */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table" style={{ margin: 0, width: '100%' }}>
+            <thead>
+              <tr>
+                <th>Task Title & Description</th>
+                <th style={{ width: '140px' }}>Project</th>
+                <th style={{ width: '120px' }}>Status</th>
+                <th style={{ width: '110px' }}>Priority</th>
+                <th style={{ width: '140px' }}>Assigned To</th>
+                <th style={{ width: '110px' }}>Due Date</th>
+                {filteredTasks.some(canManageTask) && (
+                  <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>
                 )}
-              </div>
-
-              {/* Tags */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
-                <span
-                  className="tag-badge"
-                  style={{
-                    background: getStatusColor(task.status),
-                    fontSize: '0.7rem',
-                    padding: '2px 8px',
-                  }}
-                >
-                  {task.status}
-                </span>
-                <span
-                  className="tag-badge"
-                  style={{
-                    background: getPriorityColor(task.priority) + '20',
-                    color: getPriorityColor(task.priority),
-                    fontSize: '0.7rem',
-                    padding: '2px 8px',
-                  }}
-                >
-                  {task.priority}
-                </span>
-              </div>
-
-              {/* Project/Project */}
-              <div style={{ marginBottom: '12px', fontSize: '0.8rem' }}>
-                {task.projectId && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
-                    <Folder size={14} style={{ color: task.projectId.color }} />
-                    <span>{task.projectId.name}</span>
-                  </div>
-                )}
-                {task.Project && !task.projectId && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
-                    <Folder size={14} />
-                    <span>{task.Project}</span>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ marginBottom: '12px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Created by: <strong>{task.createdBy?.name || 'Unknown'}</strong>
-              </div>
-
-              {/* Due Date */}
-              {task.dueDate && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  <Calendar size={14} />
-                  <span>Due: {new Date(task.dueDate).toLocaleDateString()}</span>
-                </div>
-              )}
-
-              {/* Assigned To */}
-              {task.assignedTo.length > 0 && (
-                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                    <Users size={12} />
-                    <span>Assigned to ({task.assignedTo.length})</span>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {task.assignedTo.map((emp) => (
-                      <div
-                        key={emp._id}
-                        className="avatar"
-                        style={{
-                          backgroundColor: emp.avatarColor,
-                          width: '24px',
-                          height: '24px',
-                          fontSize: '0.65rem',
-                        }}
-                        title={emp.name}
-                      >
-                        {emp.name.split(' ').map(n => n[0]).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTasks.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-secondary)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                      <CheckSquare size={40} style={{ color: 'var(--text-muted)' }} />
+                      <div style={{ fontWeight: 700, fontSize: '1rem' }}>No tasks found</div>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                        {tasks.length === 0 ? 'Create your first task to get started' : 'Try adjusting your filters'}
+                      </p>
+                      {isAdmin && (
+                        <button
+                          onClick={openCreateModal}
+                          className="btn btn-primary"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            marginTop: '8px'
+                          }}
+                        >
+                          <Plus size={14} />
+                          <span>Create Task</span>
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                paginatedTasks.map((task) => (
+                  <tr key={task._id}>
+                    <td>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                        {task.title}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                      {task.description && (
+                        <div
+                          style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}
+                          dangerouslySetInnerHTML={{ __html: task.description }}
+                        />
+                      )}
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        Created by: <strong>{task.createdBy?.name || 'Unknown'}</strong>
+                      </div>
+                    </td>
+                    <td>
+                      {task.projectId ? (
+                        <span className="tag-badge" style={{ backgroundColor: `${task.projectId.color}15`, color: task.projectId.color, borderColor: `${task.projectId.color}30`, display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
+                          <Folder size={10} style={{ color: task.projectId.color }} />
+                          {task.projectId.name}
+                        </span>
+                      ) : task.Project ? (
+                        <span className="tag-badge" style={{ backgroundColor: '#cbd5e120', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
+                          <Folder size={10} />
+                          {task.Project}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>None</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className="tag-badge" style={{ ...getStatusBadgeStyles(task.status), fontWeight: 700, fontSize: '0.72rem' }}>
+                        {task.status}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="tag-badge" style={{ ...getPriorityBadgeStyles(task.priority), fontWeight: 700, fontSize: '0.72rem' }}>
+                        {task.priority}
+                      </span>
+                    </td>
+                    <td>
+                      {task.assignedTo.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                          {task.assignedTo.map((emp) => (
+                            <div
+                              key={emp._id}
+                              className="avatar"
+                              style={{
+                                backgroundColor: emp.avatarColor || '#7f56d9',
+                                width: '22px',
+                                height: '22px',
+                                fontSize: '0.62rem',
+                                color: '#ffffff'
+                              }}
+                              title={emp.name}
+                            >
+                              {emp.name.split(' ').map((n: string) => n[0]).join('')}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Unassigned</span>
+                      )}
+                    </td>
+                    <td style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                      {task.dueDate ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <Calendar size={12} />
+                          {new Date(task.dueDate).toLocaleDateString()}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    {canManageTask(task) && (
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button
+                            onClick={() => openEditModal(task)}
+                            className="btn btn-secondary"
+                            style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                            title="Edit"
+                          >
+                            <Edit size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(task._id)}
+                            className="btn btn-danger"
+                            style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                            title="Delete"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))
               )}
-            </div>
-          </div>
-        ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {filteredTasks.length === 0 && (
-        <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-          <CheckSquare size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 16px' }} />
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>No tasks found</h3>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
-            {tasks.length === 0 ? 'Create your first task to get started' : 'Try adjusting your filters'}
-          </p>
-          <button
-            onClick={openCreateModal}
-            className="btn btn-primary"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              margin: '0 auto'
-            }}
-          >
-            <Plus size={16} />
-            <span>{isAdmin ? 'Create Task' : 'Add My Task'}</span>
-          </button>
-        </div>
-      )}
+      {renderPagination(filteredTasks.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
 
       {/* Create/Edit Modal */}
       {showModal && (

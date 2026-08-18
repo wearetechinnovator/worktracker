@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 100;
+const DEFAULT_PAGE_SIZE = 1000;
+const MAX_PAGE_SIZE = 5000;
 
 export function getPagination(searchParams: URLSearchParams) {
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
