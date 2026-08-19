@@ -108,6 +108,8 @@ export default function ChatWidget() {
   const [newChannelDesc, setNewChannelDesc] = useState('');
   const [newChannelAllowMessages, setNewChannelAllowMessages] = useState<'anyone' | 'admin_only'>('anyone');
   const [newChannelAllowAttachments, setNewChannelAllowAttachments] = useState<'anyone' | 'admin_only'>('anyone');
+  const [channelVisibility, setChannelVisibility] = useState<'public' | 'private'>('public');
+  const [selectedAllowedMembers, setSelectedAllowedMembers] = useState<string[]>([]);
   const [creatingChannel, setCreatingChannel] = useState(false);
 
   // Autocomplete suggestions states
@@ -497,6 +499,7 @@ export default function ChatWidget() {
           description: newChannelDesc.trim(),
           allowMessages: newChannelAllowMessages,
           allowAttachments: newChannelAllowAttachments,
+          allowedMembers: channelVisibility === 'private' ? selectedAllowedMembers : [],
         }),
       });
       const result = await res.json();
@@ -507,6 +510,8 @@ export default function ChatWidget() {
         setNewChannelDesc('');
         setNewChannelAllowMessages('anyone');
         setNewChannelAllowAttachments('anyone');
+        setChannelVisibility('public');
+        setSelectedAllowedMembers([]);
         setActiveChannelId(`#${result.data.name}`);
       } else {
         alert(result.error || 'Failed to create channel');
@@ -1594,6 +1599,68 @@ export default function ChatWidget() {
                     <option value="admin_only">Only Administrators</option>
                   </select>
                 </div>
+                <div className="chat-form-group">
+                  <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>Channel Visibility</label>
+                  <select
+                    className="chat-form-input"
+                    value={channelVisibility}
+                    onChange={(e) => {
+                      const val = e.target.value as 'public' | 'private';
+                      setChannelVisibility(val);
+                      if (val === 'public') {
+                        setSelectedAllowedMembers([]);
+                      }
+                    }}
+                    disabled={creatingChannel}
+                    style={{ background: '#ffffff', color: '#1e293b', border: '1px solid var(--border-color, #e2e8f0)', padding: '6px 8px', borderRadius: '6px', fontSize: '11px', width: '100%', outline: 'none' }}
+                  >
+                    <option value="public">Public (Everyone can see and join)</option>
+                    <option value="private">Private (Only visible to selected members)</option>
+                  </select>
+                </div>
+
+                {channelVisibility === 'private' && (
+                  <div className="chat-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>Select Allowed Members</label>
+                    <div style={{
+                      border: '1px solid var(--border-color, #e2e8f0)',
+                      borderRadius: '6px',
+                      maxHeight: '110px',
+                      overflowY: 'auto',
+                      padding: '6px 8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                      background: '#fafafa'
+                    }}>
+                      {members.map((m) => {
+                        const isChecked = selectedAllowedMembers.includes(m._id);
+                        return (
+                          <label key={m._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '11px', color: '#334155' }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  setSelectedAllowedMembers(prev => prev.filter(id => id !== m._id));
+                                } else {
+                                  setSelectedAllowedMembers(prev => [...prev, m._id]);
+                                }
+                              }}
+                              disabled={creatingChannel}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <span style={{ fontWeight: '500' }}>{m.name}</span>
+                            <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>({m.role})</span>
+                          </label>
+                        );
+                      })}
+                      {members.length === 0 && (
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', textAlign: 'center', padding: '6px' }}>No members available</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="chat-modal-footer">
                 <button

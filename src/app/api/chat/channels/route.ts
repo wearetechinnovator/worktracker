@@ -10,7 +10,18 @@ export async function GET() {
     const user = await requireUser();
     if (isErrorResponse(user)) return user;
 
-    const channels = await ChatChannel.find()
+    let query = {};
+    if (user.userType !== 'admin') {
+      query = {
+        $or: [
+          { allowedMembers: { $exists: false } },
+          { allowedMembers: { $size: 0 } },
+          { allowedMembers: user.id }
+        ]
+      };
+    }
+
+    const channels = await ChatChannel.find(query)
       .populate('createdBy', 'name')
       .sort({ name: 1 })
       .lean();
@@ -36,7 +47,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, description, allowMessages, allowAttachments } = body;
+    const { name, description, allowMessages, allowAttachments, allowedMembers } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -74,6 +85,7 @@ export async function POST(request: Request) {
       createdBy: user.id,
       allowMessages: allowMessages === 'admin_only' ? 'admin_only' : 'anyone',
       allowAttachments: allowAttachments === 'admin_only' ? 'admin_only' : 'anyone',
+      allowedMembers: Array.isArray(allowedMembers) ? allowedMembers : [],
     });
 
     return NextResponse.json({ success: true, data: channel }, { status: 201 });

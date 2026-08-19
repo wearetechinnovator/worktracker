@@ -6,6 +6,7 @@ export interface IChatChannel extends Document {
   createdBy: mongoose.Types.ObjectId;
   allowMessages: 'anyone' | 'admin_only';
   allowAttachments: 'anyone' | 'admin_only';
+  allowedMembers: mongoose.Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +18,7 @@ const ChatChannelSchema = new Schema<IChatChannel>(
     createdBy: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
     allowMessages: { type: String, enum: ['anyone', 'admin_only'], default: 'anyone' },
     allowAttachments: { type: String, enum: ['anyone', 'admin_only'], default: 'anyone' },
+    allowedMembers: { type: [{ type: Schema.Types.ObjectId, ref: 'Employee' }], default: [] },
   },
   { timestamps: true }
 );

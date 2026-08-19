@@ -112,6 +112,17 @@ export async function POST(request: Request) {
       const chan = await ChatChannel.findOne({ name: channelName }).lean();
 
       if (chan) {
+        // Enforce private channel access permissions
+        if (chan.allowedMembers && chan.allowedMembers.length > 0 && user.userType !== 'admin') {
+          const isAllowed = chan.allowedMembers.some((memberId: any) => memberId.toString() === user.id.toString());
+          if (!isAllowed) {
+            return NextResponse.json(
+              { success: false, error: 'Unauthorized. You do not have access to this channel.' },
+              { status: 403 }
+            );
+          }
+        }
+
         if (chan.allowMessages === 'admin_only' && user.userType !== 'admin') {
           return NextResponse.json(
             { success: false, error: 'Only administrators are authorized to send messages in this channel.' },
