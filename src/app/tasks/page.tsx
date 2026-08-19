@@ -988,7 +988,7 @@ export default function TasksPage() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: !formData.projectId ? '1fr 1fr' : '1fr', gap: '16px', marginBottom: '16px' }}>
                 <div>
                   <label className="form-label">Choose</label>
                   <select
@@ -1005,17 +1005,19 @@ export default function TasksPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="form-label">Project</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={formData.Project}
-                    onChange={(e) => setFormData({ ...formData, Project: e.target.value, projectId: '' })}
-                    disabled={!!formData.projectId}
-                    placeholder={formData.projectId ? 'Using project' : 'e.g., Engineering'}
-                  />
-                </div>
+                {!formData.projectId && (
+                  <div>
+                    <label className="form-label">Project</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formData.Project}
+                      onChange={(e) => setFormData({ ...formData, Project: e.target.value, projectId: '' })}
+                      disabled={!!formData.projectId}
+                      placeholder={formData.projectId ? 'Using project' : 'e.g., Engineering'}
+                    />
+                  </div>
+                )}
               </div>
 
               {isAdmin && (
