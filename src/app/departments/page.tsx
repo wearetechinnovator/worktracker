@@ -7,8 +7,10 @@ import {
   Filter,
   Search,
   TrendingUp,
-  Users
+  Users,
+  MessageSquare
 } from 'lucide-react';
+import ChatWidget from '@/components/ChatWidget';
 
 type DepartmentStatus = 'Healthy' | 'Hiring' | 'At Risk';
 
@@ -90,6 +92,7 @@ const statusStyles: Record<DepartmentStatus, { bg: string; color: string }> = {
 const DepartmentPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | DepartmentStatus>('All');
+  const [showChat, setShowChat] = useState(false);
 
   const filteredDepartments = useMemo(() => {
     return departmentData.filter((department) => {
@@ -127,119 +130,149 @@ const DepartmentPage = () => {
   }, [filteredDepartments]);
 
   return (
-    <div style={{ display: 'grid', gap: '14px' }}>
-      <section className="department-hero">
-        <div>
-          <p className="hero-eyebrow">Workspace Overview</p>
-          <h1 className="hero-title">Departments</h1>
-          <p className="hero-copy">
-            Track department capacity, hiring pressure, and active delivery streams in one place.
-          </p>
-        </div>
-        <button className="btn btn-primary" type="button">
-          Create Department
-        </button>
-      </section>
-
-      <section className="summary-grid">
-        <article className="summary-card reveal delay-1">
-          <div className="summary-icon"><Building2 size={14} /></div>
-          <p className="summary-label">Departments</p>
-          <p className="summary-value">{summary.departments}</p>
-        </article>
-        <article className="summary-card reveal delay-2">
-          <div className="summary-icon"><Users size={14} /></div>
-          <p className="summary-label">Team Members</p>
-          <p className="summary-value">{summary.members}</p>
-        </article>
-        <article className="summary-card reveal delay-3">
-          <div className="summary-icon"><Briefcase size={14} /></div>
-          <p className="summary-label">Active Projects</p>
-          <p className="summary-value">{summary.projects}</p>
-        </article>
-        <article className="summary-card reveal delay-4">
-          <div className="summary-icon"><TrendingUp size={14} /></div>
-          <p className="summary-label">Capacity Utilization</p>
-          <p className="summary-value">{summary.utilization}%</p>
-        </article>
-      </section>
-
-      <section className="control-bar card">
-        <label className="search-box" htmlFor="department-search">
-          <Search size={14} />
-          <input
-            id="department-search"
-            type="text"
-            placeholder="Search by department, lead, or focus"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-          />
-        </label>
-
-        <label className="filter-box" htmlFor="department-status">
-          <Filter size={14} />
-          <select
-            id="department-status"
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as 'All' | DepartmentStatus)}
-          >
-            <option value="All">All status</option>
-            <option value="Healthy">Healthy</option>
-            <option value="Hiring">Hiring</option>
-            <option value="At Risk">At Risk</option>
-          </select>
-        </label>
-      </section>
-
-      <section className="department-grid">
-        {filteredDepartments.length === 0 ? (
-          <div className="card empty-state">
-            <p>No departments match the current search and filter.</p>
+    <div style={{ display: 'grid', gridTemplateColumns: showChat ? '1fr 380px' : '1fr', gap: '16px', minHeight: 'calc(100vh - 100px)', transition: 'grid-template-columns 0.3s ease' }}>
+      {/* Left side: Departments details */}
+      <div style={{ display: 'grid', gap: '14px', height: 'fit-content' }}>
+        <section className="department-hero">
+          <div>
+            <p className="hero-eyebrow">Workspace Overview</p>
+            <h1 className="hero-title">Departments</h1>
+            <p className="hero-copy">
+              Track department capacity, hiring pressure, and active delivery streams in one place.
+            </p>
           </div>
-        ) : (
-          filteredDepartments.map((department, index) => {
-            const statusStyle = statusStyles[department.status];
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowChat(!showChat)}
+              type="button"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '8px 16px', fontSize: '12px', fontWeight: 'bold' }}
+            >
+              <MessageSquare size={14} />
+              {showChat ? 'Hide Chat' : 'Show Chat'}
+            </button>
+            <button className="btn btn-primary" type="button">
+              Create Department
+            </button>
+          </div>
+        </section>
 
-            return (
-              <article key={department.id} className={`card department-card reveal delay-${(index % 4) + 1}`}>
-                <div className="department-top">
-                  <div>
-                    <h3>{department.name}</h3>
-                    <p>Lead: {department.lead}</p>
+        <section className="summary-grid">
+          <article className="summary-card reveal delay-1">
+            <div className="summary-icon"><Building2 size={14} /></div>
+            <p className="summary-label">Departments</p>
+            <p className="summary-value">{summary.departments}</p>
+          </article>
+          <article className="summary-card reveal delay-2">
+            <div className="summary-icon"><Users size={14} /></div>
+            <p className="summary-label">Team Members</p>
+            <p className="summary-value">{summary.members}</p>
+          </article>
+          <article className="summary-card reveal delay-3">
+            <div className="summary-icon"><Briefcase size={14} /></div>
+            <p className="summary-label">Active Projects</p>
+            <p className="summary-value">{summary.projects}</p>
+          </article>
+          <article className="summary-card reveal delay-4">
+            <div className="summary-icon"><TrendingUp size={14} /></div>
+            <p className="summary-label">Capacity Utilization</p>
+            <p className="summary-value">{summary.utilization}%</p>
+          </article>
+        </section>
+
+        <section className="control-bar card">
+          <label className="search-box" htmlFor="department-search">
+            <Search size={14} />
+            <input
+              id="department-search"
+              type="text"
+              placeholder="Search by department, lead, or focus"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </label>
+
+          <label className="filter-box" htmlFor="department-status">
+            <Filter size={14} />
+            <select
+              id="department-status"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as 'All' | DepartmentStatus)}
+            >
+              <option value="All">All status</option>
+              <option value="Healthy">Healthy</option>
+              <option value="Hiring">Hiring</option>
+              <option value="At Risk">At Risk</option>
+            </select>
+          </label>
+        </section>
+
+        <section className="department-grid">
+          {filteredDepartments.length === 0 ? (
+            <div className="card empty-state">
+              <p>No departments match the current search and filter.</p>
+            </div>
+          ) : (
+            filteredDepartments.map((department, index) => {
+              const statusStyle = statusStyles[department.status];
+
+              return (
+                <article key={department.id} className={`card department-card reveal delay-${(index % 4) + 1}`}>
+                  <div className="department-top">
+                    <div>
+                      <h3>{department.name}</h3>
+                      <p>Lead: {department.lead}</p>
+                    </div>
+                    <span
+                      className="status-pill"
+                      style={{ background: statusStyle.bg, color: statusStyle.color }}
+                    >
+                      {department.status}
+                    </span>
                   </div>
-                  <span
-                    className="status-pill"
-                    style={{ background: statusStyle.bg, color: statusStyle.color }}
-                  >
-                    {department.status}
-                  </span>
-                </div>
 
-                <p className="department-focus">{department.focus}</p>
+                  <p className="department-focus">{department.focus}</p>
 
-                <div className="department-metrics">
-                  <div>
-                    <span>Members</span>
-                    <strong>{department.members}</strong>
+                  <div className="department-metrics">
+                    <div>
+                      <span>Members</span>
+                      <strong>{department.members}</strong>
+                    </div>
+                    <div>
+                      <span>Projects</span>
+                      <strong>{department.activeProjects}</strong>
+                    </div>
+                    <div>
+                      <span>Hours</span>
+                      <strong>{department.monthlyHours}</strong>
+                    </div>
                   </div>
-                  <div>
-                    <span>Projects</span>
-                    <strong>{department.activeProjects}</strong>
-                  </div>
-                  <div>
-                    <span>Hours</span>
-                    <strong>{department.monthlyHours}</strong>
-                  </div>
-                </div>
+                </article>
+              );
+            })
+          )}
+        </section>
+      </div>
 
-            
-              </article>
-            );
-          })
-        )}
-      </section>
+      {/* Right side: Collapsible Sticky Chat Panel */}
+      {showChat && (
+        <div className="card" style={{
+          padding: 0,
+          border: '1px solid var(--border-color)',
+          borderRadius: 'var(--border-radius-lg)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          height: 'calc(100vh - 60px)',
+          position: 'sticky',
+          top: '30px',
+          background: 'var(--bg-secondary)',
+          boxShadow: 'var(--box-shadow)'
+        }}>
+          <ChatWidget inline={true} />
+        </div>
+      )}
 
-     
       <style jsx>{`
         .department-hero {
           display: flex;

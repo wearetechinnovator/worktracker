@@ -69,7 +69,11 @@ interface ChatMessage {
   createdAt: string;
 }
 
-export default function ChatWidget() {
+interface ChatWidgetProps {
+  inline?: boolean;
+}
+
+export default function ChatWidget({ inline = false }: ChatWidgetProps) {
   const pathname = usePathname();
   
   // Visibility States
@@ -873,8 +877,8 @@ export default function ChatWidget() {
     return `dm-${sortedIds[0]}-${sortedIds[1]}`;
   };
 
-  // Hide widget completely on login page or if user is not loaded
-  if (pathname === '/login' || !user) return null;
+  // Hide widget completely on login page, or if not inline and visiting departments page, or if user is not loaded
+  if (pathname === '/login' || (!inline && pathname === '/departments') || !user) return null;
 
   const currentChannel = getActiveChannelMeta();
   // Enforce channel-specific writing/uploading permissions
@@ -925,7 +929,7 @@ export default function ChatWidget() {
   return (
     <>
       {/* Minimized Float Action Button */}
-      {!isOpen && (
+      {!inline && !isOpen && (
         <button className="chat-fab" onClick={() => setIsOpen(true)} title={hoverTitle}>
           <MessageSquare size={28} />
           {totalUnread > 0 && <span className="chat-fab-badge">{totalUnread}</span>}
@@ -933,16 +937,16 @@ export default function ChatWidget() {
       )}
 
       {/* Main Expanded Draggable Chat Window */}
-      {isOpen && (
+      {(inline || isOpen) && (
         <div
-          className="chat-window"
-          style={{
+          className={`chat-window ${inline ? 'inline' : ''}`}
+          style={inline ? undefined : {
             left: `${position.x}px`,
             top: `${position.y}px`
           }}
         >
-          {/* Header (Drag Handle) */}
-          <div className="chat-header" ref={headerRef} onMouseDown={handleHeaderMouseDown}>
+          {/* Header */}
+          <div className="chat-header" ref={inline ? undefined : headerRef} onMouseDown={inline ? undefined : handleHeaderMouseDown}>
             <div className="chat-header-info">
               <MessageSquare size={16} />
               <span className="chat-header-title">TIS Workspace Chat</span>
@@ -955,13 +959,15 @@ export default function ChatWidget() {
               >
                 {showSidebar ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
               </button>
-              <button
-                className="chat-header-btn"
-                onClick={() => setIsOpen(false)}
-                title="Minimize Chat"
-              >
-                <Minimize2 size={14} />
-              </button>
+              {!inline && (
+                <button
+                  className="chat-header-btn"
+                  onClick={() => setIsOpen(false)}
+                  title="Minimize Chat"
+                >
+                  <Minimize2 size={14} />
+                </button>
+              )}
             </div>
           </div>
 
