@@ -8,9 +8,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   MessageSquare, Send, Smile, Bold, Italic, Code, Minimize2,
-  ChevronRight, ChevronLeft, Hash, Lock, Search
+  ChevronRight, ChevronLeft, Hash, Lock, Search, X, CornerUpLeft,
+  Paperclip, FileText
 } from 'lucide-react';
 import '@/app/chat.css';
+
+interface IAttachment {
+  fileUrl: string;
+  fileName: string;
+  fileType: string;
+}
 
 interface UserSession {
   _id: string;
@@ -55,6 +62,10 @@ interface ChatMessage {
   senderRole: string;
   content: string;
   reactions: Reaction[];
+  replyToId?: string;
+  replyToSenderName?: string;
+  replyToContent?: string;
+  attachments?: IAttachment[];
   createdAt: string;
 }
 
@@ -81,13 +92,17 @@ export default function ChatWidget() {
   // Unread badge counts per channel
   const [unreadCounts, setUnreadCounts] = useState<{ [key: string]: number }>({});
   const [unreadSenders, setUnreadSenders] = useState<{ [key: string]: string[] }>({});
-
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<IAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  
   // Refs for scroll and drag
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Track last fetched message timestamp to fetch incrementally
   const lastFetchedTimeRef = useRef<string>('');
@@ -328,9 +343,14 @@ export default function ChatWidget() {
   // 5. Send a new message
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!inputText.trim() || !user) return;
+    if ((!inputText.trim() && uploadedFiles.length === 0) || !user) return;
 
-    const messageText = inputText.trim();
+    const currentReplyTo = replyTo;
+    const currentUploadedFiles = [...uploadedFiles];
+    setReplyTo(null);
+    setUploadedFiles([]);
+
+    const messageText = inputText.trim() || (currentUploadedFiles.length > 0 ? `Sent ${currentUploadedFiles.length} file(s)` : '');
     setInputText('');
     setShowEmojiPicker(false);
     if (textareaRef.current) textareaRef.current.style.height = '40px';
@@ -344,8 +364,12 @@ export default function ChatWidget() {
       senderName: user.name,
       senderAvatarColor: user.avatarColor || '#3b82f6',
       senderRole: user.role,
-      content: messageText,
+      content: inputText.trim() ? messageText : '',
       reactions: [],
+      replyToId: currentReplyTo ? currentReplyTo._id : undefined,
+      replyToSenderName: currentReplyTo ? currentReplyTo.senderName : undefined,
+      replyToContent: currentReplyTo ? currentReplyTo.content : undefined,
+      attachments: currentUploadedFiles,
       createdAt: new Date().toISOString()
     };
     setMessages(prev => [...prev, optimisticMessage]);
@@ -357,7 +381,11 @@ export default function ChatWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channelId: activeChannelId,
-          content: messageText
+          content: inputText.trim() ? messageText : ' ',
+          replyToId: currentReplyTo ? currentReplyTo._id : undefined,
+          replyToSenderName: currentReplyTo ? currentReplyTo.senderName : undefined,
+          replyToContent: currentReplyTo ? currentReplyTo.content : undefined,
+          attachments: currentUploadedFiles,
         })
       });
       const data = await res.json();
@@ -373,6 +401,46 @@ export default function ChatWidget() {
     } catch (err) {
       setMessages(prev => prev.filter(m => m._id !== tempId));
       console.error('Error sending message:', err);
+    }
+  };
+
+  // File upload handler
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch('/api/chat/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const result = await res.json();
+
+        if (result.success && result.data) {
+          setUploadedFiles((prev) => [
+            ...prev,
+            {
+              fileUrl: result.data.fileUrl,
+              fileName: result.data.originalName,
+              fileType: result.data.fileType,
+            },
+          ]);
+        } else {
+          alert('Upload failed: ' + (result.error || 'Unknown error'));
+        }
+      }
+    } catch (err) {
+      console.error('Error uploading file:', err);
+      alert('Error uploading file');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -490,10 +558,18 @@ export default function ChatWidget() {
       // Find the recipient member
       const recipientId = activeChannelId.replace('dm-', '').replace(user?._id || '', '').replace('-', '');
       const recipient = members.find(m => m._id === recipientId);
+      let displayStatus = 'Offline';
+      if (recipient) {
+        if (recipient.onlineStatus === 'online') displayStatus = 'Online';
+        else if (recipient.onlineStatus === 'wfh') displayStatus = 'Work From Home';
+        else if (recipient.onlineStatus === 'sick_leave') displayStatus = 'Sick Leave';
+        else if (recipient.onlineStatus === 'leave') displayStatus = 'On Leave';
+      }
+
       return {
         name: recipient ? recipient.name : 'Direct Message',
         isDm: true,
-        description: recipient ? `${recipient.role} - ${recipient.status}` : 'Direct Message',
+        description: recipient ? `${recipient.role} - ${displayStatus}` : 'Direct Message',
         status: recipient ? recipient.onlineStatus : 'offline'
       };
     }
@@ -754,7 +830,7 @@ export default function ChatWidget() {
                     const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
                     return (
-                      <div key={msg._id} className={`chat-message-row ${isMe ? 'me' : ''}`}>
+                      <div key={msg._id} id={`msg-${msg._id}`} className={`chat-message-row ${isMe ? 'me' : ''}`} style={{ transition: 'background-color 0.5s ease', borderRadius: '6px', padding: '2px 4px' }}>
                         
                         {/* Avatar */}
                         {!isMe && (
@@ -776,35 +852,94 @@ export default function ChatWidget() {
                             <span>{timeStr}</span>
                           </div>
 
+                          {/* Reply Quote Box */}
+                          {msg.replyToId && (
+                            <div
+                              className="chat-message-quote-box"
+                              onClick={() => {
+                                const element = document.getElementById(`msg-${msg.replyToId}`);
+                                if (element) {
+                                  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  element.style.backgroundColor = 'rgba(254, 240, 138, 0.4)';
+                                  setTimeout(() => {
+                                    element.style.backgroundColor = '';
+                                  }, 1500);
+                                }
+                              }}
+                              title="Click to jump to message"
+                            >
+                              Replying to <strong>@{msg.replyToSenderName}</strong>: <em>{msg.replyToContent}</em>
+                            </div>
+                          )}
+
                           {/* Bubble Balloon */}
                           <div className="chat-message-bubble">
                             {/* Render basic text markup safely */}
-                            <span style={{ whiteSpace: 'pre-wrap' }}>
-                              {msg.content.startsWith('```') && msg.content.endsWith('```') ? (
-                                <pre>
-                                  <code>{msg.content.replace(/```/g, '').trim()}</code>
-                                </pre>
-                              ) : (
-                                // Render markdown bold/italic tags
-                                msg.content.split('\n').map((line, lIdx) => (
-                                  <span key={lIdx}>
-                                    {line.split(' ').map((word, wIdx) => {
-                                      if (word.startsWith('**') && word.endsWith('**')) {
-                                        return <strong key={wIdx}>{word.slice(2, -2)} </strong>;
-                                      }
-                                      if (word.startsWith('*') && word.endsWith('*')) {
-                                        return <em key={wIdx}>{word.slice(1, -1)} </em>;
-                                      }
-                                      if (word.startsWith('`') && word.endsWith('`')) {
-                                        return <code key={wIdx}>{word.slice(1, -1)} </code>;
-                                      }
-                                      return word + ' ';
-                                    })}
-                                    {lIdx < msg.content.split('\n').length - 1 && <br />}
-                                  </span>
-                                ))
-                              )}
-                            </span>
+                            {msg.content && msg.content.trim() && (
+                              <span style={{ whiteSpace: 'pre-wrap' }}>
+                                {msg.content.startsWith('```') && msg.content.endsWith('```') ? (
+                                  <pre>
+                                    <code>{msg.content.replace(/```/g, '').trim()}</code>
+                                  </pre>
+                                ) : (
+                                  // Render markdown bold/italic tags
+                                  msg.content.split('\n').map((line, lIdx) => (
+                                    <span key={lIdx}>
+                                      {line.split(' ').map((word, wIdx) => {
+                                        if (word.startsWith('**') && word.endsWith('**')) {
+                                          return <strong key={wIdx}>{word.slice(2, -2)} </strong>;
+                                        }
+                                        if (word.startsWith('*') && word.endsWith('*')) {
+                                          return <em key={wIdx}>{word.slice(1, -1)} </em>;
+                                        }
+                                        if (word.startsWith('`') && word.endsWith('`')) {
+                                          return <code key={wIdx}>{word.slice(1, -1)} </code>;
+                                        }
+                                        return word + ' ';
+                                      })}
+                                      {lIdx < msg.content.split('\n').length - 1 && <br />}
+                                    </span>
+                                  ))
+                                )}
+                              </span>
+                            )}
+
+                            {/* Render Attachments */}
+                            {msg.attachments && msg.attachments.length > 0 && (
+                              <div className="chat-message-attachments">
+                                {msg.attachments.map((att, index) => {
+                                  const isImage = att.fileType.startsWith('image/');
+                                  if (isImage) {
+                                    return (
+                                      <img
+                                        key={index}
+                                        src={att.fileUrl}
+                                        alt={att.fileName}
+                                        className="chat-attachment-image"
+                                        onClick={() => window.open(att.fileUrl, '_blank')}
+                                      />
+                                    );
+                                  } else {
+                                    return (
+                                      <a
+                                        key={index}
+                                        href={att.fileUrl}
+                                        download={att.fileName}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="chat-attachment-file-link"
+                                        title={`Download ${att.fileName}`}
+                                      >
+                                        <FileText size={13} />
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {att.fileName}
+                                        </span>
+                                      </a>
+                                    );
+                                  }
+                                })}
+                              </div>
+                            )}
 
                             {/* Floating hover reactions */}
                             <div className="chat-hover-reactions">
@@ -817,6 +952,14 @@ export default function ChatWidget() {
                                   {emoji}
                                 </button>
                               ))}
+                              <button
+                                className="chat-hover-reaction-btn"
+                                onClick={() => setReplyTo(msg)}
+                                title="Reply to message"
+                                style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '6px', marginLeft: '2px', display: 'flex', alignItems: 'center' }}
+                              >
+                                <CornerUpLeft size={12} />
+                              </button>
                             </div>
                           </div>
 
@@ -862,6 +1005,51 @@ export default function ChatWidget() {
                   </div>
                 ) : (
                   <>
+                    {/* Reply Preview Bar */}
+                    {replyTo && (
+                      <div className="chat-reply-preview-bar">
+                        <div className="chat-reply-preview-content">
+                          Replying to <strong>{replyTo.senderName}</strong>: <em>{replyTo.content}</em>
+                        </div>
+                        <button className="chat-reply-preview-close" onClick={() => setReplyTo(null)} title="Cancel reply">
+                          <X size={12} />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* File Upload Preview Panel */}
+                    {uploadedFiles.length > 0 && (
+                      <div className="chat-editor-uploads-panel">
+                        {uploadedFiles.map((file, index) => {
+                          const isImage = file.fileType.startsWith('image/');
+                          return (
+                            <div key={index} className="chat-upload-thumbnail-wrapper">
+                              {isImage ? (
+                                <img
+                                  src={file.fileUrl}
+                                  alt="upload preview"
+                                  className="chat-upload-thumbnail-img"
+                                />
+                              ) : (
+                                <div className="chat-upload-file-icon">
+                                  <FileText size={16} />
+                                  <span style={{ fontSize: '7px' }}>{file.fileName.substring(0, 10)}...</span>
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                className="chat-upload-thumbnail-delete"
+                                onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== index))}
+                                title="Remove file"
+                              >
+                                <X size={10} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     {/* Toolbar */}
                     <div className="chat-editor-toolbar">
                       <div className="chat-editor-tools-left">
@@ -893,6 +1081,22 @@ export default function ChatWidget() {
                         >
                           <Smile size={13} />
                         </button>
+                        <button
+                          className="chat-editor-tool-btn"
+                          onClick={() => fileInputRef.current?.click()}
+                          title="Attach files or images"
+                          disabled={uploading}
+                          type="button"
+                        >
+                          <Paperclip size={13} style={{ color: uploading ? 'var(--text-muted)' : 'inherit' }} />
+                        </button>
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleFileUpload}
+                          style={{ display: 'none' }}
+                          multiple
+                        />
                       </div>
                     </div>
 
@@ -934,7 +1138,7 @@ export default function ChatWidget() {
                         <button
                           type="submit"
                           className="chat-editor-send-btn"
-                          disabled={!inputText.trim()}
+                          disabled={!inputText.trim() && uploadedFiles.length === 0}
                           title="Send Message"
                         >
                           <Send size={15} />

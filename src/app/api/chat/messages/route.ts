@@ -80,9 +80,10 @@ export async function POST(request: Request) {
     if (isErrorResponse(user)) return user;
 
     const body = await request.json();
-    const { channelId, content } = body;
+    const { channelId, content, replyToId, replyToSenderName, replyToContent, attachments } = body;
 
-    if (!channelId || !content || !content.trim()) {
+    const hasAttachments = attachments && Array.isArray(attachments) && attachments.length > 0;
+    if (!channelId || ((!content || !content.trim()) && !hasAttachments)) {
       return NextResponse.json(
         { success: false, error: 'channelId and content are required' },
         { status: 400 }
@@ -107,8 +108,12 @@ export async function POST(request: Request) {
       senderName: employee.name,
       senderAvatarColor: employee.avatarColor || '#3b82f6',
       senderRole: employee.role,
-      content: content.trim(),
+      content: content.trim() || ' ',
       reactions: [],
+      replyToId: replyToId || undefined,
+      replyToSenderName: replyToSenderName || undefined,
+      replyToContent: replyToContent || undefined,
+      attachments: attachments || undefined,
     });
 
     return NextResponse.json({ success: true, data: message }, { status: 201 });

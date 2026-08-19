@@ -5,6 +5,12 @@ export interface IReaction {
   users: string[]; // List of employee IDs who reacted
 }
 
+export interface IAttachment {
+  fileUrl: string;
+  fileName: string;
+  fileType: string;
+}
+
 export interface IChatMessage extends Document {
   channelId: string; // e.g. '#general', '#random', '#announcements', 'project-<id>', 'dm-<user1>-<user2>'
   senderId: mongoose.Types.ObjectId;
@@ -13,6 +19,10 @@ export interface IChatMessage extends Document {
   senderRole: string;
   content: string;
   reactions: IReaction[];
+  replyToId?: mongoose.Types.ObjectId;
+  replyToSenderName?: string;
+  replyToContent?: string;
+  attachments?: IAttachment[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,13 +41,26 @@ const ChatMessageSchema = new Schema<IChatMessage>(
         users: [{ type: String }],
       },
     ],
+    replyToId: { type: Schema.Types.ObjectId, ref: 'ChatMessage' },
+    replyToSenderName: { type: String },
+    replyToContent: { type: String },
+    attachments: [
+      {
+        fileUrl: { type: String, required: true },
+        fileName: { type: String, required: true },
+        fileType: { type: String, required: true },
+      },
+    ],
   },
   { timestamps: true }
 );
 
 ChatMessageSchema.index({ channelId: 1, createdAt: 1 });
 
-const ChatMessage: Model<IChatMessage> =
-  mongoose.models.ChatMessage || mongoose.model<IChatMessage>('ChatMessage', ChatMessageSchema);
+if (mongoose.models.ChatMessage) {
+  delete (mongoose.models as any).ChatMessage;
+}
+
+const ChatMessage: Model<IChatMessage> = mongoose.model<IChatMessage>('ChatMessage', ChatMessageSchema);
 
 export default ChatMessage;
