@@ -17,6 +17,14 @@ export async function GET(request: Request) {
 
     if (!channelId) {
       const allowedChannels = ['#general', '#random', '#announcements'];
+      
+      // Dynamically load custom channels to authorize them in global query
+      const ChatChannel = (await import('@/models/ChatChannel')).default;
+      const customChans = await ChatChannel.find().select('name').lean();
+      customChans.forEach((c: any) => {
+        allowedChannels.push(`#${c.name}`);
+      });
+
       const Project = (await import('@/models/Project')).default;
       const userProjects = user.userType === 'admin'
         ? await Project.find().select('_id').lean()

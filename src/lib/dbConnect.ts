@@ -3,6 +3,7 @@ import '@/models/Employee';
 import '@/models/Project';
 import '@/models/WorkEntry';
 import '@/models/ChatMessage';
+import '@/models/ChatChannel';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 

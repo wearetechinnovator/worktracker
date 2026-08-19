@@ -9,7 +9,7 @@ import { usePathname } from 'next/navigation';
 import {
   MessageSquare, Send, Smile, Bold, Italic, Code, Minimize2,
   ChevronRight, ChevronLeft, Hash, Lock, Search, X, CornerUpLeft,
-  Paperclip, FileText
+  Paperclip, FileText, ChevronDown
 } from 'lucide-react';
 import '@/app/chat.css';
 
@@ -95,6 +95,23 @@ export default function ChatWidget() {
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<IAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
+
+  // Collapsible sidebar states
+  const [channelsExpanded, setChannelsExpanded] = useState(true);
+  const [projectsExpanded, setProjectsExpanded] = useState(true);
+  const [dmsExpanded, setDmsExpanded] = useState(true);
+
+  // Custom channels states
+  const [customChannels, setCustomChannels] = useState<{ _id: string, name: string, description?: string }[]>([]);
+  const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelDesc, setNewChannelDesc] = useState('');
+  const [creatingChannel, setCreatingChannel] = useState(false);
+
+  // Autocomplete suggestions states
+  const [mentionTrigger, setMentionTrigger] = useState<null | '@' | '#'>(null);
+  const [mentionSearch, setMentionSearch] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
   
   // Refs for scroll and drag
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -189,6 +206,13 @@ export default function ChatWidget() {
         if (projectsData.success) {
           setProjects(projectsData.data);
         }
+
+        // Fetch custom channels
+        const channelsRes = await fetch('/api/chat/channels');
+        const channelsData = await channelsRes.json();
+        if (channelsData.success) {
+          setCustomChannels(channelsData.data);
+        }
       } catch (err) {
         console.error('Error fetching initial chat metadata:', err);
       }
@@ -196,6 +220,19 @@ export default function ChatWidget() {
 
     fetchInitialData();
   }, [user, isOpen]);
+
+  // Helper to reload custom channels
+  const fetchCustomChannels = async () => {
+    try {
+      const res = await fetch('/api/chat/channels');
+      const data = await res.json();
+      if (data.success) {
+        setCustomChannels(data.data);
+      }
+    } catch (err) {
+      console.error('Error reloading custom channels:', err);
+    }
+  };
 
   // 3. Scroll to Bottom
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -444,6 +481,137 @@ export default function ChatWidget() {
     }
   };
 
+  // Channel creation modal handler
+  const handleCreateChannel = async () => {
+    if (!newChannelName.trim()) return;
+
+    setCreatingChannel(true);
+    try {
+      const res = await fetch('/api/chat/channels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newChannelName.trim(),
+          description: newChannelDesc.trim(),
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        await fetchCustomChannels();
+        setShowCreateChannelModal(false);
+        setNewChannelName('');
+        setNewChannelDesc('');
+        setActiveChannelId(`#${result.data.name}`);
+      } else {
+        alert(result.error || 'Failed to create channel');
+      }
+    } catch (err) {
+      console.error('Error creating custom channel:', err);
+      alert('Error creating channel');
+    } finally {
+      setCreatingChannel(false);
+    }
+  };
+
+  // Mention suggestions filter
+  const getSuggestions = (): { id: string; name: string; sub: string; color?: string; type: string }[] => {
+    if (mentionTrigger === '@') {
+      return members
+        .filter(m => m.name.toLowerCase().includes(mentionSearch.toLowerCase()))
+        .map(m => ({ id: m.name, name: m.name, sub: m.role, color: m.avatarColor, type: 'member' }));
+    }
+    if (mentionTrigger === '#') {
+      const globalChans = [
+        { id: 'general', name: 'general', sub: 'Global Channel', type: 'channel' },
+        { id: 'announcements', name: 'announcements', sub: 'Global Channel', type: 'channel' },
+        { id: 'random', name: 'random', sub: 'Global Channel', type: 'channel' },
+      ];
+      const customChans = customChannels.map(c => ({
+        id: c.name,
+        name: c.name,
+        sub: c.description || 'Custom Channel',
+        type: 'channel'
+      }));
+      const projs = projects.map(p => ({
+        id: p.name.toLowerCase().replace(/\s+/g, '-'),
+        name: p.name.toLowerCase().replace(/\s+/g, '-'),
+        sub: 'Project Workroom',
+        type: 'project'
+      }));
+
+      return [...globalChans, ...customChans, ...projs].filter(item =>
+        item.name.toLowerCase().includes(mentionSearch.toLowerCase())
+      );
+    }
+    return [];
+  };
+
+  const suggestions = getSuggestions();
+
+  // Insert selected mention at caret position
+  const insertMention = (mentionText: string) => {
+    if (!textareaRef.current) return;
+    const text = inputText;
+    const selStart = textareaRef.current.selectionStart;
+    const textBefore = text.substring(0, selStart);
+    const textAfter = text.substring(selStart);
+    
+    // Find the last index of the active trigger symbol
+    const triggerSymbol = mentionTrigger || '@';
+    const triggerIndex = textBefore.lastIndexOf(triggerSymbol);
+    
+    if (triggerIndex !== -1) {
+      const newTextBefore = textBefore.substring(0, triggerIndex) + mentionText + ' ';
+      setInputText(newTextBefore + textAfter);
+      setMentionTrigger(null);
+      setMentionSearch('');
+      
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          const newCursorPos = newTextBefore.length;
+          textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        }
+      }, 10);
+    }
+  };
+
+  // Keyboard navigation for suggestions
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionTrigger && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex(prev => (prev + 1) % suggestions.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        const selected = suggestions[mentionIndex];
+        if (selected) {
+          const mentionText = mentionTrigger === '@' ? `@${selected.name}` : `#${selected.name}`;
+          insertMention(mentionText);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionTrigger(null);
+        setMentionSearch('');
+        return;
+      }
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
   // 6. Handle emoji reaction toggle
   const handleToggleReaction = async (messageId: string, emoji: string) => {
     if (!user) return;
@@ -544,13 +712,7 @@ export default function ChatWidget() {
     }, 0);
   };
 
-  // Listen to Enter key inside textarea (Submit unless Shift key pressed)
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
+
 
   // Get active channel metadata
   const getActiveChannelMeta = () => {
@@ -690,72 +852,84 @@ export default function ChatWidget() {
 
               {/* Channels Section */}
               <div className="chat-sidebar-section">
-                <div className="chat-sidebar-title">Channels</div>
-                <div className="chat-sidebar-list">
-                  <div
-                    className={`chat-sidebar-item ${activeChannelId === '#general' ? 'active' : ''}`}
-                    onClick={() => setActiveChannelId('#general')}
-                  >
-                    <div className="chat-sidebar-item-left">
-                      <Hash size={13} />
-                      <span className="chat-sidebar-item-name">general</span>
-                    </div>
-                    {unreadCounts['#general'] > 0 && (
-                      <span className="badge" style={{ background: '#ef4444', color: '#fff', fontSize: '9px', padding: '1px 5px', borderRadius: '8px' }}>
-                        {unreadCounts['#general']}
-                      </span>
-                    )}
+                <button
+                  type="button"
+                  className={`chat-sidebar-header-btn ${!channelsExpanded ? 'collapsed' : ''}`}
+                  onClick={() => setChannelsExpanded(!channelsExpanded)}
+                >
+                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold' }}>Channels</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+                    <span
+                      onClick={() => setShowCreateChannelModal(true)}
+                      title="Create custom channel"
+                      style={{ fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '14px', width: '14px', borderRadius: '4px', background: 'rgba(15,23,42,0.05)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                    >
+                      +
+                    </span>
+                    <ChevronDown size={12} onClick={() => setChannelsExpanded(!channelsExpanded)} style={{ cursor: 'pointer' }} />
                   </div>
-
-                  <div
-                    className={`chat-sidebar-item ${activeChannelId === '#announcements' ? 'active' : ''}`}
-                    onClick={() => setActiveChannelId('#announcements')}
-                  >
-                    <div className="chat-sidebar-item-left">
-                      <Lock size={13} style={{ color: 'var(--accent-secondary)' }} />
-                      <span className="chat-sidebar-item-name">announcements</span>
-                    </div>
-                    {unreadCounts['#announcements'] > 0 && (
-                      <span className="badge" style={{ background: '#ef4444', color: '#fff', fontSize: '9px', padding: '1px 5px', borderRadius: '8px' }}>
-                        {unreadCounts['#announcements']}
-                      </span>
-                    )}
-                  </div>
-
-                  <div
-                    className={`chat-sidebar-item ${activeChannelId === '#random' ? 'active' : ''}`}
-                    onClick={() => setActiveChannelId('#random')}
-                  >
-                    <div className="chat-sidebar-item-left">
-                      <Hash size={13} />
-                      <span className="chat-sidebar-item-name">random</span>
-                    </div>
-                    {unreadCounts['#random'] > 0 && (
-                      <span className="badge" style={{ background: '#ef4444', color: '#fff', fontSize: '9px', padding: '1px 5px', borderRadius: '8px' }}>
-                        {unreadCounts['#random']}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Projects Section */}
-              {filteredProjects.length > 0 && (
-                <div className="chat-sidebar-section" style={{ borderTop: '1px solid rgba(226,232,240,0.5)', paddingTop: '10px' }}>
-                  <div className="chat-sidebar-title">Projects</div>
+                </button>
+                
+                {channelsExpanded && (
                   <div className="chat-sidebar-list">
-                    {filteredProjects.map((p) => {
-                      const channelId = `project-${p._id}`;
+                    <div
+                      className={`chat-sidebar-item ${activeChannelId === '#general' ? 'active' : ''}`}
+                      onClick={() => setActiveChannelId('#general')}
+                    >
+                      <div className="chat-sidebar-item-left">
+                        <Hash size={13} />
+                        <span className="chat-sidebar-item-name">general</span>
+                      </div>
+                      {unreadCounts['#general'] > 0 && (
+                        <span className="badge" style={{ background: '#ef4444', color: '#fff', fontSize: '9px', padding: '1px 5px', borderRadius: '8px' }}>
+                          {unreadCounts['#general']}
+                        </span>
+                      )}
+                    </div>
+
+                    <div
+                      className={`chat-sidebar-item ${activeChannelId === '#announcements' ? 'active' : ''}`}
+                      onClick={() => setActiveChannelId('#announcements')}
+                    >
+                      <div className="chat-sidebar-item-left">
+                        <Lock size={13} style={{ color: 'var(--accent-secondary)' }} />
+                        <span className="chat-sidebar-item-name">announcements</span>
+                      </div>
+                      {unreadCounts['#announcements'] > 0 && (
+                        <span className="badge" style={{ background: '#ef4444', color: '#fff', fontSize: '9px', padding: '1px 5px', borderRadius: '8px' }}>
+                          {unreadCounts['#announcements']}
+                        </span>
+                      )}
+                    </div>
+
+                    <div
+                      className={`chat-sidebar-item ${activeChannelId === '#random' ? 'active' : ''}`}
+                      onClick={() => setActiveChannelId('#random')}
+                    >
+                      <div className="chat-sidebar-item-left">
+                        <Hash size={13} />
+                        <span className="chat-sidebar-item-name">random</span>
+                      </div>
+                      {unreadCounts['#random'] > 0 && (
+                        <span className="badge" style={{ background: '#ef4444', color: '#fff', fontSize: '9px', padding: '1px 5px', borderRadius: '8px' }}>
+                          {unreadCounts['#random']}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Custom Channels */}
+                    {customChannels.map((c) => {
+                      const channelId = `#${c.name}`;
                       const isActive = activeChannelId === channelId;
                       return (
                         <div
-                          key={p._id}
+                          key={c._id}
                           className={`chat-sidebar-item ${isActive ? 'active' : ''}`}
                           onClick={() => setActiveChannelId(channelId)}
                         >
                           <div className="chat-sidebar-item-left">
-                            <span style={{ color: p.color, fontWeight: 'bold', marginRight: '2px', fontSize: '12px' }}>#</span>
-                            <span className="chat-sidebar-item-name">{p.name.toLowerCase().replace(/\s+/g, '-')}</span>
+                            <Hash size={13} style={{ color: 'var(--accent-primary)' }} />
+                            <span className="chat-sidebar-item-name">{c.name}</span>
                           </div>
                           {unreadCounts[channelId] > 0 && (
                             <span className="badge" style={{ background: '#ef4444', color: '#fff', fontSize: '9px', padding: '1px 5px', borderRadius: '8px' }}>
@@ -766,38 +940,90 @@ export default function ChatWidget() {
                       );
                     })}
                   </div>
+                )}
+              </div>
+
+              {/* Projects Section */}
+              {filteredProjects.length > 0 && (
+                <div className="chat-sidebar-section">
+                  <button
+                    type="button"
+                    className={`chat-sidebar-header-btn ${!projectsExpanded ? 'collapsed' : ''}`}
+                    onClick={() => setProjectsExpanded(!projectsExpanded)}
+                    style={{ borderTop: '1px solid rgba(226,232,240,0.5)', paddingTop: '10px', marginTop: '10px' }}
+                  >
+                    <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold' }}>Projects</span>
+                    <ChevronDown size={12} />
+                  </button>
+
+                  {projectsExpanded && (
+                    <div className="chat-sidebar-list">
+                      {filteredProjects.map((p) => {
+                        const channelId = `project-${p._id}`;
+                        const isActive = activeChannelId === channelId;
+                        return (
+                          <div
+                            key={p._id}
+                            className={`chat-sidebar-item ${isActive ? 'active' : ''}`}
+                            onClick={() => setActiveChannelId(channelId)}
+                          >
+                            <div className="chat-sidebar-item-left">
+                              <span style={{ color: p.color, fontWeight: 'bold', marginRight: '2px', fontSize: '12px' }}>#</span>
+                              <span className="chat-sidebar-item-name">{p.name.toLowerCase().replace(/\s+/g, '-')}</span>
+                            </div>
+                            {unreadCounts[channelId] > 0 && (
+                              <span className="badge" style={{ background: '#ef4444', color: '#fff', fontSize: '9px', padding: '1px 5px', borderRadius: '8px' }}>
+                                {unreadCounts[channelId]}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* Direct Messages Section */}
-              <div className="chat-sidebar-section" style={{ borderTop: '1px solid rgba(226,232,240,0.5)', paddingTop: '10px' }}>
-                <div className="chat-sidebar-title">Direct Messages</div>
-                <div className="chat-sidebar-list">
-                  {filteredMembers.map((m) => {
-                    const dmId = getDmChannelId(m._id);
-                    const isActive = activeChannelId === dmId;
-                    return (
-                      <div
-                        key={m._id}
-                        className={`chat-sidebar-item ${isActive ? 'active' : ''}`}
-                        onClick={() => setActiveChannelId(dmId)}
-                      >
-                        <div className="chat-sidebar-item-left">
-                          <span className={`status-dot ${m.onlineStatus}`} />
-                          <span className="chat-sidebar-item-name">{m.name}</span>
+              <div className="chat-sidebar-section">
+                <button
+                  type="button"
+                  className={`chat-sidebar-header-btn ${!dmsExpanded ? 'collapsed' : ''}`}
+                  onClick={() => setDmsExpanded(!dmsExpanded)}
+                  style={{ borderTop: '1px solid rgba(226,232,240,0.5)', paddingTop: '10px', marginTop: '10px' }}
+                >
+                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold' }}>Direct Messages</span>
+                  <ChevronDown size={12} />
+                </button>
+
+                {dmsExpanded && (
+                  <div className="chat-sidebar-list">
+                    {filteredMembers.map((m) => {
+                      const dmId = getDmChannelId(m._id);
+                      const isActive = activeChannelId === dmId;
+                      return (
+                        <div
+                          key={m._id}
+                          className={`chat-sidebar-item ${isActive ? 'active' : ''}`}
+                          onClick={() => setActiveChannelId(dmId)}
+                        >
+                          <div className="chat-sidebar-item-left">
+                            <span className={`status-dot ${m.onlineStatus}`} />
+                            <span className="chat-sidebar-item-name">{m.name}</span>
+                          </div>
+                          {unreadCounts[dmId] > 0 && (
+                            <span className="badge" style={{ background: '#ef4444', color: '#fff', fontSize: '9px', padding: '1px 5px', borderRadius: '8px' }}>
+                              {unreadCounts[dmId]}
+                            </span>
+                          )}
                         </div>
-                        {unreadCounts[dmId] > 0 && (
-                          <span className="badge" style={{ background: '#ef4444', color: '#fff', fontSize: '9px', padding: '1px 5px', borderRadius: '8px' }}>
-                            {unreadCounts[dmId]}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {filteredMembers.length === 0 && (
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '4px 16px' }}>No members found</div>
-                  )}
-                </div>
+                      );
+                    })}
+                    {filteredMembers.length === 0 && (
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '4px 16px' }}>No members found</div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -882,24 +1108,66 @@ export default function ChatWidget() {
                                     <code>{msg.content.replace(/```/g, '').trim()}</code>
                                   </pre>
                                 ) : (
-                                  // Render markdown bold/italic tags
-                                  msg.content.split('\n').map((line, lIdx) => (
-                                    <span key={lIdx}>
-                                      {line.split(' ').map((word, wIdx) => {
-                                        if (word.startsWith('**') && word.endsWith('**')) {
-                                          return <strong key={wIdx}>{word.slice(2, -2)} </strong>;
-                                        }
-                                        if (word.startsWith('*') && word.endsWith('*')) {
-                                          return <em key={wIdx}>{word.slice(1, -1)} </em>;
-                                        }
-                                        if (word.startsWith('`') && word.endsWith('`')) {
-                                          return <code key={wIdx}>{word.slice(1, -1)} </code>;
-                                        }
-                                        return word + ' ';
-                                      })}
-                                      {lIdx < msg.content.split('\n').length - 1 && <br />}
-                                    </span>
-                                  ))
+                                  // Render markdown bold/italic tags and mentions
+                                  msg.content.split('\n').map((line, lIdx) => {
+                                    // Build member names pattern sorted descending by length
+                                    const memberNames = members.map(m => m.name).filter(Boolean);
+                                    memberNames.sort((a, b) => b.length - a.length);
+                                    const memberNamesPattern = memberNames.length > 0
+                                      ? memberNames.map(name => name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')
+                                      : '\\w+';
+                                    
+                                    const regex = new RegExp(
+                                      '@(' + memberNamesPattern + '|\\w+)|#([a-zA-Z0-9\\-_]+)|\\*\\*([^*]+)\\*\\*|\\*([^*]+)\\*|`([^`]+)`',
+                                      'gi'
+                                    );
+
+                                    const parts = [];
+                                    let lastIndex = 0;
+                                    let match;
+                                    regex.lastIndex = 0;
+
+                                    while ((match = regex.exec(line)) !== null) {
+                                      if (match.index > lastIndex) {
+                                        parts.push(line.substring(lastIndex, match.index));
+                                      }
+
+                                      const [fullMatch, memberName, channelName, boldText, italicText, codeText] = match;
+
+                                      if (memberName) {
+                                        parts.push(
+                                          <span key={match.index} className="chat-mention-member">
+                                            @{memberName}
+                                          </span>
+                                        );
+                                      } else if (channelName) {
+                                        parts.push(
+                                          <span key={match.index} className="chat-mention-channel">
+                                            #{channelName}
+                                          </span>
+                                        );
+                                      } else if (boldText) {
+                                        parts.push(<strong key={match.index}>{boldText}</strong>);
+                                      } else if (italicText) {
+                                        parts.push(<em key={match.index}>{italicText}</em>);
+                                      } else if (codeText) {
+                                        parts.push(<code key={match.index}>{codeText}</code>);
+                                      }
+
+                                      lastIndex = regex.lastIndex;
+                                    }
+
+                                    if (lastIndex < line.length) {
+                                      parts.push(line.substring(lastIndex));
+                                    }
+
+                                    return (
+                                      <span key={lIdx}>
+                                        {parts.length > 0 ? parts : line}
+                                        {lIdx < msg.content.split('\n').length - 1 && <br />}
+                                      </span>
+                                    );
+                                  })
                                 )}
                               </span>
                             )}
@@ -1121,20 +1389,83 @@ export default function ChatWidget() {
 
                     {/* Input Field and Send */}
                     <div className="chat-input-row">
-                      <form onSubmit={handleSendMessage} style={{ display: 'flex', width: '100%', gap: '8px', alignItems: 'flex-end' }}>
-                        <textarea
-                          ref={textareaRef}
-                          className="chat-editor-textarea"
-                          placeholder={`Message ${currentChannel.name}`}
-                          value={inputText}
-                          onChange={(e) => {
-                            setInputText(e.target.value);
-                            // Adjust height dynamically
-                            e.target.style.height = '40px';
-                            e.target.style.height = `${Math.min(e.target.scrollHeight, 100)}px`;
-                          }}
-                          onKeyDown={handleKeyDown}
-                        />
+                      <form onSubmit={handleSendMessage} style={{ display: 'flex', width: '100%', gap: '8px', alignItems: 'flex-end', position: 'relative' }}>
+                            {/* Mention Autocomplete Suggestions List */}
+                            {mentionTrigger && suggestions.length > 0 && (
+                              <div className="chat-suggestions-container">
+                                {suggestions.map((item, idx) => (
+                                  <div
+                                    key={idx}
+                                    className={`chat-suggestion-item ${idx === mentionIndex ? 'active' : ''}`}
+                                    onClick={() => {
+                                      const mentionText = mentionTrigger === '@' ? `@${item.name}` : `#${item.name}`;
+                                      insertMention(mentionText);
+                                    }}
+                                  >
+                                    {item.type === 'member' && (
+                                      <div
+                                        className="chat-suggestion-avatar"
+                                        style={{ backgroundColor: item.color || '#3b82f6' }}
+                                      >
+                                        {item.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                                      </div>
+                                    )}
+                                    <span>{item.name}</span>
+                                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                                      {item.sub}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <textarea
+                              ref={textareaRef}
+                              className="chat-editor-textarea"
+                              placeholder={`Message ${currentChannel.name}`}
+                              value={inputText}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setInputText(val);
+                                
+                                // Adjust height dynamically
+                                e.target.style.height = '40px';
+                                e.target.style.height = `${Math.min(e.target.scrollHeight, 100)}px`;
+
+                                // Mentions Autocomplete trigger check
+                                const selStart = e.target.selectionStart;
+                                const textBefore = val.substring(0, selStart);
+                                
+                                const lastAtIndex = textBefore.lastIndexOf('@');
+                                const lastHashIndex = textBefore.lastIndexOf('#');
+
+                                if (lastAtIndex !== -1 && lastAtIndex >= lastHashIndex) {
+                                  const searchStr = textBefore.substring(lastAtIndex + 1);
+                                  if (!searchStr.includes('\n') && searchStr.length < 25) {
+                                    setMentionTrigger('@');
+                                    setMentionSearch(searchStr);
+                                    setMentionIndex(0);
+                                  } else {
+                                    setMentionTrigger(null);
+                                    setMentionSearch('');
+                                  }
+                                } else if (lastHashIndex !== -1 && lastHashIndex > lastAtIndex) {
+                                  const searchStr = textBefore.substring(lastHashIndex + 1);
+                                  if (!searchStr.includes('\n') && searchStr.length < 25) {
+                                    setMentionTrigger('#');
+                                    setMentionSearch(searchStr);
+                                    setMentionIndex(0);
+                                  } else {
+                                    setMentionTrigger(null);
+                                    setMentionSearch('');
+                                  }
+                                } else {
+                                  setMentionTrigger(null);
+                                  setMentionSearch('');
+                                }
+                              }}
+                              onKeyDown={handleKeyDown}
+                            />
                         <button
                           type="submit"
                           className="chat-editor-send-btn"
@@ -1150,10 +1481,80 @@ export default function ChatWidget() {
               </div>
 
             </div>
-
           </div>
-        </div>
-      )}
-    </>
-  );
+
+        {/* Channel Creation Modal */}
+        {showCreateChannelModal && (
+          <div className="chat-modal-overlay">
+            <div className="chat-modal-card">
+              <div className="chat-modal-header">
+                <span className="chat-modal-title">Create Custom Channel</span>
+                <button
+                  type="button"
+                  className="chat-modal-close-btn"
+                  onClick={() => setShowCreateChannelModal(false)}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="chat-modal-body">
+                <div className="chat-form-group">
+                  <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>Channel Name</label>
+                  <input
+                    type="text"
+                    className="chat-form-input"
+                    placeholder="e.g. dev-talk"
+                    value={newChannelName}
+                    onChange={(e) => setNewChannelName(e.target.value)}
+                    maxLength={30}
+                    disabled={creatingChannel}
+                  />
+                </div>
+                <div className="chat-form-group">
+                  <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>Description (Optional)</label>
+                  <input
+                    type="text"
+                    className="chat-form-input"
+                    placeholder="What is this channel about?"
+                    value={newChannelDesc}
+                    onChange={(e) => setNewChannelDesc(e.target.value)}
+                    maxLength={100}
+                    disabled={creatingChannel}
+                  />
+                </div>
+              </div>
+              <div className="chat-modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateChannelModal(false)}
+                  disabled={creatingChannel}
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--text-secondary)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateChannel}
+                  disabled={creatingChannel || !newChannelName.trim()}
+                  style={{
+                    border: 'none',
+                    background: 'var(--accent-primary, #3b82f6)',
+                    color: '#fff',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {creatingChannel ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+  </>
+);
 }
