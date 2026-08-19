@@ -242,11 +242,8 @@ export default function ChatWidget() {
         const activeMessagesToAppend: ChatMessage[] = [];
 
         newMessages.forEach((msg) => {
-          if (msg.channelId === activeChannelId) {
-            activeMessagesToAppend.push(msg);
-            hasActiveChannelUpdates = true;
-          } else {
-            // Message in another channel
+          if (!isOpen) {
+            // If chat is closed/minimized, all messages from others are unread
             if (msg.senderId !== user._id) {
               setUnreadCounts((prev) => ({
                 ...prev,
@@ -260,6 +257,33 @@ export default function ChatWidget() {
                   [msg.channelId]: [...channelSenders, msg.senderName],
                 };
               });
+            }
+            // Still append to messages in the active channel feed so it's ready when opened
+            if (msg.channelId === activeChannelId) {
+              activeMessagesToAppend.push(msg);
+              hasActiveChannelUpdates = true;
+            }
+          } else {
+            // Chat is open
+            if (msg.channelId === activeChannelId) {
+              activeMessagesToAppend.push(msg);
+              hasActiveChannelUpdates = true;
+            } else {
+              // Message in another channel
+              if (msg.senderId !== user._id) {
+                setUnreadCounts((prev) => ({
+                  ...prev,
+                  [msg.channelId]: (prev[msg.channelId] || 0) + 1,
+                }));
+                setUnreadSenders((prev) => {
+                  const channelSenders = prev[msg.channelId] || [];
+                  if (channelSenders.includes(msg.senderName)) return prev;
+                  return {
+                    ...prev,
+                    [msg.channelId]: [...channelSenders, msg.senderName],
+                  };
+                });
+              }
             }
           }
         });
@@ -279,7 +303,7 @@ export default function ChatWidget() {
     } catch (err) {
       console.error('Error polling messages:', err);
     }
-  }, [user, activeChannelId]);
+  }, [user, activeChannelId, isOpen]);
 
   // Set up background and active room polling
   useEffect(() => {
