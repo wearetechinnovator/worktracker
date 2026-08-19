@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 import PunchGuard from '@/components/PunchGuard';
+import ChatWidget from '@/components/ChatWidget';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -31,6 +32,7 @@ export default function RootLayout({
           <div className="app-layout">
             <Sidebar />
             <main className="main-content">{children}</main>
+            <ChatWidget />
           </div>
         </PunchGuard>
       </body>

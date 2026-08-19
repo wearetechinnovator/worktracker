@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import '@/models/Employee';
 import '@/models/Project';
 import '@/models/WorkEntry';
+import '@/models/ChatMessage';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
