@@ -1111,7 +1111,10 @@ export default function ChatWidget() {
                                   // Render markdown bold/italic tags and mentions
                                   msg.content.split('\n').map((line, lIdx) => {
                                     // Build member names pattern sorted descending by length
-                                    const memberNames = members.map(m => m.name).filter(Boolean);
+                                    const memberNames = [
+                                      ...members.map(m => m.name),
+                                      user?.name
+                                    ].filter(Boolean) as string[];
                                     memberNames.sort((a, b) => b.length - a.length);
                                     const memberNamesPattern = memberNames.length > 0
                                       ? memberNames.map(name => name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')
