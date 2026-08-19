@@ -97,6 +97,7 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
     workEntries: WorkEntryItem[];
     taskWorks: TaskWorkItem[];
   } | null>(null);
+  const [loadingDaily, setLoadingDaily] = useState<boolean>(false);
   // Admin punch overrides state
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [todayAttendance, setTodayAttendance] = useState<any | null>(null);

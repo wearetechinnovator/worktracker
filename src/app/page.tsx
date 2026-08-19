@@ -65,6 +65,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Punch status for logged in employee on dashboard
+  const [isPunchedIn, setIsPunchedIn] = useState(false);
+  const [canPunchOut, setCanPunchOut] = useState(false);
+
+  // Live Date and Time
+  const [liveTime, setLiveTime] = useState<string>('');
+  const [liveDate, setLiveDate] = useState<string>('');
+
   // Modals
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
@@ -162,6 +170,82 @@ export default function Dashboard() {
       fetchData();
     }
   }, [user, fetchData]);
+
+  const checkPunchStatus = useCallback(async () => {
+    if (!user || user.userType === 'admin') return;
+    try {
+      const res = await fetch(`/api/punch?employeeId=${user._id}`);
+      const result = await res.json();
+      if (result.success) {
+        const attendance = result.data?.attendance;
+        setIsPunchedIn(!!attendance?.checkIn && !attendance?.checkOut);
+        setCanPunchOut(!!result.data?.canPunchOut);
+      }
+    } catch (err) {
+      console.error('Error checking punch status on dashboard:', err);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user && user.userType !== 'admin') {
+      checkPunchStatus();
+    }
+  }, [user, checkPunchStatus]);
+
+  useEffect(() => {
+    const updateDateTime = () => {
+      const now = new Date();
+      setLiveTime(now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setLiveDate(now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+    };
+    updateDateTime();
+    const interval = setInterval(updateDateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handlePunchOut = async () => {
+    if (!user || !confirm('Are you sure you want to punch out now?')) return;
+    try {
+      let location: any = undefined;
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        location = await new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, label: 'Device geolocation' }),
+            () => resolve(undefined),
+            { enableHighAccuracy: true, timeout: 5000 }
+          );
+        });
+      }
+      
+      const now = new Date();
+      const localDate = now.toISOString().split('T')[0];
+      const localTime = now.toTimeString().slice(0, 5); // HH:MM
+
+      const res = await fetch('/api/punch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: user._id,
+          action: 'punchOut',
+          location,
+          localDate,
+          localTime,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Successfully punched out and logged out!');
+        localStorage.removeItem('worktracker_user');
+        void fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
+          window.location.assign('/login');
+        });
+      } else {
+        alert(data.error || 'Failed to punch out');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error punching out');
+    }
+  };
 
   // Handle Employee Form Submit
   const handleAddEmployee = async (e: React.FormEvent) => {
@@ -391,16 +475,50 @@ Summary: ${entry.description || 'Completed work task details.'}`;
   return (
     <div>
       {/* Welcome Panel */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }} className="no-print">
-        {/* <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }} className="no-print">
+        <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Dashboard Overview</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
             {isAdmin 
               ? 'Manage your organization Projects, monitor employee schedule, and track tasks.'
               : 'Log your work sessions, view assigned Projects, and manage your schedules.'}
           </p>
-        </div> */}
-        <div style={{ display: 'flex', gap: '8px' }}>
+        </div>
+
+        {/* Live Date and Time in the middle */}
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          textAlign: 'center',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 'var(--border-radius)',
+          padding: '6px 16px',
+          boxShadow: 'var(--box-shadow-sm)',
+          minWidth: '220px'
+        }}>
+          <span style={{ 
+            fontSize: '1.1rem', 
+            fontWeight: 850, 
+            fontFamily: 'monospace', 
+            color: 'var(--accent-primary)',
+            letterSpacing: '0.5px' 
+          }}>
+            {liveTime}
+          </span>
+          <span style={{ 
+            fontSize: '0.68rem', 
+            fontWeight: 700, 
+            color: 'var(--text-secondary)',
+            marginTop: '2px' 
+          }}>
+            {liveDate}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {isAdmin && (
             <>
               <button className="btn btn-secondary" onClick={() => setIsEmployeeModalOpen(true)}>
@@ -413,13 +531,23 @@ Summary: ${entry.description || 'Completed work task details.'}`;
               </button>
             </>
           )}
-          {/* <button className="btn btn-primary" onClick={() => {
-            if (projects.length === 0) return alert('Create a Project first!');
-            setIsWorkModalOpen(true);
-          }}>
-            <Plus size={14} />
-            <span>Log Work</span>
-          </button> */}
+          {!isAdmin && isPunchedIn && (
+            <button 
+              className="btn btn-punchout" 
+              onClick={canPunchOut ? handlePunchOut : undefined}
+              disabled={!canPunchOut}
+              style={{
+                gap: '8px',
+                padding: '8px 16px',
+                fontWeight: 700,
+                fontSize: '0.85rem'
+              }}
+              title={canPunchOut ? 'Punch Out Now' : 'Punch out is currently restricted outside shift hours'}
+            >
+              <Clock size={16} />
+              <span>Punch Out</span>
+            </button>
+          )}
         </div>
       </div>
 

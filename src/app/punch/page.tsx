@@ -82,6 +82,11 @@ export default function PunchPage() {
 
     const parsed = JSON.parse(storedUser);
     setUser(parsed);
+    if (parsed?.userType !== 'admin') {
+      router.push('/');
+      return;
+    }
+    
     if (parsed?.userType === 'admin') {
       fetch('/api/employees')
         .then((res) => res.json())

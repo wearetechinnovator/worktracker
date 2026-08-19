@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Employee from '@/models/Employee';
+import Attendance from '@/models/Attendance';
+import Settings from '@/models/Settings';
 import { hashPassword, verifyPassword } from '@/lib/password';
 import { createSession, sessionCookie } from '@/lib/session';
 
@@ -23,7 +25,7 @@ export async function POST(request: Request) {
     }
     await dbConnect();
     const body = await request.json();
-    const { email, password } = body;
+    const { email, password, location } = body;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -78,6 +80,90 @@ export async function POST(request: Request) {
     }
 
     attempts.delete(clientKey);
+
+    // Auto Punch In for standard employees
+    if (employee.userType !== 'admin') {
+      const today = new Date().toISOString().split('T')[0];
+      const currentTime = new Date().toTimeString().slice(0, 5); // HH:MM
+
+      // Check if already checked in today
+      const existingAttendance = await Attendance.findOne({ employeeId: employee._id, date: today });
+      const isAllowedByAdmin = existingAttendance?.allowPunchInDate === today;
+
+      if (existingAttendance?.checkOut && !isAllowedByAdmin) {
+        // Case 1: Already punched out today and not override-allowed - Block login!
+        return NextResponse.json(
+          { success: false, error: 'Punch-in restricted: You have already completed your shift for today.' },
+          { status: 403 }
+        );
+      }
+
+      if (!existingAttendance?.checkIn || isAllowedByAdmin) {
+        // Case 2: Not checked in yet (or admin explicitly allowed override) - Check shift hours window
+        let settings = await Settings.findOne();
+        if (!settings) {
+          settings = await Settings.create({
+            punchInStartTime: '00:00',
+            punchInEndTime: '23:59',
+            punchOutStartTime: '00:00',
+            punchOutEndTime: '23:59',
+          });
+        }
+
+        // Inline helper to validate time windows
+        const isWithinWindow = (() => {
+          const toMinutes = (time: string) => {
+            const [hours, minutes] = time.split(':').map(Number);
+            return hours * 60 + minutes;
+          };
+          const currentMinutes = toMinutes(currentTime);
+          const startMinutes = toMinutes(settings.punchInStartTime);
+          const endMinutes = toMinutes(settings.punchInEndTime);
+          if (startMinutes <= endMinutes) {
+            return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+          }
+          return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+        })();
+
+        if (isAllowedByAdmin || isWithinWindow) {
+          // Auto Punch In
+          const forwarded = request.headers.get('x-forwarded-for');
+          const realIp = request.headers.get('x-real-ip');
+          const ipAddress = forwarded ? forwarded.split(',')[0].trim() : realIp || 'unknown';
+
+          await Attendance.findOneAndUpdate(
+            { employeeId: employee._id, date: today },
+            {
+              $set: {
+                employeeId: employee._id,
+                date: today,
+                status: 'Present',
+                checkIn: currentTime,
+                checkInIpAddress: ipAddress,
+                checkInLocation: location?.label || location?.address || (location?.latitude ? `${location.latitude}, ${location.longitude}` : 'Location :'),
+                checkInLatitude: location?.latitude ?? undefined,
+                checkInLongitude: location?.longitude ?? undefined,
+              },
+              $unset: {
+                checkOut: 1,
+                checkOutIpAddress: 1,
+                checkOutLocation: 1,
+                checkOutLatitude: 1,
+                checkOutLongitude: 1,
+                allowPunchInDate: 1, // Consume the override
+              },
+            },
+            { upsert: true }
+          );
+        } else {
+          return NextResponse.json(
+            { success: false, error: `Punch-in restricted: You are outside your allowed punch-in window (${settings.punchInStartTime} - ${settings.punchInEndTime}). Please contact your administrator.` },
+            { status: 403 }
+          );
+        }
+      }
+      // Case 3: Checked in but not checked out - Allow login to resume session
+    }
 
     // Return session payload
     const userSession = {

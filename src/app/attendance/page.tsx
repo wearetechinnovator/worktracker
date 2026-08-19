@@ -258,11 +258,11 @@ export default function AttendancePage() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }}>
         <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{user?.userType === 'admin' ? 'Punch In/Out Logs' : 'My Punch In/Out Logs'}</h1>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{user?.userType === 'admin' ? 'Punch In/Out Logs' : 'Attendance'}</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
             {user?.userType === 'admin' 
               ? 'Inspect historical employee daily punch sessions, IP addresses, location and override authorizations.'
-              : 'Inspect your historical daily punch sessions, IP addresses, location and override authorizations.'}
+              : 'Inspect your historical daily attendance and punch sessions.'}
           </p>
         </div>
 
@@ -284,270 +284,282 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* Filtration Panel */}
-      <div className="card" style={{ padding: '16px', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
-          <SlidersHorizontal size={14} style={{ color: 'var(--accent-primary)' }} />
-          <h3 style={{ fontSize: '0.85rem', fontWeight: 800, margin: 0 }}>Filter Punch Sessions</h3>
-        </div>
+      {/* Side-by-side Layout Wrapper */}
+      <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap', width: '100%' }}>
+        
+        {/* Left Side: Filtration Panel */}
+        <div className="card" style={{ flex: '1 1 280px', maxWidth: '320px', padding: '16px', margin: 0, position: 'sticky', top: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+            <SlidersHorizontal size={14} style={{ color: 'var(--accent-primary)' }} />
+            <h3 style={{ fontSize: '0.85rem', fontWeight: 800, margin: 0 }}>Filter Punch Sessions</h3>
+          </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', alignItems: 'flex-end' }}>
-          {/* Employee filter */}
-          {user?.userType === 'admin' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {/* Employee filter */}
+            {user?.userType === 'admin' && (
+              <div>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>Employee</label>
+                <select 
+                  className="form-control"
+                  style={{ fontSize: '0.78rem', padding: '6px 10px', width: '100%' }}
+                  value={filterEmployeeId}
+                  onChange={(e) => setFilterEmployeeId(e.target.value)}
+                >
+                  <option value="">All Employees</option>
+                  {employees.map((emp: any) => (
+                    <option key={emp._id} value={emp._id}>{emp.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Status filter */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>Employee</label>
+              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>Status</label>
               <select 
                 className="form-control"
-                style={{ fontSize: '0.78rem', padding: '6px 10px' }}
-                value={filterEmployeeId}
-                onChange={(e) => setFilterEmployeeId(e.target.value)}
+                style={{ fontSize: '0.78rem', padding: '6px 10px', width: '100%' }}
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
               >
-                <option value="">All Employees</option>
-                {employees.map((emp: any) => (
-                  <option key={emp._id} value={emp._id}>{emp.name}</option>
-                ))}
+                <option value="">All Statuses</option>
+                <option value="Present">Present</option>
+                <option value="Absent">Absent</option>
+                <option value="On Leave">On Leave</option>
               </select>
             </div>
-          )}
 
-          {/* Status filter */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>Status</label>
-            <select 
-              className="form-control"
-              style={{ fontSize: '0.78rem', padding: '6px 10px' }}
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-            >
-              <option value="">All Statuses</option>
-              <option value="Present">Present</option>
-              <option value="Absent">Absent</option>
-              <option value="On Leave">On Leave</option>
-            </select>
-          </div>
+            {/* Date range presets */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>Date Range Preset</label>
+              <select 
+                className="form-control"
+                style={{ fontSize: '0.78rem', padding: '6px 10px', width: '100%' }}
+                value={datePreset}
+                onChange={(e) => setDatePreset(e.target.value)}
+              >
+                <option value="All">All Time</option>
+                <option value="Today">Today</option>
+                <option value="Yesterday">Yesterday</option>
+                <option value="This Week">This Week</option>
+                <option value="This Month">This Month</option>
+                <option value="Custom">Custom Date Range</option>
+              </select>
+            </div>
 
-          {/* Date range presets */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>Date Range Preset</label>
-            <select 
-              className="form-control"
-              style={{ fontSize: '0.78rem', padding: '6px 10px' }}
-              value={datePreset}
-              onChange={(e) => setDatePreset(e.target.value)}
-            >
-              <option value="All">All Time</option>
-              <option value="Today">Today</option>
-              <option value="Yesterday">Yesterday</option>
-              <option value="This Week">This Week</option>
-              <option value="This Month">This Month</option>
-              <option value="Custom">Custom Date Range</option>
-            </select>
-          </div>
+            {/* Custom Date Inputs */}
+            {datePreset === 'Custom' && (
+              <>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>Start Date</label>
+                  <input 
+                    type="date"
+                    className="form-control"
+                    style={{ fontSize: '0.78rem', padding: '5px 10px', width: '100%' }}
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>End Date</label>
+                  <input 
+                    type="date"
+                    className="form-control"
+                    style={{ fontSize: '0.78rem', padding: '5px 10px', width: '100%' }}
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
 
-          {/* Custom Date Inputs */}
-          {datePreset === 'Custom' && (
-            <>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>Start Date</label>
-                <input 
-                  type="date"
-                  className="form-control"
-                  style={{ fontSize: '0.78rem', padding: '5px 10px' }}
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>End Date</label>
-                <input 
-                  type="date"
-                  className="form-control"
-                  style={{ fontSize: '0.78rem', padding: '5px 10px' }}
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                />
-              </div>
-            </>
-          )}
-
-          {/* Action buttons */}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button 
-              type="button"
-              className="btn btn-secondary"
-              style={{ padding: '7px 12px', fontSize: '0.75rem' }}
-              onClick={() => {
-                setFilterEmployeeId('');
-                setFilterStatus('');
-                setDatePreset('This Month');
-                const today = new Date();
-                setCustomStartDate(new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]);
-                setCustomEndDate(today.toISOString().split('T')[0]);
-              }}
-            >
-              Reset
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              style={{ padding: '7px 12px', fontSize: '0.75rem', gap: '6px' }}
-              onClick={loadPunchLogs}
-            >
-              <Search size={12} />
-              <span>Apply</span>
-            </button>
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+              <button 
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '7px 12px', fontSize: '0.75rem', flex: 1 }}
+                onClick={() => {
+                  setFilterEmployeeId('');
+                  setFilterStatus('');
+                  setDatePreset('This Month');
+                  const today = new Date();
+                  setCustomStartDate(new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]);
+                  setCustomEndDate(today.toISOString().split('T')[0]);
+                }}
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ padding: '7px 12px', fontSize: '0.75rem', gap: '6px', flex: 1, justifyContent: 'center' }}
+                onClick={loadPunchLogs}
+              >
+                <Search size={12} />
+                <span>Apply</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Main logs sheet */}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-          <h3 className="card-title">Punch Records ({logs.length})</h3>
-        </div>
-
-        {logs.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '32px' }}>
-            No punch sessions found matching active filtration criteria.
-          </p>
-        ) : (
-          <div>
-            <table className="data-table" style={{ marginBottom: '24px' }}>
-              <thead>
-                <tr>
-                  <th style={{ width: '110px' }}>Date</th>
-                  <th>Employee</th>
-                  <th>Department</th>
-                  <th>Job Role</th>
-                  <th style={{ width: '100px' }}>Status</th>
-                  <th>Check In</th>
-                  <th>Check Out</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedLogs.map((log) => {
-                  let statusBadge = (
-                    <span style={{ fontSize: '0.65rem', padding: '3px 8px', borderRadius: '12px', background: '#dcfce7', color: '#166534', fontWeight: 700 }}>
-                      Present
-                    </span>
-                  );
-                  if (log.status === 'Absent') {
-                    statusBadge = (
-                      <span style={{ fontSize: '0.65rem', padding: '3px 8px', borderRadius: '12px', background: '#fee2e2', color: '#991b1b', fontWeight: 700 }}>
-                        Absent
-                      </span>
-                    );
-                  } else if (log.status === 'On Leave') {
-                    statusBadge = (
-                      <span style={{ fontSize: '0.65rem', padding: '3px 8px', borderRadius: '12px', background: '#fff7ed', color: '#9a3412', fontWeight: 700 }}>
-                        On Leave
-                      </span>
-                    );
-                  }
-
-                  return (
-                    <tr key={log._id}>
-                      <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        {log.date}
-                      </td>
-                      <td>
-                        {log.employeeId ? (
-                          <div 
-                            className="avatar-wrapper" 
-                            style={{ cursor: 'pointer' }}
-                            title="Click to view month calendar details"
-                            onClick={() => {
-                              setSelectedEmpForCalendar({
-                                _id: log.employeeId?._id,
-                                name: log.employeeId?.name,
-                                email: '',
-                                role: log.employeeId?.role,
-                                Project: log.employeeId?.Project,
-                                avatarColor: log.employeeId?.avatarColor,
-                              });
-                              setIsCalendarOpen(true);
-                            }}
-                          >
-                            <div className="avatar" style={{ backgroundColor: log.employeeId.avatarColor, width: '28px', height: '28px', fontSize: '0.7rem' }}>
-                              {log.employeeId.name.split(' ').map((n) => n[0]).join('')}
-                            </div>
-                            <div>
-                              <div style={{ fontWeight: 700, color: 'var(--accent-primary)', textDecoration: 'underline' }}>{log.employeeId.name}</div>
-                              <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Click for monthly detail &rarr;</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>Deleted Employee</span>
-                        )}
-                      </td>
-                      <td>
-                        {log.employeeId ? (
-                          <span className="tag-badge">
-                            {log.employeeId.Project}
-                          </span>
-                        ) : '—'}
-                      </td>
-                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
-                        {log.employeeId?.role || '—'}
-                      </td>
-                      <td>{statusBadge}</td>
-                      <td>
-                        {log.checkIn ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Clock size={12} style={{ color: 'var(--text-muted)' }} />
-                              {log.checkIn}
-                            </div>
-                            {log.checkInIpAddress && (
-                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                <Globe size={10} />
-                                {log.checkInIpAddress}
-                              </span>
-                            )}
-                            {log.checkInLocation && (
-                              <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '3px' }} title={log.checkInLocation}>
-                                <MapPin size={10} style={{ color: 'var(--accent-primary)' }} />
-                                {log.checkInLocation.split(',').slice(0, 2).join(',')}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        {log.checkOut ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Clock size={12} style={{ color: 'var(--text-muted)' }} />
-                              {log.checkOut}
-                            </div>
-                            {log.checkOutIpAddress && (
-                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                <Globe size={10} />
-                                {log.checkOutIpAddress}
-                              </span>
-                            )}
-                            {log.checkOutLocation && (
-                              <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '3px' }} title={log.checkOutLocation}>
-                                <MapPin size={10} style={{ color: 'var(--accent-primary)' }} />
-                                {log.checkOutLocation.split(',').slice(0, 2).join(',')}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {renderPagination(logs.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
+        {/* Right Side: Main logs sheet */}
+        <div className="card" style={{ flex: '1 1 500px', margin: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+            <h3 className="card-title">Punch Records ({logs.length})</h3>
           </div>
-        )}
+
+          {logs.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '32px' }}>
+              No punch sessions found matching active filtration criteria.
+            </p>
+          ) : (
+            <div>
+              <table className="data-table" style={{ marginBottom: '24px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '110px' }}>Date</th>
+                    {user?.userType === 'admin' && (
+                      <>
+                        <th>Employee</th>
+                        <th>Department</th>
+                        <th>Job Role</th>
+                      </>
+                    )}
+                    <th style={{ width: '100px' }}>Status</th>
+                    <th>Check In</th>
+                    <th>Check Out</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedLogs.map((log) => {
+                    let statusBadge = (
+                      <span style={{ fontSize: '0.65rem', padding: '3px 8px', borderRadius: '12px', background: '#dcfce7', color: '#166534', fontWeight: 700 }}>
+                        Present
+                      </span>
+                    );
+                    if (log.status === 'Absent') {
+                      statusBadge = (
+                        <span style={{ fontSize: '0.65rem', padding: '3px 8px', borderRadius: '12px', background: '#fee2e2', color: '#991b1b', fontWeight: 700 }}>
+                          Absent
+                        </span>
+                      );
+                    } else if (log.status === 'On Leave') {
+                      statusBadge = (
+                        <span style={{ fontSize: '0.65rem', padding: '3px 8px', borderRadius: '12px', background: '#fff7ed', color: '#9a3412', fontWeight: 700 }}>
+                          On Leave
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <tr key={log._id}>
+                        <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          {log.date}
+                        </td>
+                        {user?.userType === 'admin' && (
+                          <>
+                            <td>
+                              {log.employeeId ? (
+                                <div 
+                                  className="avatar-wrapper" 
+                                  style={{ cursor: 'pointer' }}
+                                  title="Click to view month calendar details"
+                                  onClick={() => {
+                                    setSelectedEmpForCalendar({
+                                      _id: log.employeeId?._id,
+                                      name: log.employeeId?.name,
+                                      email: '',
+                                      role: log.employeeId?.role,
+                                      Project: log.employeeId?.Project,
+                                      avatarColor: log.employeeId?.avatarColor,
+                                    });
+                                    setIsCalendarOpen(true);
+                                  }}
+                                >
+                                  <div className="avatar" style={{ backgroundColor: log.employeeId.avatarColor, width: '28px', height: '28px', fontSize: '0.7rem' }}>
+                                    {log.employeeId.name.split(' ').map((n) => n[0]).join('')}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 700, color: 'var(--accent-primary)', textDecoration: 'underline' }}>{log.employeeId.name}</div>
+                                    <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Click for monthly detail &rarr;</span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>Deleted Employee</span>
+                              )}
+                            </td>
+                            <td>
+                              {log.employeeId ? (
+                                <span className="tag-badge">
+                                  {log.employeeId.Project}
+                                </span>
+                              ) : '—'}
+                            </td>
+                            <td style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
+                              {log.employeeId?.role || '—'}
+                            </td>
+                          </>
+                        )}
+                        <td>{statusBadge}</td>
+                        <td>
+                          {log.checkIn ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Clock size={12} style={{ color: 'var(--text-muted)' }} />
+                                {log.checkIn}
+                              </div>
+                              {log.checkInIpAddress && (
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                  <Globe size={10} />
+                                  {log.checkInIpAddress}
+                                </span>
+                              )}
+                              {log.checkInLocation && (
+                                <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '3px' }} title={log.checkInLocation}>
+                                  <MapPin size={10} style={{ color: 'var(--accent-primary)' }} />
+                                  {log.checkInLocation.split(',').slice(0, 2).join(',')}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          {log.checkOut ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Clock size={12} style={{ color: 'var(--text-muted)' }} />
+                                {log.checkOut}
+                              </div>
+                              {log.checkOutIpAddress && (
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                  <Globe size={10} />
+                                  {log.checkOutIpAddress}
+                                </span>
+                              )}
+                              {log.checkOutLocation && (
+                                <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '3px' }} title={log.checkOutLocation}>
+                                  <MapPin size={10} style={{ color: 'var(--accent-primary)' }} />
+                                  {log.checkOutLocation.split(',').slice(0, 2).join(',')}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {renderPagination(logs.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* MONTHLY CALENDAR DETAIL MODAL */}

@@ -28,10 +28,26 @@ export default function LoginPage() {
       setLoading(true);
       setError(null);
 
+      // Attempt to capture geolocation
+      let location: any = undefined;
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        location = await new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              label: 'Device geolocation'
+            }),
+            () => resolve(undefined),
+            { enableHighAccuracy: true, timeout: 6000 }
+          );
+        });
+      }
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, location }),
       });
 
       const result = await res.json();
@@ -70,10 +86,10 @@ export default function LoginPage() {
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>
-            Work Report
+            Punch In
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-            Sign in to track and manage your work sessions
+            Enter your credentials to punch in for today
           </p>
         </div>
 
@@ -164,10 +180,10 @@ export default function LoginPage() {
             {loading ? (
               <>
                 <Loader2 className="animate-spin" size={14} />
-                <span>Signing in...</span>
+                <span>Punching in...</span>
               </>
             ) : (
-              'Sign In'
+              'Punch In'
             )}
           </button>
         </form>

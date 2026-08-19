@@ -17,6 +17,7 @@ export default function Sidebar() {
   const [memberCount, setMemberCount] = useState<number | string>('...');
   const [user, setUser] = useState<any>(null);
   const [isPunchedIn, setIsPunchedIn] = useState(false);
+  const [canPunchOut, setCanPunchOut] = useState(false);
   const [checkingPunch, setCheckingPunch] = useState(true);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -66,8 +67,10 @@ export default function Sidebar() {
 
         if (result.success && isCurrentlyCheckedIn) {
           setIsPunchedIn(true);
+          setCanPunchOut(!!result.data?.canPunchOut);
         } else {
           setIsPunchedIn(false);
+          setCanPunchOut(false);
         }
       } catch (err) {
         console.error('Error checking punch status:', err);
@@ -119,6 +122,50 @@ export default function Sidebar() {
     void fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
       window.location.assign('/login');
     });
+  };
+
+  const handlePunchOut = async () => {
+    if (!user || !confirm('Are you sure you want to punch out now?')) return;
+    try {
+      let location: any = undefined;
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        location = await new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, label: 'Device geolocation' }),
+            () => resolve(undefined),
+            { enableHighAccuracy: true, timeout: 5000 }
+          );
+        });
+      }
+      
+      const now = new Date();
+      const localDate = now.toISOString().split('T')[0];
+      const localTime = now.toTimeString().slice(0, 5); // HH:MM
+
+      const res = await fetch('/api/punch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: user._id,
+          action: 'punchOut',
+          location,
+          localDate,
+          localTime,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Successfully punched out and logged out!');
+        localStorage.removeItem('worktracker_user');
+        void fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
+          window.location.assign('/login');
+        });
+      } else {
+        alert(data.error || 'Failed to punch out');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error punching out');
+    }
   };
 
   const isAdmin = user?.userType === 'admin';
@@ -270,11 +317,13 @@ export default function Sidebar() {
                 </div>
               )}
 
-              {/* Punch page for all users - always accessible */}
-              <Link href="/punch" className={`sidebar-link ${pathname === '/punch' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                <Clock size={14} />
-                <span>Punch In/Out</span>
-              </Link>
+              {/* Punch page for admins - always accessible */}
+              {isAdmin && (
+                <Link href="/punch" className={`sidebar-link ${pathname === '/punch' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
+                  <Clock size={14} />
+                  <span>Punch In/Out</span>
+                </Link>
+              )}
 
               {!isAdmin && canAccessFeatures && (
                 <>
@@ -288,7 +337,7 @@ export default function Sidebar() {
                   </Link>
                   <Link href="/attendance" className={`sidebar-link ${pathname === '/attendance' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
                     <Calendar size={14} />
-                    <span>My Punch Logs</span>
+                    <span>Attendance</span>
                   </Link>
                 </>
               )}
@@ -339,15 +388,39 @@ export default function Sidebar() {
                 </div>
               )}
             </div>
-            <button
-              onClick={handleLogout}
-              className="btn btn-danger"
-              style={{ width: '100%', padding: '4px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isCollapsed ? '0' : '4px' }}
-              title="Logout"
-            >
-              <LogOut size={10} />
-              {!isCollapsed && <span>Logout</span>}
-            </button>
+            {!isAdmin && isPunchedIn && (
+              <button
+                onClick={canPunchOut ? handlePunchOut : undefined}
+                className="btn btn-punchout"
+                disabled={!canPunchOut}
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  marginBottom: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: isCollapsed ? '0' : '4px',
+                }}
+                title={canPunchOut ? 'Punch Out Now' : 'Punch out is currently restricted outside shift hours'}
+              >
+                <Clock size={12} />
+                {!isCollapsed && <span>Punch Out</span>}
+              </button>
+            )}
+            {(isAdmin || !isPunchedIn) && (
+              <button
+                onClick={handleLogout}
+                className="btn btn-danger"
+                style={{ width: '100%', padding: '4px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isCollapsed ? '0' : '4px' }}
+                title="Logout"
+              >
+                <LogOut size={10} />
+                {!isCollapsed && <span>Logout</span>}
+              </button>
+            )}
           </div>
         )}
       </div>
