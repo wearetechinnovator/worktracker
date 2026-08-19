@@ -80,6 +80,7 @@ export default function ChatWidget() {
 
   // Unread badge counts per channel
   const [unreadCounts, setUnreadCounts] = useState<{ [key: string]: number }>({});
+  const [unreadSenders, setUnreadSenders] = useState<{ [key: string]: string[] }>({});
 
   // Refs for scroll and drag
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -112,6 +113,9 @@ export default function ChatWidget() {
       setUser(JSON.parse(storedUser));
     } else {
       setUser(null);
+    }
+    if (!lastFetchedTimeRef.current) {
+      lastFetchedTimeRef.current = new Date().toISOString();
     }
   }, [pathname]);
 
@@ -185,69 +189,117 @@ export default function ChatWidget() {
     }
   };
 
-  // 4. Fetch messages when active channel changes
-  const fetchMessages = useCallback(async (channelId: string, isInitial: boolean = false) => {
+  // Load message history for a specific channel
+  const fetchChannelHistory = useCallback(async (channelId: string) => {
     try {
-      let url = `/api/chat/messages?channelId=${encodeURIComponent(channelId)}`;
-      
-      // If we are polling and have a baseline time, fetch incrementally
-      if (!isInitial && lastFetchedTimeRef.current) {
-        url += `&since=${encodeURIComponent(lastFetchedTimeRef.current)}`;
+      const res = await fetch(`/api/chat/messages?channelId=${encodeURIComponent(channelId)}`);
+      const result = await res.json();
+
+      if (result.success && result.data) {
+        const fetchedMessages: ChatMessage[] = result.data;
+        setMessages(fetchedMessages);
+        
+        // Reset unread count & senders list for this active channel
+        setUnreadCounts((prev) => ({ ...prev, [channelId]: 0 }));
+        setUnreadSenders((prev) => {
+          const next = { ...prev };
+          delete next[channelId];
+          return next;
+        });
+
+        // Update baseline fetched time
+        if (fetchedMessages.length > 0) {
+          const newestTime = fetchedMessages[fetchedMessages.length - 1].createdAt;
+          if (!lastFetchedTimeRef.current || newestTime > lastFetchedTimeRef.current) {
+            lastFetchedTimeRef.current = newestTime;
+          }
+        }
+        setTimeout(() => scrollToBottom('auto'), 50);
+      }
+    } catch (err) {
+      console.error(`Error loading history for channel ${channelId}:`, err);
+    }
+  }, []);
+
+  // Poll new messages globally
+  const pollMessages = useCallback(async () => {
+    if (!user) return;
+    try {
+      let url = '/api/chat/messages';
+      if (lastFetchedTimeRef.current) {
+        url += `?since=${encodeURIComponent(lastFetchedTimeRef.current)}`;
+      } else {
+        url += `?since=${encodeURIComponent(new Date().toISOString())}`;
       }
 
       const res = await fetch(url);
       const result = await res.json();
 
-      if (result.success && result.data) {
-        const fetchedMessages: ChatMessage[] = result.data;
+      if (result.success && result.data && result.data.length > 0) {
+        const newMessages: ChatMessage[] = result.data;
         
-        if (isInitial) {
-          setMessages(fetchedMessages);
-          if (fetchedMessages.length > 0) {
-            lastFetchedTimeRef.current = fetchedMessages[fetchedMessages.length - 1].createdAt;
+        let hasActiveChannelUpdates = false;
+        const activeMessagesToAppend: ChatMessage[] = [];
+
+        newMessages.forEach((msg) => {
+          if (msg.channelId === activeChannelId) {
+            activeMessagesToAppend.push(msg);
+            hasActiveChannelUpdates = true;
           } else {
-            lastFetchedTimeRef.current = '';
+            // Message in another channel
+            if (msg.senderId !== user._id) {
+              setUnreadCounts((prev) => ({
+                ...prev,
+                [msg.channelId]: (prev[msg.channelId] || 0) + 1,
+              }));
+              setUnreadSenders((prev) => {
+                const channelSenders = prev[msg.channelId] || [];
+                if (channelSenders.includes(msg.senderName)) return prev;
+                return {
+                  ...prev,
+                  [msg.channelId]: [...channelSenders, msg.senderName],
+                };
+              });
+            }
           }
-          // Reset unread count for this active channel
-          setUnreadCounts(prev => ({ ...prev, [channelId]: 0 }));
-          setTimeout(() => scrollToBottom('auto'), 50);
-        } else if (fetchedMessages.length > 0) {
-          // Incrementally append new messages
-          setMessages(prev => {
-            // Filter out any duplicates just in case
-            const existingIds = new Set(prev.map(m => m._id));
-            const uniqueNew = fetchedMessages.filter(m => !existingIds.has(m._id));
+        });
+
+        if (hasActiveChannelUpdates) {
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m._id));
+            const uniqueNew = activeMessagesToAppend.filter((m) => !existingIds.has(m._id));
             if (uniqueNew.length === 0) return prev;
             return [...prev, ...uniqueNew];
           });
-          lastFetchedTimeRef.current = fetchedMessages[fetchedMessages.length - 1].createdAt;
           setTimeout(() => scrollToBottom('smooth'), 50);
         }
+
+        lastFetchedTimeRef.current = newMessages[newMessages.length - 1].createdAt;
       }
     } catch (err) {
-      console.error(`Error loading messages for channel ${channelId}:`, err);
+      console.error('Error polling messages:', err);
     }
-  }, []);
+  }, [user, activeChannelId]);
 
-  // Set up message polling scheduler
+  // Set up background and active room polling
   useEffect(() => {
-    if (!user || !isOpen) {
+    if (!user) {
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       return;
     }
 
-    // Initial load
-    fetchMessages(activeChannelId, true);
+    if (isOpen) {
+      fetchChannelHistory(activeChannelId);
+    }
 
-    // Setup polling every 3 seconds
     pollingIntervalRef.current = setInterval(() => {
-      fetchMessages(activeChannelId, false);
-    }, 3000);
+      pollMessages();
+    }, 4000);
 
     return () => {
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     };
-  }, [user, isOpen, activeChannelId, fetchMessages]);
+  }, [user, isOpen, activeChannelId, fetchChannelHistory, pollMessages]);
 
   // 5. Send a new message
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -468,11 +520,16 @@ export default function ChatWidget() {
   // Sum total unreads (simulated in UI context)
   const totalUnread = Object.values(unreadCounts).reduce((acc, c) => acc + c, 0);
 
+  const allUnreadSenders = Array.from(new Set(Object.values(unreadSenders).flat()));
+  const hoverTitle = allUnreadSenders.length > 0 
+    ? `New messages from: ${allUnreadSenders.join(', ')}` 
+    : "Open Team Chat";
+
   return (
     <>
       {/* Minimized Float Action Button */}
       {!isOpen && (
-        <button className="chat-fab" onClick={() => setIsOpen(true)} title="Open Team Chat">
+        <button className="chat-fab" onClick={() => setIsOpen(true)} title={hoverTitle}>
           <MessageSquare size={28} />
           {totalUnread > 0 && <span className="chat-fab-badge">{totalUnread}</span>}
         </button>

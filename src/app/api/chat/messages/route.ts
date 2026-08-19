@@ -16,10 +16,36 @@ export async function GET(request: Request) {
     const since = searchParams.get('since');
 
     if (!channelId) {
-      return NextResponse.json(
-        { success: false, error: 'channelId query parameter is required' },
-        { status: 400 }
-      );
+      const allowedChannels = ['#general', '#random', '#announcements'];
+      const Project = (await import('@/models/Project')).default;
+      const userProjects = user.userType === 'admin'
+        ? await Project.find().select('_id').lean()
+        : await Project.find({ members: user.id }).select('_id').lean();
+
+      userProjects.forEach((p: any) => {
+        allowedChannels.push(`project-${p._id.toString()}`);
+      });
+
+      const query: any = {
+        $or: [
+          { channelId: { $in: allowedChannels } },
+          { channelId: { $regex: user.id } }
+        ]
+      };
+
+      if (since) {
+        query.createdAt = { $gt: new Date(since) };
+      } else {
+        const oneDayAgo = new Date();
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+        query.createdAt = { $gt: oneDayAgo };
+      }
+
+      const messages = await ChatMessage.find(query)
+        .sort({ createdAt: 1 })
+        .lean();
+
+      return NextResponse.json({ success: true, data: messages });
     }
 
     const query: { channelId: string; createdAt?: { $gt: Date } } = { channelId };
