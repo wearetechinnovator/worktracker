@@ -102,10 +102,12 @@ export default function ChatWidget() {
   const [dmsExpanded, setDmsExpanded] = useState(true);
 
   // Custom channels states
-  const [customChannels, setCustomChannels] = useState<{ _id: string, name: string, description?: string }[]>([]);
+  const [customChannels, setCustomChannels] = useState<{ _id: string, name: string, description?: string, allowMessages?: string, allowAttachments?: string }[]>([]);
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelDesc, setNewChannelDesc] = useState('');
+  const [newChannelAllowMessages, setNewChannelAllowMessages] = useState<'anyone' | 'admin_only'>('anyone');
+  const [newChannelAllowAttachments, setNewChannelAllowAttachments] = useState<'anyone' | 'admin_only'>('anyone');
   const [creatingChannel, setCreatingChannel] = useState(false);
 
   // Autocomplete suggestions states
@@ -493,6 +495,8 @@ export default function ChatWidget() {
         body: JSON.stringify({
           name: newChannelName.trim(),
           description: newChannelDesc.trim(),
+          allowMessages: newChannelAllowMessages,
+          allowAttachments: newChannelAllowAttachments,
         }),
       });
       const result = await res.json();
@@ -501,6 +505,8 @@ export default function ChatWidget() {
         setShowCreateChannelModal(false);
         setNewChannelName('');
         setNewChannelDesc('');
+        setNewChannelAllowMessages('anyone');
+        setNewChannelAllowAttachments('anyone');
         setActiveChannelId(`#${result.data.name}`);
       } else {
         alert(result.error || 'Failed to create channel');
@@ -773,7 +779,38 @@ export default function ChatWidget() {
   if (pathname === '/login' || !user) return null;
 
   const currentChannel = getActiveChannelMeta();
-  const isEmployeeAnnouncement = !activeChannelId.startsWith('dm-') && activeChannelId === '#announcements' && user.userType === 'employee';
+  // Enforce channel-specific writing/uploading permissions
+  const isChannelWriteRestricted = (() => {
+    if (activeChannelId === '#announcements' && user.userType !== 'admin') {
+      return true;
+    }
+    if (activeChannelId.startsWith('#') && !['#general', '#random', '#announcements'].includes(activeChannelId)) {
+      const chanName = activeChannelId.slice(1);
+      const customChan = customChannels.find(c => c.name === chanName);
+      if (customChan) {
+        if (customChan.allowMessages === 'admin_only' && user.userType !== 'admin') {
+          return true;
+        }
+      }
+    }
+    return false;
+  })();
+
+  const isChannelUploadRestricted = (() => {
+    if (activeChannelId === '#announcements' && user.userType !== 'admin') {
+      return true;
+    }
+    if (activeChannelId.startsWith('#') && !['#general', '#random', '#announcements'].includes(activeChannelId)) {
+      const chanName = activeChannelId.slice(1);
+      const customChan = customChannels.find(c => c.name === chanName);
+      if (customChan) {
+        if (customChan.allowAttachments === 'admin_only' && user.userType !== 'admin') {
+          return true;
+        }
+      }
+    }
+    return false;
+  })();
 
   // Filter channels/members by search query
   const filteredProjects = projects.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -859,13 +896,15 @@ export default function ChatWidget() {
                 >
                   <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold' }}>Channels</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
-                    <span
-                      onClick={() => setShowCreateChannelModal(true)}
-                      title="Create custom channel"
-                      style={{ fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '14px', width: '14px', borderRadius: '4px', background: 'rgba(15,23,42,0.05)', color: 'var(--text-primary)', cursor: 'pointer' }}
-                    >
-                      +
-                    </span>
+                    {user?.userType === 'admin' && (
+                      <span
+                        onClick={() => setShowCreateChannelModal(true)}
+                        title="Create custom channel"
+                        style={{ fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '14px', width: '14px', borderRadius: '4px', background: 'rgba(15,23,42,0.05)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                      >
+                        +
+                      </span>
+                    )}
                     <ChevronDown size={12} onClick={() => setChannelsExpanded(!channelsExpanded)} style={{ cursor: 'pointer' }} />
                   </div>
                 </button>
@@ -1270,9 +1309,9 @@ export default function ChatWidget() {
 
               {/* Chat Input Editor Area */}
               <div className="chat-editor-pane">
-                {isEmployeeAnnouncement ? (
+                {isChannelWriteRestricted ? (
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', padding: '6px', background: 'var(--bg-tertiary)', borderRadius: '6px' }}>
-                    Only administrators are authorized to post announcements in this channel.
+                    Only administrators are authorized to send messages in this channel.
                   </div>
                 ) : (
                   <>
@@ -1352,22 +1391,26 @@ export default function ChatWidget() {
                         >
                           <Smile size={13} />
                         </button>
-                        <button
-                          className="chat-editor-tool-btn"
-                          onClick={() => fileInputRef.current?.click()}
-                          title="Attach files or images"
-                          disabled={uploading}
-                          type="button"
-                        >
-                          <Paperclip size={13} style={{ color: uploading ? 'var(--text-muted)' : 'inherit' }} />
-                        </button>
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          onChange={handleFileUpload}
-                          style={{ display: 'none' }}
-                          multiple
-                        />
+                        {!isChannelUploadRestricted && (
+                          <>
+                            <button
+                              className="chat-editor-tool-btn"
+                              onClick={() => fileInputRef.current?.click()}
+                              title="Attach files or images"
+                              disabled={uploading}
+                              type="button"
+                            >
+                              <Paperclip size={13} style={{ color: uploading ? 'var(--text-muted)' : 'inherit' }} />
+                            </button>
+                            <input
+                              type="file"
+                              ref={fileInputRef}
+                              onChange={handleFileUpload}
+                              style={{ display: 'none' }}
+                              multiple
+                            />
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -1513,7 +1556,7 @@ export default function ChatWidget() {
                     disabled={creatingChannel}
                   />
                 </div>
-                <div className="chat-form-group">
+                 <div className="chat-form-group">
                   <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>Description (Optional)</label>
                   <input
                     type="text"
@@ -1524,6 +1567,32 @@ export default function ChatWidget() {
                     maxLength={100}
                     disabled={creatingChannel}
                   />
+                </div>
+                <div className="chat-form-group">
+                  <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>Who can send messages?</label>
+                  <select
+                    className="chat-form-input"
+                    value={newChannelAllowMessages}
+                    onChange={(e) => setNewChannelAllowMessages(e.target.value as any)}
+                    disabled={creatingChannel}
+                    style={{ background: '#ffffff', color: '#1e293b', border: '1px solid var(--border-color, #e2e8f0)', padding: '6px 8px', borderRadius: '6px', fontSize: '11px', width: '100%', outline: 'none' }}
+                  >
+                    <option value="anyone">Anyone (Admins and Employees)</option>
+                    <option value="admin_only">Only Administrators</option>
+                  </select>
+                </div>
+                <div className="chat-form-group">
+                  <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>Who can upload images & files?</label>
+                  <select
+                    className="chat-form-input"
+                    value={newChannelAllowAttachments}
+                    onChange={(e) => setNewChannelAllowAttachments(e.target.value as any)}
+                    disabled={creatingChannel}
+                    style={{ background: '#ffffff', color: '#1e293b', border: '1px solid var(--border-color, #e2e8f0)', padding: '6px 8px', borderRadius: '6px', fontSize: '11px', width: '100%', outline: 'none' }}
+                  >
+                    <option value="anyone">Anyone (Admins and Employees)</option>
+                    <option value="admin_only">Only Administrators</option>
+                  </select>
                 </div>
               </div>
               <div className="chat-modal-footer">

@@ -28,8 +28,15 @@ export async function POST(request: Request) {
     const user = await requireUser();
     if (isErrorResponse(user)) return user;
 
+    if (user.userType !== 'admin') {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized. Only administrators can create channels.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
-    const { name, description } = body;
+    const { name, description, allowMessages, allowAttachments } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -65,6 +72,8 @@ export async function POST(request: Request) {
       name: formattedName,
       description: description?.trim() || '',
       createdBy: user.id,
+      allowMessages: allowMessages === 'admin_only' ? 'admin_only' : 'anyone',
+      allowAttachments: allowAttachments === 'admin_only' ? 'admin_only' : 'anyone',
     });
 
     return NextResponse.json({ success: true, data: channel }, { status: 201 });

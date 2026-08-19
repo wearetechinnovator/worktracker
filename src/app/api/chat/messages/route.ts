@@ -98,6 +98,35 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check posting permissions
+    if (channelId === '#announcements' && user.userType !== 'admin') {
+      return NextResponse.json(
+        { success: false, error: 'Only administrators are authorized to post announcements.' },
+        { status: 403 }
+      );
+    }
+
+    if (channelId.startsWith('#') && !['#general', '#random', '#announcements'].includes(channelId)) {
+      const ChatChannel = (await import('@/models/ChatChannel')).default;
+      const channelName = channelId.slice(1);
+      const chan = await ChatChannel.findOne({ name: channelName }).lean();
+
+      if (chan) {
+        if (chan.allowMessages === 'admin_only' && user.userType !== 'admin') {
+          return NextResponse.json(
+            { success: false, error: 'Only administrators are authorized to send messages in this channel.' },
+            { status: 403 }
+          );
+        }
+        if (hasAttachments && chan.allowAttachments === 'admin_only' && user.userType !== 'admin') {
+          return NextResponse.json(
+            { success: false, error: 'Only administrators are authorized to send attachments in this channel.' },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     // Fetch employee details to denormalize sender details
     const employee = await Employee.findById(user.id)
       .select('name avatarColor role')
