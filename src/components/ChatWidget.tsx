@@ -9,7 +9,7 @@ import { usePathname } from 'next/navigation';
 import {
   MessageSquare, Send, Smile, Bold, Italic, Code, Minimize2,
   ChevronRight, ChevronLeft, Hash, Lock, Search, X, CornerUpLeft,
-  Paperclip, FileText, ChevronDown
+  Paperclip, FileText, ChevronDown, Settings, Trash2
 } from 'lucide-react';
 import '@/app/chat.css';
 
@@ -110,6 +110,7 @@ export default function ChatWidget() {
   const [newChannelAllowAttachments, setNewChannelAllowAttachments] = useState<'anyone' | 'admin_only'>('anyone');
   const [channelVisibility, setChannelVisibility] = useState<'public' | 'private'>('public');
   const [selectedAllowedMembers, setSelectedAllowedMembers] = useState<string[]>([]);
+  const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const [creatingChannel, setCreatingChannel] = useState(false);
 
   // Autocomplete suggestions states
@@ -522,6 +523,98 @@ export default function ChatWidget() {
     } finally {
       setCreatingChannel(false);
     }
+  };
+
+  // Channel edit modal opener
+  const handleOpenEditModal = () => {
+    if (!activeChannelId.startsWith('#')) return;
+    const chanName = activeChannelId.slice(1);
+    const customChan = customChannels.find(c => c.name === chanName);
+    if (!customChan) return;
+
+    setEditingChannelId(customChan._id);
+    setNewChannelName(customChan.name);
+    setNewChannelDesc(customChan.description || '');
+    setNewChannelAllowMessages((customChan as any).allowMessages || 'anyone');
+    setNewChannelAllowAttachments((customChan as any).allowAttachments || 'anyone');
+    const isPrivate = (customChan as any).allowedMembers && (customChan as any).allowedMembers.length > 0;
+    setChannelVisibility(isPrivate ? 'private' : 'public');
+    setSelectedAllowedMembers((customChan as any).allowedMembers || []);
+    setShowCreateChannelModal(true);
+  };
+
+  // Channel edit handler
+  const handleUpdateChannel = async () => {
+    if (!editingChannelId || !newChannelName.trim()) return;
+
+    setCreatingChannel(true);
+    try {
+      const res = await fetch('/api/chat/channels', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingChannelId,
+          name: newChannelName.trim(),
+          description: newChannelDesc.trim(),
+          allowMessages: newChannelAllowMessages,
+          allowAttachments: newChannelAllowAttachments,
+          allowedMembers: channelVisibility === 'private' ? selectedAllowedMembers : [],
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        await fetchCustomChannels();
+        setShowCreateChannelModal(false);
+        setNewChannelName('');
+        setNewChannelDesc('');
+        setNewChannelAllowMessages('anyone');
+        setNewChannelAllowAttachments('anyone');
+        setChannelVisibility('public');
+        setSelectedAllowedMembers([]);
+        setEditingChannelId(null);
+        setActiveChannelId(`#${result.data.name}`);
+      } else {
+        alert(result.error || 'Failed to update channel');
+      }
+    } catch (err) {
+      console.error('Error updating custom channel:', err);
+      alert('Error updating channel');
+    } finally {
+      setCreatingChannel(false);
+    }
+  };
+
+  // Channel deletion handler
+  const handleDeleteChannel = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete #${name}? All messages in this channel will be permanently deleted.`)) return;
+
+    try {
+      const res = await fetch(`/api/chat/channels?id=${id}`, {
+        method: 'DELETE'
+      });
+      const result = await res.json();
+      if (result.success) {
+        await fetchCustomChannels();
+        setActiveChannelId('#general');
+      } else {
+        alert(result.error || 'Failed to delete channel');
+      }
+    } catch (err) {
+      console.error('Error deleting channel:', err);
+      alert('Error deleting channel');
+    }
+  };
+
+  // Close and reset modal state helper
+  const handleCloseModal = () => {
+    setShowCreateChannelModal(false);
+    setNewChannelName('');
+    setNewChannelDesc('');
+    setNewChannelAllowMessages('anyone');
+    setNewChannelAllowAttachments('anyone');
+    setChannelVisibility('public');
+    setSelectedAllowedMembers([]);
+    setEditingChannelId(null);
   };
 
   // Mention suggestions filter
@@ -1089,6 +1182,38 @@ export default function ChatWidget() {
                   </div>
                   <div className="chat-body-header-desc">{currentChannel.description}</div>
                 </div>
+                {/* Channel Management Actions for Admin */}
+                {user?.userType === 'admin' && activeChannelId.startsWith('#') && !['#general', '#random', '#announcements'].includes(activeChannelId) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+                    <button
+                      onClick={handleOpenEditModal}
+                      title="Edit channel settings & permissions"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary, #64748b)', display: 'flex', padding: '4px', borderRadius: '4px', transition: 'background-color 0.2s' }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.05)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <Settings size={14} />
+                    </button>
+                    {(() => {
+                      const chanName = activeChannelId.slice(1);
+                      const customChan = customChannels.find(c => c.name === chanName);
+                      if (customChan) {
+                        return (
+                          <button
+                            onClick={() => handleDeleteChannel(customChan._id, customChan.name)}
+                            title="Delete channel permanently"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', display: 'flex', padding: '4px', borderRadius: '4px', transition: 'background-color 0.2s' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                )}
               </div>
 
               {/* Messages Pane */}
@@ -1539,11 +1664,11 @@ export default function ChatWidget() {
           <div className="chat-modal-overlay">
             <div className="chat-modal-card">
               <div className="chat-modal-header">
-                <span className="chat-modal-title">Create Custom Channel</span>
+                <span className="chat-modal-title">{editingChannelId ? 'Edit Channel Settings' : 'Create Custom Channel'}</span>
                 <button
                   type="button"
                   className="chat-modal-close-btn"
-                  onClick={() => setShowCreateChannelModal(false)}
+                  onClick={handleCloseModal}
                 >
                   <X size={14} />
                 </button>
@@ -1665,7 +1790,7 @@ export default function ChatWidget() {
               <div className="chat-modal-footer">
                 <button
                   type="button"
-                  onClick={() => setShowCreateChannelModal(false)}
+                  onClick={handleCloseModal}
                   disabled={creatingChannel}
                   style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--text-secondary)' }}
                 >
@@ -1673,7 +1798,7 @@ export default function ChatWidget() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleCreateChannel}
+                  onClick={editingChannelId ? handleUpdateChannel : handleCreateChannel}
                   disabled={creatingChannel || !newChannelName.trim()}
                   style={{
                     border: 'none',
@@ -1686,7 +1811,7 @@ export default function ChatWidget() {
                     cursor: 'pointer',
                   }}
                 >
-                  {creatingChannel ? 'Creating...' : 'Create'}
+                  {creatingChannel ? (editingChannelId ? 'Saving...' : 'Creating...') : (editingChannelId ? 'Save Changes' : 'Create')}
                 </button>
               </div>
             </div>
