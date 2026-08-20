@@ -173,21 +173,21 @@ export default function Sidebar() {
 
   return (
     <aside className={`sidebar no-print ${isCollapsed ? 'collapsed' : ''}`}>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
-        <div>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ flexShrink: 0 }}>
           {/* Brand Header */}
-          <div className="sidebar-header" style={{ marginBottom: '14px' }}>
-            <div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: isCollapsed ? '12px' : '4px', marginBottom: '8px' }}>
+          <div className="sidebar-header" style={{ marginBottom: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: isCollapsed ? '16px' : '8px', marginBottom: '12px' }}>
               {!isCollapsed ? (
                 <Link href="/" className="sidebar-brand" style={{ margin: 0 }}>
                   <span style={{ fontWeight: 800 }}>TIS Tracker</span>
                 </Link>
               ) : (
-                <Link href="/" className="sidebar-brand" style={{ fontSize: '1rem', fontWeight: 900, textAlign: 'center', margin: 0 }}>
+                <Link href="/" className="sidebar-brand" style={{ fontSize: '1.2rem', fontWeight: 900, textAlign: 'center', margin: 0 }} title="TIS Tracker">
                   TIS
                 </Link>
               )}
-              <div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', alignItems: 'center', gap: isCollapsed ? '12px' : '8px' }}>
                 <NotificationCenter />
                 <button
                   onClick={toggleCollapse}
@@ -197,24 +197,25 @@ export default function Sidebar() {
                     border: 'none',
                     color: 'var(--text-muted)',
                     cursor: 'pointer',
-                    padding: '4px',
+                    padding: '6px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    borderRadius: '4px'
+                    borderRadius: '6px',
+                    transition: 'all 0.2s ease'
                   }}
                   title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
                 >
-                  {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+                  {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
                 </button>
               </div>
             </div>
 
             {!isCollapsed && (
-              <div className="sidebar-team-card" style={{ padding: '6px 8px' }}>
+              <div className="sidebar-team-card" style={{ padding: '10px 12px' }}>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.8rem' }}>TIS Pvt. Ltd.</div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Team - {memberCount} Members</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>TIS Pvt. Ltd.</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Team - {memberCount} Members</div>
                 </div>
               </div>
             )}
@@ -224,10 +225,10 @@ export default function Sidebar() {
           {!isAdmin && !checkingPunch && (
             <div
               style={{
-                margin: isCollapsed ? '4px' : '8px',
-                padding: isCollapsed ? '6px' : '8px',
+                margin: isCollapsed ? '8px 4px' : '12px 8px',
+                padding: isCollapsed ? '10px' : '12px',
                 background: isPunchedIn ? '#ecfdf5' : '#fef2f2',
-                borderRadius: '6px',
+                borderRadius: '8px',
                 display: 'flex',
                 justifyContent: isCollapsed ? 'center' : 'flex-start',
                 alignItems: 'center',
@@ -238,43 +239,42 @@ export default function Sidebar() {
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '8px',
                 fontWeight: 600
               }}>
-                <Clock size={12} />
-                {!isCollapsed && <span style={{ fontSize: '0.7rem' }}>{isPunchedIn ? 'Punched In' : 'Not Punched'}</span>}
+                <Clock size={16} />
+                {!isCollapsed && <span style={{ fontSize: '0.8rem' }}>{isPunchedIn ? 'Punched In' : 'Not Punched'}</span>}
               </div>
             </div>
           )}
 
           {/* Main Menu Links */}
-          <div className="sidebar-menu-section">
+          <div className="sidebar-menu-section" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingRight: '4px' }}>
             <div className="sidebar-menu-title">Main Menu</div>
             <nav className="sidebar-menu">
               {canAccessFeatures ? (
-                <Link href="/" className={`sidebar-link ${pathname === '/' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                  <LayoutDashboard size={14} />
+                <Link href="/" className={`sidebar-link ${pathname === '/' ? 'active' : ''}`} data-tooltip="Dashboard">
+                  <LayoutDashboard />
                   <span>Dashboard</span>
                 </Link>
               ) : (
                 <div
                   className="sidebar-link"
                   style={{
-                    padding: '6px 8px',
-                    fontSize: '0.78rem',
                     opacity: 0.4,
                     filter: 'blur(0.5px)',
                     cursor: 'not-allowed',
                     pointerEvents: 'none'
                   }}
+                  data-tooltip="Dashboard (Locked)"
                 >
-                  <LayoutDashboard size={14} />
+                  <LayoutDashboard />
                   <span>Dashboard</span>
                 </div>
               )}
               {canAccessFeatures ? (
-                <Link href="/departments" className={`sidebar-link ${pathname === '/departments' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                  <Folder size={14} />
+                <Link href="/departments" className={`sidebar-link ${pathname === '/departments' ? 'active' : ''}`} data-tooltip="Departments">
+                  <Folder />
                   <span>Departments</span>
                 </Link>
 
@@ -282,21 +282,20 @@ export default function Sidebar() {
                 <div
                   className="sidebar-link"
                   style={{
-                    padding: '6px 8px',
-                    fontSize: '0.78rem',
                     opacity: 0.4,
                     filter: 'blur(0.5px)',
                     cursor: 'not-allowed',
                     pointerEvents: 'none'
                   }}
+                  data-tooltip="Departments (Locked)"
                 >
-                  <Folder size={14} />
+                  <Folder />
                   <span>Departments</span>
                 </div>
               )}
               {canAccessFeatures ? (
-                <Link href="/project" className={`sidebar-link ${pathname === '/project' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                  <Folder size={14} />
+                <Link href="/project" className={`sidebar-link ${pathname === '/project' ? 'active' : ''}`} data-tooltip="Project">
+                  <Folder />
                   <span>Project</span>
                 </Link>
 
@@ -304,44 +303,43 @@ export default function Sidebar() {
                 <div
                   className="sidebar-link"
                   style={{
-                    padding: '6px 8px',
-                    fontSize: '0.78rem',
                     opacity: 0.4,
                     filter: 'blur(0.5px)',
                     cursor: 'not-allowed',
                     pointerEvents: 'none'
                   }}
+                  data-tooltip="Project (Locked)"
                 >
-                  <Folder size={14} />
+                  <Folder />
                   <span>Project</span>
                 </div>
               )}
 
-              <Link href="/keep-notes" className={`sidebar-link ${pathname === '/keep-notes' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                <FileText size={14} />
+              <Link href="/keep-notes" className={`sidebar-link ${pathname === '/keep-notes' ? 'active' : ''}`} data-tooltip="Keep Notes">
+                <FileText />
                 <span>Keep Notes</span>
               </Link>
 
               {/* Punch page for admins - always accessible */}
               {isAdmin && (
-                <Link href="/punch" className={`sidebar-link ${pathname === '/punch' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                  <Clock size={14} />
+                <Link href="/punch" className={`sidebar-link ${pathname === '/punch' ? 'active' : ''}`} data-tooltip="Punch In/Out">
+                  <Clock />
                   <span>Punch In/Out</span>
                 </Link>
               )}
 
               {!isAdmin && canAccessFeatures && (
                 <>
-                  <Link href="/tasks" className={`sidebar-link ${pathname === '/tasks' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                    <CheckSquare size={14} />
+                  <Link href="/tasks" className={`sidebar-link ${pathname === '/tasks' ? 'active' : ''}`} data-tooltip="My Tasks">
+                    <CheckSquare />
                     <span>My Tasks</span>
                   </Link>
-                  <Link href="/task-history" className={`sidebar-link ${pathname === '/task-history' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                    <History size={14} />
+                  <Link href="/task-history" className={`sidebar-link ${pathname === '/task-history' ? 'active' : ''}`} data-tooltip="My Work History">
+                    <History />
                     <span>My Work History</span>
                   </Link>
-                  <Link href="/attendance" className={`sidebar-link ${pathname === '/attendance' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                    <Calendar size={14} />
+                  <Link href="/attendance" className={`sidebar-link ${pathname === '/attendance' ? 'active' : ''}`} data-tooltip="Attendance">
+                    <Calendar />
                     <span>Attendance</span>
                   </Link>
                 </>
@@ -349,36 +347,36 @@ export default function Sidebar() {
 
               {isAdmin && (
                 <>
-                  <Link href="/tasks" className={`sidebar-link ${pathname === '/tasks' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                    <CheckSquare size={14} />
+                  <Link href="/tasks" className={`sidebar-link ${pathname === '/tasks' ? 'active' : ''}`} data-tooltip="Tasks">
+                    <CheckSquare />
                     <span>Tasks</span>
                   </Link>
-                  <Link href="/task-history" className={`sidebar-link ${pathname === '/task-history' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                    <History size={14} />
+                  <Link href="/task-history" className={`sidebar-link ${pathname === '/task-history' ? 'active' : ''}`} data-tooltip="Task History">
+                    <History />
                     <span>Task History</span>
                   </Link>
-                  <Link href="/attendance" className={`sidebar-link ${pathname === '/attendance' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                    <Calendar size={14} />
+                  <Link href="/attendance" className={`sidebar-link ${pathname === '/attendance' ? 'active' : ''}`} data-tooltip="Punch Logs">
+                    <Calendar />
                     <span>Punch Logs</span>
                   </Link>
-                  <Link href="/employees" className={`sidebar-link ${pathname === '/employees' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                    <Users size={14} />
+                  <Link href="/employees" className={`sidebar-link ${pathname === '/employees' ? 'active' : ''}`} data-tooltip="Employee">
+                    <Users />
                     <span>Employee</span>
                   </Link>
-                  <Link href="/roles" className={`sidebar-link ${pathname === '/roles' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                    <Briefcase size={14} />
+                  <Link href="/roles" className={`sidebar-link ${pathname === '/roles' ? 'active' : ''}`} data-tooltip="Roles">
+                    <Briefcase />
                     <span>Roles</span>
                   </Link>
-                  <Link href="/clients" className={`sidebar-link ${pathname === '/clients' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                    <Briefcase size={14} />
+                  <Link href="/clients" className={`sidebar-link ${pathname === '/clients' ? 'active' : ''}`} data-tooltip="Clients">
+                    <Briefcase />
                     <span>Clients</span>
                   </Link>
-                  <Link href="/reports" className={`sidebar-link ${pathname === '/reports' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                    <FileBarChart size={14} />
+                  <Link href="/reports" className={`sidebar-link ${pathname === '/reports' ? 'active' : ''}`} data-tooltip="Reports">
+                    <FileBarChart />
                     <span>Reports</span>
                   </Link>
-                  <Link href="/settings" className={`sidebar-link ${pathname === '/settings' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
-                    <Settings size={14} />
+                  <Link href="/settings" className={`sidebar-link ${pathname === '/settings' ? 'active' : ''}`} data-tooltip="Settings">
+                    <Settings />
                     <span>Settings</span>
                   </Link>
                 </>
@@ -389,15 +387,15 @@ export default function Sidebar() {
 
         {/* Footer actions - Logout */}
         {user && (
-          <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', padding: '0 4px', justifyContent: isCollapsed ? 'center' : 'flex-start' }}>
-              <div className="avatar" style={{ backgroundColor: user.avatarColor || '#3b82f6', width: '22px', height: '22px', fontSize: '0.65rem', flexShrink: 0 }} title={user.name}>
+          <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '12px', flexShrink: 0, paddingBottom: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: isCollapsed ? '8px' : '12px', padding: '0 4px', justifyContent: isCollapsed ? 'center' : 'flex-start' }}>
+              <div className="avatar" style={{ backgroundColor: user.avatarColor || '#3b82f6', width: isCollapsed ? '32px' : '28px', height: isCollapsed ? '32px' : '28px', fontSize: '0.75rem', flexShrink: 0 }} title={user.name}>
                 {user.name?.split(' ').map((n: string) => n[0]).join('') || 'U'}
               </div>
               {!isCollapsed && (
                 <div style={{ overflow: 'hidden' }}>
-                  <div style={{ fontWeight: 700, fontSize: '0.72rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
-                  <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.userType}</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.userType}</div>
                 </div>
               )}
             </div>
@@ -408,18 +406,18 @@ export default function Sidebar() {
                 disabled={!canPunchOut}
                 style={{
                   width: '100%',
-                  padding: '6px',
-                  fontSize: '0.75rem',
+                  padding: isCollapsed ? '10px 8px' : '10px 12px',
+                  fontSize: isCollapsed ? '0' : '0.8rem',
                   fontWeight: 700,
-                  marginBottom: '8px',
+                  marginBottom: isCollapsed ? '6px' : '10px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: isCollapsed ? '0' : '4px',
+                  gap: isCollapsed ? '0' : '6px',
                 }}
                 title={canPunchOut ? 'Punch Out Now' : 'Punch out is currently restricted outside shift hours'}
               >
-                <Clock size={12} />
+                <Clock size={18} />
                 {!isCollapsed && <span>Punch Out</span>}
               </button>
             )}
@@ -427,10 +425,18 @@ export default function Sidebar() {
               <button
                 onClick={handleLogout}
                 className="btn btn-danger"
-                style={{ width: '100%', padding: '4px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isCollapsed ? '0' : '4px' }}
+                style={{ 
+                  width: '100%', 
+                  padding: isCollapsed ? '10px 8px' : '10px 12px', 
+                  fontSize: isCollapsed ? '0' : '0.8rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: isCollapsed ? '0' : '6px' 
+                }}
                 title="Logout"
               >
-                <LogOut size={10} />
+                <LogOut size={16} />
                 {!isCollapsed && <span>Logout</span>}
               </button>
             )}

@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  Folder, Plus, Search, Edit3, Trash2, Clock, 
-  AlertCircle, Users, Briefcase, Mail
+  Folder, FolderPlus, Plus, Search, Edit3, Trash2, Clock, 
+  AlertCircle, Users, Briefcase, Mail, FileBarChart, Lightbulb, HelpCircle, Sparkles
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import PageShimmer from '@/components/PageShimmer';
@@ -78,6 +78,7 @@ export default function ProjectsPage() {
   const [isAddDeptOpen, setIsAddDeptOpen] = useState(false);
   const [isLogWorkOpen, setIsLogWorkOpen] = useState(false);
   const [isEditLogOpen, setIsEditLogOpen] = useState(false);
+  const [isExploreModalOpen, setIsExploreModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<WorkEntry | null>(null);
 
   // Form States (Add/Edit Project)
@@ -90,6 +91,7 @@ export default function ProjectsPage() {
   // Client Selection State
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [isClientDrawerOpen, setIsClientDrawerOpen] = useState(false);
   const [newClientName, setNewClientName] = useState('');
   const [newClientEmails, setNewClientEmails] = useState('');
   const [newClientAddress, setNewClientAddress] = useState('');
@@ -447,9 +449,14 @@ export default function ProjectsPage() {
       {/* Split layout */}
       <div className="split-layout">
         {/* Left column master list */}
-        <div className="split-master">
-          <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
-            Select Project
+        <div className="split-master" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              PROJECTS
+            </span>
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', padding: '1px 7px', borderRadius: '10px', color: 'var(--text-secondary)' }}>
+              {projects.length}
+            </span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, overflowY: 'auto' }}>
@@ -484,16 +491,226 @@ export default function ProjectsPage() {
             })}
 
             {projects.length === 0 && (
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', padding: '12px' }}>
-                No Projects available.
-              </p>
+              <div style={{ 
+                border: '1px dashed var(--border-color)', 
+                borderRadius: '10px', 
+                padding: '16px 12px', 
+                textAlign: 'center', 
+                background: 'var(--bg-tertiary)',
+                marginTop: '4px' 
+              }}>
+                <FolderPlus size={22} style={{ color: 'var(--accent-primary)', marginBottom: '6px', opacity: 0.8 }} />
+                <div style={{ fontWeight: 700, fontSize: '0.78rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
+                  No projects yet
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: '1.3' }}>
+                  Create your first project to get started.
+                </div>
+              </div>
             )}
+          </div>
+
+          {/* Sidebar Tip */}
+          <div style={{ 
+            border: '1px solid var(--border-color)', 
+            borderRadius: '10px', 
+            padding: '10px 12px', 
+            background: 'var(--bg-tertiary)', 
+            marginTop: '16px' 
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '0.74rem', color: 'var(--accent-primary)', marginBottom: '3px' }}>
+              <Lightbulb size={13} />
+              <span>Tip</span>
+            </div>
+            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0, lineHeight: '1.35' }}>
+              Projects help you organize and track all your work efficiently.
+            </p>
           </div>
         </div>
 
         {/* Right column detail panel */}
         <div className="split-detail">
-          {!selectedProjId || !activeProject ? (
+          {projects.length === 0 ? (
+            <div className="card" style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              padding: '48px 32px', 
+              minHeight: '460px',
+              borderRadius: '16px',
+              border: '1px solid var(--border-color)',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              {/* Subtle top illustration */}
+              <div style={{
+                width: '68px',
+                height: '68px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(127, 86, 217, 0.12) 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '20px',
+                border: '1px solid rgba(59, 130, 246, 0.2)',
+                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.08)'
+              }}>
+                <FolderPlus size={34} style={{ color: 'var(--accent-primary)' }} />
+              </div>
+
+              {/* Heading & Subtitle */}
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px', textAlign: 'center' }}>
+                Your workspace is ready!
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', maxWidth: '460px', textAlign: 'center', lineHeight: '1.5', marginBottom: '24px' }}>
+                Create your first project to start organizing tasks, tracking progress, and collaborating with your team.
+              </p>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                {isAdmin ? (
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={() => {
+                      setDeptName('');
+                      setDeptDesc('');
+                      setDeptColor('#3b82f6');
+                      setDeptMembers([]);
+                      setIsAddDeptOpen(true);
+                    }}
+                    style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px' }}
+                  >
+                    <Plus size={16} />
+                    <span>Create your first project</span>
+                  </button>
+                ) : (
+                  <button 
+                    className="btn btn-primary" 
+                    disabled 
+                    title="Only admins can create projects"
+                    style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px', opacity: 0.6 }}
+                  >
+                    <Plus size={16} />
+                    <span>Create your first project</span>
+                  </button>
+                )}
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setIsExploreModalOpen(true)}
+                  style={{ padding: '10px 16px', fontSize: '0.85rem', fontWeight: 650, display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px' }}
+                >
+                  <HelpCircle size={15} />
+                  <span>Explore how it works</span>
+                </button>
+              </div>
+
+              {/* Divider */}
+              <div style={{ width: '100%', maxWidth: '540px', height: '1px', background: 'var(--border-color)', margin: '32px 0 24px 0' }} />
+
+              {/* Feature Highlights Section */}
+              <div style={{ width: '100%', maxWidth: '640px' }}>
+                <h4 style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '14px', textAlign: 'center' }}>
+                  What you can do with projects
+                </h4>
+
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
+                  gap: '12px' 
+                }}>
+                  <div style={{ 
+                    background: 'var(--bg-tertiary)', 
+                    border: '1px solid var(--border-color)', 
+                    borderRadius: '10px', 
+                    padding: '14px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start'
+                  }}>
+                    <div style={{ 
+                      width: '30px', 
+                      height: '30px', 
+                      borderRadius: '6px', 
+                      background: '#eff6ff', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      marginBottom: '8px',
+                      color: '#3b82f6'
+                    }}>
+                      <Folder size={16} />
+                    </div>
+                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
+                      Organize work
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
+                      Keep all project details, files and tasks in one place.
+                    </span>
+                  </div>
+
+                  <div style={{ 
+                    background: 'var(--bg-tertiary)', 
+                    border: '1px solid var(--border-color)', 
+                    borderRadius: '10px', 
+                    padding: '14px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start'
+                  }}>
+                    <div style={{ 
+                      width: '30px', 
+                      height: '30px', 
+                      borderRadius: '6px', 
+                      background: '#ecfdf5', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      marginBottom: '8px',
+                      color: '#10b981'
+                    }}>
+                      <FileBarChart size={16} />
+                    </div>
+                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
+                      Track progress
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
+                      Monitor milestones and measure performance.
+                    </span>
+                  </div>
+
+                  <div style={{ 
+                    background: 'var(--bg-tertiary)', 
+                    border: '1px solid var(--border-color)', 
+                    borderRadius: '10px', 
+                    padding: '14px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start'
+                  }}>
+                    <div style={{ 
+                      width: '30px', 
+                      height: '30px', 
+                      borderRadius: '6px', 
+                      background: '#f3e8ff', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      marginBottom: '8px',
+                      color: '#7f56d9'
+                    }}>
+                      <Users size={16} />
+                    </div>
+                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
+                      Manage team
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
+                      Collaborate with your team and assign tasks easily.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : !selectedProjId || !activeProject ? (
             <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px', minHeight: '300px', color: 'var(--text-muted)' }}>
               <Folder size={44} style={{ marginBottom: '16px', opacity: 0.5 }} />
               <p style={{ fontSize: '0.85rem', fontWeight: 650 }}>Select a Project from the left panel to inspect details.</p>
@@ -757,7 +974,15 @@ export default function ProjectsPage() {
                     <select
                       className="form-control"
                       value={selectedClientId}
-                      onChange={(e) => setSelectedClientId(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === 'new') {
+                          setIsClientDrawerOpen(true);
+                          setSelectedClientId('');
+                        } else {
+                          setSelectedClientId(val);
+                        }
+                      }}
                     >
                       <option value="">None</option>
                       <option value="new">Add New Client Inline...</option>
@@ -766,57 +991,6 @@ export default function ProjectsPage() {
                       ))}
                     </select>
                   </div>
-
-                  {selectedClientId === 'new' && (
-                    <div style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', display: 'grid', gap: '8px', marginBottom: '14px' }}>
-                      <p style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '4px' }}>New Client Details</p>
-                      <div>
-                        <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Client Name *</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          style={{ height: '32px', fontSize: '0.76rem' }}
-                          required={selectedClientId === 'new'}
-                          placeholder="e.g. Acme Corp"
-                          value={newClientName}
-                          onChange={(e) => setNewClientName(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Contact Emails</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          style={{ height: '32px', fontSize: '0.76rem' }}
-                          placeholder="e.g. contact@acme.com, billing@acme.com"
-                          value={newClientEmails}
-                          onChange={(e) => setNewClientEmails(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Address</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          style={{ height: '32px', fontSize: '0.76rem' }}
-                          placeholder="e.g. 123 Main St"
-                          value={newClientAddress}
-                          onChange={(e) => setNewClientAddress(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Contract Duration</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          style={{ height: '32px', fontSize: '0.76rem' }}
-                          placeholder="e.g. 6 Months"
-                          value={newClientDuration}
-                          onChange={(e) => setNewClientDuration(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  )}
                 </form>
               )}
             </div>
@@ -827,12 +1001,50 @@ export default function ProjectsPage() {
       {/* MODAL: ADD Project */}
       {isAddDeptOpen && (
         <div className="modal-overlay" onClick={() => setIsAddDeptOpen(false)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+          <div 
+            className="modal-container" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              position: 'relative',
+              maxWidth: isClientDrawerOpen ? '1100px' : '600px',
+              width: isClientDrawerOpen ? '95%' : '90%',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              display: 'grid',
+              gridTemplateColumns: isClientDrawerOpen ? '1fr 400px' : '1fr',
+              gap: isClientDrawerOpen ? '0' : '0',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Cross button - fixed top right */}
+            <button 
+              className="modal-close" 
+              onClick={() => setIsAddDeptOpen(false)}
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                zIndex: 10
+              }}
+            >
+              &times;
+            </button>
+
+            {/* Main Form Section */}
+            <div style={{ borderRight: isClientDrawerOpen ? '1px solid var(--border-color)' : 'none' }}>
+            <div className="modal-header" style={{ paddingRight: '50px' }}>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Create New Project</h3>
-              <button className="modal-close" onClick={() => setIsAddDeptOpen(false)}>&times;</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setIsClientDrawerOpen(!isClientDrawerOpen)}
+                  style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+                >
+                  {isClientDrawerOpen ? 'Hide Client Form' : '+ Add Client'}
+                </button>
+              </div>
             </div>
-            <form onSubmit={handleAddDeptSubmit}>
+            <form onSubmit={handleAddDeptSubmit} style={{ padding: '0 20px 20px 20px' }}>
               <div className="form-group">
                 <label className="form-label">Project Name *</label>
                 <input 
@@ -896,63 +1108,14 @@ export default function ProjectsPage() {
                   onChange={(e) => setSelectedClientId(e.target.value)}
                 >
                   <option value="">None</option>
-                  <option value="new">Add New Client Inline...</option>
+                  {selectedClientId === 'new' && newClientName && (
+                    <option value="new">✓ {newClientName} (New)</option>
+                  )}
                   {clientsList.map(c => (
                     <option key={c._id} value={c._id}>{c.name}</option>
                   ))}
                 </select>
               </div>
-
-              {selectedClientId === 'new' && (
-                <div style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', display: 'grid', gap: '8px', marginBottom: '14px' }}>
-                  <p style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '4px' }}>New Client Details</p>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Client Name *</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      style={{ height: '32px', fontSize: '0.76rem' }}
-                      required={selectedClientId === 'new'}
-                      placeholder="e.g. Acme Corp"
-                      value={newClientName}
-                      onChange={(e) => setNewClientName(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Contact Emails</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      style={{ height: '32px', fontSize: '0.76rem' }}
-                      placeholder="e.g. contact@acme.com, billing@acme.com"
-                      value={newClientEmails}
-                      onChange={(e) => setNewClientEmails(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Address</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      style={{ height: '32px', fontSize: '0.76rem' }}
-                      placeholder="e.g. 123 Main St"
-                      value={newClientAddress}
-                      onChange={(e) => setNewClientAddress(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Contract Duration</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      style={{ height: '32px', fontSize: '0.76rem' }}
-                      placeholder="e.g. 6 Months"
-                      value={newClientDuration}
-                      onChange={(e) => setNewClientDuration(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsAddDeptOpen(false)}>Cancel</button>
@@ -961,6 +1124,115 @@ export default function ProjectsPage() {
                 </button>
               </div>
             </form>
+            </div>
+
+            {/* Client Details Side Panel - Slides in from right */}
+            {isClientDrawerOpen && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                backgroundColor: 'var(--bg-secondary)',
+                animation: 'slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  padding: '20px',
+                  borderBottom: '1px solid var(--border-color)',
+                  flexShrink: 0
+                }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--accent-primary)' }}>New Client</h4>
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Fill in the details</p>
+                </div>
+
+                <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                  <div style={{ display: 'grid', gap: '14px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                        Client Name <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. Acme Corp"
+                        value={newClientName}
+                        onChange={(e) => setNewClientName(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>Contact Emails</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. contact@acme.com"
+                        value={newClientEmails}
+                        onChange={(e) => setNewClientEmails(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>Address</label>
+                      <textarea
+                        className="form-control"
+                        placeholder="e.g. 123 Main St"
+                        value={newClientAddress}
+                        onChange={(e) => setNewClientAddress(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>Contract Duration</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. 6 Months"
+                        value={newClientDuration}
+                        onChange={(e) => setNewClientDuration(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '14px 20px',
+                  borderTop: '1px solid var(--border-color)',
+                  display: 'flex',
+                  gap: '10px',
+                  justifyContent: 'flex-end',
+                  flexShrink: 0
+                }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setIsClientDrawerOpen(false);
+                      setNewClientName('');
+                      setNewClientEmails('');
+                      setNewClientAddress('');
+                      setNewClientDuration('');
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      if (!newClientName.trim()) {
+                        alert('Please enter a client name');
+                        return;
+                      }
+                      setSelectedClientId('new');
+                      setIsClientDrawerOpen(false);
+                    }}
+                  >
+                    Add Client
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1191,6 +1463,72 @@ export default function ProjectsPage() {
           </div>
         </div>
       )}
+
+      {/* Onboarding Overview Modal */}
+      {isExploreModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsExploreModalOpen(false)}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px', padding: '20px 24px' }}>
+            <div className="modal-header" style={{ marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={20} style={{ color: 'var(--accent-primary)' }} />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>How Projects Work</h3>
+              </div>
+              <button className="modal-close" onClick={() => setIsExploreModalOpen(false)}>&times;</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</div>
+                <div>
+                  <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>Create & Associate</h4>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0', lineHeight: '1.4' }}>
+                    Set up your project with a name, description, color theme, and optionally tag it to a client.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</div>
+                <div>
+                  <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>Assign Staff Members</h4>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0', lineHeight: '1.4' }}>
+                    Assign team members to the project so they can log work hours, track tasks, and collaborate.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>3</div>
+                <div>
+                  <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>Track Time & Milestones</h4>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0', lineHeight: '1.4' }}>
+                    Log work sessions, analyze total durations, filter activity, and generate comprehensive reports.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => {
+                  setIsExploreModalOpen(false);
+                  if (isAdmin) {
+                    setDeptName('');
+                    setDeptDesc('');
+                    setDeptColor('#3b82f6');
+                    setDeptMembers([]);
+                    setIsAddDeptOpen(true);
+                  }
+                }}
+              >
+                {isAdmin ? 'Create First Project' : 'Got it!'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
