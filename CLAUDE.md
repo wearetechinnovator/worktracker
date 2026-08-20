@@ -1,4 +1,4 @@
 @AGENTS.md
 
 
-hello from test
+hello from tests
