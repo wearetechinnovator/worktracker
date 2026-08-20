@@ -628,14 +628,12 @@ export default function MyTasks({ userId }: { userId: string }) {
               <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
                 Work Notes/Reason {completionStatus === 'partial' ? <span style={{ color: '#ef4444' }}>* (Required for partial completion)</span> : '(Optional)'}
               </label>
-              <textarea
-                className="form-control"
-                rows={4}
-                placeholder={completionStatus === 'partial' ? "Specify what is completed and the reason for ending work partially..." : "What did you accomplish? Any challenges or blockers?"}
+
+              <CKEditorComponent
                 value={workNotes}
-                onChange={(e) => setWorkNotes(e.target.value)}
-                style={{ fontSize: '0.85rem', resize: 'vertical' }}
+                onChange={(val) => setWorkNotes(val)}
               />
+              
               <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {completionStatus === 'partial' ? 'Explain why you are stopping and what work is left.' : 'Describe your progress, achievements, or any issues faced.'}
               </p>
@@ -645,9 +643,13 @@ export default function MyTasks({ userId }: { userId: string }) {
               <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
                 Related Links (Optional)
               </label>
-              <CKEditorComponent
+              <textarea
+                className="form-control"
+                rows={4}
+                placeholder="e.g. https://github.com/pull/1, https://jira.com/task/123"
                 value={workLinks}
-                onChange={(val) => setWorkLinks(val)}
+                onChange={(e) => setWorkLinks(e.target.value)}
+                style={{ fontSize: '0.85rem', resize: 'vertical' }}
               />
               <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                 Add relevant URLs (GitHub PRs, Jira tickets, design files, etc.)

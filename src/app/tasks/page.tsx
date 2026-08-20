@@ -270,7 +270,7 @@ export default function TasksPage() {
 
       setSuccessMsg(result.message);
       setTimeout(() => setSuccessMsg(null), 4000);
-      
+
       setShowEndWorkDialog(false);
       setSelectedWorkId(null);
       setWorkNotes('');
@@ -700,7 +700,7 @@ export default function TasksPage() {
                 paginatedTasks.map((task) => (
                   <tr key={task._id}>
                     <td>
-                      <div 
+                      <div
                         onClick={() => openTaskDetailsModal(task)}
                         className="task-title-link"
                         style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-primary)' }}
@@ -777,7 +777,7 @@ export default function TasksPage() {
                     {canManageTask(task) && (
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', justifyContent: 'center' }}>
-                          
+
                           {/* Work session controls for standard employees */}
                           {!isAdmin && (
                             <>
@@ -793,7 +793,7 @@ export default function TasksPage() {
                                     const [hours, minutes, seconds] = parts.map(Number);
                                     const start = new Date(currentTime);
                                     start.setHours(hours, minutes, seconds, 0);
-                                    
+
                                     let elapsed = Math.floor((currentTime.getTime() - start.getTime()) / 1000);
                                     if (elapsed < 0) {
                                       elapsed += 24 * 60 * 60;
@@ -979,15 +979,6 @@ export default function TasksPage() {
                   required
                 />
               </div>
-
-              <div style={{ marginBottom: '16px' }}>
-                <label className="form-label">Description</label>
-                <CKEditorComponent
-                  value={formData.description}
-                  onChange={(val) => setFormData({ ...formData, description: val })}
-                />
-              </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: !formData.projectId ? '1fr 1fr' : '1fr', gap: '16px', marginBottom: '16px' }}>
                 <div>
                   <label className="form-label">Choose</label>
@@ -1068,16 +1059,6 @@ export default function TasksPage() {
                   </div>
                 </div>
               )}
-
-              {!isAdmin && user && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label className="form-label">Assigned To</label>
-                  <div className="form-control" style={{ display: 'flex', alignItems: 'center', minHeight: '42px' }}>
-                    {user.name}
-                  </div>
-                </div>
-              )}
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div>
                   <label className="form-label">Priority</label>
@@ -1117,6 +1098,28 @@ export default function TasksPage() {
                   />
                 </div>
               </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label className="form-label">Description</label>
+                <CKEditorComponent
+                  value={formData.description}
+                  onChange={(val) => setFormData({ ...formData, description: val })}
+                />
+              </div>
+
+
+
+
+
+              {!isAdmin && user && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label className="form-label">Assigned To</label>
+                  <div className="form-control" style={{ display: 'flex', alignItems: 'center', minHeight: '42px' }}>
+                    {user.name}
+                  </div>
+                </div>
+              )}
+
+
 
               <div style={{ marginBottom: '20px' }}>
                 <label className="form-label">Tags (comma separated)</label>
@@ -1230,14 +1233,12 @@ export default function TasksPage() {
               <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
                 Work Notes/Reason {completionStatus === 'partial' ? <span style={{ color: '#ef4444' }}>* (Required for partial completion)</span> : '(Optional)'}
               </label>
-              <textarea
-                className="form-control"
-                rows={4}
-                placeholder={completionStatus === 'partial' ? "Specify what is completed and the reason for ending work partially..." : "What did you accomplish? Any challenges or blockers?"}
+
+              <CKEditorComponent
                 value={workNotes}
-                onChange={(e) => setWorkNotes(e.target.value)}
-                style={{ fontSize: '0.85rem', resize: 'vertical' }}
+                onChange={(val) => setWorkNotes(val)}
               />
+              
               <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {completionStatus === 'partial' ? 'Explain why you are stopping and what work is left.' : 'Describe your progress, achievements, or any issues faced.'}
               </p>
@@ -1247,9 +1248,13 @@ export default function TasksPage() {
               <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
                 Related Links (Optional)
               </label>
-              <CKEditorComponent
+              <textarea
+                className="form-control"
+                rows={4}
+                placeholder="e.g. https://github.com/pull/1, https://jira.com/task/123"
                 value={workLinks}
-                onChange={(val) => setWorkLinks(val)}
+                onChange={(e) => setWorkLinks(e.target.value)}
+                style={{ fontSize: '0.85rem', resize: 'vertical' }}
               />
               <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                 Add relevant URLs (GitHub PRs, Jira tickets, design files, etc.)
@@ -1323,11 +1328,11 @@ export default function TasksPage() {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div style={{ 
-              padding: '20px 24px', 
+            <div style={{
+              padding: '20px 24px',
               borderBottom: '1px solid var(--border-color)',
-              display: 'flex', 
-              justifyContent: 'space-between', 
+              display: 'flex',
+              justifyContent: 'space-between',
               alignItems: 'flex-start',
               gap: '16px',
               background: 'var(--bg-secondary)'
@@ -1354,12 +1359,12 @@ export default function TasksPage() {
               <button
                 onClick={closeTaskDetailsModal}
                 className="btn"
-                style={{ 
-                  padding: '6px', 
-                  width: '32px', 
-                  height: '32px', 
-                  display: 'flex', 
-                  alignItems: 'center', 
+                style={{
+                  padding: '6px',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
                   justifyContent: 'center',
                   background: 'var(--bg-tertiary)',
                   borderRadius: '50%'
@@ -1370,18 +1375,18 @@ export default function TasksPage() {
             </div>
 
             {/* Modal Body */}
-            <div style={{ 
-              padding: '24px', 
-              overflowY: 'auto', 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column', 
-              gap: '24px' 
+            <div style={{
+              padding: '24px',
+              overflowY: 'auto',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '24px'
             }}>
               {/* Task Details Row */}
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                 gap: '16px',
                 background: 'var(--bg-secondary)',
                 padding: '16px',
@@ -1439,11 +1444,11 @@ export default function TasksPage() {
                   <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
                     Task Description
                   </h4>
-                  <div 
-                    style={{ 
-                      fontSize: '0.9rem', 
-                      color: 'var(--text-primary)', 
-                      lineHeight: '1.6', 
+                  <div
+                    style={{
+                      fontSize: '0.9rem',
+                      color: 'var(--text-primary)',
+                      lineHeight: '1.6',
                       background: 'var(--bg-primary)',
                       padding: '16px',
                       borderRadius: '8px',
@@ -1460,12 +1465,12 @@ export default function TasksPage() {
               <div>
                 <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span>Work Session Logs</span>
-                  <span style={{ 
-                    fontSize: '0.7rem', 
-                    background: 'var(--bg-tertiary)', 
-                    color: 'var(--text-primary)', 
-                    padding: '2px 8px', 
-                    borderRadius: '10px' 
+                  <span style={{
+                    fontSize: '0.7rem',
+                    background: 'var(--bg-tertiary)',
+                    color: 'var(--text-primary)',
+                    padding: '2px 8px',
+                    borderRadius: '10px'
                   }}>
                     {taskWorkSessions.length} sessions
                   </span>
@@ -1477,10 +1482,10 @@ export default function TasksPage() {
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Loading work history...</span>
                   </div>
                 ) : taskWorkSessions.length === 0 ? (
-                  <div style={{ 
-                    textAlign: 'center', 
-                    padding: '40px 20px', 
-                    border: '1px dashed var(--border-color)', 
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '40px 20px',
+                    border: '1px dashed var(--border-color)',
                     borderRadius: '8px',
                     color: 'var(--text-muted)',
                     background: 'var(--bg-primary)'
@@ -1492,7 +1497,7 @@ export default function TasksPage() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {taskWorkSessions.map((session) => (
-                      <div 
+                      <div
                         key={session._id}
                         style={{
                           background: 'var(--bg-secondary)',
@@ -1524,10 +1529,10 @@ export default function TasksPage() {
                               {session.employeeId?.name || 'Unknown Employee'}
                             </span>
                           </div>
-                          
+
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ 
-                              fontSize: '0.7rem', 
+                            <span style={{
+                              fontSize: '0.7rem',
                               fontWeight: 700,
                               color: 'var(--text-muted)',
                               background: 'var(--bg-primary)',
@@ -1537,8 +1542,8 @@ export default function TasksPage() {
                             }}>
                               {session.date}
                             </span>
-                            <span style={{ 
-                              fontSize: '0.7rem', 
+                            <span style={{
+                              fontSize: '0.7rem',
                               fontWeight: 700,
                               color: 'var(--text-muted)',
                               background: 'var(--bg-primary)',
@@ -1573,8 +1578,8 @@ export default function TasksPage() {
 
                         {/* Notes / links display */}
                         {session.notes && (
-                          <div style={{ 
-                            fontSize: '0.82rem', 
+                          <div style={{
+                            fontSize: '0.82rem',
                             color: 'var(--text-secondary)',
                             background: 'var(--bg-primary)',
                             padding: '10px 14px',
@@ -1593,10 +1598,10 @@ export default function TasksPage() {
             </div>
 
             {/* Modal Footer */}
-            <div style={{ 
-              padding: '16px 24px', 
-              borderTop: '1px solid var(--border-color)', 
-              display: 'flex', 
+            <div style={{
+              padding: '16px 24px',
+              borderTop: '1px solid var(--border-color)',
+              display: 'flex',
               justifyContent: 'flex-end',
               background: 'var(--bg-secondary)'
             }}>

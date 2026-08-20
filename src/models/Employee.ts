@@ -9,6 +9,7 @@ export interface IEmployee extends Document {
   avatarColor: string; // Hex color code
   password: string;
   userType: 'admin' | 'employee';
+  workMode?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,6 +24,7 @@ const EmployeeSchema = new Schema<IEmployee>(
     avatarColor: { type: String, default: '#7f56d9' },
     password: { type: String, required: true, default: 'password123' },
     userType: { type: String, required: true, enum: ['admin', 'employee'], default: 'employee' },
+    workMode: { type: String, default: 'Hybrid', enum: ['Hybrid', 'Remote', 'Onsite'], trim: true },
   },
   { timestamps: true }
 );

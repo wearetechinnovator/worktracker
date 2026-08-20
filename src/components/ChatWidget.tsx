@@ -283,8 +283,19 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
   }, []);
 
   // Poll new messages globally
-  const pollMessages = useCallback(async () => {
+  // Poll new messages globally
+  const pollMessages = useCallback(async (force = false) => {
     if (!user) return;
+
+    // Page-specific suspend check (e.g. hidden global widgets on /departments or /login)
+    const shouldHide = pathname === '/login' || (!inline && pathname === '/departments');
+    if (shouldHide) return;
+
+    // Document visibility check (skip if tab is in background unless forced)
+    if (!force && typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      return;
+    }
+
     try {
       let url = '/api/chat/messages';
       if (lastFetchedTimeRef.current) {
@@ -340,7 +351,7 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
                   const channelSenders = prev[msg.channelId] || [];
                   if (channelSenders.includes(msg.senderName)) return prev;
                   return {
-                    ...prev,
+                     ...prev,
                     [msg.channelId]: [...channelSenders, msg.senderName],
                   };
                 });
@@ -364,7 +375,7 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
     } catch (err) {
       console.error('Error polling messages:', err);
     }
-  }, [user, activeChannelId, isOpen]);
+  }, [user, activeChannelId, isOpen, pathname, inline]);
 
   // Set up background and active room polling
   useEffect(() => {
@@ -373,18 +384,41 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
       return;
     }
 
+    // Page-specific suspend check
+    const shouldHide = pathname === '/login' || (!inline && pathname === '/departments');
+    if (shouldHide) {
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+      return;
+    }
+
     if (isOpen) {
       fetchChannelHistory(activeChannelId);
     }
 
+    // Poll faster (5s) when chat window is active, slower (15s) when minimized/badge only
+    const intervalTime = (inline || isOpen) ? 5000 : 15000;
+
     pollingIntervalRef.current = setInterval(() => {
       pollMessages();
-    }, 4000);
+    }, intervalTime);
 
     return () => {
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     };
-  }, [user, isOpen, activeChannelId, fetchChannelHistory, pollMessages]);
+  }, [user, isOpen, activeChannelId, fetchChannelHistory, pollMessages, pathname, inline]);
+
+  // Visibility change listener to poll immediately when user focuses back on tab
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        pollMessages(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [pollMessages]);
 
   // 5. Send a new message
   const handleSendMessage = async (e?: React.FormEvent) => {

@@ -1,8 +1,27 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Employee from '@/models/Employee';
+import Role from '@/models/Role';
 import WorkEntry from '@/models/WorkEntry';
 import { hashPassword } from '@/lib/password';
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+async function ensureRoleExists(roleName: string) {
+  const trimmedRoleName = roleName.trim();
+  if (!trimmedRoleName) return;
+
+  const existing = await Role.findOne({
+    name: { $regex: new RegExp(`^${escapeRegex(trimmedRoleName)}$`, 'i') },
+  });
+
+  if (!existing) {
+    await Role.create({
+      name: trimmedRoleName,
+      description: 'Auto-detected from employee profiles',
+    });
+  }
+}
 
 export async function GET(
   request: Request,
@@ -32,6 +51,7 @@ export async function GET(
           status: employee.status,
           avatarColor: employee.avatarColor,
           userType: employee.userType,
+          workMode: employee.workMode || 'Hybrid',
           createdAt: employee.createdAt,
           updatedAt: employee.updatedAt,
         },
@@ -64,7 +84,8 @@ export async function PUT(
     await dbConnect();
     const { id } = await params;
     const body = await request.json();
-    const { name, email, role, Project, status, avatarColor, password, userType } = body;
+    const { name, email, role, Project, status, avatarColor, password, userType, workMode } = body;
+    const normalizedRole = typeof role === 'string' ? role.trim() : '';
 
     const employee = await Employee.findById(id);
     if (!employee) {
@@ -73,14 +94,25 @@ export async function PUT(
 
     if (name) employee.name = name;
     if (email) employee.email = email;
-    if (role) employee.role = role;
+    if (normalizedRole) employee.role = normalizedRole;
     if (Project) employee.Project = Project;
     if (status) employee.status = status;
     if (avatarColor) employee.avatarColor = avatarColor;
     if (password) employee.password = await hashPassword(password);
     if (userType) employee.userType = userType;
+    if (workMode) employee.workMode = workMode;
 
     await employee.save();
+
+    if (normalizedRole) {
+      try {
+        await ensureRoleExists(normalizedRole);
+      } catch (roleError: any) {
+        if (roleError?.code !== 11000) {
+          throw roleError;
+        }
+      }
+    }
 
     return NextResponse.json({ success: true, data: employee });
   } catch (error: any) {

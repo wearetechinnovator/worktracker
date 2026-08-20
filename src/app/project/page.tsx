@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Folder, Plus, Search, Edit3, Trash2, Clock, 
-  AlertCircle, Users, Briefcase
+  AlertCircle, Users, Briefcase, Mail
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import PageShimmer from '@/components/PageShimmer';
@@ -30,6 +30,13 @@ interface Project {
   totalMinutes: number;
   entryCount: number;
   members: any[];
+  clientId?: {
+    _id: string;
+    name: string;
+    emails: string[];
+    address?: string;
+    duration?: string;
+  } | null;
 }
 
 interface WorkEntry {
@@ -80,6 +87,14 @@ export default function ProjectsPage() {
   const [deptMembers, setDeptMembers] = useState<string[]>([]);
   const [savingDept, setSavingDept] = useState(false);
 
+  // Client Selection State
+  const [clientsList, setClientsList] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientEmails, setNewClientEmails] = useState('');
+  const [newClientAddress, setNewClientAddress] = useState('');
+  const [newClientDuration, setNewClientDuration] = useState('');
+
   // Form States (Log Work)
   const [workProjId, setWorkProjId] = useState('');
   const [workEmpId, setWorkEmpId] = useState('');
@@ -127,15 +142,17 @@ export default function ProjectsPage() {
       const empUrl = '/api/employees';
       const workUrl = isEmployee ? `/api/work?employeeId=${user._id}` : '/api/work';
 
-      const [projRes, empRes, workRes] = await Promise.all([
+      const [projRes, empRes, workRes, clientsRes] = await Promise.all([
         fetch(projUrl),
         fetch(empUrl),
-        fetch(workUrl)
+        fetch(workUrl),
+        fetch('/api/clients')
       ]);
 
       const projData = await projRes.json().catch(() => null);
       const empData = await empRes.json().catch(() => null);
       const workData = await workRes.json().catch(() => null);
+      const clientsData = await clientsRes.json().catch(() => null);
 
       if (!projRes.ok || !projData || !projData.success) throw new Error(projData?.error || 'Failed to load projects');
       if (!empRes.ok || !empData || !empData.success) throw new Error(empData?.error || 'Failed to load employees');
@@ -144,6 +161,9 @@ export default function ProjectsPage() {
       setProjects(projData.data);
       setEmployees(empData.data);
       setEntries(workData.data);
+      if (clientsData && clientsData.success) {
+        setClientsList(clientsData.data);
+      }
 
       if (projData.data.length > 0 && !workProjId) {
         setWorkProjId(projData.data[0]._id);
@@ -174,10 +194,29 @@ export default function ProjectsPage() {
 
     try {
       setSavingDept(true);
+      
+      const bodyPayload: any = {
+        name: deptName,
+        description: deptDesc,
+        color: deptColor,
+        members: deptMembers
+      };
+
+      if (selectedClientId === 'new') {
+        bodyPayload.clientInfo = {
+          name: newClientName,
+          emails: newClientEmails,
+          address: newClientAddress,
+          duration: newClientDuration
+        };
+      } else if (selectedClientId) {
+        bodyPayload.clientId = selectedClientId;
+      }
+
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: deptName, description: deptDesc, color: deptColor, members: deptMembers })
+        body: JSON.stringify(bodyPayload)
       });
       const result = await res.json();
       if (!result.success) throw new Error(result.error || 'Failed to create Project');
@@ -185,6 +224,11 @@ export default function ProjectsPage() {
       setDeptName('');
       setDeptDesc('');
       setDeptMembers([]);
+      setSelectedClientId('');
+      setNewClientName('');
+      setNewClientEmails('');
+      setNewClientAddress('');
+      setNewClientDuration('');
       setIsAddDeptOpen(false);
       await fetchData();
     } catch (err: any) {
@@ -200,14 +244,37 @@ export default function ProjectsPage() {
 
     try {
       setSavingDept(true);
+      
+      const bodyPayload: any = {
+        name: deptName,
+        description: deptDesc,
+        color: deptColor,
+        members: deptMembers
+      };
+
+      if (selectedClientId === 'new') {
+        bodyPayload.clientInfo = {
+          name: newClientName,
+          emails: newClientEmails,
+          address: newClientAddress,
+          duration: newClientDuration
+        };
+      } else {
+        bodyPayload.clientId = selectedClientId || null;
+      }
+
       const res = await fetch(`/api/projects/${selectedProjId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: deptName, description: deptDesc, color: deptColor, members: deptMembers })
+        body: JSON.stringify(bodyPayload)
       });
       const result = await res.json();
       if (!result.success) throw new Error(result.error || 'Failed to save Project changes');
 
+      setNewClientName('');
+      setNewClientEmails('');
+      setNewClientAddress('');
+      setNewClientDuration('');
       setEditMode(false);
       await fetchData();
     } catch (err: any) {
@@ -400,6 +467,7 @@ export default function ProjectsPage() {
                     setDeptDesc(proj.description || '');
                     setDeptColor(proj.color);
                     setDeptMembers(proj.members.map((m: any) => m._id));
+                    setSelectedClientId(proj.clientId?._id || '');
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
@@ -443,6 +511,26 @@ export default function ProjectsPage() {
                       <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginTop: '4px', whiteSpace: 'pre-wrap' }}>
                         {activeProject.description || 'No description added for this Project.'}
                       </p>
+                      {activeProject.clientId && (
+                        <div style={{ marginTop: '12px', padding: '10px 14px', background: 'var(--bg-tertiary)', borderRadius: '6px', border: '1px solid var(--border-color)', display: 'inline-block' }}>
+                          <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Briefcase size={12} style={{ color: 'var(--accent-primary)' }} />
+                            <span>Client: {activeProject.clientId.name}</span>
+                          </p>
+                          {activeProject.clientId.emails && activeProject.clientId.emails.length > 0 && (
+                            <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Mail size={11} />
+                              <span>{activeProject.clientId.emails.join(', ')}</span>
+                            </p>
+                          )}
+                          {activeProject.clientId.duration && (
+                            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Clock size={11} />
+                              <span>Duration: {activeProject.clientId.duration}</span>
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {isAdmin && (
@@ -648,7 +736,7 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  <div className="form-group">
+                   <div className="form-group">
                     <label className="form-label">Assign / Re-assign Team Members</label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '10px' }}>
                       {employees.map(emp => (
@@ -663,6 +751,72 @@ export default function ProjectsPage() {
                       ))}
                     </div>
                   </div>
+
+                  <div className="form-group" style={{ marginTop: '12px' }}>
+                    <label className="form-label">Client Association</label>
+                    <select
+                      className="form-control"
+                      value={selectedClientId}
+                      onChange={(e) => setSelectedClientId(e.target.value)}
+                    >
+                      <option value="">None</option>
+                      <option value="new">Add New Client Inline...</option>
+                      {clientsList.map(c => (
+                        <option key={c._id} value={c._id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedClientId === 'new' && (
+                    <div style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', display: 'grid', gap: '8px', marginBottom: '14px' }}>
+                      <p style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '4px' }}>New Client Details</p>
+                      <div>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Client Name *</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          style={{ height: '32px', fontSize: '0.76rem' }}
+                          required={selectedClientId === 'new'}
+                          placeholder="e.g. Acme Corp"
+                          value={newClientName}
+                          onChange={(e) => setNewClientName(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Contact Emails</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          style={{ height: '32px', fontSize: '0.76rem' }}
+                          placeholder="e.g. contact@acme.com, billing@acme.com"
+                          value={newClientEmails}
+                          onChange={(e) => setNewClientEmails(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Address</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          style={{ height: '32px', fontSize: '0.76rem' }}
+                          placeholder="e.g. 123 Main St"
+                          value={newClientAddress}
+                          onChange={(e) => setNewClientAddress(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Contract Duration</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          style={{ height: '32px', fontSize: '0.76rem' }}
+                          placeholder="e.g. 6 Months"
+                          value={newClientDuration}
+                          onChange={(e) => setNewClientDuration(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </form>
               )}
             </div>
@@ -733,6 +887,72 @@ export default function ProjectsPage() {
                   ))}
                 </div>
               </div>
+
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label className="form-label">Client Association</label>
+                <select
+                  className="form-control"
+                  value={selectedClientId}
+                  onChange={(e) => setSelectedClientId(e.target.value)}
+                >
+                  <option value="">None</option>
+                  <option value="new">Add New Client Inline...</option>
+                  {clientsList.map(c => (
+                    <option key={c._id} value={c._id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedClientId === 'new' && (
+                <div style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', display: 'grid', gap: '8px', marginBottom: '14px' }}>
+                  <p style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '4px' }}>New Client Details</p>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Client Name *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ height: '32px', fontSize: '0.76rem' }}
+                      required={selectedClientId === 'new'}
+                      placeholder="e.g. Acme Corp"
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Contact Emails</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ height: '32px', fontSize: '0.76rem' }}
+                      placeholder="e.g. contact@acme.com, billing@acme.com"
+                      value={newClientEmails}
+                      onChange={(e) => setNewClientEmails(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Address</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ height: '32px', fontSize: '0.76rem' }}
+                      placeholder="e.g. 123 Main St"
+                      value={newClientAddress}
+                      onChange={(e) => setNewClientAddress(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Contract Duration</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ height: '32px', fontSize: '0.76rem' }}
+                      placeholder="e.g. 6 Months"
+                      value={newClientDuration}
+                      onChange={(e) => setNewClientDuration(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsAddDeptOpen(false)}>Cancel</button>

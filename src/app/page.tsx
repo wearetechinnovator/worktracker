@@ -9,11 +9,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Clock, Plus, Folder, Calendar, Users, UserPlus, Mail, ChevronRight,
-  AlertCircle
+  AlertCircle, X
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import MyTasks from '@/components/MyTasks';
 import PageShimmer from '@/components/PageShimmer';
+import dynamic from 'next/dynamic';
+
+const CKEditorComponent = dynamic(
+  () => import('@/components/CKEditorWrapper'),
+  { ssr: false }
+);
 
 interface Employee {
   _id: string;
@@ -24,6 +30,7 @@ interface Employee {
   status: string;
   avatarColor: string;
   totalMinutes: number;
+  workMode?: string;
 }
 
 interface Project {
@@ -51,6 +58,35 @@ interface WorkEntry {
   endTime: string;
   actualTime: number;
   description?: string;
+  createdAt: string;
+}
+
+interface Task {
+  _id: string;
+  title: string;
+  description?: string;
+  projectId?: {
+    _id: string;
+    name: string;
+    color: string;
+  };
+  Project?: string;
+  assignedTo: Array<{
+    _id: string;
+    name: string;
+    email: string;
+    avatarColor: string;
+  }>;
+  createdBy: {
+    _id: string;
+    name: string;
+    email: string;
+    avatarColor?: string;
+  };
+  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
+  status: 'To Do' | 'In Progress' | 'Review' | 'Completed';
+  dueDate?: string;
+  tags?: string[];
   createdAt: string;
 }
 
@@ -90,9 +126,16 @@ export default function Dashboard() {
   const [empRole, setEmpRole] = useState('UI UX Designer');
   const [empDept, setEmpDept] = useState('Design');
   const [empStatus, setEmpStatus] = useState('Active');
+  const [empWorkMode, setEmpWorkMode] = useState('Hybrid');
+
   const [empColor, setEmpColor] = useState('#3b82f6');
   const [empPass, setEmpPass] = useState('password123');
   const [empType, setEmpType] = useState('employee');
+
+  // Custom Roles state
+  const [rolesList, setRolesList] = useState<{ _id: string; name: string }[]>([]);
+  const [isCreatingNewRole, setIsCreatingNewRole] = useState(false);
+  const [customNewRoleName, setCustomNewRoleName] = useState('');
   const [submittingEmp, setSubmittingEmp] = useState(false);
 
   // Project Form State
@@ -101,6 +144,14 @@ export default function Dashboard() {
   const [projColor, setProjColor] = useState('#3b82f6');
   const [projMembers, setProjMembers] = useState<string[]>([]);
   const [submittingProj, setSubmittingProj] = useState(false);
+
+  // Client Selection State
+  const [clientsList, setClientsList] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientEmails, setNewClientEmails] = useState('');
+  const [newClientAddress, setNewClientAddress] = useState('');
+  const [newClientDuration, setNewClientDuration] = useState('');
 
   // Work Log Form State
   const [workProjId, setWorkProjId] = useState('');
@@ -119,7 +170,13 @@ export default function Dashboard() {
   // Presets
   const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#475569'];
   const Projects = ['Design', 'Development', 'Marketing', 'Human Resource', 'Management'];
-  const statuses = ['Active', 'Sick Leave', 'Annual Leave', 'Work From Home'];
+  const statuses = ['Active', 'Inactive'];
+  const workmodes = ['Hybrid', 'Remote', 'Onsite'];
+
+
+  const [showModal, setShowModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [tasksKey, setTasksKey] = useState(0);
 
   // Check login session on mount
   useEffect(() => {
@@ -143,14 +200,22 @@ export default function Dashboard() {
       if (!isSilent) setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/dashboard');
+      const [response, clientsRes] = await Promise.all([
+        fetch('/api/dashboard'),
+        fetch('/api/clients')
+      ]);
       const result = await response.json().catch(() => null);
+      const clientsData = await clientsRes.json().catch(() => null);
+
       if (!response.ok || !result?.success) throw new Error(result?.error || 'Failed to connect to database');
       const { projects: nextProjects, employees: nextEmployees, entries: nextEntries } = result.data;
 
       setProjects(nextProjects);
       setEmployees(nextEmployees);
       setEntries(nextEntries);
+      if (clientsData && clientsData.success) {
+        setClientsList(clientsData.data);
+      }
 
       setWorkProjId((prev) => prev || (nextProjects.length > 0 ? nextProjects[0]._id : ''));
       setWorkEmpId((prev) => {
@@ -196,7 +261,7 @@ export default function Dashboard() {
     const updateDateTime = () => {
       const now = new Date();
       setLiveTime(now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      setLiveDate(now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+      setLiveDate(now.toLocaleDateString('en-US', { weekday: 'short', year: '2-digit', month: 'short', day: 'numeric' }));
     };
     updateDateTime();
     const interval = setInterval(updateDateTime, 1000);
@@ -216,7 +281,7 @@ export default function Dashboard() {
           );
         });
       }
-      
+
       const now = new Date();
       const localDate = now.toISOString().split('T')[0];
       const localTime = now.toTimeString().slice(0, 5); // HH:MM
@@ -265,7 +330,8 @@ export default function Dashboard() {
           status: empStatus,
           avatarColor: empColor,
           password: empPass,
-          userType: empType
+          userType: empType,
+          workMode: empWorkMode
         })
       });
       const data = await res.json();
@@ -290,15 +356,29 @@ export default function Dashboard() {
 
     try {
       setSubmittingProj(true);
+      
+      const bodyPayload: any = {
+        name: projName,
+        description: projDesc,
+        color: projColor,
+        members: projMembers
+      };
+
+      if (selectedClientId === 'new') {
+        bodyPayload.clientInfo = {
+          name: newClientName,
+          emails: newClientEmails,
+          address: newClientAddress,
+          duration: newClientDuration
+        };
+      } else if (selectedClientId) {
+        bodyPayload.clientId = selectedClientId;
+      }
+
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: projName,
-          description: projDesc,
-          color: projColor,
-          members: projMembers
-        })
+        body: JSON.stringify(bodyPayload)
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to create project');
@@ -306,6 +386,11 @@ export default function Dashboard() {
       setProjName('');
       setProjDesc('');
       setProjMembers([]);
+      setSelectedClientId('');
+      setNewClientName('');
+      setNewClientEmails('');
+      setNewClientAddress('');
+      setNewClientDuration('');
       setIsProjectModalOpen(false);
       await fetchData();
     } catch (err: any) {
@@ -468,10 +553,92 @@ Summary: ${entry.description || 'Completed work task details.'}`;
   const meEmployee = user ? (employees.find(e => e._id === user._id) || user) : null;
   const isAdmin = user?.userType === 'admin';
 
+  // Form state
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    projectId: '',
+    Project: '',
+    assignedTo: [] as string[],
+    priority: 'Medium' as 'Low' | 'Medium' | 'High' | 'Urgent',
+    status: 'To Do' as 'To Do' | 'In Progress' | 'Review' | 'Completed',
+    dueDate: '',
+    tags: '',
+  });
+
+  const openCreateModal = () => {
+    resetForm();
+    if (!isAdmin && user) {
+      setFormData((current) => ({
+        ...current,
+        assignedTo: user._id ? [user._id] : [],
+        Project: user.Project || '',
+      }));
+    }
+    setShowModal(true);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      description: '',
+      projectId: '',
+      Project: '',
+      assignedTo: [],
+      priority: 'Medium',
+      status: 'To Do',
+      dueDate: '',
+      tags: '',
+    });
+    setEditingTask(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    try {
+      const userId = user._id || user.id || user.email;
+      const safeAssignedTo = isAdmin ? formData.assignedTo : [userId];
+
+      const payload = {
+        ...formData,
+        assignedTo: safeAssignedTo,
+        createdBy: userId,
+        userId: userId,
+        userEmail: user.email,
+        email: user.email,
+        projectId: formData.projectId || undefined,
+        Project: formData.Project || user.Project || undefined,
+        dueDate: formData.dueDate || undefined,
+        tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()) : [],
+      };
+
+      const url = editingTask ? `/api/tasks/${editingTask._id}` : '/api/tasks';
+      const method = editingTask ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'Failed to save task');
+
+      alert(editingTask ? 'Task updated successfully!' : 'Task created successfully!');
+
+      setShowModal(false);
+      resetForm();
+      setTasksKey((prev) => prev + 1);
+    } catch (err: any) {
+      alert(err.message || String(err));
+    }
+  };
+
   if (loading && projects.length === 0 && !error) {
     return <PageShimmer variant="dashboard" />;
   }
-
   return (
     <div>
       {/* Welcome Panel */}
@@ -479,40 +646,41 @@ Summary: ${entry.description || 'Completed work task details.'}`;
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Dashboard Overview</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-            {isAdmin 
+            {isAdmin
               ? 'Manage your organization Projects, monitor employee schedule, and track tasks.'
               : 'Log your work sessions, view assigned Projects, and manage your schedules.'}
           </p>
         </div>
 
         {/* Live Date and Time in the middle */}
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center', 
+        <div style={{
+          display: 'flex',
+          // flexDirection: 'column',
+          alignItems: 'center',
           justifyContent: 'center',
           textAlign: 'center',
+          gap: '8px',
           background: 'var(--bg-secondary)',
           border: '1px solid var(--border-color)',
-          borderRadius: 'var(--border-radius)',
-          padding: '6px 16px',
+          borderRadius: '7px',
+          padding: '4px 16px',
           boxShadow: 'var(--box-shadow-sm)',
           minWidth: '220px'
         }}>
-          <span style={{ 
-            fontSize: '1.1rem', 
-            fontWeight: 850, 
-            fontFamily: 'monospace', 
+          <span style={{
+            fontSize: '0.8rem',
+            fontWeight: 850,
+            fontFamily: 'monospace',
             color: 'var(--accent-primary)',
-            letterSpacing: '0.5px' 
+            letterSpacing: '0.5px'
           }}>
             {liveTime}
           </span>
-          <span style={{ 
-            fontSize: '0.68rem', 
-            fontWeight: 700, 
+          <span style={{
+            fontSize: '0.68rem',
+            fontWeight: 700,
             color: 'var(--text-secondary)',
-            marginTop: '2px' 
+            marginTop: '2px'
           }}>
             {liveDate}
           </span>
@@ -529,11 +697,21 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                 <Folder size={14} />
                 <span>New Project</span>
               </button>
+
+              <button
+                onClick={openCreateModal}
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Plus size={16} />
+                <span>{isAdmin ? 'Create Task' : 'Add My Task'}</span>
+              </button>
+
             </>
           )}
           {!isAdmin && isPunchedIn && (
-            <button 
-              className="btn btn-punchout" 
+            <button
+              className="btn btn-punchout"
               onClick={canPunchOut ? handlePunchOut : undefined}
               disabled={!canPunchOut}
               style={{
@@ -680,7 +858,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
         {/* Employee Tasks Section */}
         {!isAdmin && user && (
           <div className="col-12" style={{ marginBottom: '20px' }}>
-            <MyTasks userId={user._id} />
+            <MyTasks userId={user._id} key={tasksKey} />
           </div>
         )}
 
@@ -1007,7 +1185,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Project *</label>
+                  <label className="form-label">Department *</label>
                   <select
                     className="form-control"
                     value={empDept}
@@ -1022,7 +1200,7 @@ Summary: ${entry.description || 'Completed work task details.'}`;
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Presence Status</label>
+                  <label className="form-label">Initial Status</label>
                   <select
                     className="form-control"
                     value={empStatus}
@@ -1033,6 +1211,20 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                     ))}
                   </select>
                 </div>
+
+                <div className="form-group">
+                  <label className="form-label">Work Mode</label>
+                  <select
+                    className="form-control"
+                    value={empWorkMode}
+                    onChange={(e) => setEmpWorkMode(e.target.value)}
+                  >
+                    {workmodes.map((workmode) => (
+                      <option key={workmode} value={workmode}>{workmode}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="form-group">
                   <label className="form-label">Theme Color</label>
                   <div className="color-selector">
@@ -1120,11 +1312,77 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                         checked={projMembers.includes(emp._id)}
                         onChange={() => handleMemberSelectToggle(emp._id)}
                       />
-                      <span style={{ fontWeight: 650 }}>{emp.name} ({emp.role})</span>
+                      <span style={{ fontWeight: 655 }}>{emp.name} ({emp.role})</span>
                     </label>
                   ))}
                 </div>
               </div>
+
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label className="form-label">Client Association</label>
+                <select
+                  className="form-control"
+                  value={selectedClientId}
+                  onChange={(e) => setSelectedClientId(e.target.value)}
+                >
+                  <option value="">None</option>
+                  <option value="new">Add New Client Inline...</option>
+                  {clientsList.map(c => (
+                    <option key={c._id} value={c._id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedClientId === 'new' && (
+                <div style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', display: 'grid', gap: '8px', marginBottom: '14px' }}>
+                  <p style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '4px' }}>New Client Details</p>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Client Name *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ height: '32px', fontSize: '0.76rem' }}
+                      required={selectedClientId === 'new'}
+                      placeholder="e.g. Acme Corp"
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Contact Emails</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ height: '32px', fontSize: '0.76rem' }}
+                      placeholder="e.g. contact@acme.com, billing@acme.com"
+                      value={newClientEmails}
+                      onChange={(e) => setNewClientEmails(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Address</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ height: '32px', fontSize: '0.76rem' }}
+                      placeholder="e.g. 123 Main St"
+                      value={newClientAddress}
+                      onChange={(e) => setNewClientAddress(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Contract Duration</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ height: '32px', fontSize: '0.76rem' }}
+                      placeholder="e.g. 6 Months"
+                      value={newClientDuration}
+                      onChange={(e) => setNewClientDuration(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsProjectModalOpen(false)}>Cancel</button>
@@ -1270,6 +1528,236 @@ Summary: ${entry.description || 'Completed work task details.'}`;
               <button type="button" className="btn btn-secondary" onClick={() => setIsMailModalOpen(false)}>Close</button>
               <button type="button" className="btn btn-primary" onClick={handleCopyToClipboard}>Copy to Clipboard</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create/Edit Modal */}
+      {showModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px',
+          }}
+          onClick={() => {
+            setShowModal(false);
+            resetForm();
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: '850px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>
+                {editingTask ? 'Edit Task' : 'Create New Task'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  resetForm();
+                }}
+                className="btn"
+                style={{ padding: '6px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <div style={{ marginBottom: '16px' }}>
+                <label className="form-label">Title *</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: !formData.projectId ? '1fr 1fr' : '1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label className="form-label">Choose</label>
+                  <select
+                    className="form-control"
+                    value={formData.projectId}
+                    onChange={(e) => setFormData({ ...formData, projectId: e.target.value, Project: '' })}
+                  >
+                    <option value="">None</option>
+                    {projects.map((proj) => (
+                      <option key={proj._id} value={proj._id}>
+                        {proj.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {!formData.projectId && (
+                  <div>
+                    <label className="form-label">Project</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formData.Project}
+                      onChange={(e) => setFormData({ ...formData, Project: e.target.value, projectId: '' })}
+                      disabled={!!formData.projectId}
+                      placeholder={formData.projectId ? 'Using project' : 'e.g., Engineering'}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {isAdmin && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label className="form-label">Assign To *</label>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    maxHeight: '140px',
+                    overflowY: 'auto',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--border-radius-sm)',
+                    padding: '10px',
+                    background: 'var(--bg-secondary)'
+                  }}>
+                    {employees.map((emp) => {
+                      const isChecked = formData.assignedTo.includes(emp._id);
+                      return (
+                        <label
+                          key={emp._id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            padding: '4px 6px',
+                            borderRadius: '4px',
+                            background: isChecked ? 'var(--bg-tertiary)' : 'transparent'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({ ...formData, assignedTo: [...formData.assignedTo, emp._id] });
+                              } else {
+                                setFormData({ ...formData, assignedTo: formData.assignedTo.filter(id => id !== emp._id) });
+                              }
+                            }}
+                          />
+                          <span style={{ fontWeight: isChecked ? 700 : 400 }}>{emp.name} ({emp.Project})</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label className="form-label">Priority</label>
+                  <select
+                    className="form-control"
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'Low' | 'Medium' | 'High' | 'Urgent' })}
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Urgent">Urgent</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="form-label">Status</label>
+                  <select
+                    className="form-control"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'To Do' | 'In Progress' | 'Review' | 'Completed' })}
+                  >
+                    <option value="To Do">To Do</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Review">Review</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="form-label">Due Date</label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={formData.dueDate}
+                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label className="form-label">Description</label>
+                <CKEditorComponent
+                  value={formData.description}
+                  onChange={(val) => setFormData({ ...formData, description: val })}
+                />
+              </div>
+
+
+
+
+
+              {!isAdmin && user && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label className="form-label">Assigned To</label>
+                  <div className="form-control" style={{ display: 'flex', alignItems: 'center', minHeight: '42px' }}>
+                    {user.name}
+                  </div>
+                </div>
+              )}
+
+
+              <div style={{ marginBottom: '20px' }}>
+                <label className="form-label">Tags (comma separated)</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={formData.tags}
+                  onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                  placeholder="e.g., frontend, urgent, bug"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowModal(false);
+                    resetForm();
+                  }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  {editingTask ? 'Update Task' : 'Create Task'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -3,8 +3,27 @@ import dbConnect from '@/lib/dbConnect';
 import Employee from '@/models/Employee';
 import WorkEntry from '@/models/WorkEntry';
 import Attendance from '@/models/Attendance';
+import Role from '@/models/Role';
 import { hashPassword } from '@/lib/password';
 import { isErrorResponse, requireUser } from '@/lib/auth';
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+async function ensureRoleExists(roleName: string) {
+  const trimmedRoleName = roleName.trim();
+  if (!trimmedRoleName) return;
+
+  const existing = await Role.findOne({
+    name: { $regex: new RegExp(`^${escapeRegex(trimmedRoleName)}$`, 'i') },
+  });
+
+  if (!existing) {
+    await Role.create({
+      name: trimmedRoleName,
+      description: 'Auto-detected from employee profiles',
+    });
+  }
+}
 
 export async function GET() {
   try {
@@ -14,7 +33,7 @@ export async function GET() {
     const today = new Date().toISOString().split('T')[0];
     const [employees, stats, todayAttendances] = await Promise.all([
       Employee.find({ userType: { $ne: 'admin' } })
-        .select('name email role Project status avatarColor userType createdAt updatedAt')
+        .select('name email role Project status avatarColor userType workMode createdAt updatedAt')
         .sort({ createdAt: -1 })
         .lean(),
       WorkEntry.aggregate<{ _id: string; totalMinutes: number; entryCount: number }>([
@@ -38,6 +57,7 @@ export async function GET() {
           status: emp.status,
           avatarColor: emp.avatarColor,
           userType: emp.userType || 'employee',
+          workMode: emp.workMode || 'Hybrid',
           createdAt: emp.createdAt,
           updatedAt: emp.updatedAt,
           totalMinutes: stat?.totalMinutes ?? 0,
@@ -59,9 +79,10 @@ export async function POST(request: Request) {
   try {
     await dbConnect();
     const body = await request.json();
-    const { name, email, role, Project, status, avatarColor, password, userType } = body;
+    const { name, email, role, Project, status, avatarColor, password, userType, workMode } = body;
+    const normalizedRole = typeof role === 'string' ? role.trim() : '';
 
-    if (!name || !email || !role || !Project) {
+    if (!name || !email || !normalizedRole || !Project) {
       return NextResponse.json(
         { success: false, error: 'Name, email, role, and Project are required' },
         { status: 400 }
@@ -71,13 +92,22 @@ export async function POST(request: Request) {
     const employee = await Employee.create({
       name,
       email,
-      role,
+      role: normalizedRole,
       Project,
       status: status || 'Active',
       avatarColor: avatarColor || '#7f56d9',
       password: await hashPassword(password || 'password123'),
       userType: userType || 'employee',
+      workMode: workMode || 'Hybrid',
     });
+
+    try {
+      await ensureRoleExists(normalizedRole);
+    } catch (roleError: any) {
+      if (roleError?.code !== 11000) {
+        throw roleError;
+      }
+    }
 
     return NextResponse.json({ success: true, data: employee }, { status: 201 });
   } catch (error: any) {

@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, ChevronLeft, LogOut, Clock, Settings, CheckSquare, History
+  LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, ChevronLeft, LogOut, Clock, Settings, CheckSquare, History, Briefcase, FileText
 } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
 
@@ -317,6 +317,11 @@ export default function Sidebar() {
                 </div>
               )}
 
+              <Link href="/keep-notes" className={`sidebar-link ${pathname === '/keep-notes' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
+                <FileText size={14} />
+                <span>Keep Notes</span>
+              </Link>
+
               {/* Punch page for admins - always accessible */}
               {isAdmin && (
                 <Link href="/punch" className={`sidebar-link ${pathname === '/punch' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
@@ -359,6 +364,14 @@ export default function Sidebar() {
                   <Link href="/employees" className={`sidebar-link ${pathname === '/employees' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
                     <Users size={14} />
                     <span>Employee</span>
+                  </Link>
+                  <Link href="/roles" className={`sidebar-link ${pathname === '/roles' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
+                    <Briefcase size={14} />
+                    <span>Roles</span>
+                  </Link>
+                  <Link href="/clients" className={`sidebar-link ${pathname === '/clients' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
+                    <Briefcase size={14} />
+                    <span>Clients</span>
                   </Link>
                   <Link href="/reports" className={`sidebar-link ${pathname === '/reports' ? 'active' : ''}`} style={{ padding: '6px 8px', fontSize: '0.78rem' }}>
                     <FileBarChart size={14} />

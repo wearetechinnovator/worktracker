@@ -4,11 +4,12 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/exhaustive-deps */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FileText, Calendar, Folder, Search, Printer,
-  Clock, AlertCircle, Loader2, Edit3, Trash2, Download
+  Clock, AlertCircle, Loader2, Edit3, Trash2, Download,
+  ChevronDown, ChevronRight
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import PageShimmer from '@/components/PageShimmer';
@@ -43,6 +44,18 @@ interface WorkEntry {
   description?: string;
 }
 
+interface GroupedTask {
+  key: string;
+  projectId: string;
+  projectName: string;
+  projectColor: string;
+  title: string;
+  totalTime: number;
+  latestDate: string;
+  employeeNames: string[];
+  entries: WorkEntry[];
+}
+
 export default function ReportsPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
@@ -53,6 +66,10 @@ export default function ReportsPage() {
   const [entries, setEntries] = useState<WorkEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Grouping State
+  const [groupByTask, setGroupByTask] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Filters State
   const [selectedProject, setSelectedProject] = useState('');
@@ -258,8 +275,59 @@ export default function ReportsPage() {
     }
   };
 
+  // Toggle expanded group key
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  // Grouping useMemo
+  const groupedEntries = useMemo(() => {
+    if (!groupByTask) return [];
+
+    const groups: Record<string, GroupedTask> = {};
+
+    entries.forEach((entry) => {
+      const key = `${entry.projectId}_${entry.title.trim().toLowerCase()}`;
+      if (!groups[key]) {
+        groups[key] = {
+          key,
+          projectId: entry.projectId,
+          projectName: entry.projectName,
+          projectColor: entry.projectColor,
+          title: entry.title,
+          totalTime: 0,
+          latestDate: entry.date,
+          employeeNames: [],
+          entries: [],
+        };
+      }
+
+      groups[key].totalTime += entry.actualTime;
+      groups[key].entries.push(entry);
+
+      if (!groups[key].employeeNames.includes(entry.employeeName)) {
+        groups[key].employeeNames.push(entry.employeeName);
+      }
+
+      if (new Date(entry.date) > new Date(groups[key].latestDate)) {
+        groups[key].latestDate = entry.date;
+      }
+    });
+
+    return Object.values(groups).sort((a, b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime());
+  }, [entries, groupByTask]);
+
   const ITEMS_PER_PAGE = 10;
-  const paginatedEntries = entries.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const displayItems = groupByTask ? groupedEntries : entries;
+  const paginatedEntries = displayItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const renderPagination = (totalItems: number, itemsPerPage: number, page: number, onPageChange: (p: number) => void) => {
     const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -522,6 +590,21 @@ export default function ReportsPage() {
               />
             </div>
           </div>
+
+          <div className="form-group" style={{ margin: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <label className="form-label" style={{ marginBottom: '8px' }}>Task Grouping</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.8rem' }}>
+              <input
+                type="checkbox"
+                checked={groupByTask}
+                onChange={(e) => {
+                  setGroupByTask(e.target.checked);
+                  setCurrentPage(1);
+                }}
+              />
+              <span style={{ fontWeight: 650 }}>Group by Task Title</span>
+            </label>
+          </div>
         </div>
 
         {dateRangePreset === 'custom' && (
@@ -646,54 +729,162 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedEntries.map((entry) => (
-                  <tr key={entry._id}>
-                    <td>{entry.date}</td>
-                    <td>
-                      <div className="avatar-wrapper">
-                        <div className="avatar" style={{ backgroundColor: entry.employeeAvatarColor, width: '24px', height: '24px', fontSize: '0.65rem' }}>
-                          {entry.employeeName.split(' ').map(n => n[0]).join('')}
+                {paginatedEntries.map((item: any) => {
+                  if (groupByTask) {
+                    const group = item as GroupedTask;
+                    const isExpanded = expandedGroups.has(group.key);
+                    return (
+                      <Fragment key={group.key}>
+                        <tr
+                          onClick={() => toggleGroup(group.key)}
+                          style={{ cursor: 'pointer', background: isExpanded ? 'var(--bg-tertiary)' : 'transparent' }}
+                        >
+                          <td>{group.latestDate}</td>
+                          <td>
+                            <span style={{ fontWeight: 650, fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                              took by {group.employeeNames.length} {group.employeeNames.length === 1 ? 'member' : 'members'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="tag-badge" style={{ backgroundColor: `${group.projectColor}15`, color: group.projectColor, borderColor: `${group.projectColor}30` }}>
+                              {group.projectName}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: 700, fontSize: '0.8.rem' }}>{group.title}</span>
+                              <span style={{ fontSize: '0.66rem', fontWeight: 600, padding: '1px 5px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '4px', color: 'var(--text-muted)' }}>
+                                {group.entries.length} logs
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                            Multiple Sessions
+                          </td>
+                          <td style={{ fontWeight: 750, color: 'var(--accent-primary)', textAlign: 'right' }}>
+                            {formatMinutesToDuration(group.totalTime)}
+                          </td>
+                          <td className="no-print" style={{ textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              className="action-btn"
+                              style={{ border: 'none', background: 'transparent', display: 'inline-flex', padding: '4px' }}
+                            >
+                              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </button>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr key={group.key + '_expanded'} className="expanded-row-details">
+                            <td colSpan={7} style={{ padding: '10px 18px', background: 'var(--bg-tertiary)' }}>
+                              <div style={{ borderLeft: '3px solid var(--accent-primary)', paddingLeft: '16px', background: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border-color)', padding: '12px' }}>
+                                <h4 style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', color: 'var(--text-muted)' }}>Session Breakdowns</h4>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.74rem' }}>
+                                  <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', height: '28px' }}>
+                                      <th style={{ textAlign: 'left', padding: '4px 6px' }}>Date</th>
+                                      <th style={{ textAlign: 'left', padding: '4px 6px' }}>Employee</th>
+                                      <th style={{ textAlign: 'left', padding: '4px 6px' }}>Time Frame</th>
+                                      <th style={{ textAlign: 'left', padding: '4px 6px' }}>Description</th>
+                                      <th style={{ textAlign: 'right', padding: '4px 6px' }}>Tracked</th>
+                                      <th style={{ textAlign: 'center', padding: '4px 6px', width: '80px' }} className="no-print">Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {group.entries.map((subEntry) => (
+                                      <tr key={subEntry._id} style={{ borderBottom: '1px solid var(--border-color)', height: '32px' }}>
+                                        <td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>{subEntry.date}</td>
+                                        <td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div className="avatar" style={{ backgroundColor: subEntry.employeeAvatarColor, width: '18px', height: '18px', fontSize: '0.55rem' }}>
+                                              {subEntry.employeeName.split(' ').map(n => n[0]).join('')}
+                                            </div>
+                                            <span style={{ fontWeight: 600 }}>{subEntry.employeeName}</span>
+                                          </div>
+                                        </td>
+                                        <td style={{ padding: '4px 6px', color: 'var(--text-secondary)' }}>{subEntry.startTime} - {subEntry.endTime}</td>
+                                        <td style={{ padding: '4px 6px' }}>
+                                          {subEntry.description ? (
+                                            <div dangerouslySetInnerHTML={{ __html: subEntry.description }} />
+                                          ) : (
+                                            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No details</span>
+                                          )}
+                                        </td>
+                                        <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                                          {formatMinutesToDuration(subEntry.actualTime)}
+                                        </td>
+                                        <td style={{ padding: '4px 6px', textAlign: 'center' }} className="no-print">
+                                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                            <button className="action-btn" title="Edit Log" onClick={(e) => { e.stopPropagation(); openEditModal(subEntry); }}>
+                                              <Edit3 size={11} />
+                                            </button>
+                                            <button className="action-btn btn-delete-item" title="Delete Log" onClick={(e) => { e.stopPropagation(); handleDeleteLog(subEntry._id); }}>
+                                              <Trash2 size={11} />
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  }
+
+                  const entry = item as WorkEntry;
+                  return (
+                    <tr key={entry._id}>
+                      <td>{entry.date}</td>
+                      <td>
+                        <div className="avatar-wrapper">
+                          <div className="avatar" style={{ backgroundColor: entry.employeeAvatarColor, width: '24px', height: '24px', fontSize: '0.65rem' }}>
+                            {entry.employeeName.split(' ').map(n => n[0]).join('')}
+                          </div>
+                          <span style={{ fontWeight: 700 }}>{entry.employeeName}</span>
                         </div>
-                        <span style={{ fontWeight: 700 }}>{entry.employeeName}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="tag-badge" style={{ backgroundColor: `${entry.projectColor}15`, color: entry.projectColor, borderColor: `${entry.projectColor}30` }}>
-                        {entry.projectName}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{entry.title}</div>
-                      {entry.description && (
-                        <div
-                          style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}
-                          dangerouslySetInnerHTML={{ __html: entry.description }}
-                        />
-                      )}
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)' }}>
-                      {entry.startTime} - {entry.endTime}
-                    </td>
-                    <td style={{ fontWeight: 750, color: 'var(--accent-primary)', textAlign: 'right' }}>
-                      {formatMinutesToDuration(entry.actualTime)}
-                    </td>
-                    <td className="no-print">
-                      <div style={{ display: 'flex', gap: '2px' }}>
-                        <button className="action-btn" title="Edit Log" onClick={() => openEditModal(entry)}>
-                          <Edit3 size={12} />
-                        </button>
-                        <button className="action-btn btn-delete-item" title="Delete Log" onClick={() => handleDeleteLog(entry._id)}>
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        <span className="tag-badge" style={{ backgroundColor: `${entry.projectColor}15`, color: entry.projectColor, borderColor: `${entry.projectColor}30` }}>
+                          {entry.projectName}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{entry.title}</div>
+                        {entry.description && (
+                          <div
+                            style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}
+                            dangerouslySetInnerHTML={{ __html: entry.description }}
+                          />
+                        )}
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)' }}>
+                        {entry.startTime} - {entry.endTime}
+                      </td>
+                      <td style={{ fontWeight: 750, color: 'var(--accent-primary)', textAlign: 'right' }}>
+                        {formatMinutesToDuration(entry.actualTime)}
+                      </td>
+                      <td className="no-print">
+                        <div style={{ display: 'flex', gap: '2px' }}>
+                          <button className="action-btn" title="Edit Log" onClick={() => openEditModal(entry)}>
+                            <Edit3 size={12} />
+                          </button>
+                          <button className="action-btn btn-delete-item" title="Delete Log" onClick={() => handleDeleteLog(entry._id)}>
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
-        {renderPagination(entries.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
+        {renderPagination(displayItems.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
       </div>
 
       {/* EDIT WORK SESSION MODAL */}

@@ -6,8 +6,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Users, UserPlus, Mail, Edit3, 
+import {
+  Users, UserPlus, Mail, Edit3,
   Trash2, AlertCircle, Clock, Check, Briefcase, Calendar
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
@@ -24,6 +24,7 @@ interface Employee {
   avatarColor: string;
   userType: 'admin' | 'employee';
   password?: string;
+  workMode?: string;
   totalMinutes: number;
   todayAttendance?: {
     allowPunchInDate?: string | null;
@@ -57,14 +58,17 @@ export default function EmployeesPage() {
   const [role, setRole] = useState('UI UX Designer');
   const [Project, setProject] = useState('Design');
   const [status, setStatus] = useState('Active');
+  const [workMode, setWorkMode] = useState('Hybrid');
   const [color, setColor] = useState('#3b82f6');
   const [password, setPassword] = useState('password123');
   const [userType, setUserType] = useState<'admin' | 'employee'>('employee');
+  const [roleSuggestions, setRoleSuggestions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#475569'];
   const Projects = ['Design', 'Development', 'Marketing', 'Human Resource', 'Management'];
-  const statuses = ['Active', 'Sick Leave', 'Annual Leave', 'Work From Home'];
+  const statuses = ['Active', 'Inactive'];
+  const workmodes = ['Hybrid', 'Remote', 'Onsite'];
 
   // Check login session on mount
   useEffect(() => {
@@ -107,6 +111,34 @@ export default function EmployeesPage() {
     }
   }, [user, fetchEmployees]);
 
+  const fetchRoleSuggestions = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const res = await fetch('/api/roles');
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.data)) return;
+
+      const names: string[] = Array.from(
+        new Set<string>(
+          data.data
+            .map((item: any) => (typeof item?.name === 'string' ? item.name.trim() : ''))
+            .filter(Boolean)
+        )
+      ).sort((a, b) => a.localeCompare(b));
+
+      setRoleSuggestions(names);
+    } catch (err) {
+      console.error('Failed to fetch role suggestions:', err);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchRoleSuggestions();
+    }
+  }, [user, fetchRoleSuggestions]);
+
   useEffect(() => {
     if (typeof window !== 'undefined' && employees.length > 0) {
       const selectId = new URLSearchParams(window.location.search).get('select');
@@ -130,15 +162,16 @@ export default function EmployeesPage() {
       const res = await fetch('/api/employees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name, 
-          email, 
-          role, 
-          Project, 
-          status, 
-          avatarColor: color, 
-          password, 
-          userType 
+        body: JSON.stringify({
+          name,
+          email,
+          role,
+          Project,
+          status,
+          avatarColor: color,
+          password,
+          userType,
+          workMode
         })
       });
       const data = await res.json();
@@ -147,6 +180,7 @@ export default function EmployeesPage() {
       setIsAddModalOpen(false);
       resetForm();
       await fetchEmployees();
+      await fetchRoleSuggestions();
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -162,6 +196,7 @@ export default function EmployeesPage() {
     setRole(emp.role);
     setProject(emp.Project);
     setStatus(emp.status);
+    setWorkMode(emp.workMode || 'Hybrid');
     setColor(emp.avatarColor);
     setPassword('');
     setUserType(emp.userType || 'employee');
@@ -178,15 +213,16 @@ export default function EmployeesPage() {
       const res = await fetch(`/api/employees/${editingEmp._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name, 
-          email, 
-          role, 
-          Project, 
-          status, 
-          avatarColor: color, 
-          password, 
-          userType 
+        body: JSON.stringify({
+          name,
+          email,
+          role,
+          Project,
+          status,
+          avatarColor: color,
+          password,
+          userType,
+          workMode
         })
       });
       const data = await res.json();
@@ -196,6 +232,7 @@ export default function EmployeesPage() {
       setEditingEmp(null);
       resetForm();
       await fetchEmployees();
+      await fetchRoleSuggestions();
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -305,6 +342,7 @@ export default function EmployeesPage() {
     setRole('UI UX Designer');
     setProject('Design');
     setStatus('Active');
+    setWorkMode('Hybrid');
     setColor('#3b82f6');
     setPassword('password123');
     setUserType('employee');
@@ -371,6 +409,11 @@ export default function EmployeesPage() {
                     <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
                       <span className="tag-badge" style={{ fontSize: '0.65rem' }}>{emp.Project}</span>
                       <span className="tag-badge" style={{ fontSize: '0.65rem', textTransform: 'capitalize' }}>{emp.userType}</span>
+                      {emp.workMode && (
+                        <span className="tag-badge" style={{ fontSize: '0.65rem', background: 'var(--bg-tertiary)', color: 'var(--accent-primary)' }}>
+                          {emp.workMode}
+                        </span>
+                      )}
                     </div>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
                       <Briefcase size={12} style={{ color: 'var(--text-muted)' }} />
@@ -445,10 +488,10 @@ export default function EmployeesPage() {
       </div>
 
       {/* EMPLOYEE MONTHLY ATTENDANCE & WORK DETAILS MODAL */}
-      <EmployeeAttendanceCalendarModal 
-        employee={selectedEmployee} 
-        isOpen={isDetailModalOpen} 
-        onClose={() => setIsDetailModalOpen(false)} 
+      <EmployeeAttendanceCalendarModal
+        employee={selectedEmployee}
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
       />
 
       {/* ADD EMPLOYEE MODAL */}
@@ -462,9 +505,9 @@ export default function EmployeesPage() {
             <form onSubmit={handleAddSubmit}>
               <div className="form-group">
                 <label className="form-label">Full Name *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   required
                   placeholder="e.g. Brooklyn Simmons"
                   value={name}
@@ -474,9 +517,9 @@ export default function EmployeesPage() {
 
               <div className="form-group">
                 <label className="form-label">Email Address *</label>
-                <input 
-                  type="email" 
-                  className="form-control" 
+                <input
+                  type="email"
+                  className="form-control"
                   required
                   placeholder="e.g. brok-simms@mail.com"
                   value={email}
@@ -487,17 +530,17 @@ export default function EmployeesPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Password *</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
+                  <input
+                    type="text"
+                    className="form-control"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Role Type *</label>
-                  <select 
+                  <label className="form-label">Access Type *</label>
+                  <select
                     className="form-control"
                     value={userType}
                     onChange={(e) => setUserType(e.target.value as any)}
@@ -510,18 +553,25 @@ export default function EmployeesPage() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Job Title *</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
+                  <label className="form-label">Job Title / Role *</label>
+                  <input
+                    type="text"
+                    className="form-control"
                     required
+                    list="employee-role-suggestions"
+                    placeholder="e.g. UI UX Designer"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                   />
+                  <datalist id="employee-role-suggestions">
+                    {roleSuggestions.map((roleOption) => (
+                      <option key={roleOption} value={roleOption} />
+                    ))}
+                  </datalist>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Project *</label>
-                  <select 
+                  <select
                     className="form-control"
                     value={Project}
                     onChange={(e) => setProject(e.target.value)}
@@ -536,7 +586,7 @@ export default function EmployeesPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Initial Status</label>
-                  <select 
+                  <select
                     className="form-control"
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
@@ -546,14 +596,27 @@ export default function EmployeesPage() {
                     ))}
                   </select>
                 </div>
+
+                <div className="form-group">
+                  <label className="form-label">Work Mode</label>
+                  <select
+                    className="form-control"
+                    value={workMode}
+                    onChange={(e) => setWorkMode(e.target.value)}
+                  >
+                    {workmodes.map((workmode) => (
+                      <option key={workmode} value={workmode}>{workmode}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="form-group">
                   <label className="form-label">Theme Color</label>
                   <div className="color-selector">
                     {colors.map((c) => (
-                      <div 
+                      <div
                         key={c}
                         className="color-option"
-                        style={{ 
+                        style={{
                           backgroundColor: c,
                           borderColor: color === c ? 'var(--text-primary)' : 'transparent'
                         }}
@@ -588,9 +651,9 @@ export default function EmployeesPage() {
             <form onSubmit={handleEditSubmit}>
               <div className="form-group">
                 <label className="form-label">Full Name *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -599,9 +662,9 @@ export default function EmployeesPage() {
 
               <div className="form-group">
                 <label className="form-label">Email Address *</label>
-                <input 
-                  type="email" 
-                  className="form-control" 
+                <input
+                  type="email"
+                  className="form-control"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -611,17 +674,17 @@ export default function EmployeesPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Password *</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
+                  <input
+                    type="text"
+                    className="form-control"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Role Type *</label>
-                  <select 
+                  <label className="form-label">Access Type *</label>
+                  <select
                     className="form-control"
                     value={userType}
                     onChange={(e) => setUserType(e.target.value as any)}
@@ -634,18 +697,25 @@ export default function EmployeesPage() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Job Title *</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
+                  <label className="form-label">Job Title / Role *</label>
+                  <input
+                    type="text"
+                    className="form-control"
                     required
+                    list="employee-role-suggestions"
+                    placeholder="e.g. UI UX Designer"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                   />
+                  <datalist id="employee-role-suggestions">
+                    {roleSuggestions.map((roleOption) => (
+                      <option key={roleOption} value={roleOption} />
+                    ))}
+                  </datalist>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Project *</label>
-                  <select 
+                  <select
                     className="form-control"
                     value={Project}
                     onChange={(e) => setProject(e.target.value)}
@@ -659,8 +729,8 @@ export default function EmployeesPage() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Presence Status</label>
-                  <select 
+                  <label className="form-label">Initial Status</label>
+                  <select
                     className="form-control"
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
@@ -671,13 +741,25 @@ export default function EmployeesPage() {
                   </select>
                 </div>
                 <div className="form-group">
+                  <label className="form-label">Work Mode</label>
+                  <select
+                    className="form-control"
+                    value={workMode}
+                    onChange={(e) => setWorkMode(e.target.value)}
+                  >
+                    {workmodes.map((workmode) => (
+                      <option key={workmode} value={workmode}>{workmode}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
                   <label className="form-label">Theme Color</label>
                   <div className="color-selector">
                     {colors.map((c) => (
-                      <div 
+                      <div
                         key={c}
                         className="color-option"
-                        style={{ 
+                        style={{
                           backgroundColor: c,
                           borderColor: color === c ? 'var(--text-primary)' : 'transparent'
                         }}

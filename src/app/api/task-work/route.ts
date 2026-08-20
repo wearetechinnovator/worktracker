@@ -12,6 +12,7 @@ export async function GET(request: Request) {
     const employeeId = searchParams.get('employeeId');
     const taskId = searchParams.get('taskId');
     const date = searchParams.get('date');
+    const projectId = searchParams.get('projectId');
 
     const query: Record<string, unknown> = {};
     const { page, limit, skip } = getPagination(searchParams);
@@ -20,9 +21,23 @@ export async function GET(request: Request) {
     if (taskId) query.taskId = taskId;
     if (date) query.date = date;
 
+    if (projectId) {
+      const tasks = await Task.find({ projectId }).select('_id').lean();
+      const taskIds = tasks.map(t => t._id);
+      query.taskId = { $in: taskIds };
+    }
+
     const [taskWorks, total] = await Promise.all([
       TaskWork.find(query)
-      .populate('taskId', 'title description priority status')
+      .populate({
+        path: 'taskId',
+        select: 'title description priority status projectId',
+        populate: {
+          path: 'projectId',
+          model: 'Project',
+          select: 'name color'
+        }
+      })
       .populate('employeeId', 'name email avatarColor')
       .sort({ createdAt: -1 })
       .skip(skip)

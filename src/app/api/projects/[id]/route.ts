@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Project from '@/models/Project';
 import WorkEntry from '@/models/WorkEntry';
+import Client from '@/models/Client';
 
 export async function GET(
   request: Request,
@@ -11,7 +12,7 @@ export async function GET(
     await dbConnect();
     const { id } = await params;
 
-    const project = await Project.findById(id).populate('members');
+    const project = await Project.findById(id).populate('members').populate('clientId');
     if (!project) {
       return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 });
     }
@@ -39,6 +40,13 @@ export async function GET(
           description: project.description,
           color: project.color,
           members: project.members,
+          clientId: project.clientId ? {
+            _id: (project.clientId as any)._id.toString(),
+            name: (project.clientId as any).name,
+            emails: (project.clientId as any).emails,
+            address: (project.clientId as any).address,
+            duration: (project.clientId as any).duration,
+          } : null,
           createdAt: project.createdAt,
           updatedAt: project.updatedAt,
         },
@@ -77,21 +85,40 @@ export async function PUT(
     await dbConnect();
     const { id } = await params;
     const body = await request.json();
-    const { name, description, color, members } = body;
+    const { name, description, color, members, clientId, clientInfo } = body;
 
     const project = await Project.findById(id);
     if (!project) {
       return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 });
     }
 
+    let finalClientId = clientId;
+    if (clientInfo && clientInfo.name && clientInfo.name.trim()) {
+      let processedEmails: string[] = [];
+      if (Array.isArray(clientInfo.emails)) {
+        processedEmails = clientInfo.emails.map((e: any) => String(e).trim()).filter(Boolean);
+      } else if (typeof clientInfo.emails === 'string') {
+        processedEmails = clientInfo.emails.split(',').map((e: string) => e.trim()).filter(Boolean);
+      }
+
+      const client = await Client.create({
+        name: clientInfo.name.trim(),
+        emails: processedEmails,
+        address: clientInfo.address ? clientInfo.address.trim() : '',
+        duration: clientInfo.duration ? clientInfo.duration.trim() : '',
+      });
+      finalClientId = client._id;
+    }
+
     if (name) project.name = name;
     if (description !== undefined) project.description = description;
     if (color) project.color = color;
     if (members) project.members = members;
+    if (finalClientId !== undefined) project.clientId = finalClientId || undefined;
 
     await project.save();
 
-    const populated = await project.populate('members');
+    const populated = await project.populate(['members', 'clientId']);
     return NextResponse.json({ success: true, data: populated });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 400 });
