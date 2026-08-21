@@ -310,6 +310,8 @@ export default function Sidebar() {
   const isAdmin = user?.userType === 'admin';
   const canAccessFeatures = isAdmin || isPunchedIn;
 
+  if (!user || pathname === '/login') return null;
+
   return (
     <aside className={`sidebar no-print ${isCollapsed ? 'collapsed' : ''}`}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
