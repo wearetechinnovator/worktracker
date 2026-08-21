@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, ChevronLeft, LogOut, Clock, Settings, CheckSquare, History, Briefcase, FileText
+  LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, ChevronLeft, LogOut, Clock, Settings, CheckSquare, History, Briefcase, FileText, Mail, Copy, Loader2
 } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
 
@@ -19,6 +19,12 @@ export default function Sidebar() {
   const [isPunchedIn, setIsPunchedIn] = useState(false);
   const [canPunchOut, setCanPunchOut] = useState(false);
   const [checkingPunch, setCheckingPunch] = useState(true);
+  const [shiftTimes, setShiftTimes] = useState<{ punchOutTime?: string; lateCutoffTime?: string } | null>(null);
+
+  // Punch Out Mail Modal States
+  const [showPunchOutModal, setShowPunchOutModal] = useState(false);
+  const [mailReportContent, setMailReportContent] = useState('');
+  const [isPunchingOut, setIsPunchingOut] = useState(false);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -109,13 +115,79 @@ export default function Sidebar() {
           setMemberCount(data.data.length);
         }
       } catch (err) {
-        console.error('Error loading members in sidebar', err);
+        console.error('Error loading employees:', err);
       }
-    }
+    };
     loadMembers();
-  }, [pathname]);
+  }, []);
 
-  if (pathname === '/login') return null;
+  // Check login status & punch in status
+  useEffect(() => {
+    const checkStatus = async () => {
+      const storedUser = localStorage.getItem('worktracker_user');
+      if (!storedUser) return;
+      const parsed = JSON.parse(storedUser);
+      setUser(parsed);
+
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const [attendanceRes, settingsRes] = await Promise.all([
+          fetch(`/api/attendance?employeeId=${parsed._id}&date=${today}`),
+          fetch('/api/settings'),
+        ]);
+
+        const attendanceData = await attendanceRes.json();
+        const settingsData = await settingsRes.json();
+
+        if (settingsData.success && settingsData.data) {
+          setShiftTimes({
+            punchOutTime: settingsData.data.punchOutTime,
+            lateCutoffTime: settingsData.data.lateCutoffTime,
+          });
+        }
+
+        if (attendanceData.success && attendanceData.data && attendanceData.data.length > 0) {
+          const rec = attendanceData.data[0];
+          const hasPunchedIn = !!rec.checkIn;
+          const hasPunchedOut = !!rec.checkOut;
+          setIsPunchedIn(hasPunchedIn && !hasPunchedOut);
+        } else {
+          setIsPunchedIn(false);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    checkStatus();
+  }, []);
+
+  // Validate if current employee can punch out based on shift settings
+  useEffect(() => {
+    if (!user || user.userType === 'admin') {
+      setCanPunchOut(true);
+      return;
+    }
+
+    if (!shiftTimes || !shiftTimes.punchOutTime) {
+      setCanPunchOut(true);
+      return;
+    }
+
+    const checkWindow = () => {
+      const now = new Date();
+      const currentMins = now.getHours() * 60 + now.getMinutes();
+
+      const [endH, endM] = shiftTimes.punchOutTime!.split(':').map(Number);
+      const shiftEndMins = endH * 60 + endM;
+
+      setCanPunchOut(currentMins >= shiftEndMins);
+    };
+
+    checkWindow();
+    const interval = setInterval(checkWindow, 30000);
+    return () => clearInterval(interval);
+  }, [user, shiftTimes]);
 
   const handleLogout = () => {
     localStorage.removeItem('worktracker_user');
@@ -124,9 +196,75 @@ export default function Sidebar() {
     });
   };
 
-  const handlePunchOut = async () => {
-    if (!user || !confirm('Are you sure you want to punch out now?')) return;
+  const openPunchOutModal = async () => {
+    if (!user) return;
     try {
+      const today = new Date().toISOString().split('T')[0];
+      const [tasksRes, worksRes] = await Promise.all([
+        fetch(`/api/tasks?employeeId=${user._id}`),
+        fetch(`/api/task-work?employeeId=${user._id}&limit=100`),
+      ]);
+
+      const tasksData = await tasksRes.json();
+      const worksData = await worksRes.json();
+
+      const taskMap = new Map<string, any>((tasksData.data || []).map((task: any) => [task._id, task]));
+      const completedEntries = (worksData.data || []).filter((entry: any) => entry.status === 'Completed' && (entry.date === today || !entry.date));
+
+      const formatTimeTo12Hour = (time24?: string) => {
+        if (!time24) return '';
+        const parts = time24.split(':');
+        if (parts.length < 2) return time24;
+        let h = parseInt(parts[0], 10);
+        const m = parts[1];
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12;
+        h = h ? h : 12;
+        return `${h}:${m} ${ampm}`;
+      };
+
+      const formatDurationText = (minutes?: number) => {
+        if (!minutes || minutes <= 0) return 'Under 1 minute';
+        const totalHours = minutes / 60;
+        if (totalHours < 0.1) return `${minutes} mins`;
+        const formatted = totalHours.toFixed(1).replace(/\.0$/, '');
+        return `${formatted} hours`;
+      };
+
+      let reportText = '';
+      if (completedEntries.length > 0) {
+        reportText = completedEntries.map((entry: any, index: number) => {
+          const task = taskMap.get(entry.taskId?._id || entry.taskId) || entry.taskId;
+          const projectName = task?.projectId?.name || task?.Project || 'General';
+          const taskTitle = task?.title || 'Untitled task';
+          const summary = (entry.notes || task?.description || 'Completed work task details.').replace(/<[^>]*>/g, '').trim();
+          const duration = formatDurationText(entry.totalMinutes || 0);
+
+          return `Task ${index + 1}:
+
+- Project: ${projectName}
+- Task: ${taskTitle}
+- Time: ${formatTimeTo12Hour(entry.startTime)} – ${formatTimeTo12Hour(entry.endTime || entry.startTime)} (${duration})
+- Status: Completed
+- Summary: ${summary}`;
+        }).join('\n\n');
+      } else {
+        reportText = `Daily Work Summary (${today})\n\nShift punch out report completed.`;
+      }
+
+      setMailReportContent(reportText);
+      setShowPunchOutModal(true);
+    } catch (err) {
+      console.error(err);
+      setMailReportContent(`Daily Work Summary (${new Date().toISOString().split('T')[0]})\n\nShift punch out report completed.`);
+      setShowPunchOutModal(true);
+    }
+  };
+
+  const confirmPunchOut = async () => {
+    if (!user) return;
+    try {
+      setIsPunchingOut(true);
       let location: any = undefined;
       if (typeof navigator !== 'undefined' && navigator.geolocation) {
         location = await new Promise((resolve) => {
@@ -137,10 +275,10 @@ export default function Sidebar() {
           );
         });
       }
-      
+
       const now = new Date();
       const localDate = now.toISOString().split('T')[0];
-      const localTime = now.toTimeString().slice(0, 5); // HH:MM
+      const localTime = now.toTimeString().slice(0, 5);
 
       const res = await fetch('/api/punch', {
         method: 'POST',
@@ -155,7 +293,6 @@ export default function Sidebar() {
       });
       const data = await res.json();
       if (data.success) {
-        alert('Successfully punched out and logged out!');
         localStorage.removeItem('worktracker_user');
         void fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
           window.location.assign('/login');
@@ -165,6 +302,8 @@ export default function Sidebar() {
       }
     } catch (err: any) {
       alert(err.message || 'Error punching out');
+    } finally {
+      setIsPunchingOut(false);
     }
   };
 
@@ -401,7 +540,7 @@ export default function Sidebar() {
             </div>
             {!isAdmin && isPunchedIn && (
               <button
-                onClick={canPunchOut ? handlePunchOut : undefined}
+                onClick={canPunchOut ? openPunchOutModal : undefined}
                 className="btn btn-punchout"
                 disabled={!canPunchOut}
                 style={{
@@ -443,6 +582,120 @@ export default function Sidebar() {
           </div>
         )}
       </div>
+
+      {/* Punch Out & Daily Work Mail Modal */}
+      {showPunchOutModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '20px',
+          }}
+          onClick={() => setShowPunchOutModal(false)}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: '550px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              position: 'relative',
+              background: 'var(--bg-secondary)',
+              color: 'var(--text-primary)',
+              borderRadius: '12px',
+              padding: '24px',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Mail size={20} style={{ color: 'var(--accent-primary)' }} />
+                Daily Work Mail & Punch Out
+              </h3>
+              <button
+                onClick={() => setShowPunchOutModal(false)}
+                className="btn"
+                style={{ padding: '6px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+              Review your generated daily work report mail before finalizing your punch out:
+            </p>
+
+            <div style={{ marginBottom: '16px' }}>
+              <textarea
+                className="form-control"
+                readOnly
+                rows={10}
+                style={{
+                  fontFamily: 'monospace',
+                  fontSize: '0.78rem',
+                  lineHeight: '1.5',
+                  background: 'var(--bg-tertiary)',
+                  resize: 'vertical',
+                  width: '100%'
+                }}
+                value={mailReportContent}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowPunchOutModal(false)}
+                disabled={isPunchingOut}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  navigator.clipboard.writeText(mailReportContent);
+                  alert('Mail report copied to clipboard!');
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Copy size={14} />
+                <span>Copy Mail</span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={confirmPunchOut}
+                disabled={isPunchingOut}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                {isPunchingOut ? (
+                  <>
+                    <Loader2 className="animate-spin" size={14} />
+                    <span>Punching Out...</span>
+                  </>
+                ) : (
+                  <>
+                    <Clock size={14} />
+                    <span>Confirm Punch Out</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Clock, Plus, Folder, Calendar, Users, UserPlus, Mail, ChevronRight,
-  AlertCircle, X
+  AlertCircle, X, Loader2
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import MyTasks from '@/components/MyTasks';
@@ -268,9 +268,16 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const handlePunchOut = async () => {
-    if (!user || !confirm('Are you sure you want to punch out now?')) return;
+  const [isPunchingOut, setIsPunchingOut] = useState(false);
+
+  const handlePunchOut = () => {
+    handleOpenMailModal();
+  };
+
+  const confirmPunchOut = async () => {
+    if (!user) return;
     try {
+      setIsPunchingOut(true);
       let location: any = undefined;
       if (typeof navigator !== 'undefined' && navigator.geolocation) {
         location = await new Promise((resolve) => {
@@ -284,7 +291,7 @@ export default function Dashboard() {
 
       const now = new Date();
       const localDate = now.toISOString().split('T')[0];
-      const localTime = now.toTimeString().slice(0, 5); // HH:MM
+      const localTime = now.toTimeString().slice(0, 5);
 
       const res = await fetch('/api/punch', {
         method: 'POST',
@@ -299,7 +306,6 @@ export default function Dashboard() {
       });
       const data = await res.json();
       if (data.success) {
-        alert('Successfully punched out and logged out!');
         localStorage.removeItem('worktracker_user');
         void fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
           window.location.assign('/login');
@@ -309,6 +315,8 @@ export default function Dashboard() {
       }
     } catch (err: any) {
       alert(err.message || 'Error punching out');
+    } finally {
+      setIsPunchingOut(false);
     }
   };
 
@@ -506,42 +514,69 @@ export default function Dashboard() {
 
   const totalChartHours = dailyWorkTimes.reduce((sum, d) => sum + d.workHours + d.overtimeHours, 0).toFixed(1);
 
-  const handleOpenMailModal = () => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayEntries = entries.filter(e => e.date === todayStr && e.employeeId === user?._id);
+  const handleOpenMailModal = async () => {
+    if (!user) return;
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const [tasksRes, worksRes] = await Promise.all([
+        fetch(`/api/tasks?employeeId=${user._id}`),
+        fetch(`/api/task-work?employeeId=${user._id}&limit=100`),
+      ]);
 
-    if (todayEntries.length === 0) {
-      alert("You haven't logged any work sessions for today yet.");
-      return;
+      const tasksData = await tasksRes.json();
+      const worksData = await worksRes.json();
+
+      const taskMap = new Map<string, any>((tasksData.data || []).map((task: any) => [task._id, task]));
+      const completedEntries = (worksData.data || []).filter((entry: any) => entry.status === 'Completed' && (entry.date === todayStr || !entry.date));
+
+      const formatTimeTo12Hour = (time24?: string) => {
+        if (!time24) return '';
+        const parts = time24.split(':');
+        if (parts.length < 2) return time24;
+        let h = parseInt(parts[0], 10);
+        const m = parts[1];
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12;
+        h = h ? h : 12;
+        return `${h}:${m} ${ampm}`;
+      };
+
+      const formatDurationText = (minutes?: number) => {
+        if (!minutes || minutes <= 0) return 'Under 1 minute';
+        const totalHours = minutes / 60;
+        if (totalHours < 0.1) return `${minutes} mins`;
+        const formatted = totalHours.toFixed(1).replace(/\.0$/, '');
+        return `${formatted} hours`;
+      };
+
+      let reportText = '';
+      if (completedEntries.length > 0) {
+        reportText = completedEntries.map((entry: any, index: number) => {
+          const task = taskMap.get(entry.taskId?._id || entry.taskId) || entry.taskId;
+          const projectName = task?.projectId?.name || task?.Project || 'General';
+          const taskTitle = task?.title || 'Untitled task';
+          const summary = (entry.notes || task?.description || 'Completed work task details.').replace(/<[^>]*>/g, '').trim();
+          const duration = formatDurationText(entry.totalMinutes || 0);
+
+          return `Task ${index + 1}:
+
+- Project: ${projectName}
+- Task: ${taskTitle}
+- Time: ${formatTimeTo12Hour(entry.startTime)} – ${formatTimeTo12Hour(entry.endTime || entry.startTime)} (${duration})
+- Status: Completed
+- Summary: ${summary}`;
+        }).join('\n\n');
+      } else {
+        reportText = `Daily Work Summary (${todayStr})\n\nShift punch out report completed.`;
+      }
+
+      setMailContent(reportText);
+      setIsMailModalOpen(true);
+    } catch (err) {
+      console.error(err);
+      setMailContent(`Daily Work Summary (${new Date().toISOString().split('T')[0]})\n\nShift punch out report completed.`);
+      setIsMailModalOpen(true);
     }
-
-    const formatTimeTo12Hour = (time24: string) => {
-      if (!time24) return '';
-      const [hStr, mStr] = time24.split(':');
-      let h = parseInt(hStr, 10);
-      const m = mStr;
-      const ampm = h >= 12 ? 'PM' : 'AM';
-      h = h % 12;
-      h = h ? h : 12;
-      return `${h}:${m} ${ampm}`;
-    };
-
-    const text = todayEntries.map((entry, index) => {
-      const hours = (entry.actualTime / 60).toFixed(1);
-      const start12 = formatTimeTo12Hour(entry.startTime);
-      const end12 = formatTimeTo12Hour(entry.endTime);
-
-      return `Task ${index + 1}:
-
-Project: ${entry.projectName}
-Task: ${entry.title}
-Time: ${start12} – ${end12} (${hours} hours)
-Status: Completed
-Summary: ${entry.description || 'Completed work task details.'}`;
-    }).join('\n\n');
-
-    setMailContent(text);
-    setIsMailModalOpen(true);
   };
 
   const handleCopyToClipboard = () => {
@@ -1524,9 +1559,30 @@ Summary: ${entry.description || 'Completed work task details.'}`;
                 value={mailContent}
               />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setIsMailModalOpen(false)}>Close</button>
-              <button type="button" className="btn btn-primary" onClick={handleCopyToClipboard}>Copy to Clipboard</button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setIsMailModalOpen(false)} disabled={isPunchingOut}>Close</button>
+              <button type="button" className="btn btn-secondary" onClick={handleCopyToClipboard}>Copy to Clipboard</button>
+              {!isAdmin && isPunchedIn && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={confirmPunchOut}
+                  disabled={isPunchingOut}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  {isPunchingOut ? (
+                    <>
+                      <Loader2 className="animate-spin" size={14} />
+                      <span>Punching Out...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clock size={14} />
+                      <span>Confirm Punch Out</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>

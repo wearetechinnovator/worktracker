@@ -140,7 +140,7 @@ export async function POST(request: Request) {
                 status: 'Present',
                 checkIn: currentTime,
                 checkInIpAddress: ipAddress,
-                checkInLocation: location?.label || location?.address || (location?.latitude ? `${location.latitude}, ${location.longitude}` : 'Location :'),
+                checkInLocation: location?.label || location?.address || (location?.latitude ? `${location.latitude}, ${location.longitude}` : null),
                 checkInLatitude: location?.latitude ?? undefined,
                 checkInLongitude: location?.longitude ?? undefined,
               },

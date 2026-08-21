@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  CheckSquare, Play, Loader2, AlertCircle, CheckCircle2, 
-  Calendar, Flag, StopCircle, Clock
+import {
+  CheckSquare, Play, Loader2, AlertCircle, CheckCircle2,
+  Calendar, Flag, StopCircle, Clock, Mail, Copy
 } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
 import dynamic from 'next/dynamic';
@@ -23,10 +23,22 @@ interface Task {
     color: string;
   };
   Project?: string;
+  assignedTo: Array<{
+    _id: string;
+    name: string;
+    email: string;
+    avatarColor: string;
+  }>;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   status: 'To Do' | 'In Progress' | 'Review' | 'Completed';
   dueDate?: string;
   tags?: string[];
+  createdBy: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  createdAt: string;
 }
 
 interface TaskWork {
@@ -35,11 +47,11 @@ interface TaskWork {
     _id: string;
     title: string;
   };
-  date: string;
   startTime: string;
   endTime?: string;
   totalMinutes?: number;
   status: 'In Progress' | 'Completed';
+  date: string;
 }
 
 const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '').trim();
@@ -54,13 +66,91 @@ export default function MyTasks({ userId }: { userId: string }) {
 
   // End Work Dialog State
   const [showEndWorkDialog, setShowEndWorkDialog] = useState(false);
+  const [frozenEndTime, setFrozenEndTime] = useState<Date | null>(null);
+  const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null);
+  const [pausedDurations, setPausedDurations] = useState<Record<string, number>>({});
   const [selectedWorkId, setSelectedWorkId] = useState<string | null>(null);
   const [workNotes, setWorkNotes] = useState('');
   const [workLinks, setWorkLinks] = useState('');
   const [completionStatus, setCompletionStatus] = useState<'partial' | 'full'>('full');
 
+  // Generated Mail Modal States
+  const [showMailModal, setShowMailModal] = useState(false);
+  const [mailContent, setMailContent] = useState('');
+
   // Calculate elapsed time for in-progress tasks
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const generateDailyMailReport = async (empId: string, completedWorkItem?: any) => {
+    try {
+      const today = getLocalDateValue(new Date());
+      let completedEntries: any[] = [];
+
+      try {
+        const worksRes = await fetch(`/api/task-work?employeeId=${empId}&limit=100`);
+        const worksData = await worksRes.json();
+
+        if (worksData.success && Array.isArray(worksData.data)) {
+          completedEntries = worksData.data.filter((e: any) => e.status === 'Completed' && (e.date === today || !e.date));
+        }
+      } catch (e) {
+        console.error('Fetch task-work error for mail report:', e);
+      }
+
+      if (completedWorkItem && !completedEntries.some(e => String(e._id) === String(completedWorkItem._id))) {
+        completedEntries.unshift(completedWorkItem);
+      }
+
+      if (completedEntries.length === 0 && completedWorkItem) {
+        completedEntries = [completedWorkItem];
+      }
+
+      if (completedEntries.length === 0) {
+        return;
+      }
+
+      const formatTimeTo12Hour = (time24?: string) => {
+        if (!time24) return '';
+        const parts = time24.split(':');
+        if (parts.length < 2) return time24;
+        let h = parseInt(parts[0], 10);
+        const m = parts[1];
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12;
+        h = h ? h : 12;
+        return `${h}:${m} ${ampm}`;
+      };
+
+      const formatDurationText = (minutes?: number) => {
+        if (!minutes || minutes <= 0) return 'Under 1 minute';
+        const totalHours = minutes / 60;
+        if (totalHours < 0.1) return `${minutes} min${minutes > 1 ? 's' : ''}`;
+        const formatted = totalHours.toFixed(1).replace(/\.0$/, '');
+        return `${formatted} hours`;
+      };
+
+      const reportText = completedEntries.map((entry: any, index: number) => {
+        const taskObj = entry.taskId || {};
+        const projectName = taskObj.projectId?.name || taskObj.Project || entry.Project || 'General';
+        const taskTitle = typeof taskObj === 'string' ? 'Task Work' : (taskObj.title || 'Task Work');
+        const summary = stripHtml(entry.notes || taskObj.description || 'Completed work task details.');
+        const duration = formatDurationText(entry.totalMinutes || 0);
+
+        return `Task ${index + 1}:
+
+- Project: ${projectName}
+- Task: ${taskTitle}
+- Time: ${formatTimeTo12Hour(entry.startTime)} – ${formatTimeTo12Hour(entry.endTime || entry.startTime)} (${duration})
+- Status: Completed
+- Summary: ${summary}`;
+      }).join('\n\n');
+
+      setMailContent(reportText);
+      setShowMailModal(true);
+    } catch (err) {
+      console.error('Error generating daily mail report:', err);
+    }
+  };
 
   const getLocalDateValue = (date: Date) => {
     const year = date.getFullYear();
@@ -100,10 +190,12 @@ export default function MyTasks({ userId }: { userId: string }) {
     }
   }, [userId]);
 
+  // Live timer tick for active tasks (paused when End Work dialog is open)
   useEffect(() => {
+    if (showEndWorkDialog) return;
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [showEndWorkDialog]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -155,7 +247,10 @@ export default function MyTasks({ userId }: { userId: string }) {
 
       console.log('Sending request with notes:', notes);
 
-      const localTime = getLocalTimeValue(new Date());
+      const now = frozenEndTime || new Date();
+      const priorPausedMs = (selectedWorkId && pausedDurations[selectedWorkId]) || 0;
+      const effectiveEndTime = new Date(now.getTime() - priorPausedMs);
+      const localTime = getLocalTimeValue(effectiveEndTime);
 
       const res = await fetch(`/api/task-work/${workId}`, {
         method: 'PUT',
@@ -165,19 +260,33 @@ export default function MyTasks({ userId }: { userId: string }) {
 
       const result = await res.json();
       console.log('API Response:', result);
-      
+
       if (!result.success) throw new Error(result.error);
 
       setSuccessMsg(result.message);
       setTimeout(() => setSuccessMsg(null), 4000);
-      
+
+      if (selectedWorkId) {
+        setPausedDurations(prev => {
+          const next = { ...prev };
+          delete next[selectedWorkId];
+          return next;
+        });
+      }
+
       // Reset dialog
       setShowEndWorkDialog(false);
       setSelectedWorkId(null);
+      setFrozenEndTime(null);
+      setPauseStartTime(null);
       setWorkNotes('');
       setWorkLinks('');
-      
+
       loadData();
+
+      if (userId) {
+        generateDailyMailReport(userId, result.data);
+      }
     } catch (err: unknown) {
       console.error('Error ending work:', err);
       setError(err instanceof Error ? err.message : String(err));
@@ -188,17 +297,31 @@ export default function MyTasks({ userId }: { userId: string }) {
 
   const openEndWorkDialog = (workId: string) => {
     console.log('Opening end work dialog for:', workId);
+    const now = new Date();
+    setPauseStartTime(now);
+    setFrozenEndTime(now);
+    setCurrentTime(now);
     setSelectedWorkId(workId);
     setShowEndWorkDialog(true);
     console.log('Dialog state set to true');
   };
 
   const closeEndWorkDialog = () => {
+    if (pauseStartTime && selectedWorkId) {
+      const duration = new Date().getTime() - pauseStartTime.getTime();
+      setPausedDurations(prev => ({
+        ...prev,
+        [selectedWorkId]: (prev[selectedWorkId] || 0) + duration,
+      }));
+    }
     setShowEndWorkDialog(false);
     setSelectedWorkId(null);
+    setFrozenEndTime(null);
+    setPauseStartTime(null);
     setWorkNotes('');
     setWorkLinks('');
     setCompletionStatus('full');
+    setCurrentTime(new Date());
   };
 
   const getActiveWork = (taskId: string): TaskWork | undefined => {
@@ -223,23 +346,24 @@ export default function MyTasks({ userId }: { userId: string }) {
     };
   };
 
-  const getElapsedTime = (startTime: string): { h1: string; h2: string; m1: string; m2: string; s1: string; s2: string } => {
+  const getElapsedTime = (startTime: string, workId?: string): { h1: string; h2: string; m1: string; m2: string; s1: string; s2: string } => {
     const [hours, minutes, seconds] = startTime.split(':').map(Number);
-    const start = new Date();
-    start.setHours(hours, minutes, seconds);
-    
-    let elapsed = Math.floor((currentTime.getTime() - start.getTime()) / 1000);
+    const start = new Date(currentTime);
+    start.setHours(hours, minutes, seconds, 0);
+
+    const totalPaused = (workId && pausedDurations[workId]) || 0;
+    let elapsed = Math.floor((currentTime.getTime() - start.getTime() - totalPaused) / 1000);
     if (elapsed < 0) {
       elapsed += 24 * 60 * 60;
     }
     const h = Math.floor(elapsed / 3600);
     const m = Math.floor((elapsed % 3600) / 60);
     const s = elapsed % 60;
-    
+
     const hStr = h.toString().padStart(2, '0');
     const mStr = m.toString().padStart(2, '0');
     const sStr = s.toString().padStart(2, '0');
-    
+
     return {
       h1: hStr[0],
       h2: hStr[1],
@@ -368,7 +492,7 @@ export default function MyTasks({ userId }: { userId: string }) {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{task.title}</span>
                           {task.description && (
-                            <span 
+                            <span
                               style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.3' }}
                               dangerouslySetInnerHTML={{ __html: task.description }}
                             />
@@ -435,7 +559,7 @@ export default function MyTasks({ userId }: { userId: string }) {
                             <>
                               {/* Compact Digital Stopwatch */}
                               {(() => {
-                                const elapsed = getElapsedTime(activeWork.startTime);
+                                const elapsed = getElapsedTime(activeWork.startTime, activeWork._id);
                                 const elapsedStr = `${elapsed.h1}${elapsed.h2}:${elapsed.m1}${elapsed.m2}:${elapsed.s1}${elapsed.s2}`;
                                 return (
                                   <div style={{
@@ -461,9 +585,9 @@ export default function MyTasks({ userId }: { userId: string }) {
                                 onClick={() => openEndWorkDialog(activeWork._id)}
                                 disabled={processingTaskId === activeWork._id}
                                 className="btn btn-danger"
-                                style={{ 
-                                  display: 'inline-flex', 
-                                  alignItems: 'center', 
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
                                   gap: '4px',
                                   padding: '5px 10px',
                                   fontSize: '0.75rem'
@@ -479,8 +603,8 @@ export default function MyTasks({ userId }: { userId: string }) {
                                 const timeWorked = getCompletedWorkTime(task._id);
                                 if (timeWorked) {
                                   return (
-                                    <span style={{ 
-                                      fontSize: '0.75rem', 
+                                    <span style={{
+                                      fontSize: '0.75rem',
                                       color: '#047857',
                                       fontWeight: 600,
                                       background: '#ecfdf5',
@@ -498,7 +622,7 @@ export default function MyTasks({ userId }: { userId: string }) {
                                 }
                                 return null;
                               })()}
-                              
+
                               {completedToday && (
                                 <span
                                   className="tag-badge"
@@ -519,9 +643,9 @@ export default function MyTasks({ userId }: { userId: string }) {
                                 onClick={() => handleStartWork(task._id)}
                                 disabled={processingTaskId === task._id || task.status === 'Completed'}
                                 className="btn btn-primary"
-                                style={{ 
-                                  display: 'inline-flex', 
-                                  alignItems: 'center', 
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
                                   gap: '4px',
                                   padding: '5px 10px',
                                   fontSize: '0.75rem'
@@ -590,9 +714,11 @@ export default function MyTasks({ userId }: { userId: string }) {
               </button>
             </div>
 
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
               Add status, notes or links related to your work before ending the session.
             </p>
+
+
 
             <div style={{ marginBottom: '20px' }}>
               <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
@@ -633,7 +759,7 @@ export default function MyTasks({ userId }: { userId: string }) {
                 value={workNotes}
                 onChange={(val) => setWorkNotes(val)}
               />
-              
+
               <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {completionStatus === 'partial' ? 'Explain why you are stopping and what work is left.' : 'Describe your progress, achievements, or any issues faced.'}
               </p>
@@ -683,6 +809,95 @@ export default function MyTasks({ userId }: { userId: string }) {
                     <span>End Work</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generated Daily Mail Modal */}
+      {showMailModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '20px',
+          }}
+          onClick={() => setShowMailModal(false)}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: '550px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              position: 'relative',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Mail size={20} style={{ color: 'var(--accent-primary)' }} />
+                Generated Daily Work Mail
+              </h3>
+              <button
+                onClick={() => setShowMailModal(false)}
+                className="btn"
+                style={{ padding: '6px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+              Work session ended successfully! Here is your generated daily mail report ready to copy:
+            </p>
+
+            <div style={{ marginBottom: '16px' }}>
+              <textarea
+                className="form-control"
+                readOnly
+                rows={10}
+                style={{
+                  fontFamily: 'monospace',
+                  fontSize: '0.78rem',
+                  lineHeight: '1.5',
+                  background: 'var(--bg-tertiary)',
+                  resize: 'vertical',
+                  width: '100%'
+                }}
+                value={mailContent}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowMailModal(false)}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  navigator.clipboard.writeText(mailContent);
+                  alert('Mail report copied to clipboard!');
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Copy size={14} />
+                <span>Copy Mail</span>
               </button>
             </div>
           </div>

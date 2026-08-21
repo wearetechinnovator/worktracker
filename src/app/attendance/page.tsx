@@ -404,9 +404,9 @@ export default function AttendancePage() {
         </div>
 
         {/* Right Side: Main logs sheet */}
-        <div className="card" style={{ flex: '1 1 500px', margin: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-            <h3 className="card-title">Punch Records ({logs.length})</h3>
+        <div className="card" style={{ flex: '1 1 600px', margin: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+            <h3 className="card-title" style={{ fontSize: '1.05rem', fontWeight: 800 }}>Punch Records ({logs.length})</h3>
           </div>
 
           {logs.length === 0 ? (
@@ -415,146 +415,213 @@ export default function AttendancePage() {
             </p>
           ) : (
             <div>
-              <table className="data-table" style={{ marginBottom: '24px' }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: '110px' }}>Date</th>
-                    {user?.userType === 'admin' && (
-                      <>
-                        <th>Employee</th>
-                        <th>Department</th>
-                        <th>Job Role</th>
-                      </>
-                    )}
-                    <th style={{ width: '100px' }}>Status</th>
-                    <th>Check In</th>
-                    <th>Check Out</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedLogs.map((log) => {
-                    let statusBadge = (
-                      <span style={{ fontSize: '0.65rem', padding: '3px 8px', borderRadius: '12px', background: '#dcfce7', color: '#166534', fontWeight: 700 }}>
-                        Present
-                      </span>
-                    );
-                    if (log.status === 'Absent') {
-                      statusBadge = (
-                        <span style={{ fontSize: '0.65rem', padding: '3px 8px', borderRadius: '12px', background: '#fee2e2', color: '#991b1b', fontWeight: 700 }}>
-                          Absent
-                        </span>
-                      );
-                    } else if (log.status === 'On Leave') {
-                      statusBadge = (
-                        <span style={{ fontSize: '0.65rem', padding: '3px 8px', borderRadius: '12px', background: '#fff7ed', color: '#9a3412', fontWeight: 700 }}>
-                          On Leave
-                        </span>
-                      );
-                    }
+              <div className="data-table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ minWidth: '110px' }}>Date</th>
+                      {user?.userType === 'admin' && (
+                        <>
+                          <th style={{ minWidth: '200px' }}>Employee</th>
+                          <th style={{ minWidth: '130px' }}>Department</th>
+                          <th style={{ minWidth: '140px' }}>Job Role</th>
+                        </>
+                      )}
+                      <th style={{ minWidth: '110px' }}>Status</th>
+                      <th style={{ minWidth: '180px' }}>Check In</th>
+                      <th style={{ minWidth: '180px' }}>Check Out</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedLogs.map((log) => {
+                      const cleanLocation = (locStr?: string | null) => {
+                        if (!locStr) return null;
+                        let s = locStr.trim();
+                        if (s.startsWith('Location :')) {
+                          s = s.replace(/^Location\s*:\s*/i, '').trim();
+                        }
+                        if (!s || s === 'Location :' || s === 'Location:' || s.toLowerCase() === 'device geolocation required') {
+                          return null;
+                        }
+                        return s;
+                      };
 
-                    return (
-                      <tr key={log._id}>
-                        <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          {log.date}
-                        </td>
-                        {user?.userType === 'admin' && (
-                          <>
-                            <td>
-                              {log.employeeId ? (
-                                <div 
-                                  className="avatar-wrapper" 
-                                  style={{ cursor: 'pointer' }}
-                                  title="Click to view month calendar details"
-                                  onClick={() => {
-                                    setSelectedEmpForCalendar({
-                                      _id: log.employeeId?._id,
-                                      name: log.employeeId?.name,
-                                      email: '',
-                                      role: log.employeeId?.role,
-                                      Project: log.employeeId?.Project,
-                                      avatarColor: log.employeeId?.avatarColor,
-                                    });
-                                    setIsCalendarOpen(true);
-                                  }}
-                                >
-                                  <div className="avatar" style={{ backgroundColor: log.employeeId.avatarColor, width: '28px', height: '28px', fontSize: '0.7rem' }}>
-                                    {log.employeeId.name.split(' ').map((n) => n[0]).join('')}
+                      let statusBadge = (
+                        <span style={{ fontSize: '0.72rem', padding: '4px 10px', borderRadius: '20px', background: '#dcfce7', color: '#15803d', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e' }}></span>
+                          Present
+                        </span>
+                      );
+                      if (log.status === 'Absent') {
+                        statusBadge = (
+                          <span style={{ fontSize: '0.72rem', padding: '4px 10px', borderRadius: '20px', background: '#fee2e2', color: '#b91c1c', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }}></span>
+                            Absent
+                          </span>
+                        );
+                      } else if (log.status === 'On Leave') {
+                        statusBadge = (
+                          <span style={{ fontSize: '0.72rem', padding: '4px 10px', borderRadius: '20px', background: '#ffedd5', color: '#c2410c', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f97316' }}></span>
+                            On Leave
+                          </span>
+                        );
+                      }
+
+                      const cleanCheckInLoc = cleanLocation(log.checkInLocation);
+                      const cleanCheckOutLoc = cleanLocation(log.checkOutLocation);
+
+                      return (
+                        <tr key={log._id}>
+                          <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                            {log.date}
+                          </td>
+                          {user?.userType === 'admin' && (
+                            <>
+                              <td>
+                                {log.employeeId ? (
+                                  <div 
+                                    className="employee-cell-link" 
+                                    style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}
+                                    title="Click to view monthly attendance calendar"
+                                    onClick={() => {
+                                      setSelectedEmpForCalendar({
+                                        _id: log.employeeId?._id,
+                                        name: log.employeeId?.name,
+                                        email: '',
+                                        role: log.employeeId?.role,
+                                        Project: log.employeeId?.Project,
+                                        avatarColor: log.employeeId?.avatarColor,
+                                      });
+                                      setIsCalendarOpen(true);
+                                    }}
+                                  >
+                                    <div 
+                                      className="avatar" 
+                                      style={{ 
+                                        backgroundColor: log.employeeId.avatarColor || '#3b82f6', 
+                                        width: '32px', 
+                                        height: '32px', 
+                                        fontSize: '0.75rem',
+                                        fontWeight: 700,
+                                        borderRadius: '50%',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                                        flexShrink: 0
+                                      }}
+                                    >
+                                      {log.employeeId.name.split(' ').map((n) => n[0]).join('')}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                      <div className="employee-name-hover" style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.84rem', lineHeight: '1.2' }}>
+                                        {log.employeeId.name}
+                                      </div>
+                                      <div style={{ fontSize: '0.68rem', color: 'var(--accent-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                        <span>Monthly Details</span>
+                                        <Calendar size={10} />
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <div style={{ fontWeight: 700, color: 'var(--accent-primary)', textDecoration: 'underline' }}>{log.employeeId.name}</div>
-                                    <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Click for monthly detail &rarr;</span>
-                                  </div>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted)' }}>Deleted Employee</span>
+                                )}
+                              </td>
+                              <td>
+                                {log.employeeId ? (
+                                  <span className="tag-badge">
+                                    {log.employeeId.Project}
+                                  </span>
+                                ) : '—'}
+                              </td>
+                              <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500 }}>
+                                {log.employeeId?.role || '—'}
+                              </td>
+                            </>
+                          )}
+                          <td>{statusBadge}</td>
+                          <td>
+                            {log.checkIn ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <Clock size={13} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                                  <span>{log.checkIn}</span>
                                 </div>
-                              ) : (
-                                <span style={{ color: 'var(--text-muted)' }}>Deleted Employee</span>
-                              )}
-                            </td>
-                            <td>
-                              {log.employeeId ? (
-                                <span className="tag-badge">
-                                  {log.employeeId.Project}
-                                </span>
-                              ) : '—'}
-                            </td>
-                            <td style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
-                              {log.employeeId?.role || '—'}
-                            </td>
-                          </>
-                        )}
-                        <td>{statusBadge}</td>
-                        <td>
-                          {log.checkIn ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Clock size={12} style={{ color: 'var(--text-muted)' }} />
-                                {log.checkIn}
+                                {log.checkInIpAddress && (
+                                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Globe size={11} style={{ flexShrink: 0 }} />
+                                    <span>{log.checkInIpAddress}</span>
+                                  </span>
+                                )}
+                                {cleanCheckInLoc && (
+                                  <span 
+                                    style={{ 
+                                      fontSize: '0.68rem', 
+                                      color: 'var(--text-secondary)', 
+                                      display: 'inline-flex', 
+                                      alignItems: 'center', 
+                                      gap: '4px',
+                                      maxWidth: '180px',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis'
+                                    }} 
+                                    title={log.checkInLocation || undefined}
+                                  >
+                                    <MapPin size={11} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {cleanCheckInLoc.split(',').slice(0, 2).join(',')}
+                                    </span>
+                                  </span>
+                                )}
                               </div>
-                              {log.checkInIpAddress && (
-                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                  <Globe size={10} />
-                                  {log.checkInIpAddress}
-                                </span>
-                              )}
-                              {log.checkInLocation && (
-                                <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '3px' }} title={log.checkInLocation}>
-                                  <MapPin size={10} style={{ color: 'var(--accent-primary)' }} />
-                                  {log.checkInLocation.split(',').slice(0, 2).join(',')}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
-                          )}
-                        </td>
-                        <td>
-                          {log.checkOut ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Clock size={12} style={{ color: 'var(--text-muted)' }} />
-                                {log.checkOut}
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                            )}
+                          </td>
+                          <td>
+                            {log.checkOut ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <Clock size={13} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                                  <span>{log.checkOut}</span>
+                                </div>
+                                {log.checkOutIpAddress && (
+                                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Globe size={11} style={{ flexShrink: 0 }} />
+                                    <span>{log.checkOutIpAddress}</span>
+                                  </span>
+                                )}
+                                {cleanCheckOutLoc && (
+                                  <span 
+                                    style={{ 
+                                      fontSize: '0.68rem', 
+                                      color: 'var(--text-secondary)', 
+                                      display: 'inline-flex', 
+                                      alignItems: 'center', 
+                                      gap: '4px',
+                                      maxWidth: '180px',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis'
+                                    }} 
+                                    title={log.checkOutLocation || undefined}
+                                  >
+                                    <MapPin size={11} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {cleanCheckOutLoc.split(',').slice(0, 2).join(',')}
+                                    </span>
+                                  </span>
+                                )}
                               </div>
-                              {log.checkOutIpAddress && (
-                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                  <Globe size={10} />
-                                  {log.checkOutIpAddress}
-                                </span>
-                              )}
-                              {log.checkOutLocation && (
-                                <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '3px' }} title={log.checkOutLocation}>
-                                  <MapPin size={10} style={{ color: 'var(--accent-primary)' }} />
-                                  {log.checkOutLocation.split(',').slice(0, 2).join(',')}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
               {renderPagination(logs.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
             </div>
