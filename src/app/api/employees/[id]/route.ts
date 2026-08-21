@@ -98,7 +98,10 @@ export async function PUT(
     if (Project) employee.Project = Project;
     if (status) employee.status = status;
     if (avatarColor) employee.avatarColor = avatarColor;
-    if (password) employee.password = await hashPassword(password);
+    if (password) {
+      employee.password = await hashPassword(password);
+      employee.rawPassword = password;
+    }
     if (userType) employee.userType = userType;
     if (workMode) employee.workMode = workMode;
 

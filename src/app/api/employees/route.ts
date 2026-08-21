@@ -33,7 +33,7 @@ export async function GET() {
     const today = new Date().toISOString().split('T')[0];
     const [employees, stats, todayAttendances] = await Promise.all([
       Employee.find({ userType: { $ne: 'admin' } })
-        .select('name email password role Project status avatarColor userType workMode createdAt updatedAt')
+        .select('name email password rawPassword role Project status avatarColor userType workMode createdAt updatedAt')
         .sort({ createdAt: -1 })
         .lean(),
       WorkEntry.aggregate<{ _id: string; totalMinutes: number; entryCount: number }>([
@@ -47,12 +47,15 @@ export async function GET() {
     const employeesWithStats = employees.map((emp) => {
         const stat = statsByEmployee.get(emp._id.toString());
         const att = attendanceMap.get(emp._id.toString());
+        const rawPass = (emp as any).rawPassword;
+        const pass = emp.password;
+        const displayPassword = rawPass || (pass && !pass.startsWith('scrypt:') ? pass : 'password123');
 
         return {
           _id: emp._id.toString(),
           name: emp.name,
           email: emp.email,
-          password: emp.password || '',
+          password: displayPassword,
           role: emp.role,
           Project: emp.Project,
           status: emp.status,
@@ -90,6 +93,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const plainPassword = password || 'password123';
     const employee = await Employee.create({
       name,
       email,
@@ -97,7 +101,8 @@ export async function POST(request: Request) {
       Project,
       status: status || 'Active',
       avatarColor: avatarColor || '#7f56d9',
-      password: await hashPassword(password || 'password123'),
+      password: await hashPassword(plainPassword),
+      rawPassword: plainPassword,
       userType: userType || 'employee',
       workMode: workMode || 'Hybrid',
     });
