@@ -584,8 +584,8 @@ export default function Dashboard() {
     alert('Task summary copied to clipboard!');
   };
 
-  const featuredEmployee = employees.find(e => e.name === 'Cody Fisher') || employees[0];
   const meEmployee = user ? (employees.find(e => e._id === user._id) || user) : null;
+  const featuredEmployee = employees.length > 0 ? employees[0] : meEmployee;
   const isAdmin = user?.userType === 'admin';
 
   // Form state
@@ -1063,39 +1063,43 @@ export default function Dashboard() {
         {/* Right side Featured Employee / Member chart */}
         <div className={isAdmin ? "col-5" : "col-4"} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Profile Card */}
-          {meEmployee && (
+          {(meEmployee || featuredEmployee) && (
             <div className="card">
               <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>
                 {isAdmin ? 'Featured Member' : 'My Work Profile'}
               </div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '4px' }}>
-                {isAdmin ? (featuredEmployee?.role || 'Administrator') : meEmployee.role}
+                {(isAdmin ? (featuredEmployee?.role || meEmployee?.role) : meEmployee?.role) || 'Team Member'}
               </h3>
 
               <div className="employee-badge-container" style={{ marginBottom: '12px' }}>
-                <span className="tag-badge" style={{ backgroundColor: '#eff6ff', color: 'var(--accent-primary)', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
-                  {isAdmin ? (featuredEmployee?.Project || 'Management') : meEmployee.Project}
-                </span>
+                {((isAdmin ? (featuredEmployee?.Project || meEmployee?.Project) : meEmployee?.Project)) && (
+                  <span className="tag-badge" style={{ backgroundColor: '#eff6ff', color: 'var(--accent-primary)', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
+                    {isAdmin ? (featuredEmployee?.Project || meEmployee?.Project) : meEmployee?.Project}
+                  </span>
+                )}
                 <span className="tag-badge">Full Time</span>
                 <span className="tag-badge">Active</span>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-                <div className="avatar" style={{ backgroundColor: isAdmin ? (featuredEmployee?.avatarColor || '#ef4444') : (meEmployee.avatarColor || '#7f56d9'), width: '32px', height: '32px', fontSize: '0.85rem' }}>
-                  {isAdmin ? (featuredEmployee?.name?.split(' ').map((n: string) => n[0]).join('') || 'CF') : meEmployee.name?.split(' ').map((n: string) => n[0]).join('')}
+                <div className="avatar" style={{ backgroundColor: (isAdmin ? (featuredEmployee?.avatarColor || meEmployee?.avatarColor) : meEmployee?.avatarColor) || '#3b82f6', width: '32px', height: '32px', fontSize: '0.85rem' }}>
+                  {isAdmin
+                    ? (featuredEmployee?.name?.split(' ').map((n: string) => n[0]).join('') || meEmployee?.name?.split(' ').map((n: string) => n[0]).join('') || 'U')
+                    : (meEmployee?.name?.split(' ').map((n: string) => n[0]).join('') || 'U')}
                 </div>
                 <div style={{ flex: 1, overflow: 'hidden' }}>
                   <div style={{ fontWeight: 750, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {isAdmin ? (featuredEmployee?.name || 'Cody Fisher') : meEmployee.name}
+                    {isAdmin ? (featuredEmployee?.name || meEmployee?.name || user?.name || 'User') : (meEmployee?.name || user?.name || 'User')}
                   </div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    <span>{isAdmin ? (featuredEmployee?.email || 'cody@mail.com') : meEmployee.email}</span>
+                    <span>{isAdmin ? (featuredEmployee?.email || meEmployee?.email || user?.email || '') : (meEmployee?.email || user?.email || '')}</span>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>TRACKED</div>
                   <div style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '0.85rem' }}>
-                    {formatMinutesToDuration(isAdmin ? (featuredEmployee?.totalMinutes || 0) : (meEmployee.totalMinutes || 0))}
+                    {formatMinutesToDuration(isAdmin ? (featuredEmployee?.totalMinutes || 0) : (meEmployee?.totalMinutes || 0))}
                   </div>
                 </div>
               </div>
@@ -1178,7 +1182,7 @@ export default function Dashboard() {
                   type="email"
                   className="form-control"
                   required
-                  placeholder="e.g. brok-simms@mail.com"
+                  placeholder="e.g. employee@company.com"
                   value={empEmail}
                   onChange={(e) => setEmpEmail(e.target.value)}
                 />
