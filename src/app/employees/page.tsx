@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users, UserPlus, Mail, Edit3,
-  Trash2, AlertCircle, Clock, Check, Briefcase, Calendar
+  Trash2, AlertCircle, Clock, Check, Briefcase, Calendar, Eye, EyeOff
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
@@ -44,13 +44,15 @@ export default function EmployeesPage() {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Modals
+  // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [employeeDetails, setEmployeeDetails] = useState<any>(null);
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [selectedCalendarEmp, setSelectedCalendarEmp] = useState<Employee | null>(null);
 
   // Form State (Add/Edit)
   const [name, setName] = useState('');
@@ -62,6 +64,8 @@ export default function EmployeesPage() {
   const [color, setColor] = useState('#3b82f6');
   const [password, setPassword] = useState('password123');
   const [userType, setUserType] = useState<'admin' | 'employee'>('employee');
+  const [showAddPassword, setShowAddPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const [roleSuggestions, setRoleSuggestions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -198,32 +202,38 @@ export default function EmployeesPage() {
     setStatus(emp.status);
     setWorkMode(emp.workMode || 'Hybrid');
     setColor(emp.avatarColor);
-    setPassword('');
+    setPassword(emp.password || '');
     setUserType(emp.userType || 'employee');
+    setShowEditPassword(false);
     setIsEditModalOpen(true);
   };
 
   // Handle Edit Employee Submit
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingEmp || !name.trim() || !email.trim() || !password.trim()) return;
+    if (!editingEmp || !name.trim() || !email.trim()) return;
 
     try {
       setSubmitting(true);
+      const updateBody: any = {
+        name,
+        email,
+        role,
+        Project,
+        status,
+        avatarColor: color,
+        userType,
+        workMode
+      };
+
+      if (password && password.trim()) {
+        updateBody.password = password.trim();
+      }
+
       const res = await fetch(`/api/employees/${editingEmp._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          email,
-          role,
-          Project,
-          status,
-          avatarColor: color,
-          password,
-          userType,
-          workMode
-        })
+        body: JSON.stringify(updateBody)
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to update employee details');
@@ -530,13 +540,36 @@ export default function EmployeesPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Password *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showAddPassword ? "text" : "password"}
+                      className="form-control"
+                      style={{ paddingRight: '36px' }}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAddPassword(!showAddPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '4px'
+                      }}
+                      title={showAddPassword ? "Hide Password" : "Show Password"}
+                    >
+                      {showAddPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Access Type *</label>
@@ -674,13 +707,35 @@ export default function EmployeesPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Password *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showEditPassword ? "text" : "password"}
+                      className="form-control"
+                      style={{ paddingRight: '36px' }}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '4px'
+                      }}
+                      title={showEditPassword ? "Hide Password" : "Show Password"}
+                    >
+                      {showEditPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Access Type *</label>

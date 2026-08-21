@@ -33,7 +33,7 @@ export async function GET() {
     const today = new Date().toISOString().split('T')[0];
     const [employees, stats, todayAttendances] = await Promise.all([
       Employee.find({ userType: { $ne: 'admin' } })
-        .select('name email role Project status avatarColor userType workMode createdAt updatedAt')
+        .select('name email password role Project status avatarColor userType workMode createdAt updatedAt')
         .sort({ createdAt: -1 })
         .lean(),
       WorkEntry.aggregate<{ _id: string; totalMinutes: number; entryCount: number }>([
@@ -52,6 +52,7 @@ export async function GET() {
           _id: emp._id.toString(),
           name: emp.name,
           email: emp.email,
+          password: emp.password || '',
           role: emp.role,
           Project: emp.Project,
           status: emp.status,
