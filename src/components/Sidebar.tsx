@@ -14,7 +14,6 @@ import NotificationCenter from '@/components/NotificationCenter';
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [memberCount, setMemberCount] = useState<number | string>('...');
   const [user, setUser] = useState<any>(null);
   const [isPunchedIn, setIsPunchedIn] = useState(false);
   const [canPunchOut, setCanPunchOut] = useState(false);
@@ -103,23 +102,6 @@ export default function Sidebar() {
       window.removeEventListener('punch-status-changed', handlePunchStatusChange);
     };
   }, [user, pathname]);
-
-  useEffect(() => {
-    if (pathname === '/login') return;
-
-    async function loadMembers() {
-      try {
-        const res = await fetch('/api/employees');
-        const data = await res.json();
-        if (data.success) {
-          setMemberCount(data.data.length);
-        }
-      } catch (err) {
-        console.error('Error loading employees:', err);
-      }
-    };
-    loadMembers();
-  }, []);
 
   // Check login status & punch in status
   useEffect(() => {
@@ -317,49 +299,37 @@ export default function Sidebar() {
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ flexShrink: 0 }}>
           {/* Brand Header */}
-          <div className="sidebar-header" style={{ marginBottom: '20px' }}>
-            <div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: isCollapsed ? '16px' : '8px', marginBottom: '12px' }}>
+          <div className="sidebar-header" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: isCollapsed ? '16px' : '8px' }}>
               {!isCollapsed ? (
                 <Link href="/" className="sidebar-brand" style={{ margin: 0 }}>
-                  <span style={{ fontWeight: 800 }}>TIS Tracker</span>
+                  <span style={{ fontWeight: 800 }}>Quanto Track</span>
                 </Link>
               ) : (
                 <Link href="/" className="sidebar-brand" style={{ fontSize: '1.2rem', fontWeight: 900, textAlign: 'center', margin: 0 }} title="TIS Tracker">
-                  TIS
+                  QT
                 </Link>
               )}
-              <div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', alignItems: 'center', gap: isCollapsed ? '12px' : '8px' }}>
-                <NotificationCenter />
-                <button
-                  onClick={toggleCollapse}
-                  className="sidebar-toggle-btn"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                    padding: '6px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '6px',
-                    transition: 'all 0.2s ease'
-                  }}
-                  title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-                >
-                  {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-                </button>
-              </div>
+              <button
+                onClick={toggleCollapse}
+                className="sidebar-toggle-btn"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s ease'
+                }}
+                title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              >
+                {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+              </button>
             </div>
-
-            {!isCollapsed && (
-              <div className="sidebar-team-card" style={{ padding: '10px 12px' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>TIS Pvt. Ltd.</div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Team - {memberCount} Members</div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Punch Status Indicator for Employees */}
@@ -566,14 +536,14 @@ export default function Sidebar() {
               <button
                 onClick={handleLogout}
                 className="btn btn-danger"
-                style={{ 
-                  width: '100%', 
-                  padding: isCollapsed ? '10px 8px' : '10px 12px', 
-                  fontSize: isCollapsed ? '0' : '0.8rem', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  gap: isCollapsed ? '0' : '6px' 
+                style={{
+                  width: '100%',
+                  padding: isCollapsed ? '10px 8px' : '10px 12px',
+                  fontSize: isCollapsed ? '0' : '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: isCollapsed ? '0' : '6px'
                 }}
                 title="Logout"
               >

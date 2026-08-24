@@ -540,23 +540,6 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Visual Badge Color</label>
-                <div className="color-selector">
-                  {colors.map((color) => (
-                    <div 
-                      key={color}
-                      className="color-option"
-                      style={{ 
-                        backgroundColor: color,
-                        borderColor: editProjColor === color ? 'var(--text-primary)' : 'transparent'
-                      }}
-                      onClick={() => setEditProjColor(color)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-group">
                 <label className="form-label">Assign Members</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '10px' }}>
                   {allEmployees.map(emp => (

@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, emails, address, duration, projectId } = body;
+    const { name, phone, emails, address, duration, contacts, projectId } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json({ success: false, error: 'Client name is required' }, { status: 400 });
@@ -63,11 +63,26 @@ export async function POST(request: Request) {
       processedEmails = emails.split(',').map((e) => e.trim()).filter(Boolean);
     }
 
+    // Process contacts
+    let processedContacts: any[] = [];
+    if (Array.isArray(contacts)) {
+      processedContacts = contacts
+        .filter((c: any) => c && (c.name || c.email || c.phone || c.designation))
+        .map((c: any) => ({
+          name: String(c.name || '').trim(),
+          email: String(c.email || '').trim().toLowerCase(),
+          phone: String(c.phone || '').trim(),
+          designation: String(c.designation || '').trim(),
+        }));
+    }
+
     const client = await Client.create({
       name: name.trim(),
+      phone: phone ? phone.trim() : undefined,
       emails: processedEmails,
       address: address ? address.trim() : '',
       duration: duration ? duration.trim() : '',
+      contacts: processedContacts,
     });
 
     // If projectId is provided, associate client to that project

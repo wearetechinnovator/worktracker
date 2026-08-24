@@ -9,11 +9,21 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Clock, Plus, Folder, Calendar, Users, UserPlus, Mail, ChevronRight,
-  AlertCircle, X, Loader2
+  AlertCircle, X, Loader2, CheckSquare, Activity, ArrowUpRight,
+  Paperclip, Link as LinkIcon, MessageSquare
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import MyTasks from '@/components/MyTasks';
 import PageShimmer from '@/components/PageShimmer';
+import AddTeamMemberModal from '@/components/AddTeamMemberModal';
+import CreateProjectModal from '@/components/CreateProjectModal';
+import {
+  CustomDropdown,
+  CustomDatePicker,
+  CustomTimePicker,
+  CustomFileAttachment,
+  CustomMultipleLinks
+} from '@/components/TaskFormControls';
 import dynamic from 'next/dynamic';
 
 const CKEditorComponent = dynamic(
@@ -90,6 +100,39 @@ interface Task {
   createdAt: string;
 }
 
+interface DashboardStats {
+  employees: {
+    total: number;
+    active: number;
+    inactive: number;
+    present: number;
+    absent: number;
+    checkedIn: number;
+    checkedOut: number;
+    workingNow: number;
+    attendanceRate: number;
+  };
+  tasks: {
+    total: number;
+    active: number;
+    inProgress: number;
+    todo: number;
+    review: number;
+    completed: number;
+  };
+  projects: {
+    total: number;
+    active: number;
+    inactive: number;
+    totalMinutes: number;
+  };
+  productivity: {
+    todayMinutes: number;
+    totalMinutes: number;
+    attendanceRate: number;
+  };
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
@@ -98,6 +141,7 @@ export default function Dashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [entries, setEntries] = useState<WorkEntry[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,38 +164,10 @@ export default function Dashboard() {
   // Selected Day for Timeline (default to today)
   const [selectedTimelineDate, setSelectedTimelineDate] = useState('');
 
-  // Employee Form State
-  const [empName, setEmpName] = useState('');
-  const [empEmail, setEmpEmail] = useState('');
-  const [empRole, setEmpRole] = useState('UI UX Designer');
-  const [empDept, setEmpDept] = useState('Design');
-  const [empStatus, setEmpStatus] = useState('Active');
-  const [empWorkMode, setEmpWorkMode] = useState('Hybrid');
 
-  const [empColor, setEmpColor] = useState('#3b82f6');
-  const [empPass, setEmpPass] = useState('password123');
-  const [empType, setEmpType] = useState('employee');
-
-  // Custom Roles state
-  const [rolesList, setRolesList] = useState<{ _id: string; name: string }[]>([]);
-  const [isCreatingNewRole, setIsCreatingNewRole] = useState(false);
-  const [customNewRoleName, setCustomNewRoleName] = useState('');
-  const [submittingEmp, setSubmittingEmp] = useState(false);
-
-  // Project Form State
-  const [projName, setProjName] = useState('');
-  const [projDesc, setProjDesc] = useState('');
-  const [projColor, setProjColor] = useState('#3b82f6');
-  const [projMembers, setProjMembers] = useState<string[]>([]);
-  const [submittingProj, setSubmittingProj] = useState(false);
 
   // Client Selection State
   const [clientsList, setClientsList] = useState<any[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string>('');
-  const [newClientName, setNewClientName] = useState('');
-  const [newClientEmails, setNewClientEmails] = useState('');
-  const [newClientAddress, setNewClientAddress] = useState('');
-  const [newClientDuration, setNewClientDuration] = useState('');
 
   // Work Log Form State
   const [workProjId, setWorkProjId] = useState('');
@@ -213,6 +229,9 @@ export default function Dashboard() {
       setProjects(nextProjects);
       setEmployees(nextEmployees);
       setEntries(nextEntries);
+      if (result.data?.stats) {
+        setStats(result.data.stats);
+      }
       if (clientsData && clientsData.success) {
         setClientsList(clientsData.data);
       }
@@ -234,6 +253,11 @@ export default function Dashboard() {
     if (user) {
       fetchData();
     }
+    const handleRefresh = () => {
+      if (user) fetchData();
+    };
+    window.addEventListener('worktracker-refresh', handleRefresh);
+    return () => window.removeEventListener('worktracker-refresh', handleRefresh);
   }, [user, fetchData]);
 
   const checkPunchStatus = useCallback(async () => {
@@ -320,93 +344,9 @@ export default function Dashboard() {
     }
   };
 
-  // Handle Employee Form Submit
-  const handleAddEmployee = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!empName.trim() || !empEmail.trim() || !empPass.trim()) return;
 
-    try {
-      setSubmittingEmp(true);
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: empName,
-          email: empEmail,
-          role: empRole,
-          Project: empDept,
-          status: empStatus,
-          avatarColor: empColor,
-          password: empPass,
-          userType: empType,
-          workMode: empWorkMode
-        })
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to add employee');
 
-      setEmpName('');
-      setEmpEmail('');
-      setEmpPass('password123');
-      setIsEmployeeModalOpen(false);
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setSubmittingEmp(false);
-    }
-  };
 
-  // Handle Project Form Submit
-  const handleAddProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!projName.trim()) return;
-
-    try {
-      setSubmittingProj(true);
-      
-      const bodyPayload: any = {
-        name: projName,
-        description: projDesc,
-        color: projColor,
-        members: projMembers
-      };
-
-      if (selectedClientId === 'new') {
-        bodyPayload.clientInfo = {
-          name: newClientName,
-          emails: newClientEmails,
-          address: newClientAddress,
-          duration: newClientDuration
-        };
-      } else if (selectedClientId) {
-        bodyPayload.clientId = selectedClientId;
-      }
-
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload)
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to create project');
-
-      setProjName('');
-      setProjDesc('');
-      setProjMembers([]);
-      setSelectedClientId('');
-      setNewClientName('');
-      setNewClientEmails('');
-      setNewClientAddress('');
-      setNewClientDuration('');
-      setIsProjectModalOpen(false);
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setSubmittingProj(false);
-    }
-  };
 
   // Handle Work Entry Submit
   const handleAddWork = async (e: React.FormEvent) => {
@@ -444,13 +384,7 @@ export default function Dashboard() {
   };
 
 
-  const handleMemberSelectToggle = (empId: string) => {
-    if (projMembers.includes(empId)) {
-      setProjMembers(projMembers.filter(id => id !== empId));
-    } else {
-      setProjMembers([...projMembers, empId]);
-    }
-  };
+
 
   // Filter timeline logs
   const timelineEntries = entries.filter(e => e.date === selectedTimelineDate);
@@ -593,13 +527,39 @@ export default function Dashboard() {
     title: '',
     description: '',
     projectId: '',
-    Project: '',
     assignedTo: [] as string[],
     priority: 'Medium' as 'Low' | 'Medium' | 'High' | 'Urgent',
     status: 'To Do' as 'To Do' | 'In Progress' | 'Review' | 'Completed',
     dueDate: '',
+    dueTime: '',
+    url: '',
+    urls: [] as string[],
+    comments: '',
+    files: [] as Array<{ name: string; url: string; size?: number; type?: string }>,
     tags: '',
   });
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    Array.from(fileList).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFormData((prev) => ({
+          ...prev,
+          files: [...prev.files, { name: file.name, url: String(reader.result), size: file.size, type: file.type }],
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      files: prev.files.filter((_, i) => i !== index),
+    }));
+  };
 
   const openCreateModal = () => {
     resetForm();
@@ -618,11 +578,15 @@ export default function Dashboard() {
       title: '',
       description: '',
       projectId: '',
-      Project: '',
       assignedTo: [],
       priority: 'Medium',
       status: 'To Do',
       dueDate: '',
+      dueTime: '',
+      url: '',
+      urls: [],
+      comments: '',
+      files: [],
       tags: '',
     });
     setEditingTask(null);
@@ -644,8 +608,13 @@ export default function Dashboard() {
         userEmail: user.email,
         email: user.email,
         projectId: formData.projectId || undefined,
-        Project: formData.Project || user.Project || undefined,
+        Project: user.Project || undefined,
         dueDate: formData.dueDate || undefined,
+        dueTime: formData.dueTime || undefined,
+        url: formData.urls[0] || formData.url || undefined,
+        urls: formData.urls,
+        comments: formData.comments || undefined,
+        files: formData.files,
         tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()) : [],
       };
 
@@ -671,97 +640,64 @@ export default function Dashboard() {
     }
   };
 
+  const computedStats: DashboardStats = stats || {
+    employees: {
+      total: employees.length,
+      active: employees.filter((e) => e.status !== 'Inactive').length,
+      inactive: employees.filter((e) => e.status === 'Inactive').length,
+      present: employees.filter((e: any) => !!e.todayAttendance?.checkIn).length,
+      absent: Math.max(0, employees.length - employees.filter((e: any) => !!e.todayAttendance?.checkIn).length),
+      checkedIn: employees.filter((e: any) => e.todayAttendance?.checkIn && !e.todayAttendance?.checkOut).length,
+      checkedOut: employees.filter((e: any) => !!e.todayAttendance?.checkOut).length,
+      workingNow: employees.filter((e: any) => e.todayAttendance?.isWorking).length,
+      attendanceRate: employees.length > 0 ? Math.round((employees.filter((e: any) => !!e.todayAttendance?.checkIn).length / employees.length) * 100) : 0,
+    },
+    tasks: {
+      total: 0,
+      active: 0,
+      inProgress: 0,
+      todo: 0,
+      review: 0,
+      completed: 0,
+    },
+    projects: {
+      total: projects.length,
+      active: projects.filter((p) => p.entryCount > 0 || (p.members && p.members.length > 0)).length,
+      inactive: Math.max(0, projects.length - projects.filter((p) => p.entryCount > 0 || (p.members && p.members.length > 0)).length),
+      totalMinutes: projects.reduce((acc, p) => acc + (p.totalMinutes || 0), 0),
+    },
+    productivity: {
+      todayMinutes: entries.reduce((acc, e) => acc + (e.actualTime || 0), 0),
+      totalMinutes: projects.reduce((acc, p) => acc + (p.totalMinutes || 0), 0),
+      attendanceRate: employees.length > 0 ? Math.round((employees.filter((e: any) => !!e.todayAttendance?.checkIn).length / employees.length) * 100) : 0,
+    },
+  };
+
+  const empPresentPct = computedStats.employees.total > 0
+    ? Math.round((computedStats.employees.present / computedStats.employees.total) * 100)
+    : 0;
+
+  const taskCompletionPct = computedStats.tasks.total > 0
+    ? Math.round((computedStats.tasks.completed / computedStats.tasks.total) * 100)
+    : 0;
+
+  const projActivePct = computedStats.projects.total > 0
+    ? Math.round((computedStats.projects.active / computedStats.projects.total) * 100)
+    : 0;
+
   if (loading && projects.length === 0 && !error) {
     return <PageShimmer variant="dashboard" />;
   }
   return (
     <div>
-      {/* Welcome Panel */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }} className="no-print">
-        <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Dashboard Overview</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-            {isAdmin
-              ? 'Manage your organization Projects, monitor employee schedule, and track tasks.'
-              : 'Log your work sessions, view assigned Projects, and manage your schedules.'}
-          </p>
-        </div>
-
-        {/* Live Date and Time in the middle */}
-        <div style={{
-          display: 'flex',
-          // flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-          gap: '8px',
-          background: 'var(--bg-secondary)',
-          border: '1px solid var(--border-color)',
-          borderRadius: '7px',
-          padding: '4px 16px',
-          boxShadow: 'var(--box-shadow-sm)',
-          minWidth: '220px'
-        }}>
-          <span style={{
-            fontSize: '0.8rem',
-            fontWeight: 850,
-            fontFamily: 'monospace',
-            color: 'var(--accent-primary)',
-            letterSpacing: '0.5px'
-          }}>
-            {liveTime}
-          </span>
-          <span style={{
-            fontSize: '0.68rem',
-            fontWeight: 700,
-            color: 'var(--text-secondary)',
-            marginTop: '2px'
-          }}>
-            {liveDate}
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {isAdmin && (
-            <>
-              <button className="btn btn-secondary" onClick={() => setIsEmployeeModalOpen(true)}>
-                <UserPlus size={14} />
-                <span>Add Employee</span>
-              </button>
-              <button className="btn btn-secondary" onClick={() => setIsProjectModalOpen(true)}>
-                <Folder size={14} />
-                <span>New Project</span>
-              </button>
-
-              <button
-                onClick={openCreateModal}
-                className="btn btn-primary"
-                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
-                <Plus size={16} />
-                <span>{isAdmin ? 'Create Task' : 'Add My Task'}</span>
-              </button>
-
-            </>
-          )}
-          {!isAdmin && isPunchedIn && (
-            <button
-              className="btn btn-punchout"
-              onClick={canPunchOut ? handlePunchOut : undefined}
-              disabled={!canPunchOut}
-              style={{
-                gap: '8px',
-                padding: '8px 16px',
-                fontWeight: 700,
-                fontSize: '0.85rem'
-              }}
-              title={canPunchOut ? 'Punch Out Now' : 'Punch out is currently restricted outside shift hours'}
-            >
-              <Clock size={16} />
-              <span>Punch Out</span>
-            </button>
-          )}
-        </div>
+      {/* Dashboard Page Header */}
+      <div style={{ marginBottom: '18px' }} className="no-print">
+        <h1 style={{ fontSize: '1.35rem', fontWeight: 800 }}>Dashboard Overview</h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '2px' }}>
+          {isAdmin
+            ? 'Manage your organization Projects, monitor employee schedule, and track tasks.'
+            : 'Log your work sessions, view assigned Projects, and manage your schedules.'}
+        </p>
       </div>
 
       {error && (
@@ -770,6 +706,170 @@ export default function Dashboard() {
           <p style={{ fontWeight: 650 }}>{error}</p>
         </div>
       )}
+
+      {/* Statistics Cards Overview */}
+      <div className="dashboard-kpi-grid">
+        {/* Card 1: Employees Statistics */}
+        <Link href={isAdmin ? "/employees" : "/attendance"} className="dashboard-kpi-card" title="View Employees & Attendance">
+          <div className="kpi-card-header">
+            <span className="kpi-card-title">Employees</span>
+            <div className="kpi-icon-badge" style={{ background: '#eff6ff', color: 'var(--accent-primary)' }}>
+              <Users size={18} />
+            </div>
+          </div>
+          <div>
+            <div className="kpi-metric-row">
+              <span className="kpi-metric-value">{computedStats.employees.total}</span>
+              <span className="kpi-metric-secondary">
+                {computedStats.employees.present} Present Today
+              </span>
+            </div>
+            <div className="kpi-progress-track" style={{ marginTop: '8px' }}>
+              <div
+                className="kpi-progress-bar"
+                style={{ width: `${empPresentPct}%`, background: '#10b981' }}
+                title={`${empPresentPct}% Present today`}
+              />
+            </div>
+          </div>
+          <div className="kpi-tags-row">
+            <span className="kpi-pill success">
+              <span className="kpi-pill-dot" /> {computedStats.employees.present} Present
+            </span>
+            <span className="kpi-pill danger">
+              <span className="kpi-pill-dot" /> {computedStats.employees.absent} Absent
+            </span>
+            <span className="kpi-pill primary">
+              <span className="kpi-pill-dot" /> {computedStats.employees.active} Active
+            </span>
+            {computedStats.employees.inactive > 0 && (
+              <span className="kpi-pill neutral">
+                <span className="kpi-pill-dot" /> {computedStats.employees.inactive} Inactive
+              </span>
+            )}
+            {computedStats.employees.workingNow > 0 && (
+              <span className="kpi-pill warning">
+                <span className="kpi-pill-dot" /> {computedStats.employees.workingNow} Working
+              </span>
+            )}
+          </div>
+        </Link>
+
+        {/* Card 2: Tasks Statistics */}
+        <Link href="/tasks" className="dashboard-kpi-card" title="View Tasks">
+          <div className="kpi-card-header">
+            <span className="kpi-card-title">{isAdmin ? 'Total Tasks' : 'My Tasks'}</span>
+            <div className="kpi-icon-badge" style={{ background: '#ecfdf5', color: '#10b981' }}>
+              <CheckSquare size={18} />
+            </div>
+          </div>
+          <div>
+            <div className="kpi-metric-row">
+              <span className="kpi-metric-value">{computedStats.tasks.total}</span>
+              <span className="kpi-metric-secondary">
+                {computedStats.tasks.active} Active
+              </span>
+            </div>
+            <div className="kpi-progress-track" style={{ marginTop: '8px' }}>
+              <div
+                className="kpi-progress-bar"
+                style={{ width: `${taskCompletionPct}%`, background: '#10b981' }}
+                title={`${taskCompletionPct}% Completed`}
+              />
+            </div>
+          </div>
+          <div className="kpi-tags-row">
+            <span className="kpi-pill primary">
+              <span className="kpi-pill-dot" /> {computedStats.tasks.active} Active
+            </span>
+            <span className="kpi-pill warning">
+              <span className="kpi-pill-dot" /> {computedStats.tasks.inProgress} In Progress
+            </span>
+            <span className="kpi-pill neutral">
+              <span className="kpi-pill-dot" /> {computedStats.tasks.todo} To Do
+            </span>
+            <span className="kpi-pill success">
+              <span className="kpi-pill-dot" /> {computedStats.tasks.completed} Done
+            </span>
+          </div>
+        </Link>
+
+        {/* Card 3: Projects Statistics */}
+        <Link href="/project" className="dashboard-kpi-card" title="View Projects">
+          <div className="kpi-card-header">
+            <span className="kpi-card-title">Projects</span>
+            <div className="kpi-icon-badge" style={{ background: '#faf5ff', color: '#8b5cf6' }}>
+              <Folder size={18} />
+            </div>
+          </div>
+          <div>
+            <div className="kpi-metric-row">
+              <span className="kpi-metric-value">{computedStats.projects.total}</span>
+              <span className="kpi-metric-secondary">
+                {computedStats.projects.active} Active
+              </span>
+            </div>
+            <div className="kpi-progress-track" style={{ marginTop: '8px' }}>
+              <div
+                className="kpi-progress-bar"
+                style={{ width: `${projActivePct}%`, background: '#8b5cf6' }}
+                title={`${projActivePct}% Active Projects`}
+              />
+            </div>
+          </div>
+          <div className="kpi-tags-row">
+            <span className="kpi-pill purple">
+              <span className="kpi-pill-dot" /> {computedStats.projects.active} Active
+            </span>
+            <span className="kpi-pill neutral">
+              <span className="kpi-pill-dot" /> {computedStats.projects.inactive} Inactive
+            </span>
+            {computedStats.projects.totalMinutes > 0 && (
+              <span className="kpi-pill primary">
+                <span className="kpi-pill-dot" /> {formatMinutesToDuration(computedStats.projects.totalMinutes)}
+              </span>
+            )}
+          </div>
+        </Link>
+
+        {/* Card 4: Attendance & Time Tracked */}
+        <Link href={isAdmin ? "/attendance" : "/punch"} className="dashboard-kpi-card" title="View Attendance & Punch Status">
+          <div className="kpi-card-header">
+            <span className="kpi-card-title">Presence & Time</span>
+            <div className="kpi-icon-badge" style={{ background: '#fffbeb', color: '#f59e0b' }}>
+              <Activity size={18} />
+            </div>
+          </div>
+          <div>
+            <div className="kpi-metric-row">
+              <span className="kpi-metric-value">{computedStats.productivity.attendanceRate}%</span>
+              <span className="kpi-metric-secondary">
+                Rate Today
+              </span>
+            </div>
+            <div className="kpi-progress-track" style={{ marginTop: '8px' }}>
+              <div
+                className="kpi-progress-bar"
+                style={{ width: `${computedStats.productivity.attendanceRate}%`, background: '#f59e0b' }}
+                title={`${computedStats.productivity.attendanceRate}% Attendance Rate`}
+              />
+            </div>
+          </div>
+          <div className="kpi-tags-row">
+            <span className="kpi-pill success">
+              <span className="kpi-pill-dot" /> {computedStats.employees.checkedIn} Punched In
+            </span>
+            <span className="kpi-pill primary">
+              <span className="kpi-pill-dot" /> {formatMinutesToDuration(computedStats.productivity.todayMinutes)} Today
+            </span>
+            {computedStats.employees.checkedOut > 0 && (
+              <span className="kpi-pill neutral">
+                <span className="kpi-pill-dot" /> {computedStats.employees.checkedOut} Punched Out
+              </span>
+            )}
+          </div>
+        </Link>
+      </div>
 
       {/* Main Grid Layout */}
       <div className="dashboard-grid">
@@ -1156,283 +1256,36 @@ export default function Dashboard() {
       </div>
 
       {/* MODAL: ADD EMPLOYEE (Admin Only) */}
-      {isAdmin && isEmployeeModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsEmployeeModalOpen(false)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Add New Team Member</h3>
-              <button className="modal-close" onClick={() => setIsEmployeeModalOpen(false)}>&times;</button>
-            </div>
-            <form onSubmit={handleAddEmployee}>
-              <div className="form-group">
-                <label className="form-label">Full Name *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  required
-                  placeholder="e.g. Brooklyn Simmons"
-                  value={empName}
-                  onChange={(e) => setEmpName(e.target.value)}
-                />
-              </div>
+      <AddTeamMemberModal
+        isOpen={isAdmin && isEmployeeModalOpen}
+        onClose={() => setIsEmployeeModalOpen(false)}
+        projectsList={projects}
+        onSuccess={async (newEmp) => {
+          await fetchData();
+          if (newEmp?._id) {
+            setFormData((prev) => ({
+              ...prev,
+              assignedTo: prev.assignedTo.includes(newEmp._id)
+                ? prev.assignedTo
+                : [...prev.assignedTo, newEmp._id],
+            }));
+          }
+        }}
+      />
 
-              <div className="form-group">
-                <label className="form-label">Email Address *</label>
-                <input
-                  type="email"
-                  className="form-control"
-                  required
-                  placeholder="e.g. employee@company.com"
-                  value={empEmail}
-                  onChange={(e) => setEmpEmail(e.target.value)}
-                />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Password *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    required
-                    value={empPass}
-                    onChange={(e) => setEmpPass(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Role Type *</label>
-                  <select
-                    className="form-control"
-                    value={empType}
-                    onChange={(e) => setEmpType(e.target.value)}
-                  >
-                    <option value="employee">Employee</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Job Title *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    required
-                    value={empRole}
-                    onChange={(e) => setEmpRole(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Department *</label>
-                  <select
-                    className="form-control"
-                    value={empDept}
-                    onChange={(e) => setEmpDept(e.target.value)}
-                  >
-                    {Projects.map((dept) => (
-                      <option key={dept} value={dept}>{dept}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Initial Status</label>
-                  <select
-                    className="form-control"
-                    value={empStatus}
-                    onChange={(e) => setEmpStatus(e.target.value)}
-                  >
-                    {statuses.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Work Mode</label>
-                  <select
-                    className="form-control"
-                    value={empWorkMode}
-                    onChange={(e) => setEmpWorkMode(e.target.value)}
-                  >
-                    {workmodes.map((workmode) => (
-                      <option key={workmode} value={workmode}>{workmode}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Theme Color</label>
-                  <div className="color-selector">
-                    {colors.map((c) => (
-                      <div
-                        key={c}
-                        className="color-option"
-                        style={{
-                          backgroundColor: c,
-                          borderColor: empColor === c ? 'var(--text-primary)' : 'transparent'
-                        }}
-                        onClick={() => setEmpColor(c)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsEmployeeModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={submittingEmp}>
-                  {submittingEmp ? 'Creating...' : 'Create Member'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: NEW Project (Admin Only) */}
-      {isAdmin && isProjectModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsProjectModalOpen(false)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Create New Project</h3>
-              <button className="modal-close" onClick={() => setIsProjectModalOpen(false)}>&times;</button>
-            </div>
-            <form onSubmit={handleAddProject}>
-              <div className="form-group">
-                <label className="form-label">Project / Project Name *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  required
-                  placeholder="e.g. Quality Assurance"
-                  value={projName}
-                  onChange={(e) => setProjName(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Description (Optional)</label>
-                <textarea
-                  className="form-control"
-                  placeholder="Define scope..."
-                  value={projDesc}
-                  onChange={(e) => setProjDesc(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Visual Badge Color</label>
-                <div className="color-selector">
-                  {colors.map((c) => (
-                    <div
-                      key={c}
-                      className="color-option"
-                      style={{
-                        backgroundColor: c,
-                        borderColor: projColor === c ? 'var(--text-primary)' : 'transparent'
-                      }}
-                      onClick={() => setProjColor(c)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Assign Members</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '10px' }}>
-                  {employees.map(emp => (
-                    <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={projMembers.includes(emp._id)}
-                        onChange={() => handleMemberSelectToggle(emp._id)}
-                      />
-                      <span style={{ fontWeight: 655 }}>{emp.name} ({emp.role})</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginTop: '12px' }}>
-                <label className="form-label">Client Association</label>
-                <select
-                  className="form-control"
-                  value={selectedClientId}
-                  onChange={(e) => setSelectedClientId(e.target.value)}
-                >
-                  <option value="">None</option>
-                  <option value="new">Add New Client Inline...</option>
-                  {clientsList.map(c => (
-                    <option key={c._id} value={c._id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedClientId === 'new' && (
-                <div style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', display: 'grid', gap: '8px', marginBottom: '14px' }}>
-                  <p style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '4px' }}>New Client Details</p>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Client Name *</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      style={{ height: '32px', fontSize: '0.76rem' }}
-                      required={selectedClientId === 'new'}
-                      placeholder="e.g. Acme Corp"
-                      value={newClientName}
-                      onChange={(e) => setNewClientName(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Contact Emails</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      style={{ height: '32px', fontSize: '0.76rem' }}
-                      placeholder="e.g. contact@acme.com, billing@acme.com"
-                      value={newClientEmails}
-                      onChange={(e) => setNewClientEmails(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Address</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      style={{ height: '32px', fontSize: '0.76rem' }}
-                      placeholder="e.g. 123 Main St"
-                      value={newClientAddress}
-                      onChange={(e) => setNewClientAddress(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Contract Duration</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      style={{ height: '32px', fontSize: '0.76rem' }}
-                      placeholder="e.g. 6 Months"
-                      value={newClientDuration}
-                      onChange={(e) => setNewClientDuration(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsProjectModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={submittingProj}>
-                  {submittingProj ? 'Creating...' : 'Create Project'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* MODAL: NEW Project */}
+      <CreateProjectModal
+        isOpen={isProjectModalOpen}
+        onClose={() => setIsProjectModalOpen(false)}
+        clientsList={clientsList}
+        employeesList={employees}
+        onSuccess={async (newProj) => {
+          await fetchData();
+          if (newProj?._id) {
+            setFormData((prev) => ({ ...prev, projectId: String(newProj._id), Project: '' }));
+          }
+        }}
+      />
 
       {/* MODAL: LOG WORK */}
       {isWorkModalOpen && (
@@ -1640,56 +1493,102 @@ export default function Dashboard() {
             </div>
 
             <form onSubmit={handleSubmit}>
-              <div style={{ marginBottom: '16px' }}>
-                <label className="form-label">Title *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  required
+              {/* Row 1: Choose Project & Priority */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <CustomDropdown
+                  label="Choose Project"
+                  placeholder="Choose Project"
+                  value={formData.projectId}
+                  options={[
+                    { value: '', label: 'Choose Project' },
+                    ...projects.map((p) => ({
+                      value: p._id,
+                      label: p.name,
+                      color: p.color || '#3b82f6',
+                    })),
+                  ]}
+                  onChange={(val) => setFormData({ ...formData, projectId: val })}
+                  actionButton={{
+                    label: 'add project',
+                    onClick: () => setIsProjectModalOpen(true),
+                  }}
+                />
+
+                <CustomDropdown
+                  label="Priority"
+                  placeholder="Select Priority"
+                  value={formData.priority}
+                  options={[
+                    { value: 'Low', label: 'Low', color: '#3b82f6', badgeText: 'Low', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
+                    { value: 'Medium', label: 'Medium', color: '#f59e0b', badgeText: 'Medium', badgeBg: '#fffbeb', badgeColor: '#b45309' },
+                    { value: 'High', label: 'High', color: '#f97316', badgeText: 'High', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
+                    { value: 'Urgent', label: 'Urgent', color: '#ef4444', badgeText: 'Urgent', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
+                  ]}
+                  onChange={(val) => setFormData({ ...formData, priority: val as any })}
                 />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: !formData.projectId ? '1fr 1fr' : '1fr', gap: '16px', marginBottom: '16px' }}>
-                <div>
-                  <label className="form-label">Choose</label>
-                  <select
-                    className="form-control"
-                    value={formData.projectId}
-                    onChange={(e) => setFormData({ ...formData, projectId: e.target.value, Project: '' })}
-                  >
-                    <option value="">None</option>
-                    {projects.map((proj) => (
-                      <option key={proj._id} value={proj._id}>
-                        {proj.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
-                {!formData.projectId && (
-                  <div>
-                    <label className="form-label">Project</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={formData.Project}
-                      onChange={(e) => setFormData({ ...formData, Project: e.target.value, projectId: '' })}
-                      disabled={!!formData.projectId}
-                      placeholder={formData.projectId ? 'Using project' : 'e.g., Engineering'}
-                    />
-                  </div>
-                )}
+              {/* Row 2: Status, Due Date, Time */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <CustomDropdown
+                  label="Status"
+                  placeholder="Select Status"
+                  value={formData.status}
+                  options={[
+                    { value: 'To Do', label: 'To Do', badgeText: 'To Do', badgeBg: '#f1f5f9', badgeColor: '#475569' },
+                    { value: 'In Progress', label: 'In Progress', badgeText: 'In Progress', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
+                    { value: 'Review', label: 'Review', badgeText: 'Review', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
+                    { value: 'Completed', label: 'Completed', badgeText: 'Completed', badgeBg: '#ecfdf5', badgeColor: '#047857' },
+                  ]}
+                  onChange={(val) => setFormData({ ...formData, status: val as any })}
+                />
+
+                <CustomDatePicker
+                  label="Due Date"
+                  value={formData.dueDate}
+                  onChange={(val) => setFormData({ ...formData, dueDate: val })}
+                  placeholder="Pick date"
+                />
+
+                <CustomTimePicker
+                  label="Due Time"
+                  value={formData.dueTime}
+                  onChange={(val) => setFormData({ ...formData, dueTime: val })}
+                  placeholder="Pick time"
+                />
               </div>
 
+              {/* Assign To (Admin Only) */}
               {isAdmin && (
                 <div style={{ marginBottom: '16px' }}>
-                  <label className="form-label">Assign To *</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Assign To *</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsEmployeeModalOpen(true)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--accent-primary)',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        padding: '0 2px',
+                      }}
+                      title="Create and add new team member"
+                    >
+                      <Plus size={13} />
+                      <span>add employee</span>
+                    </button>
+                  </div>
                   <div style={{
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '8px',
-                    maxHeight: '140px',
+                    maxHeight: '130px',
                     overflowY: 'auto',
                     border: '1px solid var(--border-color)',
                     borderRadius: 'var(--border-radius-sm)',
@@ -1723,83 +1622,93 @@ export default function Dashboard() {
                               }
                             }}
                           />
-                          <span style={{ fontWeight: isChecked ? 700 : 400 }}>{emp.name} ({emp.Project})</span>
+                          <span style={{ fontWeight: isChecked ? 700 : 400 }}>{emp.name} ({emp.Project || emp.role})</span>
                         </label>
                       );
                     })}
                   </div>
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                <div>
-                  <label className="form-label">Priority</label>
-                  <select
-                    className="form-control"
-                    value={formData.priority}
-                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'Low' | 'Medium' | 'High' | 'Urgent' })}
-                  >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                    <option value="Urgent">Urgent</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="form-label">Status</label>
-                  <select
-                    className="form-control"
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'To Do' | 'In Progress' | 'Review' | 'Completed' })}
-                  >
-                    <option value="To Do">To Do</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Review">Review</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="form-label">Due Date</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={formData.dueDate}
-                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div style={{ marginBottom: '16px' }}>
-                <label className="form-label">Description</label>
-                <CKEditorComponent
-                  value={formData.description}
-                  onChange={(val) => setFormData({ ...formData, description: val })}
-                />
-              </div>
-
-
-
-
 
               {!isAdmin && user && (
                 <div style={{ marginBottom: '16px' }}>
                   <label className="form-label">Assigned To</label>
-                  <div className="form-control" style={{ display: 'flex', alignItems: 'center', minHeight: '42px' }}>
+                  <div className="form-control" style={{ display: 'flex', alignItems: 'center', minHeight: '38px', background: 'var(--bg-tertiary)' }}>
                     {user.name}
                   </div>
                 </div>
               )}
 
-
-              <div style={{ marginBottom: '20px' }}>
-                <label className="form-label">Tags (comma separated)</label>
+              {/* Task Title */}
+              <div style={{ marginBottom: '16px' }}>
+                <label className="form-label">Task Title *</label>
                 <input
                   type="text"
                   className="form-control"
-                  value={formData.tags}
-                  onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                  placeholder="e.g., frontend, urgent, bug"
+                  placeholder="e.g., Design user registration flow"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
                 />
+              </div>
+
+              {/* Task Description */}
+              <div style={{ marginBottom: '16px' }}>
+                <label className="form-label">Task Description</label>
+                <CKEditorComponent
+                  value={formData.description}
+                  onChange={(val: string) => setFormData({ ...formData, description: val })}
+                />
+              </div>
+
+              {/* Row: Supporting Files & URL / Resource Links */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
+                <CustomFileAttachment
+                  label="Supporting Files"
+                  files={formData.files}
+                  onUpload={handleFileUpload}
+                  onRemove={handleRemoveFile}
+                />
+
+                <CustomMultipleLinks
+                  label="URL / Resource Links"
+                  links={formData.urls}
+                  onChange={(newLinks) => setFormData({ ...formData, urls: newLinks, url: newLinks[0] || '' })}
+                />
+              </div>
+
+              {/* Row: Comments / Notes & Tags */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', alignItems: 'start' }}>
+                <div>
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
+                    Comments / Notes
+                  </label>
+                  <div className="custom-input-group" style={{ alignItems: 'flex-start' }}>
+                    <span className="custom-input-addon" style={{ height: 'auto', paddingTop: '8px' }}>
+                      <MessageSquare size={14} />
+                    </span>
+                    <textarea
+                      className="custom-input-control"
+                      style={{ minHeight: '62px', height: '62px', resize: 'vertical' }}
+                      placeholder="Add any additional notes, remarks or comments..."
+                      value={formData.comments}
+                      onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
+                    Tags (comma separated)
+                  </label>
+                  <textarea
+                    className="form-control"
+                    style={{ minHeight: '62px', height: '62px', resize: 'vertical', fontSize: '0.8rem', padding: '8px 10px' }}
+                    value={formData.tags}
+                    onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                    placeholder="e.g., frontend, urgent, bug"
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>

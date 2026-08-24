@@ -90,6 +90,11 @@ export async function POST(request: Request) {
       priority,
       status,
       dueDate,
+      dueTime,
+      url,
+      urls,
+      comments,
+      files,
       tags,
     } = body;
 
@@ -174,6 +179,11 @@ export async function POST(request: Request) {
       priority: priority || 'Medium',
       status: status || 'To Do',
       dueDate,
+      dueTime,
+      url,
+      urls: Array.isArray(urls) ? urls : (url ? [url] : []),
+      comments,
+      files: Array.isArray(files) ? files : [],
       tags: tags || [],
     });
 

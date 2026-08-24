@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import PageShimmer from '@/components/PageShimmer';
+import CreateProjectModal from '@/components/CreateProjectModal';
 
 interface Employee {
   _id: string;
@@ -93,6 +94,7 @@ export default function ProjectsPage() {
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [isClientDrawerOpen, setIsClientDrawerOpen] = useState(false);
   const [newClientName, setNewClientName] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
   const [newClientEmails, setNewClientEmails] = useState('');
   const [newClientAddress, setNewClientAddress] = useState('');
   const [newClientDuration, setNewClientDuration] = useState('');
@@ -190,55 +192,7 @@ export default function ProjectsPage() {
   }, [user, fetchData]);
 
   // --- Project Actions ---
-  const handleAddDeptSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!deptName.trim()) return;
 
-    try {
-      setSavingDept(true);
-      
-      const bodyPayload: any = {
-        name: deptName,
-        description: deptDesc,
-        color: deptColor,
-        members: deptMembers
-      };
-
-      if (selectedClientId === 'new') {
-        bodyPayload.clientInfo = {
-          name: newClientName,
-          emails: newClientEmails,
-          address: newClientAddress,
-          duration: newClientDuration
-        };
-      } else if (selectedClientId) {
-        bodyPayload.clientId = selectedClientId;
-      }
-
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload)
-      });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to create Project');
-
-      setDeptName('');
-      setDeptDesc('');
-      setDeptMembers([]);
-      setSelectedClientId('');
-      setNewClientName('');
-      setNewClientEmails('');
-      setNewClientAddress('');
-      setNewClientDuration('');
-      setIsAddDeptOpen(false);
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setSavingDept(false);
-    }
-  };
 
   const handleEditDeptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -257,6 +211,7 @@ export default function ProjectsPage() {
       if (selectedClientId === 'new') {
         bodyPayload.clientInfo = {
           name: newClientName,
+          phone: newClientPhone,
           emails: newClientEmails,
           address: newClientAddress,
           duration: newClientDuration
@@ -274,6 +229,7 @@ export default function ProjectsPage() {
       if (!result.success) throw new Error(result.error || 'Failed to save Project changes');
 
       setNewClientName('');
+      setNewClientPhone('');
       setNewClientEmails('');
       setNewClientAddress('');
       setNewClientDuration('');
@@ -936,23 +892,6 @@ export default function ProjectsPage() {
                     />
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label">Visual Theme Color</label>
-                    <div className="color-selector">
-                      {colors.map((c) => (
-                        <div 
-                          key={c}
-                          className="color-option"
-                          style={{ 
-                            backgroundColor: c,
-                            borderColor: deptColor === c ? 'var(--text-primary)' : 'transparent'
-                          }}
-                          onClick={() => setDeptColor(c)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
                    <div className="form-group">
                     <label className="form-label">Assign / Re-assign Team Members</label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '10px' }}>
@@ -986,9 +925,16 @@ export default function ProjectsPage() {
                     >
                       <option value="">None</option>
                       <option value="new">Add New Client Inline...</option>
-                      {clientsList.map(c => (
-                        <option key={c._id} value={c._id}>{c.name}</option>
-                      ))}
+                      {clientsList.map(c => {
+                        const projNames = c.projects && c.projects.length > 0
+                          ? ` (${c.projects.map((p: any) => p.name).join(', ')})`
+                          : '';
+                        return (
+                          <option key={c._id} value={c._id}>
+                            {c.name}{projNames}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </form>
@@ -999,243 +945,13 @@ export default function ProjectsPage() {
       </div>
 
       {/* MODAL: ADD Project */}
-      {isAddDeptOpen && (
-        <div className="modal-overlay" onClick={() => setIsAddDeptOpen(false)}>
-          <div 
-            className="modal-container" 
-            onClick={(e) => e.stopPropagation()} 
-            style={{ 
-              position: 'relative',
-              maxWidth: isClientDrawerOpen ? '1100px' : '600px',
-              width: isClientDrawerOpen ? '95%' : '90%',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              display: 'grid',
-              gridTemplateColumns: isClientDrawerOpen ? '1fr 400px' : '1fr',
-              gap: isClientDrawerOpen ? '0' : '0',
-              overflow: 'hidden'
-            }}
-          >
-            {/* Cross button - fixed top right */}
-            <button 
-              className="modal-close" 
-              onClick={() => setIsAddDeptOpen(false)}
-              style={{
-                position: 'absolute',
-                top: '20px',
-                right: '20px',
-                zIndex: 10
-              }}
-            >
-              &times;
-            </button>
-
-            {/* Main Form Section */}
-            <div style={{ borderRight: isClientDrawerOpen ? '1px solid var(--border-color)' : 'none' }}>
-            <div className="modal-header" style={{ paddingRight: '50px' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Create New Project</h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setIsClientDrawerOpen(!isClientDrawerOpen)}
-                  style={{ fontSize: '0.75rem', padding: '6px 12px' }}
-                >
-                  {isClientDrawerOpen ? 'Hide Client Form' : '+ Add Client'}
-                </button>
-              </div>
-            </div>
-            <form onSubmit={handleAddDeptSubmit} style={{ padding: '0 20px 20px 20px' }}>
-              <div className="form-group">
-                <label className="form-label">Project Name *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  required
-                  placeholder="e.g. Development"
-                  value={deptName}
-                  onChange={(e) => setDeptName(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Description (Optional)</label>
-                <textarea 
-                  className="form-control" 
-                  placeholder="Define scope..."
-                  value={deptDesc}
-                  onChange={(e) => setDeptDesc(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Badge Theme Color</label>
-                <div className="color-selector">
-                  {colors.map((c) => (
-                    <div 
-                      key={c}
-                      className="color-option"
-                      style={{ 
-                        backgroundColor: c,
-                        borderColor: deptColor === c ? 'var(--text-primary)' : 'transparent'
-                      }}
-                      onClick={() => setDeptColor(c)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Assign Members</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '10px' }}>
-                  {employees.map(emp => (
-                    <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', cursor: 'pointer' }}>
-                      <input 
-                        type="checkbox"
-                        checked={deptMembers.includes(emp._id)}
-                        onChange={() => handleDeptMemberToggle(emp._id)}
-                      />
-                      <span style={{ fontWeight: 600 }}>{emp.name} ({emp.role})</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginTop: '12px' }}>
-                <label className="form-label">Client Association</label>
-                <select
-                  className="form-control"
-                  value={selectedClientId}
-                  onChange={(e) => setSelectedClientId(e.target.value)}
-                >
-                  <option value="">None</option>
-                  {selectedClientId === 'new' && newClientName && (
-                    <option value="new">✓ {newClientName} (New)</option>
-                  )}
-                  {clientsList.map(c => (
-                    <option key={c._id} value={c._id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsAddDeptOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={savingDept}>
-                  {savingDept ? 'Creating...' : 'Create Project'}
-                </button>
-              </div>
-            </form>
-            </div>
-
-            {/* Client Details Side Panel - Slides in from right */}
-            {isClientDrawerOpen && (
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-                backgroundColor: 'var(--bg-secondary)',
-                animation: 'slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  padding: '20px',
-                  borderBottom: '1px solid var(--border-color)',
-                  flexShrink: 0
-                }}>
-                  <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--accent-primary)' }}>New Client</h4>
-                  <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Fill in the details</p>
-                </div>
-
-                <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-                  <div style={{ display: 'grid', gap: '14px' }}>
-                    <div>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
-                        Client Name <span style={{ color: '#ef4444' }}>*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="e.g. Acme Corp"
-                        value={newClientName}
-                        onChange={(e) => setNewClientName(e.target.value)}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>Contact Emails</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="e.g. contact@acme.com"
-                        value={newClientEmails}
-                        onChange={(e) => setNewClientEmails(e.target.value)}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>Address</label>
-                      <textarea
-                        className="form-control"
-                        placeholder="e.g. 123 Main St"
-                        value={newClientAddress}
-                        onChange={(e) => setNewClientAddress(e.target.value)}
-                        rows={3}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>Contract Duration</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="e.g. 6 Months"
-                        value={newClientDuration}
-                        onChange={(e) => setNewClientDuration(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{
-                  padding: '14px 20px',
-                  borderTop: '1px solid var(--border-color)',
-                  display: 'flex',
-                  gap: '10px',
-                  justifyContent: 'flex-end',
-                  flexShrink: 0
-                }}>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => {
-                      setIsClientDrawerOpen(false);
-                      setNewClientName('');
-                      setNewClientEmails('');
-                      setNewClientAddress('');
-                      setNewClientDuration('');
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => {
-                      if (!newClientName.trim()) {
-                        alert('Please enter a client name');
-                        return;
-                      }
-                      setSelectedClientId('new');
-                      setIsClientDrawerOpen(false);
-                    }}
-                  >
-                    Add Client
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <CreateProjectModal
+        isOpen={isAddDeptOpen}
+        onClose={() => setIsAddDeptOpen(false)}
+        clientsList={clientsList}
+        employeesList={employees}
+        onSuccess={() => fetchData()}
+      />
 
       {/* MODAL: LOG WORK */}
       {isLogWorkOpen && (

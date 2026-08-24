@@ -85,6 +85,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       'priority',
       'status',
       'dueDate',
+      'dueTime',
+      'url',
+      'urls',
+      'comments',
+      'files',
       'tags',
     ];
 

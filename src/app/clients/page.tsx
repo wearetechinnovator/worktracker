@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, Briefcase, Mail, MapPin, Clock, Plus, Search, X, AlertCircle, Edit3, Trash2, UserPlus, Folder, FileBarChart, Lightbulb, HelpCircle, Sparkles } from 'lucide-react';
+import { Users, Briefcase, Mail, Phone, MapPin, Clock, Plus, Search, X, AlertCircle, Edit3, Trash2, UserPlus, Folder, FileBarChart, Lightbulb, HelpCircle, Sparkles, UserCheck, Contact } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
 
 interface TaggedProject {
@@ -11,12 +11,21 @@ interface TaggedProject {
   color?: string;
 }
 
+export interface ClientContact {
+  name: string;
+  email?: string;
+  phone?: string;
+  designation?: string;
+}
+
 interface ClientData {
   _id: string;
   name: string;
+  phone?: string;
   emails: string[];
   address?: string;
   duration?: string;
+  contacts?: ClientContact[];
   projects: TaggedProject[];
 }
 
@@ -38,9 +47,11 @@ export default function ClientsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState<ClientData | null>(null);
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [emailsStr, setEmailsStr] = useState('');
   const [address, setAddress] = useState('');
   const [duration, setDuration] = useState('');
+  const [contacts, setContacts] = useState<Array<{ name: string; email: string; phone: string; designation: string }>>([]);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,8 +112,15 @@ export default function ClientsPage() {
   const filteredClients = useMemo(() => {
     return clients.filter(client =>
       client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (client.phone && client.phone.toLowerCase().includes(searchQuery.toLowerCase())) ||
       client.emails.some(email => email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (client.address && client.address.toLowerCase().includes(searchQuery.toLowerCase()))
+      (client.address && client.address.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (client.contacts && client.contacts.some(c =>
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.designation && c.designation.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.phone && c.phone.toLowerCase().includes(searchQuery.toLowerCase()))
+      ))
     );
   }, [clients, searchQuery]);
 
@@ -116,9 +134,11 @@ export default function ClientsPage() {
   const openAddModal = () => {
     setEditingClient(null);
     setName('');
+    setPhone('');
     setEmailsStr('');
     setAddress('');
     setDuration('');
+    setContacts([]);
     setSelectedProjectIds([]);
     setError(null);
     setShowModal(true);
@@ -127,12 +147,39 @@ export default function ClientsPage() {
   const openEditModal = (client: ClientData) => {
     setEditingClient(client);
     setName(client.name);
+    setPhone(client.phone || '');
     setEmailsStr(client.emails.join(', '));
     setAddress(client.address || '');
     setDuration(client.duration || '');
+    setContacts(
+      client.contacts && client.contacts.length > 0
+        ? client.contacts.map(c => ({
+            name: c.name || '',
+            email: c.email || '',
+            phone: c.phone || '',
+            designation: c.designation || '',
+          }))
+        : []
+    );
     setSelectedProjectIds(client.projects.map(p => p._id));
     setError(null);
     setShowModal(true);
+  };
+
+  const handleAddContact = () => {
+    setContacts(prev => [...prev, { name: '', designation: '', email: '', phone: '' }]);
+  };
+
+  const handleContactChange = (index: number, field: string, value: string) => {
+    setContacts(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const handleRemoveContact = (index: number) => {
+    setContacts(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -165,9 +212,11 @@ export default function ClientsPage() {
 
       const payload = {
         name,
+        phone: phone.trim() || undefined,
         emails: emailsStr.split(',').map(email => email.trim()).filter(Boolean),
         address,
         duration,
+        contacts: contacts.filter(c => c.name.trim() || c.email.trim() || c.phone.trim() || c.designation.trim()),
         ...(editingClient
           ? { projectIds: finalProjectIds }
           : { projectId: finalProjectIds[0] || undefined }
@@ -523,22 +572,83 @@ export default function ClientsPage() {
               </div>
 
               <div className="client-card-body">
-                {/* Contacts */}
+                {/* Contacts & Phone */}
                 <div className="info-section">
-                  <h4 className="section-label">Client Contacts</h4>
-                  {client.emails.length === 0 ? (
-                    <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>No emails listed</p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '2px' }}>
-                      {client.emails.map((email, idx) => (
+                  <h4 className="section-label">Contact Details</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px' }}>
+                    {client.phone && (
+                      <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem' }}>
+                        <Phone size={11} style={{ color: 'var(--accent-primary)' }} />
+                        <a href={`tel:${client.phone}`} style={{ color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 600 }}>
+                          {client.phone}
+                        </a>
+                      </div>
+                    )}
+                    {client.emails.length === 0 && !client.phone ? (
+                      <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>No primary contact info</p>
+                    ) : (
+                      client.emails.map((email, idx) => (
                         <div key={idx} className="info-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem' }}>
                           <Mail size={11} style={{ color: 'var(--text-muted)' }} />
-                          <span style={{ color: 'var(--text-secondary)' }}>{email}</span>
+                          <a href={`mailto:${email}`} style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>
+                            {email}
+                          </a>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Contact Persons (Multiple Contacts) */}
+                {client.contacts && client.contacts.length > 0 && (
+                  <div className="info-section">
+                    <h4 className="section-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>Contact Persons ({client.contacts.length})</span>
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                      {client.contacts.map((c, cIdx) => (
+                        <div
+                          key={cIdx}
+                          style={{
+                            background: 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            padding: '6px 8px',
+                            fontSize: '0.72rem',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{c.name}</span>
+                            {c.designation && (
+                              <span style={{
+                                fontSize: '0.65rem',
+                                padding: '1px 6px',
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                color: 'var(--accent-primary)',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                              }}>
+                                {c.designation}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', color: 'var(--text-muted)', fontSize: '0.68rem' }}>
+                            {c.phone && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <Phone size={10} /> {c.phone}
+                              </span>
+                            )}
+                            {c.email && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <Mail size={10} /> {c.email}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Address */}
                 {client.address && (
@@ -638,53 +748,206 @@ export default function ClientsPage() {
                 </div>
               )}
 
-              <div className="form-group" style={{ marginBottom: '8px' }}>
-                <label className="form-label">Client Name *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  required
-                  placeholder="e.g. Acme Corporation"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={submitting}
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Client / Company Name *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    required
+                    placeholder="e.g. Acme Corporation"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Primary Phone Number</label>
+                  <input
+                    type="tel"
+                    className="form-control"
+                    placeholder="e.g. +1 (555) 234-5678"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    disabled={submitting}
+                  />
+                </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '8px' }}>
-                <label className="form-label">Contact Emails (comma-separated)</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="e.g. contact@acme.com, billing@acme.com"
-                  value={emailsStr}
-                  onChange={(e) => setEmailsStr(e.target.value)}
-                  disabled={submitting}
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">General Emails (comma-separated)</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. contact@acme.com, info@acme.com"
+                    value={emailsStr}
+                    onChange={(e) => setEmailsStr(e.target.value)}
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Contract Duration (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. 6 Months, Annual Retainer"
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                    disabled={submitting}
+                  />
+                </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '8px' }}>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
                 <label className="form-label">Address (Optional)</label>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="e.g. 123 Main St, New York, NY"
+                  placeholder="e.g. 123 Main St, Suite 400, New York, NY"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   disabled={submitting}
                 />
               </div>
 
-              <div className="form-group" style={{ marginBottom: '8px' }}>
-                <label className="form-label">Contract Duration (Optional)</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="e.g. 6 Months, Annual Contract, Retainer"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  disabled={submitting}
-                />
+              {/* Section: Contact Persons (Multiple Contacts) */}
+              <div style={{
+                marginBottom: '14px',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--border-radius-md)',
+                padding: '12px',
+                background: 'var(--bg-tertiary)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div>
+                    <label className="form-label" style={{ fontWeight: 800, fontSize: '0.78rem', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Contact size={14} style={{ color: 'var(--accent-primary)' }} />
+                      <span>Client Contact Persons</span>
+                    </label>
+                    <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: 0 }}>
+                      Add key stakeholders, managers, or billing contacts for this client
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddContact}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.72rem', fontWeight: 700, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <Plus size={12} />
+                    <span>Add Contact</span>
+                  </button>
+                </div>
+
+                {contacts.length === 0 ? (
+                  <div
+                    onClick={handleAddContact}
+                    style={{
+                      border: '1.5px dashed var(--border-color)',
+                      borderRadius: '6px',
+                      padding: '12px',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-muted)',
+                      fontSize: '0.74rem',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent-primary)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border-color)')}
+                  >
+                    <Plus size={14} style={{ margin: '0 auto 4px auto', display: 'block', color: 'var(--accent-primary)' }} />
+                    <span style={{ fontWeight: 600, color: 'var(--accent-primary)' }}>+ Click to add contact person</span> (e.g. Lead, PM, Billing)
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '2px' }}>
+                    {contacts.map((contact, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          background: 'var(--bg-secondary)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '6px',
+                          padding: '10px',
+                          position: 'relative',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                            Contact #{idx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveContact(idx)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--text-muted)',
+                              cursor: 'pointer',
+                              padding: '2px',
+                              display: 'flex',
+                              alignItems: 'center',
+                            }}
+                            title="Remove contact"
+                            onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '6px' }}>
+                          <div>
+                            <input
+                              type="text"
+                              className="form-control"
+                              style={{ height: '32px', fontSize: '0.75rem' }}
+                              placeholder="Full Name *"
+                              value={contact.name}
+                              onChange={(e) => handleContactChange(idx, 'name', e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="text"
+                              className="form-control"
+                              style={{ height: '32px', fontSize: '0.75rem' }}
+                              placeholder="Designation / Role (e.g. PM, CTO)"
+                              value={contact.designation}
+                              onChange={(e) => handleContactChange(idx, 'designation', e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          <div>
+                            <input
+                              type="email"
+                              className="form-control"
+                              style={{ height: '32px', fontSize: '0.75rem' }}
+                              placeholder="Direct Email"
+                              value={contact.email}
+                              onChange={(e) => handleContactChange(idx, 'email', e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="tel"
+                              className="form-control"
+                              style={{ height: '32px', fontSize: '0.75rem' }}
+                              placeholder="Phone Number"
+                              value={contact.phone}
+                              onChange={(e) => handleContactChange(idx, 'phone', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Associate to Projects checklist */}

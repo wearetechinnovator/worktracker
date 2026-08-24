@@ -19,7 +19,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, emails, address, duration, projectIds } = body;
+    const { name, phone, emails, address, duration, contacts, projectIds } = body;
 
     const client = await Client.findById(id);
     if (!client) {
@@ -27,8 +27,9 @@ export async function PUT(
     }
 
     if (name) client.name = name.trim();
+    if (phone !== undefined) client.phone = phone.trim();
     
-    if (emails) {
+    if (emails !== undefined) {
       if (Array.isArray(emails)) {
         client.emails = emails.map((e: any) => String(e).trim()).filter(Boolean);
       } else if (typeof emails === 'string') {
@@ -38,6 +39,19 @@ export async function PUT(
 
     if (address !== undefined) client.address = address.trim();
     if (duration !== undefined) client.duration = duration.trim();
+
+    if (contacts !== undefined) {
+      if (Array.isArray(contacts)) {
+        client.contacts = contacts
+          .filter((c: any) => c && (c.name || c.email || c.phone || c.designation))
+          .map((c: any) => ({
+            name: String(c.name || '').trim(),
+            email: String(c.email || '').trim().toLowerCase(),
+            phone: String(c.phone || '').trim(),
+            designation: String(c.designation || '').trim(),
+          }));
+      }
+    }
 
     await client.save();
 

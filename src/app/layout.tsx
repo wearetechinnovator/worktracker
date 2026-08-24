@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
+import TopNavbar from '@/components/TopNavbar';
 import PunchGuard from '@/components/PunchGuard';
 import ChatWidget from '@/components/ChatWidget';
 
@@ -31,7 +32,10 @@ export default function RootLayout({
         <PunchGuard>
           <div className="app-layout">
             <Sidebar />
-            <main className="main-content">{children}</main>
+            <div className="main-wrapper">
+              <TopNavbar />
+              <main className="main-content">{children}</main>
+            </div>
             <ChatWidget />
           </div>
         </PunchGuard>

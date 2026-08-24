@@ -10,6 +10,11 @@ export interface ITask extends Document {
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   status: 'To Do' | 'In Progress' | 'Review' | 'Completed';
   dueDate?: string; // YYYY-MM-DD
+  dueTime?: string; // HH:MM
+  url?: string;
+  urls?: string[];
+  comments?: string;
+  files?: Array<{ name: string; url: string; size?: number; type?: string }>;
   tags?: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -36,6 +41,16 @@ const TaskSchema = new Schema<ITask>(
       required: true 
     },
     dueDate: { type: String },
+    dueTime: { type: String },
+    url: { type: String, trim: true },
+    urls: [{ type: String }],
+    comments: { type: String, trim: true },
+    files: [{
+      name: { type: String },
+      url: { type: String },
+      size: { type: Number },
+      type: { type: String }
+    }],
     tags: [{ type: String }],
   },
   { timestamps: true }

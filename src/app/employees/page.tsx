@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
+import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import PageShimmer from '@/components/PageShimmer';
 
 interface Employee {
@@ -505,173 +506,15 @@ export default function EmployeesPage() {
       />
 
       {/* ADD EMPLOYEE MODAL */}
-      {isAddModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsAddModalOpen(false)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Add New Team Member</h3>
-              <button className="modal-close" onClick={() => setIsAddModalOpen(false)}>&times;</button>
-            </div>
-            <form onSubmit={handleAddSubmit}>
-              <div className="form-group">
-                <label className="form-label">Full Name *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  required
-                  placeholder="e.g. Brooklyn Simmons"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Email Address *</label>
-                <input
-                  type="email"
-                  className="form-control"
-                  required
-                  placeholder="e.g. brok-simms@mail.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Password *</label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type={showAddPassword ? "text" : "password"}
-                      className="form-control"
-                      style={{ paddingRight: '36px' }}
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowAddPassword(!showAddPassword)}
-                      style={{
-                        position: 'absolute',
-                        right: '8px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--text-muted)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '4px'
-                      }}
-                      title={showAddPassword ? "Hide Password" : "Show Password"}
-                    >
-                      {showAddPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Access Type *</label>
-                  <select
-                    className="form-control"
-                    value={userType}
-                    onChange={(e) => setUserType(e.target.value as any)}
-                  >
-                    <option value="employee">Employee</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Job Title / Role *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    required
-                    list="employee-role-suggestions"
-                    placeholder="e.g. UI UX Designer"
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                  />
-                  <datalist id="employee-role-suggestions">
-                    {roleSuggestions.map((roleOption) => (
-                      <option key={roleOption} value={roleOption} />
-                    ))}
-                  </datalist>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Project *</label>
-                  <select
-                    className="form-control"
-                    value={Project}
-                    onChange={(e) => setProject(e.target.value)}
-                  >
-                    {Projects.map((dept) => (
-                      <option key={dept} value={dept}>{dept}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Initial Status</label>
-                  <select
-                    className="form-control"
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                  >
-                    {statuses.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Work Mode</label>
-                  <select
-                    className="form-control"
-                    value={workMode}
-                    onChange={(e) => setWorkMode(e.target.value)}
-                  >
-                    {workmodes.map((workmode) => (
-                      <option key={workmode} value={workmode}>{workmode}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Theme Color</label>
-                  <div className="color-selector">
-                    {colors.map((c) => (
-                      <div
-                        key={c}
-                        className="color-option"
-                        style={{
-                          backgroundColor: c,
-                          borderColor: color === c ? 'var(--text-primary)' : 'transparent'
-                        }}
-                        onClick={() => setColor(c)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsAddModalOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>
-                  {submitting ? 'Creating...' : 'Create Member'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <AddTeamMemberModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        roleSuggestions={roleSuggestions}
+        onSuccess={async () => {
+          await fetchEmployees();
+          await fetchRoleSuggestions();
+        }}
+      />
 
       {/* EDIT EMPLOYEE MODAL */}
       {isEditModalOpen && (
@@ -806,22 +649,6 @@ export default function EmployeesPage() {
                       <option key={workmode} value={workmode}>{workmode}</option>
                     ))}
                   </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Theme Color</label>
-                  <div className="color-selector">
-                    {colors.map((c) => (
-                      <div
-                        key={c}
-                        className="color-option"
-                        style={{
-                          backgroundColor: c,
-                          borderColor: color === c ? 'var(--text-primary)' : 'transparent'
-                        }}
-                        onClick={() => setColor(c)}
-                      />
-                    ))}
-                  </div>
                 </div>
               </div>
 

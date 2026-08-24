@@ -32,6 +32,10 @@ interface Task {
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   status: 'To Do' | 'In Progress' | 'Review' | 'Completed';
   dueDate?: string;
+  dueTime?: string;
+  url?: string;
+  comments?: string;
+  files?: Array<{ name: string; url: string; size?: number; type?: string }>;
   tags?: string[];
   createdBy: {
     _id: string;

@@ -83,11 +83,25 @@ export async function POST(request: Request) {
         processedEmails = clientInfo.emails.split(',').map((e: string) => e.trim()).filter(Boolean);
       }
 
+      let processedContacts: any[] = [];
+      if (Array.isArray(clientInfo.contacts)) {
+        processedContacts = clientInfo.contacts
+          .filter((c: any) => c && (c.name || c.email || c.phone || c.designation))
+          .map((c: any) => ({
+            name: String(c.name || '').trim(),
+            email: String(c.email || '').trim().toLowerCase(),
+            phone: String(c.phone || '').trim(),
+            designation: String(c.designation || '').trim(),
+          }));
+      }
+
       const client = await Client.create({
         name: clientInfo.name.trim(),
+        phone: clientInfo.phone ? clientInfo.phone.trim() : undefined,
         emails: processedEmails,
         address: clientInfo.address ? clientInfo.address.trim() : '',
         duration: clientInfo.duration ? clientInfo.duration.trim() : '',
+        contacts: processedContacts,
       });
       finalClientId = client._id;
     }

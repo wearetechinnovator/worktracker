@@ -9,9 +9,19 @@ import { useRouter } from 'next/navigation';
 import {
   CheckSquare, Plus, AlertCircle, CheckCircle2,
   Calendar, Users, Folder, Filter, X, Edit, Trash2,
-  Play, StopCircle, Loader2, Mail, Copy
+  Play, StopCircle, Loader2, Mail, Copy, Clock,
+  Paperclip, Link as LinkIcon, MessageSquare
 } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
+import AddTeamMemberModal from '@/components/AddTeamMemberModal';
+import CreateProjectModal from '@/components/CreateProjectModal';
+import {
+  CustomDropdown,
+  CustomDatePicker,
+  CustomTimePicker,
+  CustomFileAttachment,
+  CustomMultipleLinks
+} from '@/components/TaskFormControls';
 import dynamic from 'next/dynamic';
 
 const CKEditorComponent = dynamic(
@@ -38,6 +48,11 @@ interface Task {
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   status: 'To Do' | 'In Progress' | 'Review' | 'Completed';
   dueDate?: string;
+  dueTime?: string;
+  url?: string;
+  urls?: string[];
+  comments?: string;
+  files?: Array<{ name: string; url: string; size?: number; type?: string }>;
   tags?: string[];
   createdBy?: {
     _id: string;
@@ -124,13 +139,45 @@ export default function TasksPage() {
     title: '',
     description: '',
     projectId: '',
-    Project: '',
     assignedTo: [] as string[],
     priority: 'Medium' as 'Low' | 'Medium' | 'High' | 'Urgent',
     status: 'To Do' as 'To Do' | 'In Progress' | 'Review' | 'Completed',
     dueDate: '',
+    dueTime: '',
+    url: '',
+    urls: [] as string[],
+    comments: '',
+    files: [] as Array<{ name: string; url: string; size?: number; type?: string }>,
     tags: '',
   });
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    Array.from(fileList).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFormData((prev) => ({
+          ...prev,
+          files: [...prev.files, { name: file.name, url: String(reader.result), size: file.size, type: file.type }],
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      files: prev.files.filter((_, i) => i !== index),
+    }));
+  };
+
+  // Modals
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
+
+
 
   // Authenticate user
   useEffect(() => {
@@ -167,7 +214,6 @@ export default function TasksPage() {
 
       if (tasksRes.success) setTasks(tasksRes.data);
       if (projectsRes.success) setProjects(projectsRes.data);
-
       if (isAdmin && results[2]) {
         const empRes = await results[2].json();
         if (empRes.success) setEmployees(empRes.data);
@@ -175,13 +221,17 @@ export default function TasksPage() {
         const worksRes = await results[2].json();
         if (worksRes.success) setTaskWorks(worksRes.data);
       }
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error(err);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
   }, [user, isAdmin]);
+
+
+
+
 
   const loadTasks = loadAllData;
 
@@ -457,8 +507,13 @@ export default function TasksPage() {
         userEmail: user.email,
         email: user.email,
         projectId: formData.projectId || undefined,
-        Project: formData.Project || user.Project || undefined,
+        Project: user.Project || undefined,
         dueDate: formData.dueDate || undefined,
+        dueTime: formData.dueTime || undefined,
+        url: formData.urls[0] || formData.url || undefined,
+        urls: formData.urls,
+        comments: formData.comments || undefined,
+        files: formData.files,
         tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
       };
 
@@ -513,11 +568,15 @@ export default function TasksPage() {
       title: task.title,
       description: task.description || '',
       projectId: task.projectId?._id || '',
-      Project: task.Project || '',
       assignedTo: Array.isArray(task.assignedTo) ? task.assignedTo.map(e => e._id) : [],
       priority: task.priority,
       status: task.status,
       dueDate: task.dueDate || '',
+      dueTime: (task as any).dueTime || '',
+      url: (task as any).url || '',
+      urls: Array.isArray((task as any).urls) ? (task as any).urls : ((task as any).url ? [(task as any).url] : []),
+      comments: (task as any).comments || '',
+      files: (task as any).files || [],
       tags: task.tags?.join(', ') || '',
     });
     setShowModal(true);
@@ -529,7 +588,6 @@ export default function TasksPage() {
       setFormData((current) => ({
         ...current,
         assignedTo: user._id ? [user._id] : [],
-        Project: user.Project || '',
       }));
     }
     setShowModal(true);
@@ -540,11 +598,15 @@ export default function TasksPage() {
       title: '',
       description: '',
       projectId: '',
-      Project: '',
       assignedTo: [],
       priority: 'Medium',
       status: 'To Do',
       dueDate: '',
+      dueTime: '',
+      url: '',
+      urls: [],
+      comments: '',
+      files: [],
       tags: '',
     });
     setEditingTask(null);
@@ -1078,59 +1140,103 @@ export default function TasksPage() {
               >
                 <X size={20} />
               </button>
-            </div>
+            </div>            <form onSubmit={handleSubmit}>
+              {/* Row 1: Choose Project & Priority */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <CustomDropdown
+                  label="Choose Project"
+                  placeholder="Choose Project"
+                  value={formData.projectId}
+                  options={[
+                    { value: '', label: 'Choose Project' },
+                    ...projects.map((p) => ({
+                      value: p._id,
+                      label: p.name,
+                      color: p.color || '#3b82f6',
+                    })),
+                  ]}
+                  onChange={(val) => setFormData({ ...formData, projectId: val })}
+                  actionButton={{
+                    label: 'add project',
+                    onClick: () => setIsProjectModalOpen(true),
+                  }}
+                />
 
-            <form onSubmit={handleSubmit}>
-              <div style={{ marginBottom: '16px' }}>
-                <label className="form-label">Title *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  required
+                <CustomDropdown
+                  label="Priority"
+                  placeholder="Select Priority"
+                  value={formData.priority}
+                  options={[
+                    { value: 'Low', label: 'Low', color: '#3b82f6', badgeText: 'Low', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
+                    { value: 'Medium', label: 'Medium', color: '#f59e0b', badgeText: 'Medium', badgeBg: '#fffbeb', badgeColor: '#b45309' },
+                    { value: 'High', label: 'High', color: '#f97316', badgeText: 'High', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
+                    { value: 'Urgent', label: 'Urgent', color: '#ef4444', badgeText: 'Urgent', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
+                  ]}
+                  onChange={(val) => setFormData({ ...formData, priority: val as any })}
                 />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: !formData.projectId ? '1fr 1fr' : '1fr', gap: '16px', marginBottom: '16px' }}>
-                <div>
-                  <label className="form-label">Choose</label>
-                  <select
-                    className="form-control"
-                    value={formData.projectId}
-                    onChange={(e) => setFormData({ ...formData, projectId: e.target.value, Project: '' })}
-                  >
-                    <option value="">None</option>
-                    {projects.map((proj) => (
-                      <option key={proj._id} value={proj._id}>
-                        {proj.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
-                {!formData.projectId && (
-                  <div>
-                    <label className="form-label">Project</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={formData.Project}
-                      onChange={(e) => setFormData({ ...formData, Project: e.target.value, projectId: '' })}
-                      disabled={!!formData.projectId}
-                      placeholder={formData.projectId ? 'Using project' : 'e.g., Engineering'}
-                    />
-                  </div>
-                )}
+              {/* Row 2: Status, Due Date, Time */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <CustomDropdown
+                  label="Status"
+                  placeholder="Select Status"
+                  value={formData.status}
+                  options={[
+                    { value: 'To Do', label: 'To Do', badgeText: 'To Do', badgeBg: '#f1f5f9', badgeColor: '#475569' },
+                    { value: 'In Progress', label: 'In Progress', badgeText: 'In Progress', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
+                    { value: 'Review', label: 'Review', badgeText: 'Review', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
+                    { value: 'Completed', label: 'Completed', badgeText: 'Completed', badgeBg: '#ecfdf5', badgeColor: '#047857' },
+                  ]}
+                  onChange={(val) => setFormData({ ...formData, status: val as any })}
+                />
+
+                <CustomDatePicker
+                  label="Due Date"
+                  value={formData.dueDate}
+                  onChange={(val) => setFormData({ ...formData, dueDate: val })}
+                  placeholder="Pick date"
+                />
+
+                <CustomTimePicker
+                  label="Due Time"
+                  value={formData.dueTime}
+                  onChange={(val) => setFormData({ ...formData, dueTime: val })}
+                  placeholder="Pick time"
+                />
               </div>
 
+              {/* Assign To (Admin Only) */}
               {isAdmin && (
                 <div style={{ marginBottom: '16px' }}>
-                  <label className="form-label">Assign To *</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Assign To *</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsEmployeeModalOpen(true)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--accent-primary)',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        padding: '0 2px',
+                      }}
+                      title="Create and add new team member"
+                    >
+                      <Plus size={13} />
+                      <span>add employee</span>
+                    </button>
+                  </div>
                   <div style={{
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '8px',
-                    maxHeight: '140px',
+                    maxHeight: '130px',
                     overflowY: 'auto',
                     border: '1px solid var(--border-color)',
                     borderRadius: 'var(--border-radius-sm)',
@@ -1164,84 +1270,93 @@ export default function TasksPage() {
                               }
                             }}
                           />
-                          <span style={{ fontWeight: isChecked ? 700 : 400 }}>{emp.name} ({emp.Project})</span>
+                          <span style={{ fontWeight: isChecked ? 700 : 400 }}>{emp.name} ({emp.Project || 'Team'})</span>
                         </label>
                       );
                     })}
                   </div>
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                <div>
-                  <label className="form-label">Priority</label>
-                  <select
-                    className="form-control"
-                    value={formData.priority}
-                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'Low' | 'Medium' | 'High' | 'Urgent' })}
-                  >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                    <option value="Urgent">Urgent</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="form-label">Status</label>
-                  <select
-                    className="form-control"
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'To Do' | 'In Progress' | 'Review' | 'Completed' })}
-                  >
-                    <option value="To Do">To Do</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Review">Review</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="form-label">Due Date</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={formData.dueDate}
-                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div style={{ marginBottom: '16px' }}>
-                <label className="form-label">Description</label>
-                <CKEditorComponent
-                  value={formData.description}
-                  onChange={(val) => setFormData({ ...formData, description: val })}
-                />
-              </div>
-
-
-
-
 
               {!isAdmin && user && (
                 <div style={{ marginBottom: '16px' }}>
                   <label className="form-label">Assigned To</label>
-                  <div className="form-control" style={{ display: 'flex', alignItems: 'center', minHeight: '42px' }}>
+                  <div className="form-control" style={{ display: 'flex', alignItems: 'center', minHeight: '38px', background: 'var(--bg-tertiary)' }}>
                     {user.name}
                   </div>
                 </div>
               )}
 
-
-
-              <div style={{ marginBottom: '20px' }}>
-                <label className="form-label">Tags (comma separated)</label>
+              {/* Task Title */}
+              <div style={{ marginBottom: '16px' }}>
+                <label className="form-label">Task Title *</label>
                 <input
                   type="text"
                   className="form-control"
-                  value={formData.tags}
-                  onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                  placeholder="e.g., frontend, urgent, bug"
+                  placeholder="e.g., Design user registration flow"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
                 />
+              </div>
+
+              {/* Task Description */}
+              <div style={{ marginBottom: '16px' }}>
+                <label className="form-label">Task Description</label>
+                <CKEditorComponent
+                  value={formData.description}
+                  onChange={(val: string) => setFormData({ ...formData, description: val })}
+                />
+              </div>
+
+              {/* Row: Supporting Files & URL / Resource Links */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
+                <CustomFileAttachment
+                  label="Supporting Files"
+                  files={formData.files}
+                  onUpload={handleFileUpload}
+                  onRemove={handleRemoveFile}
+                />
+
+                <CustomMultipleLinks
+                  label="URL / Resource Links"
+                  links={formData.urls}
+                  onChange={(newLinks) => setFormData({ ...formData, urls: newLinks, url: newLinks[0] || '' })}
+                />
+              </div>
+
+              {/* Row: Comments / Notes & Tags */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', alignItems: 'start' }}>
+                <div>
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
+                    Comments / Notes
+                  </label>
+                  <div className="custom-input-group" style={{ alignItems: 'flex-start' }}>
+                    <span className="custom-input-addon" style={{ height: 'auto', paddingTop: '8px' }}>
+                      <MessageSquare size={14} />
+                    </span>
+                    <textarea
+                      className="custom-input-control"
+                      style={{ minHeight: '62px', height: '62px', resize: 'vertical' }}
+                      placeholder="Add any additional notes, remarks or comments..."
+                      value={formData.comments}
+                      onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
+                    Tags (comma separated)
+                  </label>
+                  <textarea
+                    className="form-control"
+                    style={{ minHeight: '62px', height: '62px', resize: 'vertical', fontSize: '0.8rem', padding: '8px 10px' }}
+                    value={formData.tags}
+                    onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                    placeholder="e.g., frontend, urgent, bug"
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
@@ -1263,6 +1378,37 @@ export default function TasksPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL: NEW Project */}
+      <CreateProjectModal
+        isOpen={isProjectModalOpen}
+        onClose={() => setIsProjectModalOpen(false)}
+        employeesList={employees}
+        onSuccess={async (newProj) => {
+          await loadAllData();
+          if (newProj?._id) {
+            setFormData((prev) => ({ ...prev, projectId: String(newProj._id), Project: '' }));
+          }
+        }}
+      />
+
+      {/* MODAL: ADD EMPLOYEE (Admin Only) */}
+      <AddTeamMemberModal
+        isOpen={isAdmin && isEmployeeModalOpen}
+        onClose={() => setIsEmployeeModalOpen(false)}
+        projectsList={projects}
+        onSuccess={async (newEmp) => {
+          await loadAllData();
+          if (newEmp?._id) {
+            setFormData((prev) => ({
+              ...prev,
+              assignedTo: prev.assignedTo.includes(newEmp._id)
+                ? prev.assignedTo
+                : [...prev.assignedTo, newEmp._id],
+            }));
+          }
+        }}
+      />
 
       {/* End Work Dialog */}
       {showEndWorkDialog && (
@@ -1532,12 +1678,17 @@ export default function TasksPage() {
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Due Date</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Due Date & Time</div>
                   <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
                     {selectedTaskForDetails.dueDate ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <Calendar size={13} />
                         {new Date(selectedTaskForDetails.dueDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                        {selectedTaskForDetails.dueTime && (
+                          <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>
+                            ({selectedTaskForDetails.dueTime})
+                          </span>
+                        )}
                       </span>
                     ) : (
                       'No Due Date'
@@ -1551,6 +1702,40 @@ export default function TasksPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Resource URLs */}
+              {((selectedTaskForDetails.urls && selectedTaskForDetails.urls.length > 0) || selectedTaskForDetails.url) && (
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>
+                    Resource URLs / Links
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {(selectedTaskForDetails.urls && selectedTaskForDetails.urls.length > 0
+                      ? selectedTaskForDetails.urls
+                      : (selectedTaskForDetails.url ? [selectedTaskForDetails.url] : [])
+                    ).map((u: string, uIdx: number) => (
+                      <a
+                        key={uIdx}
+                        href={u.startsWith('http') ? u : `https://${u}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          color: 'var(--accent-primary)',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          wordBreak: 'break-all',
+                        }}
+                      >
+                        <LinkIcon size={14} />
+                        <span>{u}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Task Description */}
               {selectedTaskForDetails.description && (
@@ -1572,6 +1757,80 @@ export default function TasksPage() {
                     }}
                     dangerouslySetInnerHTML={{ __html: selectedTaskForDetails.description }}
                   />
+                </div>
+              )}
+
+              {/* Supporting Files Preview Gallery */}
+              {selectedTaskForDetails.files && selectedTaskForDetails.files.length > 0 && (
+                <div>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                    Supporting Files ({selectedTaskForDetails.files.length})
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
+                    {selectedTaskForDetails.files.map((file, fIdx) => (
+                      <div
+                        key={fIdx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 10px',
+                          background: 'var(--bg-primary)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '6px',
+                        }}
+                      >
+                        {file.type?.startsWith('image/') || /\.(png|jpg|jpeg|webp|svg|gif)$/i.test(file.name) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={file.url}
+                            alt={file.name}
+                            style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }}
+                          />
+                        ) : (
+                          <Paperclip size={18} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                        )}
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {file.name}
+                          </div>
+                          {file.url && (
+                            <a
+                              href={file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={file.name}
+                              style={{ fontSize: '0.68rem', color: 'var(--accent-primary)', textDecoration: 'none' }}
+                            >
+                              Download / Open
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Task Comments / Notes */}
+              {selectedTaskForDetails.comments && (
+                <div>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                    Comments / Notes
+                  </h4>
+                  <div
+                    style={{
+                      fontSize: '0.85rem',
+                      color: 'var(--text-secondary)',
+                      background: 'var(--bg-primary)',
+                      padding: '12px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    {selectedTaskForDetails.comments}
+                  </div>
                 </div>
               )}
 
