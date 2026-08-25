@@ -482,10 +482,6 @@ export default function Sidebar() {
                     <Briefcase />
                     <span>Clients</span>
                   </Link>
-                  <Link href="/reports" className={`sidebar-link ${pathname === '/reports' ? 'active' : ''}`} data-tooltip="Reports">
-                    <FileBarChart />
-                    <span>Reports</span>
-                  </Link>
                   <Link href="/settings" className={`sidebar-link ${pathname === '/settings' ? 'active' : ''}`} data-tooltip="Settings">
                     <Settings />
                     <span>Settings</span>

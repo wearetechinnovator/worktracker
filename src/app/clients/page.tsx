@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, Briefcase, Mail, Phone, MapPin, Clock, Plus, Search, X, AlertCircle, Edit3, Trash2, UserPlus, Folder, FileBarChart, Lightbulb, HelpCircle, Sparkles, UserCheck, Contact } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
+import CreateProjectModal from '@/components/CreateProjectModal';
+import CreateClientModal from '@/components/CreateClientModal';
 
 interface TaggedProject {
   _id: string;
@@ -45,6 +47,7 @@ export default function ClientsPage() {
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<ClientData | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -728,16 +731,6 @@ export default function ClientsPage() {
               <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>
                 {editingClient ? 'Edit Client Details' : 'Create New Client'}
               </h3>
-              <div>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setIsProjectDrawerOpen(!isProjectDrawerOpen)}
-                  style={{ fontSize: '0.75rem', padding: '4px 10px' }}
-                >
-                  {isProjectDrawerOpen ? 'Hide Project Form' : '+ Add Project'}
-                </button>
-              </div>
             </div>
             
             <form onSubmit={handleSubmit} style={{ marginTop: '4px', padding: '0 14px 14px 14px' }}>
@@ -952,7 +945,28 @@ export default function ClientsPage() {
 
               {/* Associate to Projects checklist */}
               <div className="form-group" style={{ marginBottom: '12px' }}>
-                <label className="form-label">Tag to Projects</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Tag to Projects</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsProjectModalOpen(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--accent-primary)',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                      padding: '0 2px',
+                    }}
+                  >
+                    <Plus size={13} />
+                    <span>Add Project</span>
+                  </button>
+                </div>
                 {projectsOptions.length === 0 ? (
                   <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                     No projects available to tag
@@ -1443,6 +1457,28 @@ export default function ClientsPage() {
         </div>
       )}
 
+      {/* Create Client Modal */}
+      <CreateClientModal
+        isOpen={showModal && !editingClient}
+        onClose={() => setShowModal(false)}
+        projectsOptions={projectsOptions}
+        onSuccess={() => fetchData()}
+      />
+
+      {/* Create Project Modal Popup */}
+      <CreateProjectModal
+        isOpen={isProjectModalOpen}
+        onClose={() => setIsProjectModalOpen(false)}
+        employeesList={employeesOptions}
+        clientsList={clients}
+        onSuccess={(newProject) => {
+          fetchData();
+          if (newProject?._id) {
+            setSelectedProjectIds((prev) => Array.from(new Set([...prev, newProject._id])));
+          }
+          setIsProjectModalOpen(false);
+        }}
+      />
     </div>
   );
 }

@@ -249,50 +249,7 @@ export default function PageShimmer({ variant = 'dashboard' }: { variant?: Shimm
     );
   }
 
-  if (variant === 'reports') {
-    return (
-      <div className="shimmer-container" aria-busy="true">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <Block style={{ width: '220px', height: '24px' }} />
-            <Block style={{ width: '340px', height: '13px', marginTop: '8px' }} />
-          </div>
-          <Block style={{ width: '120px', height: '36px', borderRadius: 'var(--border-radius-sm)' }} />
-        </div>
-        <div className="card" style={{ padding: '16px', marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <Block style={{ width: '60px', height: '11px' }} />
-              <Block style={{ width: '100%', height: '34px', borderRadius: '6px' }} />
-            </div>
-          ))}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="card" style={{ padding: '16px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <Block style={{ width: '40px', height: '40px', borderRadius: '10px', flexShrink: 0 }} />
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <Block style={{ width: '70px', height: '22px' }} />
-                <Block style={{ width: '90px', height: '11px' }} />
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="card" style={{ padding: '20px' }}>
-          <Block style={{ width: '150px', height: '18px', marginBottom: '16px' }} />
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1.5fr 1fr 1fr', gap: '12px', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-color)' }}>
-              <Block style={{ height: '14px', width: '70px' }} />
-              <Block style={{ height: '14px', width: '120px' }} />
-              <Block style={{ height: '14px', width: '90px' }} />
-              <Block style={{ height: '14px', width: '60px' }} />
-              <Block style={{ height: '22px', width: '70px', borderRadius: '11px' }} />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+
 
   if (variant === 'settings') {
     return (

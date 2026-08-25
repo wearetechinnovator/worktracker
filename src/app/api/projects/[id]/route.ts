@@ -3,6 +3,8 @@ import dbConnect from '@/lib/dbConnect';
 import Project from '@/models/Project';
 import WorkEntry from '@/models/WorkEntry';
 import Client from '@/models/Client';
+import Attendance from '@/models/Attendance';
+import TaskWork from '@/models/TaskWork';
 
 export async function GET(
   request: Request,
@@ -31,6 +33,45 @@ export async function GET(
 
     const totalMinutes = entries.reduce((sum, entry) => sum + entry.actualTime, 0);
 
+    const today = new Date().toISOString().split('T')[0];
+    const [todayAttendances, activeTaskWorks] = await Promise.all([
+      Attendance.find({ date: today }).lean(),
+      TaskWork.find({ date: today, status: 'In Progress' }).lean(),
+    ]);
+
+    const punchedInSet = new Set(
+      todayAttendances
+        .filter((att) => !!att.checkIn && !att.checkOut)
+        .map((att) => att.employeeId.toString())
+    );
+    const workingSet = new Set(
+      activeTaskWorks.map((tw) => tw.employeeId.toString())
+    );
+
+    const membersWithStatus = (project.members || []).map((m: any) => {
+      const empId = m._id ? m._id.toString() : '';
+      const isPunchedIn = punchedInSet.has(empId);
+      const isWorking = workingSet.has(empId);
+
+      let presenceState: 'working' | 'idle' | 'offline' = 'offline';
+      if (isWorking) {
+        presenceState = 'working';
+      } else if (isPunchedIn) {
+        presenceState = 'idle';
+      }
+
+      return {
+        _id: empId,
+        name: m.name,
+        email: m.email,
+        role: m.role,
+        avatarColor: m.avatarColor,
+        status: m.status || 'Active',
+        isOnline: isPunchedIn,
+        presenceState,
+      };
+    });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -39,7 +80,7 @@ export async function GET(
           name: project.name,
           description: project.description,
           color: project.color,
-          members: project.members,
+          members: membersWithStatus,
           clientId: project.clientId ? {
             _id: (project.clientId as any)._id.toString(),
             name: (project.clientId as any).name,

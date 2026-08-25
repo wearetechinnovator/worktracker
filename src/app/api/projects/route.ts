@@ -4,6 +4,9 @@ import dbConnect from '@/lib/dbConnect';
 import Project from '@/models/Project';
 import WorkEntry from '@/models/WorkEntry';
 import Client from '@/models/Client';
+import Task from '@/models/Task';
+import Attendance from '@/models/Attendance';
+import TaskWork from '@/models/TaskWork';
 
 export async function GET(request: Request) {
   try {
@@ -17,9 +20,10 @@ export async function GET(request: Request) {
     const workMatch = employeeId && mongoose.Types.ObjectId.isValid(employeeId)
       ? { employeeId: new mongoose.Types.ObjectId(employeeId) }
       : {};
-    const [projects, stats] = await Promise.all([
+    const today = new Date().toISOString().split('T')[0];
+    const [projects, stats, taskStats, todayAttendances, activeTaskWorks] = await Promise.all([
       Project.find(query)
-        .populate('members', 'name role avatarColor')
+        .populate('members', 'name role avatarColor status')
         .populate('clientId')
         .sort({ createdAt: -1 })
         .lean(),
@@ -27,8 +31,23 @@ export async function GET(request: Request) {
         { $match: workMatch },
         { $group: { _id: '$projectId', totalMinutes: { $sum: '$actualTime' }, entryCount: { $sum: 1 } } },
       ]),
+      Task.aggregate<{ _id: string; taskCount: number }>([
+        { $group: { _id: '$projectId', taskCount: { $sum: 1 } } },
+      ]),
+      Attendance.find({ date: today }).lean(),
+      TaskWork.find({ date: today, status: 'In Progress' }).lean(),
     ]);
     const statsByProject = new Map(stats.map((stat) => [stat._id.toString(), stat]));
+    const taskCountMap = new Map(taskStats.map((t) => [t._id ? t._id.toString() : '', t.taskCount]));
+
+    const punchedInSet = new Set(
+      todayAttendances
+        .filter((att) => !!att.checkIn && !att.checkOut)
+        .map((att) => att.employeeId.toString())
+    );
+    const workingSet = new Set(
+      activeTaskWorks.map((tw) => tw.employeeId.toString())
+    );
 
     const projectsWithStats = projects.map((project) => {
         const stat = statsByProject.get(project._id.toString());
@@ -38,12 +57,28 @@ export async function GET(request: Request) {
           name: project.name,
           description: project.description,
           color: project.color,
-          members: project.members.map((m: any) => ({
-            _id: m._id.toString(),
-            name: m.name,
-            role: m.role,
-            avatarColor: m.avatarColor,
-          })),
+          members: project.members.map((m: any) => {
+            const empId = m._id ? m._id.toString() : '';
+            const isPunchedIn = punchedInSet.has(empId);
+            const isWorking = workingSet.has(empId);
+
+            let presenceState: 'working' | 'idle' | 'offline' = 'offline';
+            if (isWorking) {
+              presenceState = 'working';
+            } else if (isPunchedIn) {
+              presenceState = 'idle';
+            }
+
+            return {
+              _id: empId,
+              name: m.name,
+              role: m.role,
+              avatarColor: m.avatarColor,
+              status: m.status || 'Active',
+              isOnline: isPunchedIn,
+              presenceState,
+            };
+          }),
           clientId: project.clientId ? {
             _id: (project.clientId as any)._id.toString(),
             name: (project.clientId as any).name,
@@ -53,6 +88,7 @@ export async function GET(request: Request) {
           } : null,
           totalMinutes: stat?.totalMinutes ?? 0,
           entryCount: stat?.entryCount ?? 0,
+          taskCount: taskCountMap.get(project._id.toString()) || 0,
           createdAt: project.createdAt,
           updatedAt: project.updatedAt,
         };

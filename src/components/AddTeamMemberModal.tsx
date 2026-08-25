@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Loader2, UserPlus, AlertCircle, Check } from 'lucide-react';
+import { X, Eye, EyeOff, Loader2, UserPlus, AlertCircle, User, Mail, Lock, Briefcase } from 'lucide-react';
+import { CustomDropdown } from '@/components/TaskFormControls';
 
 export interface AddTeamMemberModalProps {
   isOpen: boolean;
@@ -11,17 +12,7 @@ export interface AddTeamMemberModalProps {
   projectsList?: string[] | { _id: string; name: string }[];
 }
 
-const DEFAULT_COLORS = [
-  '#3b82f6', // Blue
-  '#6366f1', // Indigo
-  '#8b5cf6', // Purple
-  '#10b981', // Green
-  '#f59e0b', // Amber
-  '#ef4444', // Red
-  '#06b6d4', // Cyan
-  '#ec4899', // Pink
-  '#475569', // Dark Slate
-];
+
 
 const DEFAULT_PROJECTS = [
   'Design',
@@ -213,505 +204,192 @@ export default function AddTeamMemberModal({
           maxHeight: '90vh',
           display: 'flex',
           flexDirection: 'column',
-          borderRadius: '16px',
-          background: 'var(--bg-secondary)',
-          border: '1px solid var(--border-color)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          overflow: 'hidden',
+          overflowY: 'auto',
+          padding: '16px 18px',
         }}
       >
         {/* Modal Header */}
-        <div
-          style={{
-            padding: '20px 24px',
-            borderBottom: '1px solid var(--border-color)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: 'var(--bg-primary)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '10px',
-                backgroundColor: `${avatarColor}18`,
-                border: `1.5px solid ${avatarColor}40`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: avatarColor,
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <UserPlus size={20} />
-            </div>
-            <div>
-              <h3
-                style={{
-                  fontSize: '1.15rem',
-                  fontWeight: 800,
-                  color: 'var(--text-primary)',
-                  margin: 0,
-                  lineHeight: 1.2,
-                }}
-              >
-                Add New Team Member
-              </h3>
-              <p
-                style={{
-                  fontSize: '0.75rem',
-                  color: 'var(--text-muted)',
-                  margin: '3px 0 0 0',
-                }}
-              >
-                Set up employee account, access level, and default project assignment
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleClose}
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              width: '32px',
-              height: '32px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: 'var(--text-secondary)',
-              transition: 'all 0.15s ease',
-            }}
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
+        <div className="modal-header">
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+            Add New Team Member
+          </h3>
+          <button className="modal-close" onClick={handleClose}>&times;</button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            overflowY: 'auto',
-            flex: 1,
-          }}
-        >
-          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            {error && (
-              <div
-                style={{
-                  padding: '12px 14px',
-                  background: 'rgba(239, 68, 68, 0.08)',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
-                  borderRadius: '10px',
-                  color: '#dc2626',
-                  fontSize: '0.78rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <AlertCircle size={16} style={{ flexShrink: 0 }} />
-                <span>{error}</span>
-              </div>
-            )}
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {error && (
+            <div
+              style={{
+                padding: '8px 12px',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                borderRadius: 'var(--border-radius-sm)',
+                color: '#dc2626',
+                fontSize: '0.78rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <AlertCircle size={15} style={{ flexShrink: 0 }} />
+              <span>{error}</span>
+            </div>
+          )}
 
-            {/* Full Name */}
-            <div>
-              <label
-                style={{
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  color: 'var(--text-primary)',
-                  display: 'block',
-                  marginBottom: '6px',
-                }}
-              >
-                Full Name <span style={{ color: '#ef4444' }}>*</span>
-              </label>
+          {/* Full Name */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
+              Full Name <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <div className="custom-input-group">
+              <span className="custom-input-addon">
+                <User size={14} />
+              </span>
               <input
                 type="text"
                 required
+                className="custom-input-control"
                 placeholder="e.g. Brooklyn Simmons"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  fontSize: '0.86rem',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--bg-primary)',
-                  color: 'var(--text-primary)',
-                  outline: 'none',
-                  transition: 'all 0.15s ease',
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.15)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--border-color)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
               />
-            </div>
-
-            {/* Email Address */}
-            <div>
-              <label
-                style={{
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  color: 'var(--text-primary)',
-                  display: 'block',
-                  marginBottom: '6px',
-                }}
-              >
-                Email Address <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <input
-                type="email"
-                required
-                placeholder="e.g. brok-simms@mail.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  fontSize: '0.86rem',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--bg-primary)',
-                  color: 'var(--text-primary)',
-                  outline: 'none',
-                  transition: 'all 0.15s ease',
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.15)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--border-color)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              />
-            </div>
-
-            {/* Row 1: Password & Access Type */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              <div>
-                <label
-                  style={{
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    color: 'var(--text-primary)',
-                    display: 'block',
-                    marginBottom: '6px',
-                  }}
-                >
-                  Password <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 38px 10px 14px',
-                      fontSize: '0.86rem',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border-color)',
-                      background: 'var(--bg-primary)',
-                      color: 'var(--text-primary)',
-                      outline: 'none',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.15)';
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--border-color)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: 'absolute',
-                      right: '10px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--text-muted)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '2px',
-                    }}
-                    title={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label
-                  style={{
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    color: 'var(--text-primary)',
-                    display: 'block',
-                    marginBottom: '6px',
-                  }}
-                >
-                  Access Type <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <select
-                  value={userType}
-                  onChange={(e) => setUserType(e.target.value as 'employee' | 'admin')}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    fontSize: '0.86rem',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <option value="employee">Employee</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Row 2: Job Title / Role & Project */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              <div>
-                <label
-                  style={{
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    color: 'var(--text-primary)',
-                    display: 'block',
-                    marginBottom: '6px',
-                  }}
-                >
-                  Job Title / Role <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  list="modal-employee-role-suggestions"
-                  placeholder="e.g. UI UX Designer"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    fontSize: '0.86rem',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.15)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--border-color)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                />
-                <datalist id="modal-employee-role-suggestions">
-                  {allRoleSuggestions.map((r) => (
-                    <option key={r} value={r} />
-                  ))}
-                </datalist>
-              </div>
-
-              <div>
-                <label
-                  style={{
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    color: 'var(--text-primary)',
-                    display: 'block',
-                    marginBottom: '6px',
-                  }}
-                >
-                  Default Project <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <select
-                  value={project}
-                  onChange={(e) => setProject(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    fontSize: '0.86rem',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {allProjectOptions.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Row 3: Initial Status & Work Mode */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              <div>
-                <label
-                  style={{
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    color: 'var(--text-secondary)',
-                    display: 'block',
-                    marginBottom: '6px',
-                  }}
-                >
-                  Initial Status
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    fontSize: '0.86rem',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                  <option value="On Leave">On Leave</option>
-                </select>
-              </div>
-
-              <div>
-                <label
-                  style={{
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    color: 'var(--text-secondary)',
-                    display: 'block',
-                    marginBottom: '6px',
-                  }}
-                >
-                  Work Mode
-                </label>
-                <select
-                  value={workMode}
-                  onChange={(e) => setWorkMode(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    fontSize: '0.86rem',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <option value="Hybrid">Hybrid</option>
-                  <option value="Remote">Remote</option>
-                  <option value="Onsite">Onsite</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Avatar Theme Color */}
-            <div>
-              <label
-                style={{
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  color: 'var(--text-secondary)',
-                  display: 'block',
-                  marginBottom: '8px',
-                }}
-              >
-                Avatar Theme Color
-              </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-                {DEFAULT_COLORS.map((c) => {
-                  const isSelected = avatarColor === c;
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setAvatarColor(c)}
-                      style={{
-                        width: '26px',
-                        height: '26px',
-                        borderRadius: '50%',
-                        backgroundColor: c,
-                        border: isSelected ? '2px solid var(--bg-secondary)' : '2px solid transparent',
-                        boxShadow: isSelected
-                          ? `0 0 0 2px ${c}, 0 2px 6px ${c}66`
-                          : '0 1px 3px rgba(0,0,0,0.1)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'transform 0.15s ease',
-                        transform: isSelected ? 'scale(1.1)' : 'scale(1)',
-                      }}
-                    >
-                      {isSelected && <Check size={13} color="#ffffff" strokeWidth={3} />}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           </div>
 
-          {/* Modal Footer Actions */}
+          {/* Email Address */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
+              Email Address <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <div className="custom-input-group">
+              <span className="custom-input-addon">
+                <Mail size={14} />
+              </span>
+              <input
+                type="email"
+                required
+                className="custom-input-control"
+                placeholder="e.g. brok-simms@mail.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Row 1: Password & Access Type */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'start' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
+                Password <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <div className="custom-input-group" style={{ position: 'relative' }}>
+                <span className="custom-input-addon">
+                  <Lock size={14} />
+                </span>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  className="custom-input-control"
+                  style={{ paddingRight: '34px' }}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '8px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '2px',
+                  }}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+
+            <CustomDropdown
+              label="Access Type *"
+              placeholder="Select Access Type"
+              value={userType}
+              options={[
+                { value: 'employee', label: 'Employee', badgeText: 'Employee', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
+                { value: 'admin', label: 'Admin', badgeText: 'Admin', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
+              ]}
+              onChange={(val) => setUserType(val as 'employee' | 'admin')}
+            />
+          </div>
+
+          {/* Row 2: Job Title / Role & Default Project */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'start' }}>
+            <CustomDropdown
+              label="Job Title / Role *"
+              placeholder="Select Job Title / Role"
+              value={role}
+              options={allRoleSuggestions.map((r) => ({
+                value: r,
+                label: r,
+              }))}
+              onChange={(val) => setRole(val)}
+            />
+
+            <CustomDropdown
+              label="Default Project *"
+              placeholder="Select Project"
+              value={project}
+              options={allProjectOptions.map((p) => ({
+                value: p,
+                label: p,
+              }))}
+              onChange={(val) => setProject(val)}
+            />
+          </div>
+
+          {/* Row 3: Initial Status & Work Mode */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'start' }}>
+            <CustomDropdown
+              label="Initial Status"
+              placeholder="Select Status"
+              value={status}
+              options={[
+                { value: 'Active', label: 'Active', badgeText: 'Active', badgeBg: '#ecfdf5', badgeColor: '#047857' },
+                { value: 'Inactive', label: 'Inactive', badgeText: 'Inactive', badgeBg: '#f1f5f9', badgeColor: '#475569' },
+                { value: 'On Leave', label: 'On Leave', badgeText: 'On Leave', badgeBg: '#fffbeb', badgeColor: '#b45309' },
+              ]}
+              onChange={(val) => setStatus(val)}
+            />
+
+            <CustomDropdown
+              label="Work Mode"
+              placeholder="Select Work Mode"
+              value={workMode}
+              options={[
+                { value: 'Hybrid', label: 'Hybrid', badgeText: 'Hybrid', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
+                { value: 'Remote', label: 'Remote', badgeText: 'Remote', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
+                { value: 'Onsite', label: 'Onsite', badgeText: 'Onsite', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
+              ]}
+              onChange={(val) => setWorkMode(val)}
+            />
+          </div>
+
+          {/* Footer Actions */}
           <div
             style={{
-              padding: '16px 24px',
-              borderTop: '1px solid var(--border-color)',
-              background: 'var(--bg-primary)',
               display: 'flex',
-              justifyContent: 'flex-end',
-              alignItems: 'center',
               gap: '12px',
+              justifyContent: 'flex-end',
+              marginTop: '8px',
             }}
           >
             <button
@@ -719,13 +397,6 @@ export default function AddTeamMemberModal({
               className="btn btn-secondary"
               onClick={handleClose}
               disabled={submitting}
-              style={{
-                padding: '9px 18px',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                borderRadius: '8px',
-                cursor: 'pointer',
-              }}
             >
               Cancel
             </button>
@@ -734,21 +405,15 @@ export default function AddTeamMemberModal({
               className="btn btn-primary"
               disabled={submitting || !name.trim() || !email.trim()}
               style={{
-                padding: '9px 22px',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                borderRadius: '8px',
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: '8px',
-                cursor: submitting || !name.trim() || !email.trim() ? 'not-allowed' : 'pointer',
-                opacity: submitting || !name.trim() || !email.trim() ? 0.7 : 1,
+                gap: '6px',
               }}
             >
               {submitting ? (
                 <>
-                  <Loader2 size={15} className="animate-spin" />
-                  <span>Creating Member...</span>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>Creating...</span>
                 </>
               ) : (
                 <span>Create Member</span>

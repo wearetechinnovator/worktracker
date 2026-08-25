@@ -129,6 +129,11 @@ export default function TopNavbar() {
 
   useEffect(() => {
     loadUserAndResources();
+    const handleRefresh = () => {
+      loadUserAndResources();
+    };
+    window.addEventListener('worktracker-refresh', handleRefresh);
+    return () => window.removeEventListener('worktracker-refresh', handleRefresh);
   }, [pathname]);
 
 
@@ -322,8 +327,14 @@ export default function TopNavbar() {
         isOpen={isAdmin && isEmployeeModalOpen}
         onClose={() => setIsEmployeeModalOpen(false)}
         projectsList={projects}
-        onSuccess={async () => {
+        onSuccess={async (newEmp) => {
           await loadUserAndResources();
+          if (newEmp?._id) {
+            setTaskData((prev) => ({
+              ...prev,
+              assignedTo: Array.from(new Set([...prev.assignedTo, newEmp._id])),
+            }));
+          }
           window.dispatchEvent(new CustomEvent('worktracker-refresh'));
         }}
       />
@@ -336,8 +347,18 @@ export default function TopNavbar() {
         onClose={() => setIsProjectModalOpen(false)}
         clientsList={clientsList}
         employeesList={employees}
-        onSuccess={async () => {
+        onSuccess={async (newProject) => {
           await loadUserAndResources();
+          if (newProject?._id) {
+            const memberIds = Array.isArray(newProject.members)
+              ? newProject.members.map((m: any) => (typeof m === 'string' ? m : m._id || m.id)).filter(Boolean)
+              : [];
+            setTaskData((prev) => ({
+              ...prev,
+              projectId: newProject._id,
+              assignedTo: Array.from(new Set([...prev.assignedTo, ...memberIds])),
+            }));
+          }
           window.dispatchEvent(new CustomEvent('worktracker-refresh'));
         }}
       />
@@ -349,145 +370,145 @@ export default function TopNavbar() {
         <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => setIsTaskModalOpen(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '850px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>
-                {isAdmin ? 'Create New Task' : 'Add My Task'}
-              </h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Create New Task</h3>
               <button className="modal-close" onClick={() => setIsTaskModalOpen(false)}>&times;</button>
             </div>
 
             <form onSubmit={handleCreateTask}>
-              {/* Row 1: Choose Project & Priority */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
-                <CustomDropdown
-                  label="Choose Project"
-                  placeholder="Choose Project"
-                  value={taskData.projectId}
-                  options={[
-                    { value: '', label: 'Choose Project' },
-                    ...projects.map((p) => ({
-                      value: p._id,
-                      label: p.name,
-                      color: p.color || '#3b82f6',
-                    })),
-                  ]}
-                  onChange={(val) => setTaskData({ ...taskData, projectId: val })}
-                  actionButton={isAdmin ? {
-                    label: 'add project',
-                    onClick: () => setIsProjectModalOpen(true),
-                  } : undefined}
-                />
-
-                <CustomDropdown
-                  label="Priority"
-                  placeholder="Select Priority"
-                  value={taskData.priority}
-                  options={[
-                    { value: 'Low', label: 'Low', color: '#3b82f6', badgeText: 'Low', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-                    { value: 'Medium', label: 'Medium', color: '#f59e0b', badgeText: 'Medium', badgeBg: '#fffbeb', badgeColor: '#b45309' },
-                    { value: 'High', label: 'High', color: '#f97316', badgeText: 'High', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
-                    { value: 'Urgent', label: 'Urgent', color: '#ef4444', badgeText: 'Urgent', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
-                  ]}
-                  onChange={(val) => setTaskData({ ...taskData, priority: val as any })}
-                />
-              </div>
-
-              {/* Row 2: Status, Due Date, Due Time */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
-                <CustomDropdown
-                  label="Status"
-                  placeholder="Select Status"
-                  value={taskData.status}
-                  options={[
-                    { value: 'To Do', label: 'To Do', badgeText: 'To Do', badgeBg: '#f1f5f9', badgeColor: '#475569' },
-                    { value: 'In Progress', label: 'In Progress', badgeText: 'In Progress', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-                    { value: 'Review', label: 'Review', badgeText: 'Review', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
-                    { value: 'Completed', label: 'Completed', badgeText: 'Completed', badgeBg: '#ecfdf5', badgeColor: '#047857' },
-                  ]}
-                  onChange={(val) => setTaskData({ ...taskData, status: val as any })}
-                />
-
-                <CustomDatePicker
-                  label="Due Date"
-                  value={taskData.dueDate}
-                  onChange={(val) => setTaskData({ ...taskData, dueDate: val })}
-                />
-
-                <CustomTimePicker
-                  label="Due Time"
-                  value={taskData.dueTime}
-                  onChange={(val) => setTaskData({ ...taskData, dueTime: val })}
-                />
-              </div>
-
-              {/* Assign To (Admin Only) */}
               {isAdmin && (
-                <div style={{ marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label className="form-label" style={{ marginBottom: 0 }}>Assign To *</label>
-                    <button
-                      type="button"
-                      onClick={() => setIsEmployeeModalOpen(true)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--accent-primary)',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px',
-                        padding: '0 2px',
+                <>
+                  {/* Row 1: Choose Project & Priority */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
+                    <CustomDropdown
+                      label="Choose Project"
+                      placeholder="Choose Project"
+                      value={taskData.projectId}
+                      options={[
+                        { value: '', label: 'Choose Project' },
+                        ...projects.map((p) => ({
+                          value: p._id,
+                          label: p.name,
+                          color: p.color || '#3b82f6',
+                        })),
+                      ]}
+                      onChange={(val) => setTaskData({ ...taskData, projectId: val })}
+                      actionButton={{
+                        label: 'add project',
+                        onClick: () => setIsProjectModalOpen(true),
                       }}
-                    >
-                      <Plus size={13} />
-                      <span>add employee</span>
-                    </button>
+                    />
+
+                    <CustomDropdown
+                      label="Priority"
+                      placeholder="Select Priority"
+                      value={taskData.priority}
+                      options={[
+                        { value: 'Low', label: 'Low', color: '#3b82f6', badgeText: 'Low', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
+                        { value: 'Medium', label: 'Medium', color: '#f59e0b', badgeText: 'Medium', badgeBg: '#fffbeb', badgeColor: '#b45309' },
+                        { value: 'High', label: 'High', color: '#f97316', badgeText: 'High', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
+                        { value: 'Urgent', label: 'Urgent', color: '#ef4444', badgeText: 'Urgent', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
+                      ]}
+                      onChange={(val) => setTaskData({ ...taskData, priority: val as any })}
+                    />
                   </div>
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '8px',
-                    maxHeight: '130px',
-                    overflowY: 'auto',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: 'var(--border-radius-sm)',
-                    padding: '10px',
-                    background: 'var(--bg-secondary)'
-                  }}>
-                    {employees.map((emp) => {
-                      const isChecked = taskData.assignedTo.includes(emp._id);
-                      return (
-                        <label
-                          key={emp._id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            fontSize: '0.85rem',
-                            cursor: 'pointer',
-                            padding: '4px 6px',
-                            borderRadius: '4px',
-                            background: isChecked ? 'var(--bg-tertiary)' : 'transparent'
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setTaskData({ ...taskData, assignedTo: [...taskData.assignedTo, emp._id] });
-                              } else {
-                                setTaskData({ ...taskData, assignedTo: taskData.assignedTo.filter(id => id !== emp._id) });
-                              }
+
+                  {/* Row 2: Status, Due Date, Due Time */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
+                    <CustomDropdown
+                      label="Status"
+                      placeholder="Select Status"
+                      value={taskData.status}
+                      options={[
+                        { value: 'To Do', label: 'To Do', badgeText: 'To Do', badgeBg: '#f1f5f9', badgeColor: '#475569' },
+                        { value: 'In Progress', label: 'In Progress', badgeText: 'In Progress', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
+                        { value: 'Review', label: 'Review', badgeText: 'Review', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
+                        { value: 'Completed', label: 'Completed', badgeText: 'Completed', badgeBg: '#ecfdf5', badgeColor: '#047857' },
+                      ]}
+                      onChange={(val) => setTaskData({ ...taskData, status: val as any })}
+                    />
+
+                    <CustomDatePicker
+                      label="Due Date"
+                      value={taskData.dueDate}
+                      onChange={(val) => setTaskData({ ...taskData, dueDate: val })}
+                    />
+
+                    <CustomTimePicker
+                      label="Due Time"
+                      value={taskData.dueTime}
+                      onChange={(val) => setTaskData({ ...taskData, dueTime: val })}
+                    />
+                  </div>
+
+                  {/* Assign To (Admin Only) */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label className="form-label" style={{ marginBottom: 0 }}>Assign To *</label>
+                      <button
+                        type="button"
+                        onClick={() => setIsEmployeeModalOpen(true)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--accent-primary)',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          padding: '0 2px',
+                        }}
+                      >
+                        <Plus size={13} />
+                        <span>add employee</span>
+                      </button>
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                      maxHeight: '130px',
+                      overflowY: 'auto',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 'var(--border-radius-sm)',
+                      padding: '10px',
+                      background: 'var(--bg-secondary)'
+                    }}>
+                      {employees.map((emp) => {
+                        const isChecked = taskData.assignedTo.includes(emp._id);
+                        return (
+                          <label
+                            key={emp._id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              fontSize: '0.85rem',
+                              cursor: 'pointer',
+                              padding: '4px 6px',
+                              borderRadius: '4px',
+                              background: isChecked ? 'var(--bg-tertiary)' : 'transparent'
                             }}
-                          />
-                          <span style={{ fontWeight: isChecked ? 700 : 400 }}>{emp.name} ({emp.Project || emp.role})</span>
-                        </label>
-                      );
-                    })}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setTaskData({ ...taskData, assignedTo: [...taskData.assignedTo, emp._id] });
+                                } else {
+                                  setTaskData({ ...taskData, assignedTo: taskData.assignedTo.filter(id => id !== emp._id) });
+                                }
+                              }}
+                            />
+                            <span style={{ fontWeight: isChecked ? 700 : 400 }}>{emp.name} ({emp.Project || emp.role})</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                </>
               )}
 
               {/* Task Title */}
@@ -528,39 +549,41 @@ export default function TopNavbar() {
                 />
               </div>
 
-              {/* Row: Comments / Notes & Tags */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', alignItems: 'start' }}>
-                <div>
-                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-                    Comments / Notes
-                  </label>
-                  <div className="custom-input-group" style={{ alignItems: 'flex-start' }}>
-                    <span className="custom-input-addon" style={{ height: 'auto', paddingTop: '8px' }}>
-                      <MessageSquare size={14} />
-                    </span>
+              {/* Comments & Tags (Admin Only) */}
+              {isAdmin && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', alignItems: 'start' }}>
+                  <div>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
+                      Comments / Notes
+                    </label>
+                    <div className="custom-input-group" style={{ alignItems: 'flex-start' }}>
+                      <span className="custom-input-addon" style={{ height: 'auto', paddingTop: '8px' }}>
+                        <MessageSquare size={14} />
+                      </span>
+                      <textarea
+                        className="custom-input-control"
+                        style={{ minHeight: '62px', height: '62px', resize: 'vertical' }}
+                        placeholder="Add any additional notes, remarks or comments..."
+                        value={taskData.comments}
+                        onChange={(e) => setTaskData({ ...taskData, comments: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
+                      Tags (comma separated)
+                    </label>
                     <textarea
-                      className="custom-input-control"
-                      style={{ minHeight: '62px', height: '62px', resize: 'vertical' }}
-                      placeholder="Add any additional notes, remarks or comments..."
-                      value={taskData.comments}
-                      onChange={(e) => setTaskData({ ...taskData, comments: e.target.value })}
+                      className="form-control"
+                      style={{ minHeight: '62px', height: '62px', resize: 'vertical', fontSize: '0.8rem', padding: '8px 10px' }}
+                      value={taskData.tags}
+                      onChange={(e) => setTaskData({ ...taskData, tags: e.target.value })}
+                      placeholder="e.g., frontend, urgent, bug"
                     />
                   </div>
                 </div>
-
-                <div>
-                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-                    Tags (comma separated)
-                  </label>
-                  <textarea
-                    className="form-control"
-                    style={{ minHeight: '62px', height: '62px', resize: 'vertical', fontSize: '0.8rem', padding: '8px 10px' }}
-                    value={taskData.tags}
-                    onChange={(e) => setTaskData({ ...taskData, tags: e.target.value })}
-                    placeholder="e.g., frontend, urgent, bug"
-                  />
-                </div>
-              </div>
+              )}
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                 <button

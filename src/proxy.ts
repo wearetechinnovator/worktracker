@@ -4,7 +4,7 @@ import { readSession } from '@/lib/session';
 const publicPaths = new Set(['/login', '/api/auth/login', '/api/auth/logout']);
 
 // Pages restricted to admins only
-const adminPages = new Set(['/employees', '/reports', '/settings']);
+const adminPages = new Set(['/employees', '/settings']);
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

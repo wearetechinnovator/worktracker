@@ -30,6 +30,7 @@ interface Project {
   color: string;
   totalMinutes: number;
   entryCount: number;
+  taskCount?: number;
   members: any[];
   clientId?: {
     _id: string;
@@ -418,6 +419,8 @@ export default function ProjectsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, overflowY: 'auto' }}>
             {projects.map((proj) => {
               const isActive = selectedProjId === proj._id;
+              const assignedMembers = Array.isArray(proj.members) ? proj.members : [];
+
               return (
                 <div
                   key={proj._id}
@@ -429,18 +432,127 @@ export default function ProjectsPage() {
                     setDeptName(proj.name);
                     setDeptDesc(proj.description || '');
                     setDeptColor(proj.color);
-                    setDeptMembers(proj.members.map((m: any) => m._id));
+                    setDeptMembers(assignedMembers.map((m: any) => typeof m === 'string' ? m : m._id));
                     setSelectedClientId(proj.clientId?._id || '');
                   }}
+                  style={{ gap: '8px' }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
                     <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: proj.color, flexShrink: 0 }} />
                     <span style={{ fontWeight: 700, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {proj.name}
                     </span>
                   </div>
-                  <span className="tag-badge" style={{ fontSize: '0.65rem', padding: '1px 4px' }}>
-                    {proj.members?.length || 0}
+
+                  {/* Avatar Stack for Assigned Members */}
+                  {assignedMembers.length > 0 && (
+                    <div
+                      title={`Assigned Members (${assignedMembers.length})`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        marginLeft: 'auto',
+                        marginRight: '2px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {assignedMembers.slice(0, 3).map((m: any, idx: number) => {
+                        const nameStr = typeof m === 'string' ? 'User' : (m.name || 'User');
+                        const roleStr = typeof m === 'object' && m.role ? ` • ${m.role}` : '';
+                        const presence: 'working' | 'idle' | 'offline' = typeof m === 'object' && m.presenceState ? m.presenceState : 'offline';
+
+                        let dotColor = '#94a3b8'; // Grey for offline
+                        let stateText = '⚪ Offline (Not Punched In)';
+                        let dotGlow = 'none';
+
+                        if (presence === 'working') {
+                          dotColor = '#22c55e'; // Green for working
+                          stateText = '🟢 Online & Currently Working';
+                          dotGlow = '0 0 4px rgba(34, 197, 94, 0.7)';
+                        } else if (presence === 'idle') {
+                          dotColor = '#f59e0b'; // Yellow for logged in / idle
+                          stateText = '🟡 Logged In (Idle / Not Working)';
+                          dotGlow = '0 0 4px rgba(245, 158, 11, 0.7)';
+                        }
+
+                        const initial = nameStr.charAt(0).toUpperCase();
+                        const color = typeof m === 'string' ? '#3b82f6' : (m.avatarColor || '#3b82f6');
+                        const tooltip = `${nameStr}${roleStr}\n${stateText}`;
+
+                        return (
+                          <div
+                            key={typeof m === 'string' ? m : (m._id || idx)}
+                            title={tooltip}
+                            style={{
+                              width: '22px',
+                              height: '22px',
+                              borderRadius: '50%',
+                              backgroundColor: color,
+                              color: '#ffffff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.66rem',
+                              fontWeight: 700,
+                              border: '1.5px solid var(--bg-primary)',
+                              marginLeft: idx === 0 ? 0 : '-6px',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
+                              flexShrink: 0,
+                              position: 'relative',
+                              zIndex: 3 - idx,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {initial}
+                            {/* Presence Status Dot Indicator */}
+                            <span
+                              style={{
+                                position: 'absolute',
+                                bottom: '-1px',
+                                right: '-1px',
+                                width: '6px',
+                                height: '6px',
+                                borderRadius: '50%',
+                                backgroundColor: dotColor,
+                                border: '1px solid #ffffff',
+                                boxShadow: dotGlow,
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                      {assignedMembers.length > 3 && (
+                        <div
+                          title={`+${assignedMembers.length - 3} more:\n${assignedMembers.slice(3).map((m: any) => typeof m === 'string' ? m : `${m.name || 'User'}${m.role ? ` (${m.role})` : ''}`).join('\n')}`}
+                          style={{
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '50%',
+                            backgroundColor: 'var(--bg-tertiary)',
+                            color: 'var(--text-secondary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.58rem',
+                            fontWeight: 700,
+                            border: '1.5px solid var(--bg-primary)',
+                            marginLeft: '-6px',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
+                            flexShrink: 0,
+                            position: 'relative',
+                            zIndex: 0,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          +{assignedMembers.length - 3}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Task Count Badge */}
+                  <span className="tag-badge" title={`${proj.taskCount || 0} tasks`} style={{ fontSize: '0.68rem', padding: '1px 6px', fontWeight: 700, borderRadius: '10px', flexShrink: 0 }}>
+                    {proj.taskCount || 0}
                   </span>
                 </div>
               );
@@ -835,19 +947,72 @@ export default function ProjectsPage() {
                     <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
                       <h3 className="card-title" style={{ fontSize: '0.85rem', marginBottom: '8px' }}>Staff Assigned</h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto' }}>
-                        {activeProject.members.map((m: any) => (
-                          <div key={m._id} className="list-row" style={{ padding: '2px 0' }}>
-                            <div className="avatar-wrapper">
-                              <div className="avatar" style={{ backgroundColor: m.avatarColor, width: '24px', height: '24px', fontSize: '0.65rem' }}>
-                                {m.name.split(' ').map((n: string) => n[0]).join('')}
+                        {activeProject.members.map((m: any) => {
+                          const presence: 'working' | 'idle' | 'offline' = m.presenceState || 'offline';
+                          let dotColor = '#94a3b8'; // Grey for offline
+                          let statusLabel = 'Offline';
+                          let badgeBg = 'rgba(148, 163, 184, 0.12)';
+                          let badgeColor = '#64748b';
+                          let dotGlow = 'none';
+
+                          if (presence === 'working') {
+                            dotColor = '#22c55e';
+                            statusLabel = 'Working';
+                            badgeBg = 'rgba(34, 197, 94, 0.12)';
+                            badgeColor = '#15803d';
+                            dotGlow = '0 0 4px rgba(34, 197, 94, 0.6)';
+                          } else if (presence === 'idle') {
+                            dotColor = '#f59e0b';
+                            statusLabel = 'Idle';
+                            badgeBg = 'rgba(245, 158, 11, 0.12)';
+                            badgeColor = '#b45309';
+                            dotGlow = '0 0 4px rgba(245, 158, 11, 0.6)';
+                          }
+
+                          const initials = m.name ? m.name.split(' ').map((n: string) => n[0]).join('') : 'U';
+
+                          return (
+                            <div key={m._id} className="list-row" style={{ padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                              <div className="avatar-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                                <div style={{ position: 'relative', flexShrink: 0 }}>
+                                  <div className="avatar" style={{ backgroundColor: m.avatarColor || '#3b82f6', width: '26px', height: '26px', fontSize: '0.68rem', fontWeight: 700 }}>
+                                    {initials}
+                                  </div>
+                                  <span
+                                    style={{
+                                      position: 'absolute',
+                                      bottom: '-1px',
+                                      right: '-1px',
+                                      width: '6px',
+                                      height: '6px',
+                                      borderRadius: '50%',
+                                      backgroundColor: dotColor,
+                                      border: '1.5px solid var(--bg-primary)',
+                                      boxShadow: dotGlow,
+                                    }}
+                                  />
+                                </div>
+                                <div style={{ overflow: 'hidden' }}>
+                                  <div style={{ fontWeight: 700, fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
+                                  <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.role}</div>
+                                </div>
                               </div>
-                              <div style={{ overflow: 'hidden' }}>
-                                <div style={{ fontWeight: 700, fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.role}</div>
-                              </div>
+                              <span
+                                style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 700,
+                                  padding: '2px 6px',
+                                  borderRadius: '6px',
+                                  background: badgeBg,
+                                  color: badgeColor,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {statusLabel}
+                              </span>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {activeProject.members.length === 0 && (
                           <p style={{ color: 'var(--text-muted)', fontSize: '0.72rem', textAlign: 'center', padding: '12px' }}>No members assigned.</p>
                         )}

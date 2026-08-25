@@ -70,7 +70,6 @@ export default function EmployeesPage() {
   const [roleSuggestions, setRoleSuggestions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#475569'];
   const Projects = ['Design', 'Development', 'Marketing', 'Human Resource', 'Management'];
   const statuses = ['Active', 'Inactive'];
   const workmodes = ['Hybrid', 'Remote', 'Onsite'];

@@ -11,9 +11,16 @@ import {
   Loader2,
   Search,
   ChevronDown,
-  AlertCircle
+  AlertCircle,
+  Folder,
+  FileText,
+  Phone,
+  Clock,
+  Mail,
+  MapPin
 } from 'lucide-react';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
+import CreateClientModal from '@/components/CreateClientModal';
 
 export interface CreateProjectModalProps {
   isOpen: boolean;
@@ -117,13 +124,27 @@ export default function CreateProjectModal({
   }, [isOpen, isCreateClientModalOpen]);
 
   const clients = useMemo(() => {
-    if (clientsProp && clientsProp.length > 0) return clientsProp;
-    return fetchedClients;
+    const list = [...fetchedClients];
+    if (clientsProp && Array.isArray(clientsProp)) {
+      clientsProp.forEach((c: any) => {
+        if (c && c._id && !list.some((item: any) => item._id === c._id)) {
+          list.push(c);
+        }
+      });
+    }
+    return list;
   }, [clientsProp, fetchedClients]);
 
   const employees = useMemo(() => {
-    if (employeesProp && employeesProp.length > 0) return employeesProp;
-    return fetchedEmployees;
+    const list = [...fetchedEmployees];
+    if (employeesProp && Array.isArray(employeesProp)) {
+      employeesProp.forEach((emp: any) => {
+        if (emp && emp._id && !list.some((item: any) => item._id === emp._id)) {
+          list.push(emp);
+        }
+      });
+    }
+    return list;
   }, [employeesProp, fetchedEmployees]);
 
   const filteredClients = useMemo(() => {
@@ -313,84 +334,16 @@ export default function CreateProjectModal({
             maxHeight: '90vh',
             display: 'flex',
             flexDirection: 'column',
-            borderRadius: '16px',
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            overflow: 'hidden',
+            overflowY: 'auto',
+            padding: '16px 18px',
           }}
         >
           {/* Header */}
-          <div
-            style={{
-              padding: '20px 24px',
-              borderBottom: '1px solid var(--border-color)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              background: 'var(--bg-primary)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div
-                style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '10px',
-                  backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                  border: '1.5px solid rgba(59, 130, 246, 0.3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--accent-primary)',
-                }}
-              >
-                <FolderPlus size={20} />
-              </div>
-              <div>
-                <h3
-                  style={{
-                    fontSize: '1.15rem',
-                    fontWeight: 800,
-                    color: 'var(--text-primary)',
-                    margin: 0,
-                    lineHeight: 1.2,
-                  }}
-                >
-                  Create New Project
-                </h3>
-                <p
-                  style={{
-                    fontSize: '0.75rem',
-                    color: 'var(--text-muted)',
-                    margin: '3px 0 0 0',
-                  }}
-                >
-                  Define project details, client association, and assign team members
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleClose}
-              style={{
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '8px',
-                width: '32px',
-                height: '32px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                color: 'var(--text-secondary)',
-                transition: 'all 0.15s ease',
-              }}
-              aria-label="Close"
-            >
-              <X size={16} />
-            </button>
+          <div className="modal-header">
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+              Create New Project
+            </h3>
+            <button className="modal-close" onClick={handleClose}>&times;</button>
           </div>
 
           {/* Scrollable Form Body */}
@@ -399,18 +352,17 @@ export default function CreateProjectModal({
             style={{
               display: 'flex',
               flexDirection: 'column',
-              overflowY: 'auto',
-              flex: 1,
+              gap: '12px',
             }}
           >
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {error && (
                 <div
                   style={{
-                    padding: '12px 14px',
+                    padding: '8px 12px',
                     background: 'rgba(239, 68, 68, 0.08)',
                     border: '1px solid rgba(239, 68, 68, 0.25)',
-                    borderRadius: '10px',
+                    borderRadius: 'var(--border-radius-sm)',
                     color: '#dc2626',
                     fontSize: '0.78rem',
                     display: 'flex',
@@ -418,96 +370,49 @@ export default function CreateProjectModal({
                     gap: '8px',
                   }}
                 >
-                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
                   <span>{error}</span>
                 </div>
               )}
 
               {/* Project Name Field */}
-              <div>
-                <label
-                  style={{
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    color: 'var(--text-primary)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    marginBottom: '8px',
-                  }}
-                >
-                  Project / Project Name
-                  <span style={{ color: '#ef4444' }}>*</span>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
+                  Project Name <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Quality Assurance, Mobile App"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    fontSize: '0.86rem',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.15)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--border-color)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                />
+                <div className="custom-input-group">
+                  <span className="custom-input-addon">
+                    <Folder size={14} />
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    className="custom-input-control"
+                    placeholder="e.g. Quality Assurance, Mobile App"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
               </div>
 
               {/* Description Field */}
-              <div>
-                <label
-                  style={{
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    color: 'var(--text-secondary)',
-                    display: 'block',
-                    marginBottom: '8px',
-                  }}
-                >
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
                   Description <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Optional)</span>
                 </label>
-                <textarea
-                  placeholder="Define scope, milestones, or key project goals..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    fontSize: '0.84rem',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                    resize: 'vertical',
-                    minHeight: '76px',
-                    transition: 'all 0.15s ease',
-                    lineHeight: '1.45',
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.15)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--border-color)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                />
+                <div className="custom-input-group" style={{ alignItems: 'flex-start' }}>
+                  <span className="custom-input-addon" style={{ height: 'auto', paddingTop: '8px' }}>
+                    <FileText size={14} />
+                  </span>
+                  <textarea
+                    placeholder="Define scope, milestones, or key project goals..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={2}
+                    className="custom-input-control"
+                    style={{ resize: 'vertical', minHeight: '60px' }}
+                  />
+                </div>
               </div>
 
               {/* Custom Client Association */}
@@ -1040,13 +945,10 @@ export default function CreateProjectModal({
             {/* Footer Actions */}
             <div
               style={{
-                padding: '16px 24px',
-                borderTop: '1px solid var(--border-color)',
-                background: 'var(--bg-primary)',
                 display: 'flex',
-                justifyContent: 'flex-end',
-                alignItems: 'center',
                 gap: '12px',
+                justifyContent: 'flex-end',
+                marginTop: '8px',
               }}
             >
               <button
@@ -1054,13 +956,6 @@ export default function CreateProjectModal({
                 className="btn btn-secondary"
                 onClick={handleClose}
                 disabled={submitting}
-                style={{
-                  padding: '9px 18px',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                }}
               >
                 Cancel
               </button>
@@ -1070,21 +965,15 @@ export default function CreateProjectModal({
                 className="btn btn-primary"
                 disabled={submitting || !name.trim()}
                 style={{
-                  padding: '9px 22px',
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  borderRadius: '8px',
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  cursor: submitting || !name.trim() ? 'not-allowed' : 'pointer',
-                  opacity: submitting || !name.trim() ? 0.7 : 1,
+                  gap: '6px',
                 }}
               >
                 {submitting ? (
                   <>
-                    <Loader2 size={15} className="animate-spin" />
-                    <span>Creating Project...</span>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Creating...</span>
                   </>
                 ) : (
                   <span>Create Project</span>
@@ -1095,292 +984,19 @@ export default function CreateProjectModal({
         </div>
       </div>
 
-      {/* ========================================================================= */}
       {/* POPUP OVERLAY MODAL: CREATE NEW CLIENT */}
-      {/* ========================================================================= */}
-      {isCreateClientModalOpen && (
-        <div
-          className="modal-overlay"
-          style={{
-            zIndex: 1400,
-            backgroundColor: 'rgba(15, 23, 42, 0.7)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-            animation: 'fadeIn 0.2s ease-out',
-          }}
-          onClick={() => {
-            setIsCreateClientModalOpen(false);
-            setClientError(null);
-          }}
-        >
-          <div
-            className="modal-container"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: '500px',
-              width: '100%',
-              borderRadius: '16px',
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Popup Modal Header */}
-            <div
-              style={{
-                padding: '18px 24px',
-                borderBottom: '1px solid var(--border-color)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'var(--bg-primary)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '10px',
-                    backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                    border: '1px solid rgba(59, 130, 246, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--accent-primary)',
-                  }}
-                >
-                  <Building2 size={18} />
-                </div>
-                <div>
-                  <h4
-                    style={{
-                      fontSize: '1.05rem',
-                      fontWeight: 800,
-                      color: 'var(--text-primary)',
-                      margin: 0,
-                    }}
-                  >
-                    Create New Client
-                  </h4>
-                  <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                    Fill in client company & contact details
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCreateClientModalOpen(false);
-                  setClientError(null);
-                }}
-                style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '8px',
-                  width: '30px',
-                  height: '30px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: 'var(--text-secondary)',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <X size={15} />
-              </button>
-            </div>
-
-            {/* Popup Modal Form */}
-            <form onSubmit={handleCreateClientSubmit} style={{ padding: '20px 24px', display: 'grid', gap: '14px' }}>
-              {clientError && (
-                <div
-                  style={{
-                    padding: '10px 12px',
-                    background: 'rgba(239, 68, 68, 0.08)',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    borderRadius: '8px',
-                    color: '#dc2626',
-                    fontSize: '0.76rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
-                  <span>{clientError}</span>
-                </div>
-              )}
-
-              <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '5px', color: 'var(--text-primary)' }}>
-                  Client / Company Name <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Acme Corp"
-                  value={newClientName}
-                  onChange={(e) => setNewClientName(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    fontSize: '0.82rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '5px', color: 'var(--text-secondary)' }}>
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="e.g. +1 555-0199"
-                    value={newClientPhone}
-                    onChange={(e) => setNewClientPhone(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '9px 12px',
-                      fontSize: '0.82rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-color)',
-                      background: 'var(--bg-primary)',
-                      color: 'var(--text-primary)',
-                      outline: 'none',
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '5px', color: 'var(--text-secondary)' }}>
-                    Contract Duration
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 6 Months"
-                    value={newClientDuration}
-                    onChange={(e) => setNewClientDuration(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '9px 12px',
-                      fontSize: '0.82rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-color)',
-                      background: 'var(--bg-primary)',
-                      color: 'var(--text-primary)',
-                      outline: 'none',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '5px', color: 'var(--text-secondary)' }}>
-                  Contact Email(s)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. contact@acme.com, billing@acme.com"
-                  value={newClientEmails}
-                  onChange={(e) => setNewClientEmails(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    fontSize: '0.82rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '5px', color: 'var(--text-secondary)' }}>
-                  Address / Location
-                </label>
-                <textarea
-                  placeholder="e.g. 123 Main St, San Francisco, CA"
-                  value={newClientAddress}
-                  onChange={(e) => setNewClientAddress(e.target.value)}
-                  rows={2}
-                  style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    fontSize: '0.82rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                    resize: 'vertical',
-                  }}
-                />
-              </div>
-
-              {/* Popup Modal Footer Actions */}
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  gap: '10px',
-                  marginTop: '10px',
-                  paddingTop: '14px',
-                  borderTop: '1px solid var(--border-color)',
-                }}
-              >
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setIsCreateClientModalOpen(false);
-                    setClientError(null);
-                  }}
-                  disabled={submittingClient}
-                  style={{ padding: '8px 16px', fontSize: '0.8rem' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={submittingClient || !newClientName.trim()}
-                  style={{
-                    padding: '8px 20px',
-                    fontSize: '0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  {submittingClient ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" />
-                      <span>Creating...</span>
-                    </>
-                  ) : (
-                    <span>Create Client</span>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <CreateClientModal
+        isOpen={isCreateClientModalOpen}
+        onClose={() => setIsCreateClientModalOpen(false)}
+        projectsOptions={[]}
+        onSuccess={(createdClient) => {
+          if (createdClient) {
+            setFetchedClients((prev) => [createdClient, ...prev]);
+            setSelectedClientId(createdClient._id);
+          }
+          setIsCreateClientModalOpen(false);
+        }}
+      />
       {/* ========================================================================= */}
       {/* POPUP OVERLAY MODAL: ADD NEW TEAM MEMBER */}
       {/* ========================================================================= */}
@@ -1392,6 +1008,9 @@ export default function CreateProjectModal({
             setFetchedEmployees((prev) => [newEmp, ...prev]);
             if (newEmp._id) {
               setSelectedMembers((prev) => Array.from(new Set([...prev, newEmp._id])));
+            }
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('worktracker-refresh'));
             }
           }
           setIsAddMemberModalOpen(false);
