@@ -523,9 +523,14 @@ export default function CreateProjectModal({
                                 padding: '1px 6px',
                                 background: 'var(--bg-tertiary)',
                                 borderRadius: '4px',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: '180px',
                               }}
+                              title={selectedClient.projects.map((p: any) => (typeof p === 'string' ? p : p?.name || '')).filter(Boolean).join(', ')}
                             >
-                              {selectedClient.projects.length} project{selectedClient.projects.length > 1 ? 's' : ''}
+                              {selectedClient.projects.map((p: any) => (typeof p === 'string' ? p : p?.name || '')).filter(Boolean).join(', ') || `${selectedClient.projects.length} project${selectedClient.projects.length > 1 ? 's' : ''}`}
                             </span>
                           )}
                         </>
@@ -668,6 +673,24 @@ export default function CreateProjectModal({
                                 <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                                   {client.name}
                                 </span>
+                                {client.projects && client.projects.length > 0 && (
+                                  <span
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: 'var(--text-muted)',
+                                      padding: '1px 6px',
+                                      background: 'var(--bg-tertiary)',
+                                      borderRadius: '4px',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      maxWidth: '160px',
+                                    }}
+                                    title={client.projects.map((p: any) => (typeof p === 'string' ? p : p?.name || '')).filter(Boolean).join(', ')}
+                                  >
+                                    {client.projects.map((p: any) => (typeof p === 'string' ? p : p?.name || '')).filter(Boolean).join(', ') || `${client.projects.length} project${client.projects.length > 1 ? 's' : ''}`}
+                                  </span>
+                                )}
                               </div>
                               {isSelected && <Check size={14} color="var(--accent-primary)" />}
                             </div>

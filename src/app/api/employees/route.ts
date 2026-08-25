@@ -32,7 +32,7 @@ export async function GET() {
     if (isErrorResponse(user)) return user;
     const today = new Date().toISOString().split('T')[0];
     const [employees, stats, todayAttendances] = await Promise.all([
-      Employee.find({ userType: { $ne: 'admin' } })
+      Employee.find({})
         .select('name email password rawPassword role Project status avatarColor userType workMode createdAt updatedAt')
         .sort({ createdAt: -1 })
         .lean(),

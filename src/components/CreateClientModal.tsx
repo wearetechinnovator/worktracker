@@ -343,6 +343,7 @@ export default function CreateClientModal({
                 placeholder="Select Time"
                 value={durationTime}
                 onChange={(val) => setDurationTime(val)}
+                align="right"
               />
             </div>
             </div>

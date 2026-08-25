@@ -96,10 +96,19 @@ export default function TopNavbar() {
     }
     const parsedUser = JSON.parse(storedUser);
     setUser(parsedUser);
-    const admin = parsedUser.userType === 'admin';
-    setIsAdmin(admin);
 
     try {
+      const meRes = await fetch('/api/auth/me');
+      const meData = await meRes.json();
+      let currentUserObj = parsedUser;
+      if (meData.success && meData.data) {
+        currentUserObj = meData.data;
+        setUser(currentUserObj);
+        localStorage.setItem('worktracker_user', JSON.stringify(currentUserObj));
+      }
+      const admin = currentUserObj.userType === 'admin' || Boolean(currentUserObj.isSystemAdmin);
+      setIsAdmin(admin);
+
       const [empRes, projRes, clientRes] = await Promise.all([
         fetch('/api/employees'),
         fetch('/api/projects'),
@@ -343,7 +352,7 @@ export default function TopNavbar() {
       {/* MODAL 2: CREATE NEW PROJECT (Admin Only) */}
       {/* ========================================================================= */}
       <CreateProjectModal
-        isOpen={isAdmin && isProjectModalOpen}
+        isOpen={isProjectModalOpen}
         onClose={() => setIsProjectModalOpen(false)}
         clientsList={clientsList}
         employeesList={employees}
@@ -437,6 +446,7 @@ export default function TopNavbar() {
                       label="Due Time"
                       value={taskData.dueTime}
                       onChange={(val) => setTaskData({ ...taskData, dueTime: val })}
+                      align="right"
                     />
                   </div>
 

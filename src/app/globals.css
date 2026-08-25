@@ -849,34 +849,55 @@ button, input, select, textarea {
   background: var(--bg-tertiary);
 }
 
+.task-row-interactive {
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.task-row-interactive:hover td {
+  background: var(--bg-tertiary) !important;
+}
+
+.task-row-interactive:hover td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent-primary);
+}
+
+.task-row-interactive:hover .task-title-link {
+  color: var(--accent-primary) !important;
+}
+
 .employee-cell-link:hover .employee-name-hover {
   color: var(--accent-primary) !important;
   text-decoration: underline;
 }
 
 /* Modals */
-.modal-overlay {
+.modal-overlay,
+.modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(15, 23, 42, 0.3);
-  backdrop-filter: blur(2px);
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000;
 }
 
-.modal-container {
+.modal-container,
+.modal-content {
   background: var(--bg-secondary);
   border-radius: var(--border-radius-md);
-  padding: 16px 18px;
+  padding: 20px;
   width: 100%;
-  max-width: 440px;
+  max-width: 480px;
   box-shadow: var(--shadow-md);
   border: 1px solid var(--border-color);
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .modal-header {

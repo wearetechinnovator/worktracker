@@ -278,6 +278,7 @@ interface CustomDatePickerProps {
   value: string; // YYYY-MM-DD
   onChange: (value: string) => void;
   placeholder?: string;
+  align?: 'left' | 'right';
   style?: React.CSSProperties;
 }
 
@@ -286,6 +287,7 @@ export function CustomDatePicker({
   value,
   onChange,
   placeholder = 'Select date',
+  align = 'left',
   style,
 }: CustomDatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -409,11 +411,23 @@ export function CustomDatePicker({
             background: 'var(--bg-tertiary)',
             borderRight: '1px solid var(--border-color)',
             color: 'var(--accent-primary)',
+            flexShrink: 0,
           }}
         >
           <Calendar size={15} />
         </div>
-        <div style={{ padding: '0 10px', flex: 1, fontSize: '0.8rem', fontWeight: value ? 600 : 400, color: value ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+        <div
+          style={{
+            padding: '0 8px',
+            flex: 1,
+            fontSize: '0.8rem',
+            fontWeight: value ? 600 : 400,
+            color: value ? 'var(--text-primary)' : 'var(--text-muted)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
           {value ? formatDisplay(value) : placeholder}
         </div>
         {value && (
@@ -431,6 +445,7 @@ export function CustomDatePicker({
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
+              flexShrink: 0,
             }}
             title="Clear date"
           >
@@ -445,7 +460,8 @@ export function CustomDatePicker({
           style={{
             position: 'absolute',
             top: 'calc(100% + 6px)',
-            left: 0,
+            left: align === 'right' ? 'auto' : 0,
+            right: align === 'right' ? 0 : 'auto',
             background: 'var(--bg-secondary)',
             border: '1px solid var(--border-color)',
             borderRadius: 'var(--border-radius-md)',
@@ -617,6 +633,7 @@ interface CustomTimePickerProps {
   value: string; // HH:MM in 24hr or 12hr
   onChange: (value: string) => void;
   placeholder?: string;
+  align?: 'left' | 'right';
   style?: React.CSSProperties;
 }
 
@@ -625,6 +642,7 @@ export function CustomTimePicker({
   value,
   onChange,
   placeholder = 'Select time',
+  align = 'left',
   style,
 }: CustomTimePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -710,11 +728,23 @@ export function CustomTimePicker({
             background: 'var(--bg-tertiary)',
             borderRight: '1px solid var(--border-color)',
             color: '#f59e0b',
+            flexShrink: 0,
           }}
         >
           <Clock size={15} />
         </div>
-        <div style={{ padding: '0 10px', flex: 1, fontSize: '0.8rem', fontWeight: value ? 600 : 400, color: value ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+        <div
+          style={{
+            padding: '0 8px',
+            flex: 1,
+            fontSize: '0.8rem',
+            fontWeight: value ? 600 : 400,
+            color: value ? 'var(--text-primary)' : 'var(--text-muted)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
           {value ? formatDisplay(value) : placeholder}
         </div>
         {value && (
@@ -732,6 +762,7 @@ export function CustomTimePicker({
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
+              flexShrink: 0,
             }}
             title="Clear time"
           >
@@ -746,7 +777,8 @@ export function CustomTimePicker({
           style={{
             position: 'absolute',
             top: 'calc(100% + 6px)',
-            left: 0,
+            left: align === 'right' ? 'auto' : 0,
+            right: align === 'right' ? 0 : 'auto',
             background: 'var(--bg-secondary)',
             border: '1px solid var(--border-color)',
             borderRadius: 'var(--border-radius-md)',

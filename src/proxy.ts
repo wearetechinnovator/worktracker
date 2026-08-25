@@ -3,9 +3,6 @@ import { readSession } from '@/lib/session';
 
 const publicPaths = new Set(['/login', '/api/auth/login', '/api/auth/logout']);
 
-// Pages restricted to admins only
-const adminPages = new Set(['/employees', '/settings']);
-
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -33,53 +30,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // 5. Role-based authorization & data isolation
-  const isAdmin = session.userType === 'admin';
-
-  if (!isAdmin) {
-    // Restrict admin-only pages
-    if (adminPages.has(pathname)) {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
-
-    // Restrict admin-only API writes/mutations
-    const isApiRequest = pathname.startsWith('/api/');
-    if (isApiRequest) {
-      const method = request.method;
-
-      // Admin-only write APIs
-      const isAdminOnlyWriteApi =
-        pathname.startsWith('/api/employees') ||
-        pathname.startsWith('/api/projects') ||
-        pathname.startsWith('/api/settings');
-
-      if (isAdminOnlyWriteApi && method !== 'GET') {
-        return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
-      }
-
-      // Enforce data isolation for employee read APIs
-      if (pathname === '/api/work' || pathname === '/api/attendance' || pathname === '/api/punch') {
-        const url = new URL(request.url);
-        const empId = url.searchParams.get('employeeId');
-
-        if (empId && empId !== session.userId) {
-          return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
-        }
-
-        if (!empId) {
-          url.searchParams.set('employeeId', session.userId);
-          return NextResponse.rewrite(url);
-        }
-      }
-    }
-  }
-
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    // Match all routes except files with extensions (e.g. .svg, .png, .jpg, .css, .js)
     '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)',
   ],
 };

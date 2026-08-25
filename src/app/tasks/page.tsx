@@ -6,11 +6,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import JSZip from 'jszip';
 import {
   CheckSquare, Plus, AlertCircle, CheckCircle2,
   Calendar, Users, Folder, Filter, X, Edit, Trash2,
   Play, StopCircle, Loader2, Mail, Copy, Clock,
-  Paperclip, Link as LinkIcon, MessageSquare
+  Paperclip, Link as LinkIcon, MessageSquare,
+  FileText, ExternalLink, Activity, UserCheck, Tag, Check, User,
+  Eye, Download, Archive, Search, RotateCcw
 } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
@@ -118,17 +121,141 @@ export default function TasksPage() {
   const [selectedTaskForDetails, setSelectedTaskForDetails] = useState<Task | null>(null);
   const [taskWorkSessions, setTaskWorkSessions] = useState<any[]>([]);
   const [loadingSessions, setLoadingSessions] = useState<boolean>(false);
+  const [copiedUrlIndex, setCopiedUrlIndex] = useState<number | null>(null);
+  const [isCopiedAllUrls, setIsCopiedAllUrls] = useState<boolean>(false);
+  const [isDownloadingZip, setIsDownloadingZip] = useState<boolean>(false);
 
-  // Filter states
+  const handleCopyAllUrls = (urlsList: string[]) => {
+    if (!urlsList || urlsList.length === 0) return;
+    const formatted = urlsList.map((u) => (u.startsWith('http') ? u : `https://${u}`)).join('\n');
+    navigator.clipboard.writeText(formatted);
+    setIsCopiedAllUrls(true);
+    setTimeout(() => setIsCopiedAllUrls(false), 2000);
+  };
+
+  const handleDownloadAllFilesZip = async (files: Array<{ name: string; url: string }>, taskTitle: string) => {
+    if (!files || files.length === 0) return;
+    setIsDownloadingZip(true);
+    try {
+      const zip = new JSZip();
+      const folderName = taskTitle ? taskTitle.replace(/[^a-zA-Z0-9_-]/g, '_') : 'task_files';
+      const folder = zip.folder(folderName) || zip;
+
+      await Promise.all(
+        files.map(async (file, idx) => {
+          try {
+            const res = await fetch(file.url);
+            const blob = await res.blob();
+            const filename = file.name || `file_${idx + 1}`;
+            folder.file(filename, blob);
+          } catch (err) {
+            console.error(`Failed to download file ${file.name}:`, err);
+          }
+        })
+      );
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${folderName}_attachments.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error('Error generating ZIP:', err);
+      alert('Failed to generate ZIP package. Please try downloading files individually.');
+    } finally {
+      setIsDownloadingZip(false);
+    }
+  };
+
+  const handleViewFile = (file: { name: string; url: string; type?: string }) => {
+    if (!file || !file.url) return;
+    if (file.url.startsWith('data:')) {
+      fetch(file.url)
+        .then((res) => res.blob())
+        .then((blob) => {
+          const blobUrl = URL.createObjectURL(blob);
+          const win = window.open(blobUrl, '_blank');
+          if (win) win.focus();
+        })
+        .catch(() => {
+          const win = window.open('', '_blank');
+          if (win) {
+            win.document.write(
+              `<!DOCTYPE html><html><head><title>${file.name}</title><style>body{margin:0;background:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh;}img{max-width:100%;max-height:100vh;object-fit:contain;}</style></head><body><img src="${file.url}" alt="${file.name}" /></body></html>`
+            );
+            win.document.close();
+          }
+        });
+    } else {
+      window.open(file.url, '_blank');
+    }
+  };
+
+  const handleDownloadFile = (file: { name: string; url: string }) => {
+    if (!file || !file.url) return;
+    if (file.url.startsWith('data:')) {
+      fetch(file.url)
+        .then((res) => res.blob())
+        .then((blob) => {
+          const blobUrl = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = file.name || 'download';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+        })
+        .catch(() => {
+          const link = document.createElement('a');
+          link.href = file.url;
+          link.download = file.name || 'download';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        });
+    } else {
+      const link = document.createElement('a');
+      link.href = file.url;
+      link.download = file.name || 'download';
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  // Comprehensive Filter & Search states
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterPriority, setFilterPriority] = useState<string>('');
+  const [filterProject, setFilterProject] = useState<string>('');
+  const [filterAssignee, setFilterAssignee] = useState<string>('');
+  const [filterDateRange, setFilterDateRange] = useState<string>('');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterStatus, filterPriority]);
+  }, [searchQuery, filterStatus, filterPriority, filterProject, filterAssignee, filterDateRange]);
+
+  const resetAllFilters = () => {
+    setSearchQuery('');
+    setFilterStatus('');
+    setFilterPriority('');
+    setFilterProject('');
+    setFilterAssignee('');
+    setFilterDateRange('');
+  };
+
+  const hasActiveFilters = Boolean(
+    searchQuery || filterStatus || filterPriority || filterProject || filterAssignee || filterDateRange
+  );
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -612,13 +739,72 @@ export default function TasksPage() {
     setEditingTask(null);
   };
 
-  const filteredTasks = tasks.filter(task => {
-    if (filterStatus) {
+  const filteredTasks = tasks.filter((task) => {
+    // 1. Search Query Filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchTitle = task.title?.toLowerCase().includes(q);
+      const matchDesc = task.description?.toLowerCase().includes(q);
+      const matchComments = task.comments?.toLowerCase().includes(q);
+      const matchProject = task.projectId?.name?.toLowerCase().includes(q) || (typeof task.Project === 'string' && task.Project.toLowerCase().includes(q));
+      const matchUrl = (task.urls && task.urls.some((u: string) => u.toLowerCase().includes(q))) || task.url?.toLowerCase().includes(q);
+      const matchCreatedBy = task.createdBy?.name?.toLowerCase().includes(q);
+      if (!matchTitle && !matchDesc && !matchComments && !matchProject && !matchUrl && !matchCreatedBy) return false;
+    }
+
+    // 2. Status Filter
+    if (filterStatus === 'all') {
+      // Show all including Completed
+    } else if (filterStatus) {
       if (task.status !== filterStatus) return false;
     } else {
+      // Default: show all active (non-completed) tasks
       if (task.status === 'Completed') return false;
     }
+
+    // 3. Priority Filter
     if (filterPriority && task.priority !== filterPriority) return false;
+
+    // 4. Project Filter
+    if (filterProject) {
+      const pId = typeof task.projectId === 'object' ? task.projectId?._id : task.projectId;
+      const pName = typeof task.projectId === 'object' ? task.projectId?.name : task.Project;
+      if (pId !== filterProject && pName !== filterProject) return false;
+    }
+
+    // 5. Assignee Filter
+    if (filterAssignee) {
+      if (!task.assignedTo || !task.assignedTo.some((emp: any) => emp._id === filterAssignee || emp.id === filterAssignee || emp.name === filterAssignee)) {
+        return false;
+      }
+    }
+
+    // 6. Due Date Range Filter
+    if (filterDateRange) {
+      if (filterDateRange === 'no_date') {
+        if (task.dueDate) return false;
+      } else if (filterDateRange === 'has_date') {
+        if (!task.dueDate) return false;
+      } else if (task.dueDate) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const taskDateStr = task.dueDate;
+
+        if (filterDateRange === 'overdue') {
+          if (taskDateStr >= todayStr || task.status === 'Completed') return false;
+        } else if (filterDateRange === 'today') {
+          if (taskDateStr !== todayStr) return false;
+        } else if (filterDateRange === 'this_week') {
+          const now = new Date();
+          const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+          const endOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + 6));
+          const taskD = new Date(taskDateStr + 'T00:00:00');
+          if (taskD < startOfWeek || taskD > endOfWeek) return false;
+        }
+      } else {
+        return false;
+      }
+    }
+
     return true;
   });
 
@@ -771,55 +957,179 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="card" style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Filter size={16} style={{ color: 'var(--text-muted)' }} />
-            <strong style={{ fontSize: '0.85rem' }}>Filters:</strong>
+      {/* Search & Filters Panel */}
+      <div className="card" style={{ marginBottom: '20px', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {/* Top Bar: Search input + Reset Button + Count */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
+          {/* Search Box */}
+          <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
+            <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Search by title, description, project, links..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                paddingLeft: '36px',
+                paddingRight: searchQuery ? '32px' : '12px',
+                fontSize: '0.85rem',
+                width: '100%',
+                height: '38px'
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
 
-          <select
-            className="form-control"
-            style={{ width: '150px', padding: '6px 10px', fontSize: '0.85rem' }}
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
-            <option value="">All Status</option>
-            <option value="To Do">To Do</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Review">Review</option>
-            <option value="Completed">Completed</option>
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={resetAllFilters}
+                className="btn btn-secondary"
+                style={{
+                  padding: '6px 14px',
+                  fontSize: '0.8rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 650,
+                  color: '#ef4444',
+                  borderColor: '#ef444430',
+                  background: '#fef2f2'
+                }}
+              >
+                <RotateCcw size={13} />
+                <span>Reset Filters</span>
+              </button>
+            )}
 
-          <select
-            className="form-control"
-            style={{ width: '150px', padding: '6px 10px', fontSize: '0.85rem' }}
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value)}
-          >
-            <option value="">All Priority</option>
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
-            <option value="Urgent">Urgent</option>
-          </select>
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 650, whiteSpace: 'nowrap' }}>
+              Showing <strong style={{ color: 'var(--text-primary)' }}>{filteredTasks.length}</strong> of <strong>{tasks.length}</strong> tasks
+            </div>
+          </div>
+        </div>
 
-          {(filterStatus || filterPriority) && (
-            <button
-              onClick={() => {
-                setFilterStatus('');
-                setFilterPriority('');
-              }}
-              className="btn btn-secondary"
-              style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+        {/* Bottom Bar: Dropdown Filters Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', alignItems: 'center' }}>
+          {/* Status Filter */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Status
+            </label>
+            <select
+              className="form-control"
+              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
             >
-              Clear Filters
-            </button>
-          )}
+              <option value="">Active Tasks (Default)</option>
+              <option value="all">All Tasks (Inc. Completed)</option>
+              <option value="To Do">To Do</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Review">Review</option>
+              <option value="Completed">Completed Only</option>
+            </select>
+          </div>
 
-          <div style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Showing {filteredTasks.length} of {tasks.length} tasks
+          {/* Priority Filter */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Priority
+            </label>
+            <select
+              className="form-control"
+              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
+              value={filterPriority}
+              onChange={(e) => setFilterPriority(e.target.value)}
+            >
+              <option value="">All Priorities</option>
+              <option value="Urgent">🔴 Urgent</option>
+              <option value="High">🟠 High</option>
+              <option value="Medium">🟡 Medium</option>
+              <option value="Low">🟢 Low</option>
+            </select>
+          </div>
+
+          {/* Project Filter */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Project
+            </label>
+            <select
+              className="form-control"
+              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
+              value={filterProject}
+              onChange={(e) => setFilterProject(e.target.value)}
+            >
+              <option value="">All Projects</option>
+              {projects.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Assignee Filter */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Assigned To
+            </label>
+            <select
+              className="form-control"
+              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
+              value={filterAssignee}
+              onChange={(e) => setFilterAssignee(e.target.value)}
+            >
+              <option value="">All Assignees</option>
+              {employees.map((e) => (
+                <option key={e._id} value={e._id}>
+                  {e.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Due Date Filter */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Due Date
+            </label>
+            <select
+              className="form-control"
+              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
+              value={filterDateRange}
+              onChange={(e) => setFilterDateRange(e.target.value)}
+            >
+              <option value="">All Dates</option>
+              <option value="overdue">⚠️ Overdue</option>
+              <option value="today">📅 Due Today</option>
+              <option value="this_week">📆 Due This Week</option>
+              <option value="has_date">With Due Date</option>
+              <option value="no_date">No Due Date</option>
+            </select>
           </div>
         </div>
       </div>
@@ -831,10 +1141,11 @@ export default function TasksPage() {
             <thead>
               <tr>
                 <th>Task Title & Description</th>
-                <th style={{ width: '140px' }}>Project</th>
-                <th style={{ width: '120px' }}>Status</th>
-                <th style={{ width: '110px' }}>Priority</th>
-                <th style={{ width: '140px' }}>Assigned By</th>
+                <th style={{ width: '130px' }}>Project</th>
+                <th style={{ width: '110px' }}>Status</th>
+                <th style={{ width: '100px' }}>Priority</th>
+                <th style={{ width: '130px' }}>Assigned By</th>
+                <th style={{ width: '130px' }}>Assigned To</th>
                 <th style={{ width: '110px' }}>Due Date</th>
                 {filteredTasks.some(canManageTask) && (
                   <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>
@@ -844,7 +1155,7 @@ export default function TasksPage() {
             <tbody>
               {filteredTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-secondary)' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-secondary)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                       <CheckSquare size={40} style={{ color: 'var(--text-muted)' }} />
                       <div style={{ fontWeight: 700, fontSize: '1rem' }}>No tasks found</div>
@@ -871,10 +1182,13 @@ export default function TasksPage() {
                 </tr>
               ) : (
                 paginatedTasks.map((task) => (
-                  <tr key={task._id}>
+                  <tr
+                    key={task._id}
+                    onClick={() => openTaskDetailsModal(task)}
+                    className="task-row-interactive"
+                  >
                     <td>
                       <div
-                        onClick={() => openTaskDetailsModal(task)}
                         className="task-title-link"
                         style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-primary)' }}
                         title="Click to view task details & work logs"
@@ -918,23 +1232,54 @@ export default function TasksPage() {
                     </td>
                     <td>
                       {task.createdBy ? (
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                           <div
                             className="avatar"
                             style={{
                               backgroundColor: task.createdBy.avatarColor || '#7f56d9',
-                              width: '22px',
-                              height: '22px',
+                              width: '24px',
+                              height: '24px',
                               fontSize: '0.62rem',
-                              color: '#ffffff'
+                              color: '#ffffff',
+                              flexShrink: 0
                             }}
-                            title={task.createdBy.name}
+                            title={`Assigned by: ${task.createdBy.name}`}
                           >
                             {task.createdBy.name.split(' ').map((n: string) => n[0]).join('')}
                           </div>
+                          <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '85px' }}>
+                            {task.createdBy.name.split(' ')[0]}
+                          </span>
                         </div>
                       ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>System</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>System Admin</span>
+                      )}
+                    </td>
+                    <td>
+                      {task.assignedTo && task.assignedTo.length > 0 ? (
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                          {task.assignedTo.map((emp: any, eIdx: number) => (
+                            <div
+                              key={emp._id || emp.id || eIdx}
+                              className="avatar"
+                              style={{
+                                backgroundColor: emp.avatarColor || '#3b82f6',
+                                width: '24px',
+                                height: '24px',
+                                fontSize: '0.62rem',
+                                color: '#ffffff',
+                                border: '2px solid var(--bg-primary)',
+                                marginLeft: eIdx > 0 ? '-6px' : '0',
+                                flexShrink: 0
+                              }}
+                              title={`Assigned to: ${emp.name}`}
+                            >
+                              {emp.name.split(' ').map((n: string) => n[0]).join('')}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Unassigned</span>
                       )}
                     </td>
                     <td style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
@@ -1000,7 +1345,7 @@ export default function TasksPage() {
                                         {timerStr}
                                       </div>
                                       <button
-                                        onClick={() => openEndWorkDialog(activeWork._id)}
+                                        onClick={(e) => { e.stopPropagation(); openEndWorkDialog(activeWork._id); }}
                                         disabled={processingTaskId === activeWork._id}
                                         className="btn btn-danger"
                                         style={{
@@ -1036,7 +1381,7 @@ export default function TasksPage() {
                                         </span>
                                       )}
                                       <button
-                                        onClick={() => handleStartWork(task._id)}
+                                        onClick={(e) => { e.stopPropagation(); handleStartWork(task._id); }}
                                         disabled={processingTaskId === task._id || task.status === 'Completed'}
                                         className="btn btn-primary"
                                         style={{
@@ -1065,7 +1410,7 @@ export default function TasksPage() {
                           {(isAdmin || (user && task.createdBy?._id === user._id)) && (
                             <>
                               <button
-                                onClick={() => openEditModal(task)}
+                                onClick={(e) => { e.stopPropagation(); openEditModal(task); }}
                                 className="btn btn-secondary"
                                 style={{ padding: '4px 6px', fontSize: '0.75rem' }}
                                 title="Edit"
@@ -1073,7 +1418,7 @@ export default function TasksPage() {
                                 <Edit size={12} />
                               </button>
                               <button
-                                onClick={() => handleDelete(task._id)}
+                                onClick={(e) => { e.stopPropagation(); handleDelete(task._id); }}
                                 className="btn btn-danger"
                                 style={{ padding: '4px 6px', fontSize: '0.75rem' }}
                                 title="Delete"
@@ -1205,6 +1550,7 @@ export default function TasksPage() {
                       value={formData.dueTime}
                       onChange={(val) => setFormData({ ...formData, dueTime: val })}
                       placeholder="Pick time"
+                      align="right"
                     />
                   </div>
 
@@ -1600,22 +1946,27 @@ export default function TasksPage() {
               gap: '16px',
               background: 'var(--bg-secondary)'
             }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                  <span className="tag-badge" style={{ ...getStatusBadgeStyles(selectedTaskForDetails.status), fontWeight: 700, fontSize: '0.72rem' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  <span className="tag-badge" style={{ ...getStatusBadgeStyles(selectedTaskForDetails.status), fontWeight: 750, fontSize: '0.74rem', padding: '3px 10px' }}>
                     {selectedTaskForDetails.status}
                   </span>
-                  <span className="tag-badge" style={{ ...getPriorityBadgeStyles(selectedTaskForDetails.priority), fontWeight: 700, fontSize: '0.72rem' }}>
+                  <span className="tag-badge" style={{ ...getPriorityBadgeStyles(selectedTaskForDetails.priority), fontWeight: 750, fontSize: '0.74rem', padding: '3px 10px' }}>
                     {selectedTaskForDetails.priority}
                   </span>
-                  {selectedTaskForDetails.projectId && (
-                    <span className="tag-badge" style={{ backgroundColor: `${selectedTaskForDetails.projectId.color}15`, color: selectedTaskForDetails.projectId.color, borderColor: `${selectedTaskForDetails.projectId.color}30`, display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
-                      <Folder size={10} style={{ color: selectedTaskForDetails.projectId.color }} />
+                  {selectedTaskForDetails.projectId ? (
+                    <span className="tag-badge" style={{ backgroundColor: `${selectedTaskForDetails.projectId.color}15`, color: selectedTaskForDetails.projectId.color, borderColor: `${selectedTaskForDetails.projectId.color}30`, display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.74rem', fontWeight: 700, padding: '3px 10px' }}>
+                      <Folder size={11} style={{ color: selectedTaskForDetails.projectId.color }} />
                       {selectedTaskForDetails.projectId.name}
                     </span>
-                  )}
+                  ) : selectedTaskForDetails.Project ? (
+                    <span className="tag-badge" style={{ backgroundColor: '#cbd5e120', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.74rem', fontWeight: 700, padding: '3px 10px' }}>
+                      <Folder size={11} />
+                      {selectedTaskForDetails.Project}
+                    </span>
+                  ) : null}
                 </div>
-                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                <h3 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: '1.35' }}>
                   {selectedTaskForDetails.title}
                 </h3>
               </div>
@@ -1624,16 +1975,22 @@ export default function TasksPage() {
                 className="btn"
                 style={{
                   padding: '6px',
-                  width: '32px',
-                  height: '32px',
+                  width: '34px',
+                  height: '34px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   background: 'var(--bg-tertiary)',
-                  borderRadius: '50%'
+                  borderRadius: '50%',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease'
                 }}
+                title="Close"
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
 
@@ -1644,98 +2001,230 @@ export default function TasksPage() {
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
-              gap: '24px'
+              gap: '22px'
             }}>
-              {/* Task Details Row */}
+              {/* Information Overview Grid */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                gap: '16px',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '12px',
                 background: 'var(--bg-secondary)',
                 padding: '16px',
-                borderRadius: '8px',
+                borderRadius: '10px',
                 border: '1px solid var(--border-color)'
               }}>
-                <div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Assigned By</div>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* Assigned By */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <UserCheck size={12} style={{ color: 'var(--accent-primary)' }} />
+                    <span>Assigned By</span>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {selectedTaskForDetails.createdBy ? (
                       <>
                         <div
                           className="avatar"
                           style={{
                             backgroundColor: selectedTaskForDetails.createdBy.avatarColor || '#7f56d9',
-                            width: '20px',
-                            height: '20px',
-                            fontSize: '0.58rem',
-                            color: '#ffffff'
+                            width: '22px',
+                            height: '22px',
+                            fontSize: '0.62rem',
+                            color: '#ffffff',
+                            flexShrink: 0
                           }}
                         >
                           {selectedTaskForDetails.createdBy.name.split(' ').map((n: string) => n[0]).join('')}
                         </div>
-                        <span>{selectedTaskForDetails.createdBy.name}</span>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedTaskForDetails.createdBy.name}</span>
                       </>
                     ) : (
-                      'System'
+                      'System Admin'
                     )}
                   </div>
                 </div>
-                <div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Due Date & Time</div>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
+
+                {/* Assigned To */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Users size={12} style={{ color: 'var(--accent-primary)' }} />
+                    <span>Assigned To</span>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    {selectedTaskForDetails.assignedTo && selectedTaskForDetails.assignedTo.length > 0 ? (
+                      selectedTaskForDetails.assignedTo.map((emp: any) => (
+                        <div key={emp._id || emp.id || emp.name} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '0.78rem' }}>
+                          <div
+                            className="avatar"
+                            style={{
+                              backgroundColor: emp.avatarColor || '#3b82f6',
+                              width: '18px',
+                              height: '18px',
+                              fontSize: '0.55rem',
+                              color: '#ffffff',
+                              flexShrink: 0
+                            }}
+                          >
+                            {emp.name.split(' ').map((n: string) => n[0]).join('')}
+                          </div>
+                          <span>{emp.name}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.8rem' }}>Unassigned</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Due Date & Time */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Calendar size={12} style={{ color: 'var(--accent-primary)' }} />
+                    <span>Due Date & Time</span>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                     {selectedTaskForDetails.dueDate ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <Calendar size={13} />
-                        {new Date(selectedTaskForDetails.dueDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span>{new Date(selectedTaskForDetails.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                         {selectedTaskForDetails.dueTime && (
-                          <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>
-                            ({selectedTaskForDetails.dueTime})
+                          <span style={{ color: 'var(--accent-primary)', background: 'rgba(59, 130, 246, 0.1)', padding: '1px 6px', borderRadius: '4px', fontSize: '0.74rem' }}>
+                            {selectedTaskForDetails.dueTime}
                           </span>
                         )}
-                      </span>
+                      </div>
                     ) : (
-                      'No Due Date'
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.8rem' }}>No Due Date</span>
                     )}
                   </div>
                 </div>
-                <div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Created At</div>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
-                    {selectedTaskForDetails.createdAt ? new Date(selectedTaskForDetails.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '—'}
+
+                {/* Created At */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Clock size={12} style={{ color: 'var(--accent-primary)' }} />
+                    <span>Created At</span>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {selectedTaskForDetails.createdAt
+                      ? new Date(selectedTaskForDetails.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                      : '—'}
                   </div>
                 </div>
               </div>
 
-              {/* Resource URLs */}
+              {/* Resource URLs / Links */}
               {((selectedTaskForDetails.urls && selectedTaskForDetails.urls.length > 0) || selectedTaskForDetails.url) && (
                 <div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>
-                    Resource URLs / Links
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                    <h4 style={{ fontSize: '0.78rem', fontWeight: 750, color: 'var(--text-muted)', textTransform: 'uppercase', margin: 0, letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <LinkIcon size={14} style={{ color: 'var(--accent-primary)' }} />
+                      <span>Resource URLs / Links</span>
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyAllUrls(
+                        selectedTaskForDetails.urls && selectedTaskForDetails.urls.length > 0
+                          ? selectedTaskForDetails.urls
+                          : (selectedTaskForDetails.url ? [selectedTaskForDetails.url] : [])
+                      )}
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 750,
+                        color: isCopiedAllUrls ? '#059669' : 'var(--accent-primary)',
+                        background: isCopiedAllUrls ? '#d1fae5' : 'rgba(59, 130, 246, 0.1)',
+                        border: isCopiedAllUrls ? '1px solid #10b98140' : '1px solid rgba(59, 130, 246, 0.25)',
+                        padding: '3px 10px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title="Copy all URLs to clipboard"
+                    >
+                      {isCopiedAllUrls ? <Check size={11} /> : <Copy size={11} />}
+                      <span>{isCopiedAllUrls ? 'Copied All!' : 'Copy All'}</span>
+                    </button>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     {(selectedTaskForDetails.urls && selectedTaskForDetails.urls.length > 0
                       ? selectedTaskForDetails.urls
                       : (selectedTaskForDetails.url ? [selectedTaskForDetails.url] : [])
-                    ).map((u: string, uIdx: number) => (
-                      <a
-                        key={uIdx}
-                        href={u.startsWith('http') ? u : `https://${u}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          color: 'var(--accent-primary)',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          wordBreak: 'break-all',
-                        }}
-                      >
-                        <LinkIcon size={14} />
-                        <span>{u}</span>
-                      </a>
-                    ))}
+                    ).map((u: string, uIdx: number) => {
+                      const fullUrl = u.startsWith('http') ? u : `https://${u}`;
+                      const isCopied = copiedUrlIndex === uIdx;
+                      return (
+                        <div
+                          key={uIdx}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            background: 'var(--bg-secondary)',
+                            border: '1px solid var(--border-color)',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            fontSize: '0.8rem',
+                            fontWeight: 650,
+                          }}
+                        >
+                          <LinkIcon size={13} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                          <span style={{ color: 'var(--text-primary)', wordBreak: 'break-all', maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={u}>
+                            {u}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px', flexShrink: 0 }}>
+                            <a
+                              href={fullUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                color: '#ffffff',
+                                background: 'var(--accent-primary)',
+                                padding: '3px 8px',
+                                borderRadius: '5px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                transition: 'all 0.15s ease',
+                              }}
+                              title="Open link in new tab"
+                            >
+                              <Eye size={11} />
+                              <span>View</span>
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(fullUrl);
+                                setCopiedUrlIndex(uIdx);
+                                setTimeout(() => setCopiedUrlIndex(null), 2000);
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                color: isCopied ? '#059669' : 'var(--text-secondary)',
+                                background: isCopied ? '#d1fae5' : 'var(--bg-tertiary)',
+                                border: isCopied ? '1px solid #10b98140' : '1px solid var(--border-color)',
+                                padding: '3px 8px',
+                                borderRadius: '5px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                              title="Copy URL to clipboard"
+                            >
+                              {isCopied ? <Check size={11} /> : <Copy size={11} />}
+                              <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1743,19 +2232,20 @@ export default function TasksPage() {
               {/* Task Description */}
               {selectedTaskForDetails.description && (
                 <div>
-                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
-                    Task Description
+                  <h4 style={{ fontSize: '0.78rem', fontWeight: 750, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <FileText size={14} style={{ color: 'var(--accent-primary)' }} />
+                    <span>Task Description</span>
                   </h4>
                   <div
                     style={{
-                      fontSize: '0.9rem',
+                      fontSize: '0.88rem',
                       color: 'var(--text-primary)',
                       lineHeight: '1.6',
                       background: 'var(--bg-primary)',
-                      padding: '16px',
-                      borderRadius: '8px',
+                      padding: '16px 18px',
+                      borderRadius: '10px',
                       border: '1px solid var(--border-color)',
-                      maxHeight: '180px',
+                      maxHeight: '220px',
                       overflowY: 'auto'
                     }}
                     dangerouslySetInnerHTML={{ __html: selectedTaskForDetails.description }}
@@ -1766,21 +2256,58 @@ export default function TasksPage() {
               {/* Supporting Files Preview Gallery */}
               {selectedTaskForDetails.files && selectedTaskForDetails.files.length > 0 && (
                 <div>
-                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
-                    Supporting Files ({selectedTaskForDetails.files.length})
-                  </h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                    <h4 style={{ fontSize: '0.78rem', fontWeight: 750, color: 'var(--text-muted)', textTransform: 'uppercase', margin: 0, letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Paperclip size={14} style={{ color: 'var(--accent-primary)' }} />
+                      <span>Supporting Files ({selectedTaskForDetails.files.length})</span>
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadAllFilesZip(selectedTaskForDetails.files!, selectedTaskForDetails.title)}
+                      disabled={isDownloadingZip}
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 750,
+                        color: '#ffffff',
+                        background: 'var(--accent-primary)',
+                        border: 'none',
+                        padding: '4px 12px',
+                        borderRadius: '6px',
+                        cursor: isDownloadingZip ? 'wait' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        opacity: isDownloadingZip ? 0.75 : 1,
+                        boxShadow: '0 2px 4px rgba(59, 130, 246, 0.2)',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title="Download all attached files as a ZIP package"
+                    >
+                      {isDownloadingZip ? (
+                        <>
+                          <Loader2 className="animate-spin" size={12} />
+                          <span>Downloading ZIP...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Archive size={12} />
+                          <span>Download All (ZIP)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '10px' }}>
                     {selectedTaskForDetails.files.map((file, fIdx) => (
                       <div
                         key={fIdx}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '8px',
-                          padding: '8px 10px',
-                          background: 'var(--bg-primary)',
+                          gap: '10px',
+                          padding: '10px 12px',
+                          background: 'var(--bg-secondary)',
                           border: '1px solid var(--border-color)',
-                          borderRadius: '6px',
+                          borderRadius: '8px',
                         }}
                       >
                         {file.type?.startsWith('image/') || /\.(png|jpg|jpeg|webp|svg|gif)$/i.test(file.name) ? (
@@ -1788,25 +2315,72 @@ export default function TasksPage() {
                           <img
                             src={file.url}
                             alt={file.name}
-                            style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }}
+                            onClick={() => handleViewFile(file)}
+                            style={{ width: '38px', height: '38px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border-color)', cursor: 'pointer' }}
+                            title="Click to view image in new tab"
                           />
                         ) : (
-                          <Paperclip size={18} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                          <div
+                            onClick={() => handleViewFile(file)}
+                            style={{ width: '38px', height: '38px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-primary)', flexShrink: 0, cursor: 'pointer' }}
+                            title="Click to view file"
+                          >
+                            <Paperclip size={18} />
+                          </div>
                         )}
                         <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '5px' }} title={file.name}>
                             {file.name}
                           </div>
                           {file.url && (
-                            <a
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              download={file.name}
-                              style={{ fontSize: '0.68rem', color: 'var(--accent-primary)', textDecoration: 'none' }}
-                            >
-                              Download / Open
-                            </a>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {/* View button: Opens in new tab via Blob URL */}
+                              <button
+                                type="button"
+                                onClick={() => handleViewFile(file)}
+                                style={{
+                                  fontSize: '0.7rem',
+                                  color: '#ffffff',
+                                  background: 'var(--accent-primary)',
+                                  border: 'none',
+                                  padding: '3px 8px',
+                                  borderRadius: '4px',
+                                  fontWeight: 700,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                }}
+                                title="Open file in new tab"
+                              >
+                                <Eye size={11} />
+                                <span>View</span>
+                              </button>
+                              {/* Download button */}
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadFile(file)}
+                                style={{
+                                  fontSize: '0.7rem',
+                                  color: 'var(--text-secondary)',
+                                  background: 'var(--bg-tertiary)',
+                                  border: '1px solid var(--border-color)',
+                                  padding: '3px 8px',
+                                  borderRadius: '4px',
+                                  fontWeight: 700,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                }}
+                                title="Download file"
+                              >
+                                <Download size={11} />
+                                <span>Download</span>
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1818,18 +2392,23 @@ export default function TasksPage() {
               {/* Task Comments / Notes */}
               {selectedTaskForDetails.comments && (
                 <div>
-                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
-                    Comments / Notes
+                  <h4 style={{ fontSize: '0.78rem', fontWeight: 750, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <MessageSquare size={14} style={{ color: 'var(--accent-primary)' }} />
+                    <span>Comments / Notes</span>
                   </h4>
                   <div
                     style={{
                       fontSize: '0.85rem',
                       color: 'var(--text-secondary)',
-                      background: 'var(--bg-primary)',
-                      padding: '12px 14px',
+                      background: 'var(--bg-secondary)',
+                      padding: '12px 16px',
                       borderRadius: '8px',
-                      border: '1px solid var(--border-color)',
+                      borderLeft: '4px solid var(--accent-primary)',
+                      borderTop: '1px solid var(--border-color)',
+                      borderRight: '1px solid var(--border-color)',
+                      borderBottom: '1px solid var(--border-color)',
                       whiteSpace: 'pre-wrap',
+                      lineHeight: '1.5',
                     }}
                   >
                     {selectedTaskForDetails.comments}
@@ -1839,114 +2418,137 @@ export default function TasksPage() {
 
               {/* Work Session History Logs */}
               <div>
-                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>Work Session Logs</span>
-                  <span style={{
-                    fontSize: '0.7rem',
-                    background: 'var(--bg-tertiary)',
-                    color: 'var(--text-primary)',
-                    padding: '2px 8px',
-                    borderRadius: '10px'
-                  }}>
-                    {taskWorkSessions.length} sessions
-                  </span>
-                </h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                  <h4 style={{ fontSize: '0.78rem', fontWeight: 750, color: 'var(--text-muted)', textTransform: 'uppercase', margin: 0, letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Activity size={14} style={{ color: 'var(--accent-primary)' }} />
+                    <span>Work Session Logs</span>
+                  </h4>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      background: 'var(--bg-tertiary)',
+                      color: 'var(--text-secondary)',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      border: '1px solid var(--border-color)'
+                    }}>
+                      {taskWorkSessions.length} sessions
+                    </span>
+                    {taskWorkSessions.length > 0 && (
+                      <span style={{
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        background: 'rgba(59, 130, 246, 0.1)',
+                        color: 'var(--accent-primary)',
+                        padding: '3px 10px',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(59, 130, 246, 0.2)'
+                      }}>
+                        Total: {(() => {
+                          const totalMins = taskWorkSessions.reduce((acc, s) => acc + (s.totalMinutes || 0), 0);
+                          const h = Math.floor(totalMins / 60);
+                          const m = totalMins % 60;
+                          return h > 0 ? `${h}h ${m}m` : `${m}m`;
+                        })()}
+                      </span>
+                    )}
+                  </div>
+                </div>
 
                 {loadingSessions ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px', gap: '12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '36px', gap: '12px', background: 'var(--bg-secondary)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
                     <Loader2 className="animate-spin" size={24} style={{ color: 'var(--accent-primary)' }} />
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Loading work history...</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Loading work session logs...</span>
                   </div>
                 ) : taskWorkSessions.length === 0 ? (
                   <div style={{
                     textAlign: 'center',
-                    padding: '40px 20px',
+                    padding: '36px 20px',
                     border: '1px dashed var(--border-color)',
-                    borderRadius: '8px',
+                    borderRadius: '10px',
                     color: 'var(--text-muted)',
-                    background: 'var(--bg-primary)'
+                    background: 'var(--bg-secondary)'
                   }}>
-                    <CheckSquare size={32} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.6 }} />
-                    <p style={{ fontSize: '0.85rem', fontWeight: 600, margin: 0 }}>No work sessions logged for this task yet.</p>
-                    <p style={{ fontSize: '0.75rem', margin: '4px 0 0' }}>Employees working on this task will log their hours here.</p>
+                    <CheckSquare size={32} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.5, color: 'var(--accent-primary)' }} />
+                    <p style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>No work sessions logged for this task yet.</p>
+                    <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>Employees working on this task will log their active hours here.</p>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {taskWorkSessions.map((session) => (
                       <div
                         key={session._id}
                         style={{
                           background: 'var(--bg-secondary)',
                           border: '1px solid var(--border-color)',
-                          borderRadius: '8px',
-                          padding: '16px',
+                          borderRadius: '10px',
+                          padding: '14px 16px',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '12px'
+                          gap: '10px',
+                          transition: 'all 0.15s ease'
                         }}
                       >
                         {/* Top Info Bar */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <div
                               className="avatar"
                               style={{
                                 backgroundColor: session.employeeId?.avatarColor || '#7f56d9',
-                                width: '24px',
-                                height: '24px',
-                                fontSize: '0.65rem',
-                                color: '#ffffff'
+                                width: '26px',
+                                height: '26px',
+                                fontSize: '0.68rem',
+                                color: '#ffffff',
+                                flexShrink: 0
                               }}
                               title={session.employeeId?.name}
                             >
                               {session.employeeId?.name?.split(' ').map((n: string) => n[0]).join('') || '?'}
                             </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 750, color: 'var(--text-primary)' }}>
-                              {session.employeeId?.name || 'Unknown Employee'}
-                            </span>
+                            <div>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 750, color: 'var(--text-primary)' }}>
+                                {session.employeeId?.name || 'Unknown Employee'}
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                {session.date}
+                              </div>
+                            </div>
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <span style={{
-                              fontSize: '0.7rem',
+                              fontSize: '0.72rem',
                               fontWeight: 700,
-                              color: 'var(--text-muted)',
+                              color: 'var(--text-secondary)',
                               background: 'var(--bg-primary)',
                               border: '1px solid var(--border-color)',
-                              padding: '2px 8px',
-                              borderRadius: '4px'
-                            }}>
-                              {session.date}
-                            </span>
-                            <span style={{
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              color: 'var(--text-muted)',
-                              background: 'var(--bg-primary)',
-                              border: '1px solid var(--border-color)',
-                              padding: '2px 8px',
-                              borderRadius: '4px'
+                              padding: '3px 8px',
+                              borderRadius: '6px'
                             }}>
                               {session.startTime} - {session.endTime || 'Active'}
                             </span>
                             <span className="tag-badge" style={{
                               background: session.status === 'Completed' ? '#d1fae5' : '#fee2e2',
                               color: session.status === 'Completed' ? '#065f46' : '#b91c1c',
-                              fontWeight: 700,
+                              borderColor: session.status === 'Completed' ? '#10b98130' : '#ef444430',
+                              fontWeight: 750,
                               fontSize: '0.68rem',
-                              padding: '2px 6px'
+                              padding: '2px 8px'
                             }}>
                               {session.status}
                             </span>
                             {session.totalMinutes > 0 && (
                               <span className="tag-badge" style={{
-                                background: 'var(--accent-primary)15',
+                                background: 'rgba(59, 130, 246, 0.12)',
                                 color: 'var(--accent-primary)',
+                                borderColor: 'rgba(59, 130, 246, 0.25)',
                                 fontWeight: 800,
                                 fontSize: '0.68rem',
-                                padding: '2px 6px'
+                                padding: '2px 8px'
                               }}>
-                                {session.totalMinutes} min
+                                {Math.floor(session.totalMinutes / 60) > 0 ? `${Math.floor(session.totalMinutes / 60)}h ${session.totalMinutes % 60}m` : `${session.totalMinutes}m`}
                               </span>
                             )}
                           </div>
@@ -1985,6 +2587,7 @@ export default function TasksPage() {
                 type="button"
                 className="btn btn-secondary"
                 onClick={closeTaskDetailsModal}
+                style={{ fontWeight: 650, padding: '8px 20px' }}
               >
                 Close
               </button>

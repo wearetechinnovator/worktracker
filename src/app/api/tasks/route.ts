@@ -5,7 +5,7 @@ import Employee from '@/models/Employee';
 import Notification from '@/models/Notification';
 import mongoose from 'mongoose';
 import { getPagination, paginatedResponse } from '@/lib/api';
-import { isErrorResponse, requireUser } from '@/lib/auth';
+import { isErrorResponse, requireUser, requirePermission } from '@/lib/auth';
 
 // GET - Fetch all tasks or filtered tasks
 export async function GET(request: Request) {
@@ -14,7 +14,9 @@ export async function GET(request: Request) {
     const user = await requireUser();
     if (isErrorResponse(user)) return user;
     const { searchParams } = new URL(request.url);
-    const employeeId = user.userType === 'admin' ? searchParams.get('employeeId') : user.id;
+    const canManageAll = user.isSystemAdmin || user.permissions.includes('tasks:manage_all') || user.permissions.includes('tasks:read');
+    const requestedEmpId = searchParams.get('employeeId');
+    const employeeId = canManageAll ? requestedEmpId : (requestedEmpId || user.id);
     const projectId = searchParams.get('projectId');
     const Project = searchParams.get('Project');
     const status = searchParams.get('status');
@@ -74,7 +76,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     await dbConnect();
-    const user = await requireUser();
+    const user = await requirePermission('tasks:create');
     if (isErrorResponse(user)) return user;
     const body = await request.json();
     const {

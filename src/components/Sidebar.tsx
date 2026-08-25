@@ -17,8 +17,9 @@ export default function Sidebar() {
   const [user, setUser] = useState<any>(null);
   const [isPunchedIn, setIsPunchedIn] = useState(false);
   const [canPunchOut, setCanPunchOut] = useState(false);
+  const [adminAllowedOut, setAdminAllowedOut] = useState(false);
   const [checkingPunch, setCheckingPunch] = useState(true);
-  const [shiftTimes, setShiftTimes] = useState<{ punchOutTime?: string; lateCutoffTime?: string } | null>(null);
+  const [shiftTimes, setShiftTimes] = useState<{ punchOutStartTime?: string; punchOutEndTime?: string } | null>(null);
 
   // Punch Out Mail Modal States
   const [showPunchOutModal, setShowPunchOutModal] = useState(false);
@@ -70,9 +71,12 @@ export default function Sidebar() {
         const attendance = result.data?.attendance;
         const isCurrentlyCheckedIn = !!attendance?.checkIn && !attendance?.checkOut;
 
+        const isAllowedByAdmin = Boolean(result.data?.isPunchOutAllowedByAdmin);
+        setAdminAllowedOut(isAllowedByAdmin);
+
         if (result.success && isCurrentlyCheckedIn) {
           setIsPunchedIn(true);
-          setCanPunchOut(!!result.data?.canPunchOut);
+          setCanPunchOut(!!result.data?.canPunchOut || isAllowedByAdmin);
         } else {
           setIsPunchedIn(false);
           setCanPunchOut(false);
@@ -123,18 +127,20 @@ export default function Sidebar() {
 
         if (settingsData.success && settingsData.data) {
           setShiftTimes({
-            punchOutTime: settingsData.data.punchOutTime,
-            lateCutoffTime: settingsData.data.lateCutoffTime,
+            punchOutStartTime: settingsData.data.punchOutStartTime,
+            punchOutEndTime: settingsData.data.punchOutEndTime,
           });
         }
 
-        if (attendanceData.success && attendanceData.data && attendanceData.data.length > 0) {
-          const rec = attendanceData.data[0];
+        const records = Array.isArray(attendanceData.data)
+          ? attendanceData.data
+          : (attendanceData.data?.attendance || []);
+
+        if (records.length > 0) {
+          const rec = records.find((r: any) => r.date === today) || records[records.length - 1];
           const hasPunchedIn = !!rec.checkIn;
           const hasPunchedOut = !!rec.checkOut;
           setIsPunchedIn(hasPunchedIn && !hasPunchedOut);
-        } else {
-          setIsPunchedIn(false);
         }
       } catch (err) {
         console.error(err);
@@ -146,12 +152,12 @@ export default function Sidebar() {
 
   // Validate if current employee can punch out based on shift settings
   useEffect(() => {
-    if (!user || user.userType === 'admin') {
+    if (!user || user.userType === 'admin' || adminAllowedOut) {
       setCanPunchOut(true);
       return;
     }
 
-    if (!shiftTimes || !shiftTimes.punchOutTime) {
+    if (!shiftTimes || !shiftTimes.punchOutStartTime || !shiftTimes.punchOutEndTime) {
       setCanPunchOut(true);
       return;
     }
@@ -160,10 +166,20 @@ export default function Sidebar() {
       const now = new Date();
       const currentMins = now.getHours() * 60 + now.getMinutes();
 
-      const [endH, endM] = shiftTimes.punchOutTime!.split(':').map(Number);
-      const shiftEndMins = endH * 60 + endM;
+      const [startH, startM] = shiftTimes.punchOutStartTime!.split(':').map(Number);
+      const [endH, endM] = shiftTimes.punchOutEndTime!.split(':').map(Number);
 
-      setCanPunchOut(currentMins >= shiftEndMins);
+      const startMins = startH * 60 + startM;
+      const endMins = endH * 60 + endM;
+
+      let isAllowed = false;
+      if (startMins <= endMins) {
+        isAllowed = currentMins >= startMins && currentMins <= endMins;
+      } else {
+        isAllowed = currentMins >= startMins || currentMins <= endMins;
+      }
+
+      setCanPunchOut(isAllowed);
     };
 
     checkWindow();

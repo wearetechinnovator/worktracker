@@ -83,11 +83,15 @@ export async function GET(request: Request) {
     let settings = await Settings.findOne();
     if (!settings) {
       settings = await Settings.create({
-        punchInStartTime: '00:00',
-        punchInEndTime: '23:59',
-        punchOutStartTime: '00:00',
-        punchOutEndTime: '23:59',
+        punchInStartTime: '09:00',
+        punchInEndTime: '11:00',
+        punchOutStartTime: '17:00',
+        punchOutEndTime: '20:00',
       });
+    } else if (settings.punchOutStartTime === '00:00') {
+      settings.punchOutStartTime = '17:00';
+      settings.punchOutEndTime = '20:00';
+      await settings.save();
     }
 
     // Check if attendance record exists for today
@@ -186,11 +190,15 @@ export async function POST(request: Request) {
     let settings = await Settings.findOne();
     if (!settings) {
       settings = await Settings.create({
-        punchInStartTime: '00:00',
-        punchInEndTime: '23:59',
-        punchOutStartTime: '00:00',
-        punchOutEndTime: '23:59',
+        punchInStartTime: '09:00',
+        punchInEndTime: '11:00',
+        punchOutStartTime: '17:00',
+        punchOutEndTime: '20:00',
       });
+    } else if (settings.punchOutStartTime === '00:00') {
+      settings.punchOutStartTime = '17:00';
+      settings.punchOutEndTime = '20:00';
+      await settings.save();
     }
 
     // Handle Admin Grant Permission actions
@@ -313,7 +321,7 @@ export async function POST(request: Request) {
       }
 
       // Check if punched in
-      const existing = await Attendance.findOne({ employeeId, date: today });
+      const existing = existingRecord || await Attendance.findOne({ employeeId: targetEmployeeId, date: today });
       if (!existing?.checkIn) {
         return NextResponse.json(
           { success: false, error: 'You must punch in before punching out' },

@@ -1565,6 +1565,7 @@ export default function Dashboard() {
                       value={formData.dueTime}
                       onChange={(val) => setFormData({ ...formData, dueTime: val })}
                       placeholder="Pick time"
+                      align="right"
                     />
                   </div>
 

@@ -76,19 +76,38 @@ export default function EmployeesPage() {
 
   // Check login session on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('worktracker_user');
-    if (!storedUser) {
-      router.push('/login');
-      return;
-    }
+    const checkAccess = async () => {
+      const storedUser = localStorage.getItem('worktracker_user');
+      if (!storedUser) {
+        router.push('/login');
+        return;
+      }
 
-    const parsed = JSON.parse(storedUser);
-    if (parsed.userType !== 'admin') {
-      router.push('/'); // Redirect employees to dashboard
-      return;
-    }
+      const parsed = JSON.parse(storedUser);
+      setUser(parsed);
 
-    setUser(parsed);
+      try {
+        const meRes = await fetch('/api/auth/me');
+        const meData = await meRes.json();
+        if (meData.success && meData.data) {
+          const userObj = meData.data;
+          setUser(userObj);
+          localStorage.setItem('worktracker_user', JSON.stringify(userObj));
+          const hasAccess = userObj.userType === 'admin' || userObj.isSystemAdmin || (userObj.permissions || []).includes('employees:read');
+          if (!hasAccess) {
+            router.push('/');
+          }
+        } else if (parsed.userType !== 'admin' && !(parsed.permissions || []).includes('employees:read')) {
+          router.push('/');
+        }
+      } catch (err) {
+        if (parsed.userType !== 'admin' && !(parsed.permissions || []).includes('employees:read')) {
+          router.push('/');
+        }
+      }
+    };
+
+    checkAccess();
   }, [router]);
 
   const fetchEmployees = useCallback(async () => {
@@ -595,20 +614,32 @@ export default function EmployeesPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Job Title / Role *</label>
-                  <input
-                    type="text"
+                  <select
                     className="form-control"
                     required
-                    list="employee-role-suggestions"
-                    placeholder="e.g. UI UX Designer"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
-                  />
-                  <datalist id="employee-role-suggestions">
-                    {roleSuggestions.map((roleOption) => (
-                      <option key={roleOption} value={roleOption} />
+                  >
+                    {Array.from(new Set([
+                      role,
+                      'Admin',
+                      'Project Manager',
+                      'Employee',
+                      'Client',
+                      'UI UX Designer',
+                      'Software Engineer',
+                      'Frontend Developer',
+                      'Backend Developer',
+                      'Full Stack Developer',
+                      'QA Engineer',
+                      'Marketing Specialist',
+                      ...roleSuggestions
+                    ].filter(Boolean))).map((roleOption) => (
+                      <option key={roleOption} value={roleOption}>
+                        {roleOption}
+                      </option>
                     ))}
-                  </datalist>
+                  </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Project *</label>

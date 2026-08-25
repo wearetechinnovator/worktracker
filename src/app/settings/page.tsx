@@ -28,19 +28,38 @@ export default function SettingsPage() {
 
   // Authenticate admin
   useEffect(() => {
-    const storedUser = localStorage.getItem('worktracker_user');
-    if (!storedUser) {
-      router.push('/login');
-      return;
-    }
+    const checkAccess = async () => {
+      const storedUser = localStorage.getItem('worktracker_user');
+      if (!storedUser) {
+        router.push('/login');
+        return;
+      }
 
-    const parsed = JSON.parse(storedUser);
-    if (parsed.userType !== 'admin') {
-      router.push('/');
-      return;
-    }
+      const parsed = JSON.parse(storedUser);
+      setUser(parsed);
 
-    setUser(parsed);
+      try {
+        const meRes = await fetch('/api/auth/me');
+        const meData = await meRes.json();
+        if (meData.success && meData.data) {
+          const userObj = meData.data;
+          setUser(userObj);
+          localStorage.setItem('worktracker_user', JSON.stringify(userObj));
+          const hasAccess = userObj.userType === 'admin' || userObj.isSystemAdmin || (userObj.permissions || []).includes('settings:manage');
+          if (!hasAccess) {
+            router.push('/');
+          }
+        } else if (parsed.userType !== 'admin' && !(parsed.permissions || []).includes('settings:manage')) {
+          router.push('/');
+        }
+      } catch (err) {
+        if (parsed.userType !== 'admin' && !(parsed.permissions || []).includes('settings:manage')) {
+          router.push('/');
+        }
+      }
+    };
+
+    checkAccess();
   }, [router]);
 
   // Load settings

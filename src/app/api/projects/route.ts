@@ -100,9 +100,14 @@ export async function GET(request: Request) {
   }
 }
 
+import { requirePermission, isErrorResponse } from '@/lib/auth';
+
 export async function POST(request: Request) {
   try {
     await dbConnect();
+    const authUser = await requirePermission('projects:create');
+    if (isErrorResponse(authUser)) return authUser;
+
     const body = await request.json();
     const { name, description, color, members, clientId, clientInfo } = body;
 

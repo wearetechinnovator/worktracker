@@ -102,7 +102,14 @@ export async function PUT(
       employee.password = await hashPassword(password);
       employee.rawPassword = password;
     }
-    if (userType) employee.userType = userType;
+    if (userType) {
+      employee.userType = userType;
+    } else if (normalizedRole) {
+      const targetRoleDoc = await Role.findOne({ name: { $regex: new RegExp(`^${escapeRegex(normalizedRole)}$`, 'i') } });
+      if (targetRoleDoc?.isSystemAdmin || normalizedRole.toLowerCase() === 'admin' || normalizedRole.toLowerCase() === 'administrator') {
+        employee.userType = 'admin';
+      }
+    }
     if (workMode) employee.workMode = workMode;
 
     await employee.save();

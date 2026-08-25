@@ -67,6 +67,8 @@ export default function ProjectsPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [entries, setEntries] = useState<WorkEntry[]>([]);
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+  const [isRoleAdmin, setIsRoleAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -147,17 +149,19 @@ export default function ProjectsPage() {
       const empUrl = '/api/employees';
       const workUrl = isEmployee ? `/api/work?employeeId=${user._id}` : '/api/work';
 
-      const [projRes, empRes, workRes, clientsRes] = await Promise.all([
+      const [projRes, empRes, workRes, clientsRes, rolesRes] = await Promise.all([
         fetch(projUrl),
         fetch(empUrl),
         fetch(workUrl),
-        fetch('/api/clients')
+        fetch('/api/clients'),
+        fetch('/api/roles')
       ]);
 
       const projData = await projRes.json().catch(() => null);
       const empData = await empRes.json().catch(() => null);
       const workData = await workRes.json().catch(() => null);
       const clientsData = await clientsRes.json().catch(() => null);
+      const rolesData = await rolesRes.json().catch(() => null);
 
       if (!projRes.ok || !projData || !projData.success) throw new Error(projData?.error || 'Failed to load projects');
       if (!empRes.ok || !empData || !empData.success) throw new Error(empData?.error || 'Failed to load employees');
@@ -168,6 +172,13 @@ export default function ProjectsPage() {
       setEntries(workData.data);
       if (clientsData && clientsData.success) {
         setClientsList(clientsData.data);
+      }
+      if (rolesData && rolesData.success && Array.isArray(rolesData.data)) {
+        const myRoleDoc = rolesData.data.find((r: any) => r.name && r.name.toLowerCase().trim() === (user.role || '').toLowerCase().trim());
+        if (myRoleDoc) {
+          setUserPermissions(myRoleDoc.permissions || []);
+          setIsRoleAdmin(Boolean(myRoleDoc.isSystemAdmin));
+        }
       }
 
       if (projData.data.length > 0 && !workProjId) {
@@ -358,7 +369,8 @@ export default function ProjectsPage() {
     return matchesSearch && matchesDate;
   });
 
-  const isAdmin = user?.userType === 'admin';
+  const isAdmin = user?.userType === 'admin' || isRoleAdmin;
+  const canCreateProject = isAdmin || userPermissions.includes('projects:create');
 
   if (loading && projects.length === 0 && !error) {
     return <PageShimmer variant="Projects" />;
@@ -368,13 +380,8 @@ export default function ProjectsPage() {
     <div>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        {/* <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Projects Manager</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Inspect specific projects, assign members, and manage logged task records.</p>
-        </div> */}
-
         <div style={{ display: 'flex', gap: '8px' }}>
-          {isAdmin && (
+          {canCreateProject && (
             <button className="btn btn-secondary" onClick={() => {
               setDeptName('');
               setDeptDesc('');
@@ -636,7 +643,7 @@ export default function ProjectsPage() {
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                {isAdmin ? (
+                {canCreateProject ? (
                   <button 
                     className="btn btn-primary" 
                     onClick={() => {
@@ -655,7 +662,7 @@ export default function ProjectsPage() {
                   <button 
                     className="btn btn-primary" 
                     disabled 
-                    title="Only admins can create projects"
+                    title="Your role does not have permission to create projects"
                     style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px', opacity: 0.6 }}
                   >
                     <Plus size={16} />
