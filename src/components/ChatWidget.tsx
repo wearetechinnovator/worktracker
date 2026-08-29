@@ -377,35 +377,17 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
     }
   }, [user, activeChannelId, isOpen, pathname, inline]);
 
-  // Set up background and active room polling
+  // Fetch channel history when opening chat or switching channels
   useEffect(() => {
-    if (!user) {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-      return;
+    if (user && isOpen && activeChannelId) {
+      const shouldHide = pathname === '/login' || (!inline && pathname === '/departments');
+      if (!shouldHide) {
+        fetchChannelHistory(activeChannelId);
+      }
     }
+  }, [user, isOpen, activeChannelId, fetchChannelHistory, pathname, inline]);
 
-    // Page-specific suspend check
-    const shouldHide = pathname === '/login' || (!inline && pathname === '/departments');
-    if (shouldHide) {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-      return;
-    }
-
-    if (isOpen) {
-      fetchChannelHistory(activeChannelId);
-    }
-
-    // Poll faster (5s) when chat window is active, slower (15s) when minimized/badge only
-    const intervalTime = (inline || isOpen) ? 5000 : 15000;
-
-    pollingIntervalRef.current = setInterval(() => {
-      pollMessages();
-    }, intervalTime);
-
-    return () => {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-    };
-  }, [user, isOpen, activeChannelId, fetchChannelHistory, pollMessages, pathname, inline]);
+  // Background polling disabled to prevent repeated network calls
 
   // Visibility change listener to poll immediately when user focuses back on tab
   useEffect(() => {

@@ -184,7 +184,7 @@ export default function AddTeamMemberModal({
     <div
       className="modal-overlay"
       style={{
-        zIndex: 1400,
+        zIndex: 21000,
         backgroundColor: 'rgba(15, 23, 42, 0.65)',
         backdropFilter: 'blur(6px)',
         display: 'flex',

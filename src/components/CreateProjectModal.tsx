@@ -28,6 +28,7 @@ export interface CreateProjectModalProps {
   onSuccess?: (newProject?: any) => void;
   clientsList?: any[];
   employeesList?: any[];
+  hideClientField?: boolean;
 }
 
 export default function CreateProjectModal({
@@ -36,6 +37,7 @@ export default function CreateProjectModal({
   onSuccess,
   clientsList: clientsProp,
   employeesList: employeesProp,
+  hideClientField = false,
 }: CreateProjectModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -314,7 +316,7 @@ export default function CreateProjectModal({
       <div
         className="modal-overlay"
         style={{
-          zIndex: 1300,
+          zIndex: 20000,
           backgroundColor: 'rgba(15, 23, 42, 0.65)',
           backdropFilter: 'blur(6px)',
           display: 'flex',
@@ -334,12 +336,12 @@ export default function CreateProjectModal({
             maxHeight: '90vh',
             display: 'flex',
             flexDirection: 'column',
-            overflowY: 'auto',
+            overflow: 'hidden',
             padding: '16px 18px',
           }}
         >
           {/* Header */}
-          <div className="modal-header">
+          <div className="modal-header" style={{ flexShrink: 0, marginBottom: '12px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
               Create New Project
             </h3>
@@ -352,10 +354,12 @@ export default function CreateProjectModal({
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '12px',
+              flex: 1,
+              minHeight: 0,
+              overflow: 'hidden',
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
               {error && (
                 <div
                   style={{
@@ -416,7 +420,8 @@ export default function CreateProjectModal({
               </div>
 
               {/* Custom Client Association */}
-              <div style={{ position: 'relative' }} ref={clientDropdownRef}>
+              {!hideClientField && (
+                <div style={{ position: 'relative' }} ref={clientDropdownRef}>
                 <div
                   style={{
                     display: 'flex',
@@ -738,6 +743,7 @@ export default function CreateProjectModal({
                   )}
                 </div>
               </div>
+              )}
 
               {/* Assign Team Members (Collapsible / Multi-select) */}
               <div>
@@ -971,7 +977,10 @@ export default function CreateProjectModal({
                 display: 'flex',
                 gap: '12px',
                 justifyContent: 'flex-end',
-                marginTop: '8px',
+                marginTop: '12px',
+                paddingTop: '12px',
+                borderTop: '1px solid var(--border-color)',
+                flexShrink: 0,
               }}
             >
               <button
@@ -1012,6 +1021,7 @@ export default function CreateProjectModal({
         isOpen={isCreateClientModalOpen}
         onClose={() => setIsCreateClientModalOpen(false)}
         projectsOptions={[]}
+        hideProjectField={true}
         onSuccess={(createdClient) => {
           if (createdClient) {
             setFetchedClients((prev) => [createdClient, ...prev]);

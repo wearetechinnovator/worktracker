@@ -32,6 +32,7 @@ export async function GET(request: Request) {
         { $group: { _id: '$projectId', totalMinutes: { $sum: '$actualTime' }, entryCount: { $sum: 1 } } },
       ]),
       Task.aggregate<{ _id: string; taskCount: number }>([
+        { $match: { status: { $ne: 'Completed' } } },
         { $group: { _id: '$projectId', taskCount: { $sum: 1 } } },
       ]),
       Attendance.find({ date: today }).lean(),

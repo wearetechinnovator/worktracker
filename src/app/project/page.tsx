@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Folder, FolderPlus, Plus, Search, Edit3, Trash2, Clock, 
-  AlertCircle, Users, Briefcase, Mail, FileBarChart, Lightbulb, HelpCircle, Sparkles
+import {
+  Folder, FolderPlus, Plus, Search, Edit3, Trash2, Clock,
+  AlertCircle, Users, Briefcase, Mail, FileBarChart, Lightbulb, HelpCircle, Sparkles, GripVertical
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import PageShimmer from '@/components/PageShimmer';
@@ -77,6 +77,44 @@ export default function ProjectsPage() {
   const [editMode, setEditMode] = useState(false);
   const [logSearchQuery, setLogSearchQuery] = useState('');
   const [logDateFilter, setLogDateFilter] = useState('');
+
+  // Drag and Drop reordering state
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== dropIndex) {
+      const updated = [...projects];
+      const [moved] = updated.splice(draggedIndex, 1);
+      updated.splice(dropIndex, 0, moved);
+      setProjects(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('worktracker_project_order', JSON.stringify(updated.map((p) => p._id)));
+      }
+    }
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
 
   // Modals
   const [isAddDeptOpen, setIsAddDeptOpen] = useState(false);
@@ -167,7 +205,24 @@ export default function ProjectsPage() {
       if (!empRes.ok || !empData || !empData.success) throw new Error(empData?.error || 'Failed to load employees');
       if (!workRes.ok || !workData || !workData.success) throw new Error(workData?.error || 'Failed to load work entries');
 
-      setProjects(projData.data);
+      let loadedProjects = projData.data || [];
+      if (typeof window !== 'undefined') {
+        const savedOrder = localStorage.getItem('worktracker_project_order');
+        if (savedOrder) {
+          try {
+            const orderIds: string[] = JSON.parse(savedOrder);
+            const posMap = new Map(orderIds.map((id, idx) => [id, idx]));
+            loadedProjects.sort((a: any, b: any) => {
+              const posA = posMap.has(a._id) ? posMap.get(a._id)! : 999;
+              const posB = posMap.has(b._id) ? posMap.get(b._id)! : 999;
+              return posA - posB;
+            });
+          } catch (e) {
+            console.error('Error parsing saved project order:', e);
+          }
+        }
+      }
+      setProjects(loadedProjects);
       setEmployees(empData.data);
       setEntries(workData.data);
       if (clientsData && clientsData.success) {
@@ -212,7 +267,7 @@ export default function ProjectsPage() {
 
     try {
       setSavingDept(true);
-      
+
       const bodyPayload: any = {
         name: deptName,
         description: deptDesc,
@@ -361,7 +416,7 @@ export default function ProjectsPage() {
   const activeProjMinutes = activeProjEntries.reduce((sum, e) => sum + e.actualTime, 0);
 
   const filteredProjEntries = activeProjEntries.filter((e) => {
-    const matchesSearch = 
+    const matchesSearch =
       e.title.toLowerCase().includes(logSearchQuery.toLowerCase()) ||
       (e.description || '').toLowerCase().includes(logSearchQuery.toLowerCase()) ||
       e.employeeName.toLowerCase().includes(logSearchQuery.toLowerCase());
@@ -424,13 +479,20 @@ export default function ProjectsPage() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, overflowY: 'auto' }}>
-            {projects.map((proj) => {
+            {projects.map((proj, index) => {
               const isActive = selectedProjId === proj._id;
+              const isDragging = draggedIndex === index;
+              const isDragOver = dragOverIndex === index && draggedIndex !== index;
               const assignedMembers = Array.isArray(proj.members) ? proj.members : [];
 
               return (
                 <div
                   key={proj._id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDrop={(e) => handleDrop(e, index)}
+                  onDragEnd={handleDragEnd}
                   className={`Project-item ${isActive ? 'active' : ''}`}
                   onClick={() => {
                     setSelectedProjId(proj._id);
@@ -442,8 +504,27 @@ export default function ProjectsPage() {
                     setDeptMembers(assignedMembers.map((m: any) => typeof m === 'string' ? m : m._id));
                     setSelectedClientId(proj.clientId?._id || '');
                   }}
-                  style={{ gap: '8px' }}
+                  style={{
+                    gap: '6px',
+                    cursor: isDragging ? 'grabbing' : 'grab',
+                    opacity: isDragging ? 0.4 : 1,
+                    transform: isDragging ? 'scale(0.98)' : 'scale(1)',
+                    transition: 'all 0.15s ease',
+                    borderTop: isDragOver ? '2px solid var(--accent-primary)' : '1px solid transparent',
+                    boxShadow: isDragOver ? '0 4px 12px rgba(59, 130, 246, 0.2)' : 'none',
+                    userSelect: 'none',
+                  }}
                 >
+                  <GripVertical
+                    size={14}
+                    style={{
+                      color: 'var(--text-muted)',
+                      flexShrink: 0,
+                      opacity: 0.5,
+                      cursor: 'grab',
+                    }}
+                  />
+
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
                     <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: proj.color, flexShrink: 0 }} />
                     <span style={{ fontWeight: 700, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -558,7 +639,7 @@ export default function ProjectsPage() {
                   )}
 
                   {/* Task Count Badge */}
-                  <span className="tag-badge" title={`${proj.taskCount || 0} tasks`} style={{ fontSize: '0.68rem', padding: '1px 6px', fontWeight: 700, borderRadius: '10px', flexShrink: 0 }}>
+                  <span className="tag-badge" title={`${proj.taskCount || 0} active tasks`} style={{ fontSize: '0.68rem', padding: '1px 6px', fontWeight: 700, borderRadius: '10px', flexShrink: 0 }}>
                     {proj.taskCount || 0}
                   </span>
                 </div>
@@ -566,13 +647,13 @@ export default function ProjectsPage() {
             })}
 
             {projects.length === 0 && (
-              <div style={{ 
-                border: '1px dashed var(--border-color)', 
-                borderRadius: '10px', 
-                padding: '16px 12px', 
-                textAlign: 'center', 
+              <div style={{
+                border: '1px dashed var(--border-color)',
+                borderRadius: '10px',
+                padding: '16px 12px',
+                textAlign: 'center',
                 background: 'var(--bg-tertiary)',
-                marginTop: '4px' 
+                marginTop: '4px'
               }}>
                 <FolderPlus size={22} style={{ color: 'var(--accent-primary)', marginBottom: '6px', opacity: 0.8 }} />
                 <div style={{ fontWeight: 700, fontSize: '0.78rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
@@ -586,12 +667,12 @@ export default function ProjectsPage() {
           </div>
 
           {/* Sidebar Tip */}
-          <div style={{ 
-            border: '1px solid var(--border-color)', 
-            borderRadius: '10px', 
-            padding: '10px 12px', 
-            background: 'var(--bg-tertiary)', 
-            marginTop: '16px' 
+          <div style={{
+            border: '1px solid var(--border-color)',
+            borderRadius: '10px',
+            padding: '10px 12px',
+            background: 'var(--bg-tertiary)',
+            marginTop: '16px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '0.74rem', color: 'var(--accent-primary)', marginBottom: '3px' }}>
               <Lightbulb size={13} />
@@ -606,12 +687,12 @@ export default function ProjectsPage() {
         {/* Right column detail panel */}
         <div className="split-detail">
           {projects.length === 0 ? (
-            <div className="card" style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              padding: '48px 32px', 
+            <div className="card" style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '48px 32px',
               minHeight: '460px',
               borderRadius: '16px',
               border: '1px solid var(--border-color)',
@@ -644,8 +725,8 @@ export default function ProjectsPage() {
               {/* Actions */}
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
                 {canCreateProject ? (
-                  <button 
-                    className="btn btn-primary" 
+                  <button
+                    className="btn btn-primary"
                     onClick={() => {
                       setDeptName('');
                       setDeptDesc('');
@@ -659,9 +740,9 @@ export default function ProjectsPage() {
                     <span>Create your first project</span>
                   </button>
                 ) : (
-                  <button 
-                    className="btn btn-primary" 
-                    disabled 
+                  <button
+                    className="btn btn-primary"
+                    disabled
                     title="Your role does not have permission to create projects"
                     style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px', opacity: 0.6 }}
                   >
@@ -669,8 +750,8 @@ export default function ProjectsPage() {
                     <span>Create your first project</span>
                   </button>
                 )}
-                <button 
-                  className="btn btn-secondary" 
+                <button
+                  className="btn btn-secondary"
                   onClick={() => setIsExploreModalOpen(true)}
                   style={{ padding: '10px 16px', fontSize: '0.85rem', fontWeight: 650, display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px' }}
                 >
@@ -688,28 +769,28 @@ export default function ProjectsPage() {
                   What you can do with projects
                 </h4>
 
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
-                  gap: '12px' 
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: '12px'
                 }}>
-                  <div style={{ 
-                    background: 'var(--bg-tertiary)', 
-                    border: '1px solid var(--border-color)', 
-                    borderRadius: '10px', 
+                  <div style={{
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '10px',
                     padding: '14px 14px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'flex-start'
                   }}>
-                    <div style={{ 
-                      width: '30px', 
-                      height: '30px', 
-                      borderRadius: '6px', 
-                      background: '#eff6ff', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
+                    <div style={{
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '6px',
+                      background: '#eff6ff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       marginBottom: '8px',
                       color: '#3b82f6'
                     }}>
@@ -723,23 +804,23 @@ export default function ProjectsPage() {
                     </span>
                   </div>
 
-                  <div style={{ 
-                    background: 'var(--bg-tertiary)', 
-                    border: '1px solid var(--border-color)', 
-                    borderRadius: '10px', 
+                  <div style={{
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '10px',
                     padding: '14px 14px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'flex-start'
                   }}>
-                    <div style={{ 
-                      width: '30px', 
-                      height: '30px', 
-                      borderRadius: '6px', 
-                      background: '#ecfdf5', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
+                    <div style={{
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '6px',
+                      background: '#ecfdf5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       marginBottom: '8px',
                       color: '#10b981'
                     }}>
@@ -753,23 +834,23 @@ export default function ProjectsPage() {
                     </span>
                   </div>
 
-                  <div style={{ 
-                    background: 'var(--bg-tertiary)', 
-                    border: '1px solid var(--border-color)', 
-                    borderRadius: '10px', 
+                  <div style={{
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '10px',
                     padding: '14px 14px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'flex-start'
                   }}>
-                    <div style={{ 
-                      width: '30px', 
-                      height: '30px', 
-                      borderRadius: '6px', 
-                      background: '#f3e8ff', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
+                    <div style={{
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '6px',
+                      background: '#f3e8ff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       marginBottom: '8px',
                       color: '#7f56d9'
                     }}>
@@ -801,7 +882,7 @@ export default function ProjectsPage() {
                     <div>
                       <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{activeProject.name}</h2>
                       <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginTop: '4px', whiteSpace: 'pre-wrap' }}>
-                        {activeProject.description || 'No description added for this Project.'}
+                        {activeProject.description}
                       </p>
                       {activeProject.clientId && (
                         <div style={{ marginTop: '12px', padding: '10px 14px', background: 'var(--bg-tertiary)', borderRadius: '6px', border: '1px solid var(--border-color)', display: 'inline-block' }}>
@@ -874,7 +955,7 @@ export default function ProjectsPage() {
 
                   {/* Splits: Logs on left, Members on right */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: '16px' }}>
-                    
+
                     {/* Left: Logs */}
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -883,7 +964,7 @@ export default function ProjectsPage() {
                         <div style={{ display: 'flex', gap: '6px' }}>
                           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                             <Search size={12} style={{ position: 'absolute', left: '6px', color: 'var(--text-muted)' }} />
-                            <input 
+                            <input
                               type="text"
                               className="form-control"
                               placeholder="Search logs..."
@@ -892,7 +973,7 @@ export default function ProjectsPage() {
                               onChange={(e) => setLogSearchQuery(e.target.value)}
                             />
                           </div>
-                          <input 
+                          <input
                             type="date"
                             className="form-control"
                             style={{ height: '24px', fontSize: '0.72rem', width: '100px', padding: '1px 4px' }}
@@ -1045,7 +1126,7 @@ export default function ProjectsPage() {
 
                   <div className="form-group">
                     <label className="form-label">Project / Project Name *</label>
-                    <input 
+                    <input
                       type="text"
                       className="form-control"
                       required
@@ -1056,7 +1137,7 @@ export default function ProjectsPage() {
 
                   <div className="form-group">
                     <label className="form-label">Description (Optional)</label>
-                    <textarea 
+                    <textarea
                       className="form-control"
                       placeholder="Define Project scope..."
                       value={deptDesc}
@@ -1064,12 +1145,12 @@ export default function ProjectsPage() {
                     />
                   </div>
 
-                   <div className="form-group">
+                  <div className="form-group">
                     <label className="form-label">Assign / Re-assign Team Members</label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '10px' }}>
                       {employees.map(emp => (
                         <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', cursor: 'pointer' }}>
-                          <input 
+                          <input
                             type="checkbox"
                             checked={deptMembers.includes(emp._id)}
                             onChange={() => handleDeptMemberToggle(emp._id)}
@@ -1136,7 +1217,7 @@ export default function ProjectsPage() {
             <form onSubmit={handleAddWorkSubmit}>
               <div className="form-group">
                 <label className="form-label">Project / Project *</label>
-                <select 
+                <select
                   className="form-control"
                   required
                   value={workProjId}
@@ -1150,7 +1231,7 @@ export default function ProjectsPage() {
 
               <div className="form-group">
                 <label className="form-label">Logging Member *</label>
-                <select 
+                <select
                   className="form-control"
                   required
                   value={workEmpId}
@@ -1169,9 +1250,9 @@ export default function ProjectsPage() {
 
               <div className="form-group">
                 <label className="form-label">What work was performed? *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   required
                   placeholder="e.g. Created login page templates"
                   value={workTitle}
@@ -1181,9 +1262,9 @@ export default function ProjectsPage() {
 
               <div className="form-group">
                 <label className="form-label">Date *</label>
-                <input 
-                  type="date" 
-                  className="form-control" 
+                <input
+                  type="date"
+                  className="form-control"
                   required
                   value={workDate}
                   onChange={(e) => setWorkDate(e.target.value)}
@@ -1193,9 +1274,9 @@ export default function ProjectsPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Start Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
+                  <input
+                    type="time"
+                    className="form-control"
                     required
                     value={workStart}
                     onChange={(e) => setWorkStart(e.target.value)}
@@ -1203,9 +1284,9 @@ export default function ProjectsPage() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">End Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
+                  <input
+                    type="time"
+                    className="form-control"
                     required
                     value={workEnd}
                     onChange={(e) => setWorkEnd(e.target.value)}
@@ -1215,8 +1296,8 @@ export default function ProjectsPage() {
 
               <div className="form-group">
                 <label className="form-label">Session Notes (Optional)</label>
-                <textarea 
-                  className="form-control" 
+                <textarea
+                  className="form-control"
                   placeholder="Details, progress..."
                   value={workDesc}
                   onChange={(e) => setWorkDesc(e.target.value)}
@@ -1251,7 +1332,7 @@ export default function ProjectsPage() {
             <form onSubmit={handleEditLogSubmit}>
               <div className="form-group">
                 <label className="form-label">Project / Project *</label>
-                <select 
+                <select
                   className="form-control"
                   required
                   value={logProjId}
@@ -1265,7 +1346,7 @@ export default function ProjectsPage() {
 
               <div className="form-group">
                 <label className="form-label">Logging Member *</label>
-                <select 
+                <select
                   className="form-control"
                   required
                   value={logEmpId}
@@ -1284,9 +1365,9 @@ export default function ProjectsPage() {
 
               <div className="form-group">
                 <label className="form-label">What work was performed? *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   required
                   value={logTitle}
                   onChange={(e) => setLogTitle(e.target.value)}
@@ -1295,9 +1376,9 @@ export default function ProjectsPage() {
 
               <div className="form-group">
                 <label className="form-label">Date *</label>
-                <input 
-                  type="date" 
-                  className="form-control" 
+                <input
+                  type="date"
+                  className="form-control"
                   required
                   value={logDate}
                   onChange={(e) => setLogDate(e.target.value)}
@@ -1307,9 +1388,9 @@ export default function ProjectsPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Start Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
+                  <input
+                    type="time"
+                    className="form-control"
                     required
                     value={logStart}
                     onChange={(e) => setLogStart(e.target.value)}
@@ -1317,9 +1398,9 @@ export default function ProjectsPage() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">End Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
+                  <input
+                    type="time"
+                    className="form-control"
                     required
                     value={logEnd}
                     onChange={(e) => setLogEnd(e.target.value)}
@@ -1329,8 +1410,8 @@ export default function ProjectsPage() {
 
               <div className="form-group">
                 <label className="form-label">Session Notes (Optional)</label>
-                <textarea 
-                  className="form-control" 
+                <textarea
+                  className="form-control"
                   value={logDesc}
                   onChange={(e) => setLogDesc(e.target.value)}
                 />
@@ -1397,8 +1478,8 @@ export default function ProjectsPage() {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button 
-                className="btn btn-primary" 
+              <button
+                className="btn btn-primary"
                 onClick={() => {
                   setIsExploreModalOpen(false);
                   if (isAdmin) {

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Users, Briefcase, Mail, Phone, MapPin, Clock, Plus, Search, X, AlertCircle, Edit3, Trash2, UserPlus, Folder, FileBarChart, Lightbulb, HelpCircle, Sparkles, UserCheck, Contact } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
 import CreateProjectModal from '@/components/CreateProjectModal';
-import CreateClientModal from '@/components/CreateClientModal';
 
 interface TaggedProject {
   _id: string;
@@ -703,11 +702,15 @@ export default function ClientsPage() {
             onClick={(e) => e.stopPropagation()} 
             style={{ 
               position: 'relative',
-              maxWidth: isProjectDrawerOpen ? '1000px' : '520px',
+              maxWidth: isProjectDrawerOpen ? '1000px' : '540px',
               width: isProjectDrawerOpen ? '95%' : '90%',
+              height: 'min(640px, 85vh)',
+              maxHeight: '85vh',
+              padding: 0,
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
               display: 'grid',
               gridTemplateColumns: isProjectDrawerOpen ? '1fr 380px' : '1fr',
+              gridTemplateRows: '100%',
               overflow: 'hidden'
             }}
           >
@@ -726,14 +729,15 @@ export default function ClientsPage() {
             </button>
 
             {/* Main Form Section */}
-            <div style={{ borderRight: isProjectDrawerOpen ? '1px solid var(--border-color)' : 'none' }}>
-            <div className="modal-header" style={{ padding: '12px 14px 0 14px', marginBottom: '8px', paddingRight: '45px' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>
+            <div style={{ borderRight: isProjectDrawerOpen ? '1px solid var(--border-color)' : 'none', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
+            <div className="modal-header" style={{ padding: '14px 16px 10px 16px', marginBottom: 0, paddingRight: '45px', flexShrink: 0, borderBottom: '1px solid var(--border-color)' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>
                 {editingClient ? 'Edit Client Details' : 'Create New Client'}
               </h3>
             </div>
             
-            <form onSubmit={handleSubmit} style={{ marginTop: '4px', padding: '0 14px 14px 14px' }}>
+            <form onSubmit={handleSubmit} style={{ margin: 0, padding: 0, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {error && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#fee2e2', color: '#b91c1c', padding: '8px 10px', borderRadius: '6px', fontSize: '0.78rem', marginBottom: '10px' }}>
                   <AlertCircle size={14} />
@@ -997,8 +1001,9 @@ export default function ClientsPage() {
                   </div>
                 )}
               </div>
+              </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '12px 16px', borderTop: '1px solid var(--border-color)', flexShrink: 0, background: 'var(--bg-secondary)' }}>
                 <button
                   type="button"
                   className="btn btn-secondary"
@@ -1457,13 +1462,7 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* Create Client Modal */}
-      <CreateClientModal
-        isOpen={showModal && !editingClient}
-        onClose={() => setShowModal(false)}
-        projectsOptions={projectsOptions}
-        onSuccess={() => fetchData()}
-      />
+
 
       {/* Create Project Modal Popup */}
       <CreateProjectModal
@@ -1471,6 +1470,7 @@ export default function ClientsPage() {
         onClose={() => setIsProjectModalOpen(false)}
         employeesList={employeesOptions}
         clientsList={clients}
+        hideClientField={true}
         onSuccess={(newProject) => {
           fetchData();
           if (newProject?._id) {

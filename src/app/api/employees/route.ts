@@ -25,14 +25,19 @@ async function ensureRoleExists(roleName: string) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await dbConnect();
     const user = await requireUser();
     if (isErrorResponse(user)) return user;
+
+    const { searchParams } = new URL(request.url);
+    const includeAdmin = searchParams.get('includeAdmin') === 'true';
+    const filter: any = includeAdmin ? {} : { userType: { $ne: 'admin' } };
+
     const today = new Date().toISOString().split('T')[0];
     const [employees, stats, todayAttendances] = await Promise.all([
-      Employee.find({})
+      Employee.find(filter)
         .select('name email password rawPassword role Project status avatarColor userType workMode createdAt updatedAt')
         .sort({ createdAt: -1 })
         .lean(),

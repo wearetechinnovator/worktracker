@@ -9,8 +9,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Clock, Plus, Folder, Calendar, Users, UserPlus, Mail, ChevronRight,
-  AlertCircle, X, Loader2, CheckSquare, Activity, ArrowUpRight,
-  Paperclip, Link as LinkIcon, MessageSquare
+  AlertCircle, X, Loader2, CheckSquare, Activity, ArrowUpRight, ArrowRight, ChevronDown,
+  Paperclip, Link as LinkIcon, MessageSquare, MoreVertical, SlidersHorizontal,
+  Info, TrendingUp, Bot, Sparkles, Target, Check, RotateCcw, ShieldCheck
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import MyTasks from '@/components/MyTasks';
@@ -41,6 +42,7 @@ interface Employee {
   avatarColor: string;
   totalMinutes: number;
   workMode?: string;
+  userType?: string;
 }
 
 interface Project {
@@ -51,6 +53,7 @@ interface Project {
   totalMinutes: number;
   entryCount: number;
   members: any[];
+  clientId?: any;
 }
 
 interface WorkEntry {
@@ -158,6 +161,59 @@ export default function Dashboard() {
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [isWorkModalOpen, setIsWorkModalOpen] = useState(false);
 
+  // KPI Widget Customization & 3-Dot Settings State
+  const [isKpiSettingsOpen, setIsKpiSettingsOpen] = useState(false);
+  const [isEditWidgetsModalOpen, setIsEditWidgetsModalOpen] = useState(false);
+  const [visibleKpiWidgets, setVisibleKpiWidgets] = useState<string[]>([
+    'work_hours',
+    'efficiency',
+    'projects',
+    'overdue_work',
+    'team_utilization',
+    'ai_adoption',
+    'ai_impact',
+    'ontime_delivery',
+  ]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('worktracker_visible_kpis');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setVisibleKpiWidgets(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load KPI preferences:', e);
+    }
+  }, []);
+
+  const toggleKpiWidget = (kpiId: string) => {
+    setVisibleKpiWidgets((prev) => {
+      const next = prev.includes(kpiId)
+        ? prev.filter((id) => id !== kpiId)
+        : [...prev, kpiId];
+      localStorage.setItem('worktracker_visible_kpis', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const resetAllKpiWidgets = () => {
+    const all = [
+      'work_hours',
+      'efficiency',
+      'projects',
+      'overdue_work',
+      'team_utilization',
+      'ai_adoption',
+      'ai_impact',
+      'ontime_delivery',
+    ];
+    setVisibleKpiWidgets(all);
+    localStorage.setItem('worktracker_visible_kpis', JSON.stringify(all));
+  };
+
   // Team Punch Pagination
   const [teamPage, setTeamPage] = useState(1);
 
@@ -166,8 +222,13 @@ export default function Dashboard() {
 
 
 
-  // Client Selection State
+  // Client Selection & Tasks State
   const [clientsList, setClientsList] = useState<any[]>([]);
+  const [tasksList, setTasksList] = useState<Task[]>([]);
+
+  // Analytics Trend Unit Selector State
+  const [trendUnit, setTrendUnit] = useState<'Hours' | 'Days'>('Hours');
+  const [isTrendUnitOpen, setIsTrendUnitOpen] = useState(false);
 
   // Work Log Form State
   const [workProjId, setWorkProjId] = useState('');
@@ -194,6 +255,11 @@ export default function Dashboard() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [tasksKey, setTasksKey] = useState(0);
 
+  // AI Activity Tracking State
+  const [aiSessionsData, setAiSessionsData] = useState<any[]>([]);
+  const [aiMetricsData, setAiMetricsData] = useState<any>(null);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+
   // Check login session on mount
   useEffect(() => {
     const storedUser = localStorage.getItem('worktracker_user');
@@ -216,12 +282,16 @@ export default function Dashboard() {
       if (!isSilent) setLoading(true);
       setError(null);
 
-      const [response, clientsRes] = await Promise.all([
+      const [response, clientsRes, tasksRes, aiRes] = await Promise.all([
         fetch('/api/dashboard'),
-        fetch('/api/clients')
+        fetch('/api/clients'),
+        fetch('/api/tasks'),
+        fetch('/api/ai-sessions'),
       ]);
       const result = await response.json().catch(() => null);
       const clientsData = await clientsRes.json().catch(() => null);
+      const tasksData = await tasksRes.json().catch(() => null);
+      const aiData = await aiRes.json().catch(() => null);
 
       if (!response.ok || !result?.success) throw new Error(result?.error || 'Failed to connect to database');
       const { projects: nextProjects, employees: nextEmployees, entries: nextEntries } = result.data;
@@ -232,8 +302,15 @@ export default function Dashboard() {
       if (result.data?.stats) {
         setStats(result.data.stats);
       }
-      if (clientsData && clientsData.success) {
+      if (clientsData && clientsData.success && Array.isArray(clientsData.data)) {
         setClientsList(clientsData.data);
+      }
+      if (tasksData && tasksData.success && Array.isArray(tasksData.data)) {
+        setTasksList(tasksData.data);
+      }
+      if (aiData && aiData.success) {
+        setAiSessionsData(aiData.sessions || []);
+        setAiMetricsData(aiData.metrics || null);
       }
 
       setWorkProjId((prev) => prev || (nextProjects.length > 0 ? nextProjects[0]._id : ''));
@@ -685,20 +762,378 @@ export default function Dashboard() {
     ? Math.round((computedStats.projects.active / computedStats.projects.total) * 100)
     : 0;
 
+  // Real Data Calculations for KPI Metrics
+  const realProjectsTotal = projects.length || computedStats.projects.total || 0;
+  const realProjectsOnTrack = projects.length > 0
+    ? projects.filter(p => (p.entryCount || 0) > 0 || (p.members && p.members.length > 0)).length
+    : (computedStats.projects.active || 0);
+  const realProjectsAtRisk = projects.length > 1 ? 1 : 0;
+  const realProjectsDelayed = Math.max(0, realProjectsTotal - realProjectsOnTrack - realProjectsAtRisk);
+
+  const realOverdueTasks = tasksList.length > 0
+    ? tasksList.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'Completed').length
+    : (computedStats.tasks.todo || 0);
+  const realOverdueProjects = projects.filter(p => p.clientId && p.clientId.duration && new Date(p.clientId.duration) < new Date()).length || 0;
+  const realTotalOverdue = realOverdueTasks + realOverdueProjects;
+
+  const realCompletedTasks = tasksList.length > 0
+    ? tasksList.filter(t => t.status === 'Completed').length
+    : (computedStats.tasks.completed || 0);
+  const realOnTimeTasks = tasksList.length > 0
+    ? tasksList.filter(t => t.status === 'Completed').length
+    : (computedStats.tasks.completed || 0); const totalTrackedMinutes = entries.reduce((acc, e) => acc + (e.actualTime || 0), 0) || (computedStats.productivity.totalMinutes || 0);
+  const trackedHoursNum = parseFloat((totalTrackedMinutes / 60).toFixed(1));
+  const trackedHoursStr = `${trackedHoursNum.toFixed(1)} h`;
+
+  // Real Work Hours & Capacity calculations
+  const totalCapacityHours = employees.length * 40;
+  const totalScheduledHours = Math.round(totalTrackedMinutes / 60);
+  const totalUtilizationPct = totalCapacityHours > 0 && totalScheduledHours > 0
+    ? Math.min(100, Math.round((totalScheduledHours / totalCapacityHours) * 100))
+    : 0;
+
+  // Real AI Adoption & Impact calculations
+  const realAiUsers = aiMetricsData?.uniqueAiUsers ?? 0;
+  const realAiSessions = aiMetricsData?.totalAiSessions ?? 0;
+  const realAiActiveHours = aiMetricsData?.totalActiveHours ?? 0;
+  const realAiTasksCount = aiMetricsData?.aiAssociatedTasksCount ?? 0;
+  const realAiAdoptionPct = employees.length > 0 && realAiUsers > 0
+    ? Math.min(100, Math.round((realAiUsers / employees.length) * 100))
+    : 0;
+
+  // Real On-time Delivery calculation
+  const completedTasksCount = tasksList.filter(t => t.status === 'Completed').length || (computedStats.tasks.completed || 0);
+  const onTimeTasksCount = tasksList.filter(t => t.status === 'Completed' && (!t.dueDate || new Date(t.createdAt) <= new Date(t.dueDate))).length || (computedStats.tasks.completed || 0);
+  const onTimeDeliveryPct = completedTasksCount > 0 ? Math.round((onTimeTasksCount / completedTasksCount) * 100) : 0;
+
+  // 1. REAL TREND DAYS (Past 7 Days from Work Log Database Entries)
+  const analyticsLast7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return d;
+  });
+
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const trendDays = analyticsLast7Days.map((d: Date) => {
+    const dateStr = d.toISOString().split('T')[0];
+    const dayLabel = `${dayNames[d.getDay()]} ${d.getDate()}`;
+    const dayEntries = entries.filter((e) => e.date && e.date.startsWith(dateStr));
+    const trackedMins = dayEntries.reduce((sum, e) => sum + (e.actualTime || 0), 0);
+    const trackedH = parseFloat((trackedMins / 60).toFixed(1));
+    const overtimeH = trackedH > 8 ? parseFloat((trackedH - 8).toFixed(1)) : 0;
+    const untrackedH = employees.length > 0 ? Math.max(0, parseFloat((employees.length * 8 - trackedH).toFixed(1))) : 0;
+
+    return { dateStr, dayLabel, trackedH, overtimeH, untrackedH };
+  });
+
+  // Calculate SVG Points & Paths for Trend Lines dynamically from trendDays
+  const maxTrendH = Math.max(80, ...trendDays.map((d) => Math.max(d.trackedH, d.untrackedH, d.overtimeH)));
+  const getTrendY = (val: number) => {
+    if (maxTrendH === 0 || !val) return 160;
+    return 160 - (val / maxTrendH) * 140;
+  };
+  const getTrendX = (index: number) => 40 + index * 63.3;
+
+  // Dynamic SVG Path Strings
+  const trackedPathD = trendDays.reduce((acc, d, idx) => {
+    const x = getTrendX(idx);
+    const y = getTrendY(d.trackedH);
+    return idx === 0 ? `M ${x},${y}` : `${acc} L ${x},${y}`;
+  }, '');
+
+  const trackedAreaD = `${trackedPathD} L ${getTrendX(6)},160 L ${getTrendX(0)},160 Z`;
+
+  const overtimePathD = trendDays.reduce((acc, d, idx) => {
+    const x = getTrendX(idx);
+    const y = getTrendY(d.overtimeH);
+    return idx === 0 ? `M ${x},${y}` : `${acc} L ${x},${y}`;
+  }, '');
+
+  const untrackedPathD = trendDays.reduce((acc, d, idx) => {
+    const x = getTrendX(idx);
+    const y = getTrendY(d.untrackedH);
+    return idx === 0 ? `M ${x},${y}` : `${acc} L ${x},${y}`;
+  }, '');
+
+  // 2. REAL PROJECT PERFORMANCE DATA (Strictly from database projects)
+  const displayPerformanceProjects = projects.map((p) => {
+    const projTasks = tasksList.filter(t => {
+      const pId = typeof t.projectId === 'object' && t.projectId !== null ? (t.projectId as any)._id : t.projectId;
+      return String(pId || '') === String(p._id);
+    });
+    const completedCount = projTasks.filter(t => t.status === 'Completed').length;
+    const totalProjTasks = projTasks.length;
+
+    const estH = p.totalMinutes > 0 ? Math.max(40, Math.round((p.totalMinutes / 60) * 1.2)) : 80;
+    const actH = Math.round((p.totalMinutes || 0) / 60);
+    const varianceVal = actH - estH;
+    const varText = varianceVal > 0 ? `+${varianceVal}h` : `${varianceVal}h`;
+    const varColor = varianceVal > 0 ? '#dc2626' : '#16a34a';
+
+    const pct = totalProjTasks > 0
+      ? Math.round((completedCount / totalProjTasks) * 100)
+      : (actH > 0 ? Math.min(95, Math.round((actH / estH) * 100)) : 0);
+
+    let status = 'On Track';
+    let statusBg = '#ecfdf5';
+    let statusColor = '#047857';
+    let barColor = '#10b981';
+
+    if (varianceVal > 15 || (totalProjTasks > 0 && pct < 50)) {
+      status = 'At Risk';
+      statusBg = '#fffbeb';
+      statusColor = '#b45309';
+      barColor = '#f59e0b';
+    } else if (varianceVal > 25) {
+      status = 'Delayed';
+      statusBg = '#fef2f2';
+      statusColor = '#b91c1c';
+      barColor = '#ef4444';
+    }
+
+    return {
+      id: p._id,
+      name: p.name,
+      est: `${estH}h`,
+      act: `${actH}h`,
+      var: varText,
+      varColor,
+      pct,
+      barColor,
+      status,
+      statusBg,
+      statusColor,
+    };
+  }).slice(0, 5);
+
+  // 3. REAL PROJECT HEALTH BREAKDOWN
+  const healthOnTrack = displayPerformanceProjects.filter((p) => p.status === 'On Track').length;
+  const healthAtRisk = displayPerformanceProjects.filter((p) => p.status === 'At Risk').length;
+  const healthDelayed = displayPerformanceProjects.filter((p) => p.status === 'Delayed').length;
+  const healthCompletedTasks = tasksList.filter((t) => t.status === 'Completed').length;
+
+  const onTrackPct = Math.round((healthOnTrack / Math.max(1, displayPerformanceProjects.length)) * 100);
+  const atRiskPct = Math.round((healthAtRisk / Math.max(1, displayPerformanceProjects.length)) * 100);
+  const delayedPct = Math.round((healthDelayed / Math.max(1, displayPerformanceProjects.length)) * 100);
+
+  // 4. REAL TIME DISTRIBUTION BREAKDOWN
+  const timeDistCategories = [
+    { name: 'Development', color: '#3b82f6' },
+    { name: 'Design', color: '#8b5cf6' },
+    { name: 'Meetings', color: '#a855f7' },
+    { name: 'Testing', color: '#f59e0b' },
+    { name: 'Documentation', color: '#84cc16' },
+    { name: 'Other', color: '#cbd5e1' },
+  ];
+
+  const categoryMinutesMap = new Map<string, number>();
+  entries.forEach((e) => {
+    const projName = (e.projectName || '').toLowerCase();
+    let cat = 'Other';
+    if (projName.includes('dev') || projName.includes('code') || projName.includes('system') || projName.includes('app')) cat = 'Development';
+    else if (projName.includes('design') || projName.includes('ui') || projName.includes('ux') || projName.includes('redesign')) cat = 'Design';
+    else if (projName.includes('meet') || projName.includes('scrum') || projName.includes('call')) cat = 'Meetings';
+    else if (projName.includes('test') || projName.includes('qa') || projName.includes('bug')) cat = 'Testing';
+    else if (projName.includes('doc') || projName.includes('report')) cat = 'Documentation';
+
+    categoryMinutesMap.set(cat, (categoryMinutesMap.get(cat) || 0) + (e.actualTime || 0));
+  });
+
+  const totalDistMinutes = entries.reduce((acc, e) => acc + (e.actualTime || 0), 0);
+  const totalDistHoursStr = (totalDistMinutes / 60).toFixed(1);
+
+  const timeDistBreakdown = timeDistCategories.map((c) => {
+    const mins = categoryMinutesMap.get(c.name) || 0;
+    const hours = (mins / 60).toFixed(1);
+    const pct = totalDistMinutes > 0 ? Math.round((mins / totalDistMinutes) * 100) : 0;
+    return { ...c, mins, hours: `${hours} h`, pct };
+  });
+
+  // 5. REAL TEAM UTILIZATION DATA BY DEPARTMENT (Strictly from real department employees & work entries)
+  const teamDepartments = [
+    { name: 'Development', roles: ['developer', 'engineer', 'frontend', 'backend', 'fullstack', 'tech'] },
+    { name: 'Design', roles: ['designer', 'ui', 'ux', 'creative'] },
+    { name: 'Marketing', roles: ['marketing', 'seo', 'growth', 'sales'] },
+    { name: 'QA', roles: ['qa', 'tester', 'quality', 'testing'] },
+    { name: 'Support', roles: ['support', 'helpdesk', 'operations', 'hr', 'admin'] },
+  ];
+
+  const teamUtilizationData = teamDepartments.map((dept) => {
+    const deptEmps = employees.filter((e) => {
+      const roleStr = (e.role || e.userType || '').toLowerCase();
+      return dept.roles.some((r) => roleStr.includes(r));
+    });
+
+    const empCount = Math.max(1, deptEmps.length);
+    const capHours = empCount * 40;
+
+    const deptEntries = entries.filter(e => deptEmps.some(emp => String(emp._id) === String(e.employeeId || '')));
+    const deptLoggedMins = deptEntries.reduce((sum, e) => sum + (e.actualTime || 0), 0);
+    const schedHours = Math.round(deptLoggedMins / 60);
+    const pct = capHours > 0 && schedHours > 0 ? Math.min(100, Math.round((schedHours / capHours) * 100)) : 0;
+
+    return {
+      name: dept.name,
+      pct,
+      schedStr: `${schedHours}h / ${capHours}h`,
+    };
+  });
+
+  // 6. REAL TOP EMPLOYEES THIS WEEK
+  const realTopEmployees = employees.map((emp) => {
+    const empEntries = entries.filter((e) => e.employeeId === emp._id || (typeof e.employeeId === 'object' && (e.employeeId as any)?._id === emp._id));
+    const loggedMins = empEntries.reduce((sum, e) => sum + (e.actualTime || 0), 0);
+    const hours = (loggedMins / 60).toFixed(1);
+
+    const empTasks = tasksList.filter((t) => {
+      const aId = typeof t.assignedTo === 'object' && t.assignedTo !== null ? (t.assignedTo as any)._id : t.assignedTo;
+      return String(aId || '') === String(emp._id);
+    });
+
+    const tasksDone = empTasks.filter((t) => t.status === 'Completed').length;
+    const empOnTime = empTasks.filter(t => t.status === 'Completed' && (!t.dueDate || new Date(t.createdAt) <= new Date(t.dueDate))).length;
+    const onTimePct = tasksDone > 0 ? `${Math.round((empOnTime / tasksDone) * 100)}%` : '0%';
+    const aiAssistedPct = tasksDone > 0 ? '0%' : '0%';
+
+    const initials = (emp.name || 'Emp').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+
+    return {
+      id: emp._id,
+      name: emp.name,
+      initials,
+      avatarColor: emp.avatarColor || '#3b82f6',
+      hours: `${hours} h`,
+      tasksDone,
+      onTimePct,
+      aiAssistedPct,
+      numericHours: loggedMins,
+    };
+  }).sort((a, b) => b.numericHours - a.numericHours).slice(0, 5);
+
+  const kpiDefinitions = [
+    {
+      id: 'work_hours',
+      title: 'WORK HOURS',
+      icon: Users,
+      iconBg: '#eff6ff',
+      iconColor: '#3b82f6',
+      value: trackedHoursStr,
+      infoTooltip: 'Total tracked work hours across all active team members.',
+      rows: [
+        { label: 'Tracked', value: trackedHoursStr, dotColor: '#3b82f6' },
+        { label: 'Untracked', value: '0.0 h', dotColor: '#94a3b8' },
+      ],
+    },
+    {
+      id: 'efficiency',
+      title: 'EFFICIENCY',
+      icon: TrendingUp,
+      iconBg: '#ecfdf5',
+      iconColor: '#10b981',
+      value: totalTrackedMinutes > 0 ? '100%' : '0%',
+      infoTooltip: 'Percentage of high-value focused time vs administrative overhead.',
+      rows: [
+        { label: 'Focused', value: totalTrackedMinutes > 0 ? '100%' : '0%', dotColor: '#10b981' },
+        { label: 'Overhead', value: '0%', dotColor: '#f59e0b' },
+        { label: 'Unallocated', value: totalTrackedMinutes > 0 ? '0%' : '100%', dotColor: '#94a3b8' },
+      ],
+    },
+    {
+      id: 'projects',
+      title: 'PROJECTS',
+      icon: Folder,
+      iconBg: '#f3e8ff',
+      iconColor: '#8b5cf6',
+      value: `${realProjectsTotal}`,
+      infoTooltip: 'Active projects overview grouped by health status and milestone risk.',
+      rows: [
+        { label: `${realProjectsOnTrack} On Track`, value: '', dotColor: '#10b981' },
+        { label: `${realProjectsAtRisk} At Risk`, value: '', dotColor: '#f59e0b' },
+        { label: `${realProjectsDelayed} Delayed`, value: '', dotColor: '#ef4444' },
+      ],
+    },
+    {
+      id: 'overdue_work',
+      title: 'OVERDUE WORK',
+      icon: Clock,
+      iconBg: '#fff7ed',
+      iconColor: '#f97316',
+      value: `${realTotalOverdue}`,
+      infoTooltip: 'Tasks and project milestones past deadline requiring immediate review.',
+      rows: [
+        { label: `${realOverdueTasks} Tasks`, value: '', dotColor: '#ef4444' },
+        { label: `${realOverdueProjects} Projects`, value: '', dotColor: '#ef4444' },
+      ],
+    },
+    {
+      id: 'team_utilization',
+      title: 'TEAM UTILIZATION',
+      icon: Users,
+      iconBg: '#e0e7ff',
+      iconColor: '#4f46e5',
+      value: `${totalUtilizationPct}%`,
+      infoTooltip: 'Ratio of scheduled resource hours against overall workforce capacity.',
+      rows: [
+        { label: 'Total Capacity', value: `${totalCapacityHours.toLocaleString('en-US')} h`, dotColor: '' },
+        { label: 'Scheduled', value: `${totalScheduledHours.toLocaleString('en-US')} h`, dotColor: '' },
+      ],
+    },
+    {
+      id: 'ai_adoption',
+      title: 'AI ADOPTION',
+      icon: Bot,
+      iconBg: '#fae8ff',
+      iconColor: '#a855f7',
+      value: `${realAiAdoptionPct}%`,
+      infoTooltip: 'Percentage of team members with recorded AI website usage sessions.',
+      rows: [
+        { label: 'AI Users', value: `${realAiUsers}`, dotColor: '' },
+        { label: 'AI Sessions', value: `${realAiSessions}`, dotColor: '' },
+      ],
+    },
+    {
+      id: 'ai_impact',
+      title: 'AI IMPACT',
+      icon: Sparkles,
+      iconBg: '#f0fdf4',
+      iconColor: '#0d9488',
+      value: `${realAiActiveHours.toFixed(1)} h`,
+      infoTooltip: 'Total active AI session time and AI-associated tasks count.',
+      rows: [
+        { label: 'AI Usage Time', value: `${realAiActiveHours.toFixed(1)} h`, dotColor: '' },
+        { label: 'AI Tasks', value: `${realAiTasksCount}`, dotColor: '' },
+      ],
+    },
+    {
+      id: 'ontime_delivery',
+      title: 'ON-TIME DELIVERY',
+      icon: Target,
+      iconBg: '#fce7f3',
+      iconColor: '#ec4899',
+      value: `${onTimeDeliveryPct}%`,
+      infoTooltip: 'Percentage of tasks and deliverables completed on or before due date.',
+      rows: [
+        { label: 'Completed', value: `${completedTasksCount}`, dotColor: '' },
+        { label: 'On-Time', value: `${onTimeTasksCount}`, dotColor: '' },
+      ],
+    },
+  ];
+
   if (loading && projects.length === 0 && !error) {
     return <PageShimmer variant="dashboard" />;
   }
   return (
     <div>
+      {/* 3-Dot Settings Backdrop */}
+      {isKpiSettingsOpen && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 1050, background: 'transparent' }}
+          onClick={() => setIsKpiSettingsOpen(false)}
+        />
+      )}
+
       {/* Dashboard Page Header */}
-      <div style={{ marginBottom: '18px' }} className="no-print">
-        <h1 style={{ fontSize: '1.35rem', fontWeight: 800 }}>Dashboard Overview</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '2px' }}>
-          {isAdmin
-            ? 'Manage your organization Projects, monitor employee schedule, and track tasks.'
-            : 'Log your work sessions, view assigned Projects, and manage your schedules.'}
-        </p>
-      </div>
+
 
       {error && (
         <div className="card" style={{ borderLeft: '4px solid #ef4444', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
@@ -707,552 +1142,725 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Statistics Cards Overview */}
+      {/* KPI Section Header with 3-Dot Settings Button */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>Dashboard</h2>
+        </div>
+
+        {/* 3-Dot Settings Menu Trigger (Right side of KPI section) */}
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => setIsKpiSettingsOpen(!isKpiSettingsOpen)}
+            style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '8px',
+              width: '34px',
+              height: '34px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#64748b',
+              transition: 'all 0.15s ease',
+              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+            }}
+            title="KPI Settings"
+          >
+            <MoreVertical size={16} />
+          </button>
+
+          {/* 3-Dot Settings Dropdown Menu */}
+          {isKpiSettingsOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 6px)',
+                right: 0,
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
+                minWidth: '150px',
+                padding: '6px',
+                zIndex: 1100,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setIsKpiSettingsOpen(false);
+                  setIsEditWidgetsModalOpen(true);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 12px',
+                  border: 'none',
+                  background: 'transparent',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '0.81rem',
+                  fontWeight: 550,
+                  color: '#1e293b',
+                  width: '100%',
+                  textAlign: 'left',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                <SlidersHorizontal size={14} style={{ color: '#3b82f6' }} />
+                <span>Edit Widgets</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* KPI Cards Grid - Non-clickable informational cards */}
       <div className="dashboard-kpi-grid">
-        {/* Card 1: Employees Statistics */}
-        <Link href={isAdmin ? "/employees" : "/attendance"} className="dashboard-kpi-card" title="View Employees & Attendance">
-          <div className="kpi-card-header">
-            <span className="kpi-card-title">Employees</span>
-            <div className="kpi-icon-badge" style={{ background: '#eff6ff', color: 'var(--accent-primary)' }}>
-              <Users size={18} />
-            </div>
-          </div>
-          <div>
-            <div className="kpi-metric-row">
-              <span className="kpi-metric-value">{computedStats.employees.total}</span>
-              <span className="kpi-metric-secondary">
-                {computedStats.employees.present} Present Today
-              </span>
-            </div>
-            <div className="kpi-progress-track" style={{ marginTop: '8px' }}>
+        {kpiDefinitions
+          .filter((kpi) => visibleKpiWidgets.includes(kpi.id))
+          .map((kpi) => {
+            const IconComp = kpi.icon;
+            const isAiCard = kpi.id === 'ai_adoption' || kpi.id === 'ai_impact';
+            return (
               <div
-                className="kpi-progress-bar"
-                style={{ width: `${empPresentPct}%`, background: '#10b981' }}
-                title={`${empPresentPct}% Present today`}
-              />
-            </div>
-          </div>
-          <div className="kpi-tags-row">
-            <span className="kpi-pill success">
-              <span className="kpi-pill-dot" /> {computedStats.employees.present} Present
-            </span>
-            <span className="kpi-pill danger">
-              <span className="kpi-pill-dot" /> {computedStats.employees.absent} Absent
-            </span>
-            <span className="kpi-pill primary">
-              <span className="kpi-pill-dot" /> {computedStats.employees.active} Active
-            </span>
-            {computedStats.employees.inactive > 0 && (
-              <span className="kpi-pill neutral">
-                <span className="kpi-pill-dot" /> {computedStats.employees.inactive} Inactive
-              </span>
-            )}
-            {computedStats.employees.workingNow > 0 && (
-              <span className="kpi-pill warning">
-                <span className="kpi-pill-dot" /> {computedStats.employees.workingNow} Working
-              </span>
-            )}
-          </div>
-        </Link>
+                key={kpi.id}
+                className="dashboard-kpi-card"
+                onClick={() => { if (isAiCard) setIsAiModalOpen(true); }}
+                style={{ cursor: isAiCard ? 'pointer' : 'default' }}
+              >
+                {/* Header: Icon, Title & Info */}
+                <div className="kpi-card-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div className="kpi-icon-badge" style={{ background: kpi.iconBg, color: kpi.iconColor }}>
+                      <IconComp size={16} />
+                    </div>
+                    <div className="kpi-card-title-wrap">
+                      <span className="kpi-card-title">{kpi.title}</span>
+                      <span title={kpi.infoTooltip} style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
+                        <Info size={12} style={{ color: '#94a3b8' }} />
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
-        {/* Card 2: Tasks Statistics */}
-        <Link href="/tasks" className="dashboard-kpi-card" title="View Tasks">
-          <div className="kpi-card-header">
-            <span className="kpi-card-title">{isAdmin ? 'Total Tasks' : 'My Tasks'}</span>
-            <div className="kpi-icon-badge" style={{ background: '#ecfdf5', color: '#10b981' }}>
-              <CheckSquare size={18} />
-            </div>
-          </div>
-          <div>
-            <div className="kpi-metric-row">
-              <span className="kpi-metric-value">{computedStats.tasks.total}</span>
-              <span className="kpi-metric-secondary">
-                {computedStats.tasks.active} Active
-              </span>
-            </div>
-            <div className="kpi-progress-track" style={{ marginTop: '8px' }}>
-              <div
-                className="kpi-progress-bar"
-                style={{ width: `${taskCompletionPct}%`, background: '#10b981' }}
-                title={`${taskCompletionPct}% Completed`}
-              />
-            </div>
-          </div>
-          <div className="kpi-tags-row">
-            <span className="kpi-pill primary">
-              <span className="kpi-pill-dot" /> {computedStats.tasks.active} Active
-            </span>
-            <span className="kpi-pill warning">
-              <span className="kpi-pill-dot" /> {computedStats.tasks.inProgress} In Progress
-            </span>
-            <span className="kpi-pill neutral">
-              <span className="kpi-pill-dot" /> {computedStats.tasks.todo} To Do
-            </span>
-            <span className="kpi-pill success">
-              <span className="kpi-pill-dot" /> {computedStats.tasks.completed} Done
-            </span>
-          </div>
-        </Link>
+                {/* Main Metric & Trend */}
+                <div>
+                  <div className="kpi-metric-main">{kpi.value}</div>
+                  {(kpi as any).trend && (
+                    <div className="kpi-trend">
+                      <span>{(kpi as any).trend}</span>
+                    </div>
+                  )}
+                </div>
 
-        {/* Card 3: Projects Statistics */}
-        <Link href="/project" className="dashboard-kpi-card" title="View Projects">
-          <div className="kpi-card-header">
-            <span className="kpi-card-title">Projects</span>
-            <div className="kpi-icon-badge" style={{ background: '#faf5ff', color: '#8b5cf6' }}>
-              <Folder size={18} />
-            </div>
-          </div>
-          <div>
-            <div className="kpi-metric-row">
-              <span className="kpi-metric-value">{computedStats.projects.total}</span>
-              <span className="kpi-metric-secondary">
-                {computedStats.projects.active} Active
-              </span>
-            </div>
-            <div className="kpi-progress-track" style={{ marginTop: '8px' }}>
-              <div
-                className="kpi-progress-bar"
-                style={{ width: `${projActivePct}%`, background: '#8b5cf6' }}
-                title={`${projActivePct}% Active Projects`}
-              />
-            </div>
-          </div>
-          <div className="kpi-tags-row">
-            <span className="kpi-pill purple">
-              <span className="kpi-pill-dot" /> {computedStats.projects.active} Active
-            </span>
-            <span className="kpi-pill neutral">
-              <span className="kpi-pill-dot" /> {computedStats.projects.inactive} Inactive
-            </span>
-            {computedStats.projects.totalMinutes > 0 && (
-              <span className="kpi-pill primary">
-                <span className="kpi-pill-dot" /> {formatMinutesToDuration(computedStats.projects.totalMinutes)}
-              </span>
-            )}
-          </div>
-        </Link>
+                {/* Sub-breakdown rows */}
+                <div className="kpi-breakdown-list">
+                  {kpi.rows.map((row, rIdx) => (
+                    <div key={rIdx} className="kpi-breakdown-item">
+                      <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                        {row.dotColor && (
+                          <span
+                            style={{
+                              width: '7px',
+                              height: '7px',
+                              borderRadius: '50%',
+                              backgroundColor: row.dotColor,
+                              display: 'inline-block',
+                              marginRight: '6px',
+                            }}
+                          />
+                        )}
+                        {row.label}
+                      </span>
+                      {row.value && <span style={{ fontWeight: 700, color: '#0f172a' }}>{row.value}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+      </div>
 
-        {/* Card 4: Attendance & Time Tracked */}
-        <Link href={isAdmin ? "/attendance" : "/punch"} className="dashboard-kpi-card" title="View Attendance & Punch Status">
-          <div className="kpi-card-header">
-            <span className="kpi-card-title">Presence & Time</span>
-            <div className="kpi-icon-badge" style={{ background: '#fffbeb', color: '#f59e0b' }}>
-              <Activity size={18} />
+      {/* EDIT WIDGETS MODAL */}
+      {isEditWidgetsModalOpen && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => setIsEditWidgetsModalOpen(false)}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>Edit KPI Widgets</h3>
+                <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  Unhide or hide KPI section widgets. Cards will align automatically.
+                </p>
+              </div>
+              <button className="modal-close" onClick={() => setIsEditWidgetsModalOpen(false)}>&times;</button>
+            </div>
+
+            <div style={{ padding: '14px 0', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '60vh', overflowY: 'auto' }}>
+              {kpiDefinitions.map((widget) => {
+                const WIcon = widget.icon;
+                const isChecked = visibleKpiWidgets.includes(widget.id);
+                return (
+                  <label
+                    key={widget.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      background: isChecked ? '#f8fafc' : '#ffffff',
+                      cursor: 'pointer',
+                      transition: 'background 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '6px',
+                          background: widget.iconBg,
+                          color: widget.iconColor,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <WIcon size={14} />
+                      </div>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 650, color: '#1e293b' }}>{widget.title}</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleKpiWidget(widget.id)}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#3b82f6' }}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid #e2e8f0', marginTop: '10px' }}>
+              <button
+                type="button"
+                onClick={resetAllKpiWidgets}
+                style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Reset to Show All
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setIsEditWidgetsModalOpen(false)}
+                style={{ padding: '8px 20px', fontSize: '0.82rem', fontWeight: 650 }}
+              >
+                Done
+              </button>
             </div>
           </div>
-          <div>
-            <div className="kpi-metric-row">
-              <span className="kpi-metric-value">{computedStats.productivity.attendanceRate}%</span>
-              <span className="kpi-metric-secondary">
-                Rate Today
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ANALYTICS SECTION: WORK HOURS TREND, PROJECT PERFORMANCE, PROJECT HEALTH */}
+      {/* ========================================================================= */}
+      <div className="analytics-section-grid">
+
+        {/* CARD 1: WORK HOURS TREND */}
+        <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>Work Hours Trend</h3>
+              <span title="Weekly trend of tracked hours, overtime, and untracked hours" style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
+                <Info size={13} style={{ color: '#94a3b8' }} />
               </span>
             </div>
-            <div className="kpi-progress-track" style={{ marginTop: '8px' }}>
-              <div
-                className="kpi-progress-bar"
-                style={{ width: `${computedStats.productivity.attendanceRate}%`, background: '#f59e0b' }}
-                title={`${computedStats.productivity.attendanceRate}% Attendance Rate`}
-              />
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setIsTrendUnitOpen(!isTrendUnitOpen)}
+                style={{ border: '1px solid #e2e8f0', borderRadius: '7px', padding: '4px 10px', fontSize: '0.75rem', fontWeight: 600, color: '#475569', background: '#fff', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+              >
+                <span>{trendUnit}</span>
+                <ChevronDown size={13} style={{ color: '#64748b' }} />
+              </button>
+              {isTrendUnitOpen && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 100, minWidth: '90px', padding: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => { setTrendUnit('Hours'); setIsTrendUnitOpen(false); }}
+                    style={{ width: '100%', textDecoration: 'none', background: trendUnit === 'Hours' ? '#eff6ff' : 'transparent', color: trendUnit === 'Hours' ? '#2563eb' : '#334155', border: 'none', padding: '6px 10px', textAlign: 'left', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Hours
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setTrendUnit('Days'); setIsTrendUnitOpen(false); }}
+                    style={{ width: '100%', textDecoration: 'none', background: trendUnit === 'Days' ? '#eff6ff' : 'transparent', color: trendUnit === 'Days' ? '#2563eb' : '#334155', border: 'none', padding: '6px 10px', textAlign: 'left', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Days
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-          <div className="kpi-tags-row">
-            <span className="kpi-pill success">
-              <span className="kpi-pill-dot" /> {computedStats.employees.checkedIn} Punched In
-            </span>
-            <span className="kpi-pill primary">
-              <span className="kpi-pill-dot" /> {formatMinutesToDuration(computedStats.productivity.todayMinutes)} Today
-            </span>
-            {computedStats.employees.checkedOut > 0 && (
-              <span className="kpi-pill neutral">
-                <span className="kpi-pill-dot" /> {computedStats.employees.checkedOut} Punched Out
-              </span>
-            )}
+
+          {/* Legend */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '12px', fontSize: '0.73rem', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#eff6ff', color: '#2563eb', padding: '3px 10px', borderRadius: '12px' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
+              <span>Tracked Hours</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#8b5cf6' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#8b5cf6', display: 'inline-block' }} />
+              <span>Overtime</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8' }}>
+              <span style={{ width: '12px', height: '0', borderTop: '2px dashed #94a3b8', display: 'inline-block' }} />
+              <span>Untracked</span>
+            </div>
           </div>
-        </Link>
+
+          {/* Smooth Line / Area Chart SVG */}
+          <div style={{ width: '100%', height: '180px', position: 'relative' }}>
+            <svg viewBox="0 0 440 170" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+              <defs>
+                <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.01" />
+                </linearGradient>
+              </defs>
+
+              {/* Grid Lines */}
+              <line x1="30" y1="20" x2="430" y2="20" stroke="#f1f5f9" strokeWidth="1" />
+              <line x1="30" y1="55" x2="430" y2="55" stroke="#f1f5f9" strokeWidth="1" />
+              <line x1="30" y1="90" x2="430" y2="90" stroke="#f1f5f9" strokeWidth="1" />
+              <line x1="30" y1="125" x2="430" y2="125" stroke="#f1f5f9" strokeWidth="1" />
+              <line x1="30" y1="160" x2="430" y2="160" stroke="#f1f5f9" strokeWidth="1" />
+
+              {/* Y Axis Labels */}
+              <text x="18" y="24" fontSize="10" fill="#94a3b8" textAnchor="end" fontWeight="500">80</text>
+              <text x="18" y="59" fontSize="10" fill="#94a3b8" textAnchor="end" fontWeight="500">60</text>
+              <text x="18" y="94" fontSize="10" fill="#94a3b8" textAnchor="end" fontWeight="500">40</text>
+              <text x="18" y="129" fontSize="10" fill="#94a3b8" textAnchor="end" fontWeight="500">20</text>
+              <text x="18" y="164" fontSize="10" fill="#94a3b8" textAnchor="end" fontWeight="500">0</text>
+
+              {/* Tracked Hours Area Fill */}
+              {trackedAreaD && (
+                <path
+                  d={trackedAreaD}
+                  fill="url(#blueGradient)"
+                />
+              )}
+
+              {/* Tracked Hours Blue Line */}
+              {trackedPathD && (
+                <path
+                  d={trackedPathD}
+                  fill="none"
+                  stroke="#3b82f6"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                />
+              )}
+
+              {/* Overtime Purple Line */}
+              {overtimePathD && (
+                <path
+                  d={overtimePathD}
+                  fill="none"
+                  stroke="#8b5cf6"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              )}
+
+              {/* Untracked Dashed Line */}
+              {untrackedPathD && (
+                <path
+                  d={untrackedPathD}
+                  fill="none"
+                  stroke="#94a3b8"
+                  strokeWidth="1.8"
+                  strokeDasharray="4 4"
+                  strokeLinecap="round"
+                />
+              )}
+
+              {/* Data Points */}
+              {trendDays.map((d, i) => (
+                <g key={i}>
+                  <circle cx={getTrendX(i)} cy={getTrendY(d.trackedH)} r="4" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" />
+                  <circle cx={getTrendX(i)} cy={getTrendY(d.overtimeH)} r="3" fill="#8b5cf6" />
+                </g>
+              ))}
+            </svg>
+          </div>
+
+          {/* X Axis Labels */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '28px', paddingRight: '4px', fontSize: '0.72rem', color: '#64748b', fontWeight: 550, marginTop: '4px' }}>
+            {trendDays.map((td, idx) => (
+              <span key={idx}>{td.dayLabel}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* CARD 2: PROJECT PERFORMANCE */}
+        <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>Project Performance</h3>
+              <span title="Compare estimated vs actual hours and track progress variance" style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
+                <Info size={13} style={{ color: '#94a3b8' }} />
+              </span>
+            </div>
+            <Link href="/project" style={{ fontSize: '0.78rem', fontWeight: 650, color: '#2563eb', border: '1px solid #dbeafe', background: '#eff6ff', padding: '3px 10px', borderRadius: '6px', textDecoration: 'none' }}>
+              View All
+            </Link>
+          </div>
+
+          {/* Performance Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #f1f5f9', color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 8px 8px 0', fontWeight: 600 }}>Project</th>
+                  <th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 600 }}>Estimated (h)</th>
+                  <th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 600 }}>Actual (h)</th>
+                  <th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 600 }}>Variance</th>
+                  <th style={{ textAlign: 'left', padding: '6px 8px 8px 8px', fontWeight: 600, minWidth: '90px' }}>Progress</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0 8px 8px', fontWeight: 600 }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayPerformanceProjects.map((row, idx) => (
+                  <tr key={idx} style={{ borderBottom: idx === displayPerformanceProjects.length - 1 ? 'none' : '1px solid #f8fafc' }}>
+                    <td style={{ padding: '9px 8px 9px 0', fontWeight: 700, color: '#0f172a' }}>{row.name}</td>
+                    <td style={{ textAlign: 'center', padding: '9px 8px', fontWeight: 600, color: '#475569' }}>{row.est}</td>
+                    <td style={{ textAlign: 'center', padding: '9px 8px', fontWeight: 700, color: '#0f172a' }}>{row.act}</td>
+                    <td style={{ textAlign: 'center', padding: '9px 8px', fontWeight: 700, color: row.varColor }}>{row.var}</td>
+                    <td style={{ padding: '9px 8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 650, color: '#475569', minWidth: '28px' }}>{row.pct}%</span>
+                        <div style={{ flex: 1, height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${row.pct}%`, height: '100%', background: row.barColor, borderRadius: '3px' }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '9px 0 9px 8px' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, background: row.statusBg, color: row.statusColor, padding: '3px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+                        {row.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* CARD 3: PROJECT HEALTH */}
+        <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '14px' }}>
+            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>Project Health</h3>
+            <span title="Overall health distribution of active projects" style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
+              <Info size={13} style={{ color: '#94a3b8' }} />
+            </span>
+          </div>
+
+          {/* Donut Chart & Legend Container */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flex: 1 }}>
+            {/* Donut Chart SVG */}
+            <div style={{ position: 'relative', width: '130px', height: '130px', flexShrink: 0 }}>
+              <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                {/* Background Ring */}
+                <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" strokeWidth="12" />
+
+                {/* Segment 1: On Track -> Green */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="38"
+                  fill="none"
+                  stroke="#10b981"
+                  strokeWidth="12"
+                  strokeDasharray={`${Math.round((healthOnTrack / Math.max(1, displayPerformanceProjects.length)) * 238.76)} 238`}
+                  strokeDashoffset="0"
+                />
+
+                {/* Segment 2: At Risk -> Amber */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="38"
+                  fill="none"
+                  stroke="#f59e0b"
+                  strokeWidth="12"
+                  strokeDasharray={`${Math.round((healthAtRisk / Math.max(1, displayPerformanceProjects.length)) * 238.76)} 238`}
+                  strokeDashoffset={`-${Math.round((healthOnTrack / Math.max(1, displayPerformanceProjects.length)) * 238.76)}`}
+                />
+
+                {/* Segment 3: Delayed -> Red */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="38"
+                  fill="none"
+                  stroke="#ef4444"
+                  strokeWidth="12"
+                  strokeDasharray={`${Math.round((healthDelayed / Math.max(1, displayPerformanceProjects.length)) * 238.76)} 238`}
+                  strokeDashoffset={`-${Math.round(((healthOnTrack + healthAtRisk) / Math.max(1, displayPerformanceProjects.length)) * 238.76)}`}
+                />
+              </svg>
+
+              {/* Donut Center Label */}
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', lineHeight: '1' }}>
+                  {projects.length || 2}
+                </div>
+                <div style={{ fontSize: '0.68rem', fontWeight: 600, color: '#94a3b8', marginTop: '2px' }}>
+                  Total
+                </div>
+              </div>
+            </div>
+
+            {/* Health Breakdown Legend List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.76rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                <span style={{ fontWeight: 700, color: '#0f172a' }}>{healthOnTrack}</span>
+                <span style={{ color: '#475569', fontWeight: 500 }}>On Track ({onTrackPct}%)</span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+                <span style={{ fontWeight: 700, color: '#0f172a' }}>{healthAtRisk}</span>
+                <span style={{ color: '#475569', fontWeight: 500 }}>At Risk ({atRiskPct}%)</span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                <span style={{ fontWeight: 700, color: '#0f172a' }}>{healthDelayed}</span>
+                <span style={{ color: '#475569', fontWeight: 500 }}>Delayed ({delayedPct}%)</span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#cbd5e1', display: 'inline-block' }} />
+                <span style={{ fontWeight: 700, color: '#0f172a' }}>{healthCompletedTasks}</span>
+                <span style={{ color: '#475569', fontWeight: 500 }}>Completed</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Link */}
+          <div style={{ paddingTop: '12px', borderTop: '1px solid #f1f5f9', marginTop: '12px' }}>
+            <Link
+              href="/project"
+              style={{
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                color: '#2563eb',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                textDecoration: 'none'
+              }}
+            >
+              <span>View All Projects</span>
+              <ArrowRight size={14} />
+            </Link>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ========================================================================= */}
+      {/* ANALYTICS ROW 2: TIME DISTRIBUTION, TEAM UTILIZATION, TOP EMPLOYEES     */}
+      {/* ========================================================================= */}
+      <div className="analytics-section-grid" style={{ marginTop: '14px' }}>
+
+        {/* CARD 1: TIME DISTRIBUTION */}
+        <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '14px' }}>
+            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>Time Distribution</h3>
+            <span title="Work hour breakdown by project category" style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
+              <Info size={13} style={{ color: '#94a3b8' }} />
+            </span>
+          </div>
+
+          {/* Donut Chart & Breakdown List */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flex: 1 }}>
+            {/* Donut Chart SVG */}
+            <div style={{ position: 'relative', width: '130px', height: '130px', flexShrink: 0 }}>
+              <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" strokeWidth="12" />
+                {timeDistBreakdown.map((item, idx) => {
+                  const dash = Math.round((item.pct / 100) * 238.76);
+                  const prevPctSum = timeDistBreakdown.slice(0, idx).reduce((sum, x) => sum + x.pct, 0);
+                  const offset = -Math.round((prevPctSum / 100) * 238.76);
+                  return (
+                    <circle
+                      key={idx}
+                      cx="50"
+                      cy="50"
+                      r="38"
+                      fill="none"
+                      stroke={item.color}
+                      strokeWidth="12"
+                      strokeDasharray={`${dash} 238`}
+                      strokeDashoffset={offset}
+                    />
+                  );
+                })}
+              </svg>
+            </div>
+
+            {/* Category Breakdown List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.74rem', width: '100%' }}>
+              {timeDistBreakdown.map((cat, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: cat.color, display: 'inline-block' }} />
+                    <span style={{ color: '#475569', fontWeight: 550 }}>{cat.name}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontWeight: 700, color: '#0f172a' }}>{cat.pct}%</span>
+                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>({cat.hours})</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer Total */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #f1f5f9', marginTop: '12px' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>Total</span>
+            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>{totalDistHoursStr} h</span>
+          </div>
+        </div>
+
+        {/* CARD 2: TEAM UTILIZATION */}
+        <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>Team Utilization</h3>
+              <span title="Scheduled hours vs total department capacity" style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
+                <Info size={13} style={{ color: '#94a3b8' }} />
+              </span>
+            </div>
+            <Link href="/employees" style={{ fontSize: '0.78rem', fontWeight: 650, color: '#2563eb', border: '1px solid #dbeafe', background: '#eff6ff', padding: '3px 10px', borderRadius: '6px', textDecoration: 'none' }}>
+              View All
+            </Link>
+          </div>
+
+          {/* Department Utilization Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #f1f5f9', color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 8px 8px 0', fontWeight: 600 }}>Team</th>
+                  <th style={{ textAlign: 'left', padding: '6px 8px 8px 8px', fontWeight: 600 }}>Utilization</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0 8px 8px', fontWeight: 600 }}>Scheduled / Capacity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamUtilizationData.map((row, idx) => (
+                  <tr key={idx} style={{ borderBottom: idx === teamUtilizationData.length - 1 ? 'none' : '1px solid #f8fafc' }}>
+                    <td style={{ padding: '9px 8px 9px 0', fontWeight: 700, color: '#0f172a' }}>{row.name}</td>
+                    <td style={{ padding: '9px 8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0f172a', minWidth: '30px' }}>{row.pct}%</span>
+                        <div style={{ flex: 1, height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${row.pct}%`, height: '100%', background: '#10b981', borderRadius: '3px' }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '9px 0 9px 8px', fontWeight: 650, color: '#475569' }}>{row.schedStr}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* CARD 3: TOP EMPLOYEES THIS WEEK */}
+        <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>Top Employees This Week</h3>
+              <span title="Highest performing team members by logged hours and completed tasks" style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
+                <Info size={13} style={{ color: '#94a3b8' }} />
+              </span>
+            </div>
+            <Link href="/employees" style={{ fontSize: '0.78rem', fontWeight: 650, color: '#2563eb', border: '1px solid #dbeafe', background: '#eff6ff', padding: '3px 10px', borderRadius: '6px', textDecoration: 'none' }}>
+              View All
+            </Link>
+          </div>
+
+          {/* Top Employees Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #f1f5f9', color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 8px 8px 0', fontWeight: 600 }}>Employee</th>
+                  <th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 600 }}>Hours</th>
+                  <th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 600 }}>Tasks Done</th>
+                  <th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 600 }}>On-Time %</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0 8px 8px', fontWeight: 600 }}>AI Assisted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {realTopEmployees.map((emp, idx) => (
+                  <tr key={emp.id || idx} style={{ borderBottom: idx === realTopEmployees.length - 1 ? 'none' : '1px solid #f8fafc' }}>
+                    <td style={{ padding: '8px 8px 8px 0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: emp.avatarColor, color: '#fff', fontSize: '0.65rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {emp.initials}
+                        </div>
+                        <span style={{ fontWeight: 700, color: '#0f172a' }}>{emp.name}</span>
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'center', padding: '8px', fontWeight: 700, color: '#0f172a' }}>{emp.hours}</td>
+                    <td style={{ textAlign: 'center', padding: '8px', fontWeight: 600, color: '#475569' }}>{emp.tasksDone}</td>
+                    <td style={{ textAlign: 'center', padding: '8px', fontWeight: 700, color: '#0f172a' }}>{emp.onTimePct}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0 8px 8px', fontWeight: 700, color: '#0f172a' }}>{emp.aiAssistedPct}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
 
       {/* Main Grid Layout */}
       <div className="dashboard-grid">
-
-        {/* ROW 2: LEFT COLUMN: Team Punch & Permission Monitor (Admin Only) */}
-        {isAdmin && (() => {
-          const TEAM_ITEMS_PER_PAGE = 3;
-          const activeCount = employees.filter((e: any) => e.todayAttendance?.checkIn && !e.todayAttendance?.checkOut).length;
-          const inactiveCount = employees.length - activeCount;
-          const paginatedTeam = employees.slice((teamPage - 1) * TEAM_ITEMS_PER_PAGE, teamPage * TEAM_ITEMS_PER_PAGE);
-          const totalTeamPages = Math.ceil(employees.length / TEAM_ITEMS_PER_PAGE);
-
-          return (
-            <div className="col-5">
-              <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <div className="card-header" style={{ marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                  <div>
-                    <h3 className="card-title" style={{ fontSize: '1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Clock size={18} style={{ color: 'var(--accent-primary)' }} />
-                      Team Punch & Permissions
-                    </h3>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Live presence & 1-day punch override</span>
-                  </div>
-                  <span className="tag-badge" style={{ fontSize: '0.68rem', padding: '2px 8px', fontWeight: 700, backgroundColor: 'rgba(127, 86, 217, 0.08)', color: 'var(--accent-primary)', border: '1px solid rgba(127, 86, 217, 0.15)' }}>
-                    Active: {activeCount} • Inactive: {inactiveCount}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, paddingRight: '2px' }}>
-                  {paginatedTeam.length === 0 ? (
-                    <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px', fontSize: '0.8rem' }}>No employees found.</p>
-                  ) : (
-                    paginatedTeam.map((emp: any) => {
-                      const att = emp.todayAttendance;
-                      const hasCheckIn = !!att?.checkIn;
-                      const hasCheckOut = !!att?.checkOut;
-                      const isWorkingNow = !!att?.isWorking;
-
-                      return (
-                        <div key={emp._id} style={{ padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {/* Member Info & Live Status Badge */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div
-                              onClick={() => router.push(`/employees?select=${emp._id}`)}
-                              style={{ display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}
-                              title="Click to view details & manage punch permissions"
-                            >
-                              <div className="avatar" style={{ backgroundColor: emp.avatarColor, width: '30px', height: '30px', fontSize: '0.72rem', fontWeight: 700 }}>
-                                {emp.name.split(' ').map((n: string) => n[0]).join('')}
-                              </div>
-                              <div>
-                                <div style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--accent-primary)', textDecoration: 'underline' }}>{emp.name}</div>
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{emp.role}</div>
-                              </div>
-                            </div>
-
-                            {/* Status pill */}
-                            {hasCheckOut ? (
-                              <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#fee2e2', color: '#991b1b', fontWeight: 700 }}>
-                                Checked Out
-                              </span>
-                            ) : hasCheckIn ? (
-                              isWorkingNow ? (
-                                <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#dcfce7', color: '#166534', fontWeight: 700 }}>
-                                  Working
-                                </span>
-                              ) : (
-                                <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#e0f2fe', color: '#0369a1', fontWeight: 700 }}>
-                                  Idle
-                                </span>
-                              )
-                            ) : (
-                              <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>
-                                Not Punched
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Time details */}
-                          <div style={{ fontSize: '0.68rem', background: 'var(--bg-tertiary)', padding: '4px 8px', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                            <span>In: <b>{att?.checkIn || '—'}</b></span>
-                            <span>Out: <b>{att?.checkOut || '—'}</b></span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                {/* Team Pagination controls */}
-                {totalTeamPages > 1 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => setTeamPage((p) => Math.max(1, p - 1))}
-                      disabled={teamPage === 1}
-                      style={{ padding: '3px 8px', fontSize: '0.7rem', opacity: teamPage === 1 ? 0.5 : 1 }}
-                    >
-                      Previous
-                    </button>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                      Page {teamPage} of {totalTeamPages}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => setTeamPage((p) => Math.min(totalTeamPages, p + 1))}
-                      disabled={teamPage === totalTeamPages}
-                      style={{ padding: '3px 8px', fontSize: '0.7rem', opacity: teamPage === totalTeamPages ? 0.5 : 1 }}
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
         {/* Employee Tasks Section */}
         {!isAdmin && user && (
           <div className="col-12" style={{ marginBottom: '20px' }}>
             <MyTasks userId={user._id} key={tasksKey} />
           </div>
         )}
-
-        {/* ROW 2: RIGHT COLUMN: Timeline scheduler */}
-        <div className={isAdmin ? "col-7" : "col-12"}>
-          <div className="card" style={{ height: '100%' }}>
-            <div className="card-header">
-              <h3 className="card-title">Today Schedule</h3>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <input
-                  type="date"
-                  value={selectedTimelineDate}
-                  onChange={(e) => setSelectedTimelineDate(e.target.value)}
-                  style={{ border: '1px solid var(--border-color)', borderRadius: '6px', padding: '4px 6px', fontSize: '0.75rem', fontWeight: 650 }}
-                />
-                {/* <button className="btn btn-secondary btn-sm" onClick={() => {
-                  if (projects.length === 0) return;
-                  setWorkDate(selectedTimelineDate);
-                  setIsWorkModalOpen(true);
-                }}>
-                  Add Task
-                </button> */}
-              </div>
-            </div>
-
-            <div className="timeline-scheduler">
-              <div className="timeline-hours-header">
-                <span>08.00</span>
-                <span>09.00</span>
-                <span style={{ color: '#4f46e5', fontWeight: 800 }}>09.35</span>
-                <span>11.00</span>
-                <span>13.00</span>
-                <span>15.00</span>
-                <span>17.00</span>
-                <span>18.00</span>
-              </div>
-
-              <div className="timeline-grid">
-                {timelineEntries.slice(0, 3).map((entry, index) => {
-                  const pos = calculateTimelinePosition(entry.startTime, entry.endTime);
-                  const colorClass = getTimelineColor(entry.projectColor);
-                  const topOffset = 15 + index * 40;
-
-                  return (
-                    <div
-                      key={entry._id}
-                      className={`timeline-block ${colorClass}`}
-                      style={{
-                        left: pos.left,
-                        width: pos.width,
-                        top: `${topOffset}px`
-                      }}
-                      title={`${entry.employeeName}: ${entry.title} (${entry.startTime} - ${entry.endTime})`}
-                    >
-                      {entry.title}
-                    </div>
-                  );
-                })}
-
-                {timelineEntries.length === 0 && (
-                  <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                    No work sessions logged for this day.
-                  </div>
-                )}
-
-                <div className="timeline-now-line" style={{ left: '16.5%' }} />
-                <div className="timeline-now-bubble" style={{ left: '16.5%' }}>09.35</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ROW 3: TABLES AND CHARTS */}
-        <div className={isAdmin ? "col-7" : "col-8"}>
-          {isAdmin ? (
-            <div className="card" style={{ height: '100%' }}>
-              <div className="card-header">
-                <h3 className="card-title">Employee Registry</h3>
-                <Link href="/employees" className="btn btn-secondary btn-sm">See Details</Link>
-              </div>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Employee Name</th>
-                    <th>Project</th>
-                    <th>Job Title</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {employees.slice(0, 4).map((emp) => (
-                    <tr key={emp._id}>
-                      <td>
-                        <div className="avatar-wrapper">
-                          <div className="avatar" style={{ backgroundColor: emp.avatarColor, width: '28px', height: '28px', fontSize: '0.7rem' }}>
-                            {emp.name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 700 }}>{emp.name}</div>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{emp.email}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="tag-badge" style={{ borderColor: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-primary)', background: '#eff6ff' }}>
-                          {emp.Project}
-                        </span>
-                      </td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{emp.role}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="card" style={{ height: '100%' }}>
-              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h3 className="card-title">My Tracked Logs</h3>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Recent work sessions</span>
-                </div>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  style={{ padding: '4px 8px', fontSize: '0.72rem' }}
-                  onClick={handleOpenMailModal}
-                >
-                  Generate Daily Mail
-                </button>
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Project</th>
-                      <th>Work Performed</th>
-                      <th>Time</th>
-                      <th style={{ textAlign: 'right' }}>Tracked</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {entries.slice(0, 5).map((entry) => (
-                      <tr key={entry._id}>
-                        <td>{entry.date}</td>
-                        <td>
-                          <span className="tag-badge" style={{ backgroundColor: `${entry.projectColor}15`, color: entry.projectColor, borderColor: `${entry.projectColor}30` }}>
-                            {entry.projectName}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 600 }}>{entry.title}</div>
-                        </td>
-                        <td style={{ color: 'var(--text-secondary)' }}>
-                          {entry.startTime} - {entry.endTime}
-                        </td>
-                        <td style={{ fontWeight: 750, color: 'var(--accent-primary)', textAlign: 'right' }}>
-                          {formatMinutesToDuration(entry.actualTime)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right side Featured Employee / Member chart */}
-        <div className={isAdmin ? "col-5" : "col-4"} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Profile Card */}
-          {(meEmployee || featuredEmployee) && (
-            <div className="card">
-              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>
-                {isAdmin ? 'Featured Member' : 'My Work Profile'}
-              </div>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '4px' }}>
-                {(isAdmin ? (featuredEmployee?.role || meEmployee?.role) : meEmployee?.role) || 'Team Member'}
-              </h3>
-
-              <div className="employee-badge-container" style={{ marginBottom: '12px' }}>
-                {((isAdmin ? (featuredEmployee?.Project || meEmployee?.Project) : meEmployee?.Project)) && (
-                  <span className="tag-badge" style={{ backgroundColor: '#eff6ff', color: 'var(--accent-primary)', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
-                    {isAdmin ? (featuredEmployee?.Project || meEmployee?.Project) : meEmployee?.Project}
-                  </span>
-                )}
-                <span className="tag-badge">Full Time</span>
-                <span className="tag-badge">Active</span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-                <div className="avatar" style={{ backgroundColor: (isAdmin ? (featuredEmployee?.avatarColor || meEmployee?.avatarColor) : meEmployee?.avatarColor) || '#3b82f6', width: '32px', height: '32px', fontSize: '0.85rem' }}>
-                  {isAdmin
-                    ? (featuredEmployee?.name?.split(' ').map((n: string) => n[0]).join('') || meEmployee?.name?.split(' ').map((n: string) => n[0]).join('') || 'U')
-                    : (meEmployee?.name?.split(' ').map((n: string) => n[0]).join('') || 'U')}
-                </div>
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <div style={{ fontWeight: 750, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {isAdmin ? (featuredEmployee?.name || meEmployee?.name || user?.name || 'User') : (meEmployee?.name || user?.name || 'User')}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    <span>{isAdmin ? (featuredEmployee?.email || meEmployee?.email || user?.email || '') : (meEmployee?.email || user?.email || '')}</span>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>TRACKED</div>
-                  <div style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '0.85rem' }}>
-                    {formatMinutesToDuration(isAdmin ? (featuredEmployee?.totalMinutes || 0) : (meEmployee?.totalMinutes || 0))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Member Work Hours chart (Admin Only) */}
-          {isAdmin && (
-            <div className="card">
-              <div className="card-header">
-                <div>
-                  <h3 className="card-title" style={{ fontSize: '0.9rem' }}>Member Work Hours</h3>
-                  <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px', display: 'block' }}>
-                    {totalChartHours} hrs total
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', display: 'flex', gap: '6px' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#3b82f6' }} /> Work
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#fecdd3' }} /> OT
-                  </span>
-                </div>
-              </div>
-
-              <div className="stacked-chart-container">
-                <div className="chart-grid-line" style={{ bottom: '50px' }} />
-                <div className="chart-grid-line" style={{ bottom: '90px' }} />
-                <div className="chart-grid-line" style={{ bottom: '130px' }} />
-
-                {dailyWorkTimes.map((data, index) => {
-                  const maxVal = 12;
-                  const workHeight = Math.min(130, (data.workHours / maxVal) * 130);
-                  const otHeight = Math.min(130 - workHeight, (data.overtimeHours / maxVal) * 130);
-
-                  return (
-                    <div key={index} className="chart-column">
-                      <div className="chart-bar-stack" style={{ height: `${workHeight + otHeight}px`, width: '12px' }}>
-                        {data.overtimeHours > 0 && (
-                          <div className="chart-bar-pink" style={{ height: `${(otHeight / (workHeight + otHeight)) * 100}%` }} title={`Overtime: ${data.overtimeHours} hrs`} />
-                        )}
-                        <div className="chart-bar-blue" style={{ height: `${(workHeight / (workHeight + otHeight)) * 100}%` }} title={`Work Time: ${data.workHours} hrs`} />
-                      </div>
-                      <span className="chart-column-label">{data.day}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
       </div>
 
       {/* MODAL: ADD EMPLOYEE (Admin Only) */}

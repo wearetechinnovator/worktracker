@@ -35,6 +35,7 @@ export interface CreateClientModalProps {
   onClose: () => void;
   onSuccess?: (newClient?: any) => void;
   projectsOptions?: ProjectOption[];
+  hideProjectField?: boolean;
 }
 
 export default function CreateClientModal({
@@ -42,6 +43,7 @@ export default function CreateClientModal({
   onClose,
   onSuccess,
   projectsOptions: externalProjects,
+  hideProjectField = false,
 }: CreateClientModalProps) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -192,7 +194,7 @@ export default function CreateClientModal({
       <div
         className="modal-overlay"
         style={{
-          zIndex: 1350,
+          zIndex: 20500,
           backgroundColor: 'rgba(15, 23, 42, 0.65)',
           backdropFilter: 'blur(6px)',
           display: 'flex',
@@ -209,15 +211,18 @@ export default function CreateClientModal({
           style={{
             maxWidth: '600px',
             width: '100%',
-            maxHeight: '90vh',
-            overflowY: 'auto',
+            height: 'min(640px, 85vh)',
+            maxHeight: '85vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
             borderRadius: 'var(--border-radius-md)',
             boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
-            padding: '16px 18px',
+            padding: 0,
           }}
         >
           {/* Modal Header */}
-          <div className="modal-header">
+          <div className="modal-header" style={{ flexShrink: 0, padding: '14px 16px 10px 16px', margin: 0, borderBottom: '1px solid var(--border-color)' }}>
             <h3
               style={{
                 fontSize: '1.1rem',
@@ -236,8 +241,27 @@ export default function CreateClientModal({
           {/* Form Body */}
           <form
             onSubmit={handleSubmit}
-            style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              minHeight: 0,
+              overflow: 'hidden',
+              margin: 0,
+              padding: 0,
+            }}
           >
+            {/* Scrollable Form Body */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '14px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+              }}
+            >
             {error && (
               <div
                 style={{
@@ -545,92 +569,95 @@ export default function CreateClientModal({
             </div>
 
             {/* Tag to Projects Section */}
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '6px',
-                }}
-              >
-                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: 0 }}>
-                  Tag to Projects
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsProjectModalOpen(true)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--accent-primary)',
-                    fontSize: '0.76rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '0 2px',
-                  }}
-                >
-                  <Plus size={13} />
-                  <span>Add Project</span>
-                </button>
-              </div>
-
-              {availableProjects.length === 0 ? (
-                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
-                  No projects available to tag
-                </p>
-              ) : (
+            {!hideProjectField && (
+              <div className="form-group" style={{ marginBottom: 0 }}>
                 <div
                   style={{
                     display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    maxHeight: '130px',
-                    overflowY: 'auto',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: 'var(--border-radius-sm)',
-                    padding: '8px 10px',
-                    background: 'var(--bg-secondary)',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '6px',
                   }}
                 >
-                  {availableProjects.map((proj) => {
-                    const isChecked = selectedProjectIds.includes(proj._id);
-                    return (
-                      <label
-                        key={proj._id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          fontSize: '0.78rem',
-                          cursor: 'pointer',
-                          padding: '3px 4px',
-                          borderRadius: '4px',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => handleProjectToggle(proj._id)}
-                          disabled={submitting}
-                        />
-                        <span
-                          style={{
-                            width: '8px',
-                            height: '8px',
-                            borderRadius: '50%',
-                            backgroundColor: proj.color || '#3b82f6',
-                          }}
-                        />
-                        <span style={{ fontWeight: isChecked ? 700 : 400 }}>{proj.name}</span>
-                      </label>
-                    );
-                  })}
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: 0 }}>
+                    Tag to Projects
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsProjectModalOpen(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--accent-primary)',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '0 2px',
+                    }}
+                  >
+                    <Plus size={13} />
+                    <span>Add Project</span>
+                  </button>
                 </div>
-              )}
+
+                {availableProjects.length === 0 ? (
+                  <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
+                    No projects available to tag
+                  </p>
+                ) : (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                      maxHeight: '130px',
+                      overflowY: 'auto',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 'var(--border-radius-sm)',
+                      padding: '8px 10px',
+                      background: 'var(--bg-secondary)',
+                    }}
+                  >
+                    {availableProjects.map((proj) => {
+                      const isChecked = selectedProjectIds.includes(proj._id);
+                      return (
+                        <label
+                          key={proj._id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                            padding: '3px 4px',
+                            borderRadius: '4px',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleProjectToggle(proj._id)}
+                            disabled={submitting}
+                          />
+                          <span
+                            style={{
+                              width: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              backgroundColor: proj.color || '#3b82f6',
+                            }}
+                          />
+                          <span style={{ fontWeight: isChecked ? 700 : 400 }}>{proj.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             </div>
 
             {/* Footer Actions */}
@@ -639,7 +666,11 @@ export default function CreateClientModal({
                 display: 'flex',
                 gap: '12px',
                 justifyContent: 'flex-end',
-                marginTop: '8px',
+                marginTop: 0,
+                padding: '12px 16px',
+                borderTop: '1px solid var(--border-color)',
+                flexShrink: 0,
+                background: 'var(--bg-primary)',
               }}
             >
               <button
@@ -678,6 +709,7 @@ export default function CreateClientModal({
       <CreateProjectModal
         isOpen={isProjectModalOpen}
         onClose={() => setIsProjectModalOpen(false)}
+        hideClientField={true}
         onSuccess={(newProj) => {
           fetchProjects();
           if (newProj?._id) {

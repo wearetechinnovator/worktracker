@@ -4,7 +4,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/exhaustive-deps */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users, UserPlus, Mail, Edit3,
@@ -307,8 +307,12 @@ export default function EmployeesPage() {
     }
   };
 
+  const filteredEmployees = useMemo(() => {
+    return employees.filter((emp: any) => emp.userType !== 'admin' && emp.role?.toLowerCase() !== 'admin');
+  }, [employees]);
+
   const ITEMS_PER_PAGE = 10;
-  const paginatedEmployees = employees.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const renderPagination = (totalItems: number, itemsPerPage: number, page: number, onPageChange: (p: number) => void) => {
     const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -405,7 +409,7 @@ export default function EmployeesPage() {
 
       {/* Grid List */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
-        {employees.length === 0 ? (
+        {filteredEmployees.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '32px', gridColumn: '1 / -1' }}>
             No registered employees found. Click Add Employee to create one.
           </p>
@@ -513,7 +517,7 @@ export default function EmployeesPage() {
             );
           })
         )}
-        {renderPagination(employees.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
+        {renderPagination(filteredEmployees.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
       </div>
 
       {/* EMPLOYEE MONTHLY ATTENDANCE & WORK DETAILS MODAL */}
