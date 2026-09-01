@@ -44,7 +44,7 @@ export default function CreateProjectModal({
   const [selectedColor] = useState('#3b82f6');
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
-  
+
   // Popup Employee Creation Modal State
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
 
@@ -422,327 +422,327 @@ export default function CreateProjectModal({
               {/* Custom Client Association */}
               {!hideClientField && (
                 <div style={{ position: 'relative' }} ref={clientDropdownRef}>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                  }}
-                >
-                  <label
+                  <div
                     style={{
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      color: 'var(--text-primary)',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    <Building2 size={15} color="var(--accent-primary)" />
-                    Client Association
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCreateClientModalOpen(true);
-                      setClientError(null);
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--accent-primary)',
-                      fontSize: '0.76rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: '2px 4px',
-                      borderRadius: '6px',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <Plus size={13} />
-                    <span>Add New Client</span>
-                  </button>
-                </div>
-
-                <div>
-                  {/* Custom Dropdown Trigger */}
-                  <button
-                    type="button"
-                    onClick={() => setIsClientDropdownOpen(!isClientDropdownOpen)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '10px 14px',
-                      background: 'var(--bg-primary)',
-                      border: isClientDropdownOpen
-                        ? '1px solid var(--accent-primary)'
-                        : '1px solid var(--border-color)',
-                      borderRadius: '10px',
-                      fontSize: '0.84rem',
-                      color: selectedClient ? 'var(--text-primary)' : 'var(--text-muted)',
-                      cursor: 'pointer',
-                      boxShadow: isClientDropdownOpen
-                        ? '0 0 0 3px rgba(59, 130, 246, 0.15)'
-                        : 'none',
-                      transition: 'all 0.15s ease',
-                      textAlign: 'left',
-                      minHeight: '42px',
+                      alignItems: 'center',
+                      marginBottom: '8px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                      {selectedClient ? (
-                        <>
-                          <div
-                            style={{
-                              width: '24px',
-                              height: '24px',
-                              borderRadius: '6px',
-                              background: 'var(--status-annual-bg)',
-                              color: 'var(--status-annual-text)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              flexShrink: 0,
-                            }}
-                          >
-                            {selectedClient.name.charAt(0).toUpperCase()}
-                          </div>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {selectedClient.name}
-                          </span>
-                          {selectedClient.projects && selectedClient.projects.length > 0 && (
-                            <span
-                              style={{
-                                fontSize: '0.7rem',
-                                color: 'var(--text-muted)',
-                                padding: '1px 6px',
-                                background: 'var(--bg-tertiary)',
-                                borderRadius: '4px',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                maxWidth: '180px',
-                              }}
-                              title={selectedClient.projects.map((p: any) => (typeof p === 'string' ? p : p?.name || '')).filter(Boolean).join(', ')}
-                            >
-                              {selectedClient.projects.map((p: any) => (typeof p === 'string' ? p : p?.name || '')).filter(Boolean).join(', ') || `${selectedClient.projects.length} project${selectedClient.projects.length > 1 ? 's' : ''}`}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)' }}>Choose Client</span>
-                      )}
-                    </div>
-                    <ChevronDown
-                      size={16}
+                    <label
                       style={{
-                        transform: isClientDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.2s ease',
-                        color: 'var(--text-muted)',
-                        flexShrink: 0,
-                      }}
-                    />
-                  </button>
-
-                  {/* Dropdown Menu */}
-                  {isClientDropdownOpen && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 'calc(100% + 6px)',
-                        left: 0,
-                        right: 0,
-                        backgroundColor: 'var(--bg-secondary)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '12px',
-                        boxShadow: '0 12px 30px rgba(0, 0, 0, 0.15)',
-                        zIndex: 100,
-                        overflow: 'hidden',
-                        animation: 'fadeIn 0.15s ease-out',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        color: 'var(--text-primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
                       }}
                     >
-                      {/* Search Input */}
-                      {clients.length > 4 && (
-                        <div
-                          style={{
-                            padding: '8px 10px',
-                            borderBottom: '1px solid var(--border-color)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                          }}
-                        >
-                          <Search size={14} color="var(--text-muted)" />
-                          <input
-                            type="text"
-                            placeholder="Filter clients..."
-                            value={clientSearch}
-                            onChange={(e) => setClientSearch(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                              width: '100%',
-                              border: 'none',
-                              outline: 'none',
-                              background: 'transparent',
-                              fontSize: '0.78rem',
-                              color: 'var(--text-primary)',
-                            }}
-                          />
-                        </div>
-                      )}
+                      <Building2 size={15} color="var(--accent-primary)" />
+                      Client Association
+                    </label>
 
-                      <div style={{ maxHeight: '200px', overflowY: 'auto', padding: '4px' }}>
-                        {/* None Option */}
-                        <div
-                          onClick={() => {
-                            setSelectedClientId('');
-                            setIsClientDropdownOpen(false);
-                          }}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            cursor: 'pointer',
-                            backgroundColor: selectedClientId === '' ? 'var(--bg-tertiary)' : 'transparent',
-                            transition: 'background-color 0.1s ease',
-                          }}
-                          onMouseEnter={(e) => {
-                            if (selectedClientId !== '') e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-                          }}
-                          onMouseLeave={(e) => {
-                            if (selectedClientId !== '') e.currentTarget.style.backgroundColor = 'transparent';
-                          }}
-                        >
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                            Choose Client (No Association)
-                          </span>
-                          {selectedClientId === '' && <Check size={14} color="var(--accent-primary)" />}
-                        </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreateClientModalOpen(true);
+                        setClientError(null);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--accent-primary)',
+                        fontSize: '0.76rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '2px 4px',
+                        borderRadius: '6px',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Plus size={13} />
+                      <span>Add New Client</span>
+                    </button>
+                  </div>
 
-                        {/* Client Options */}
-                        {filteredClients.map((client: any) => {
-                          const isSelected = selectedClientId === client._id;
-                          return (
+                  <div>
+                    {/* Custom Dropdown Trigger */}
+                    <button
+                      type="button"
+                      onClick={() => setIsClientDropdownOpen(!isClientDropdownOpen)}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        background: 'var(--bg-primary)',
+                        border: isClientDropdownOpen
+                          ? '1px solid var(--accent-primary)'
+                          : '1px solid var(--border-color)',
+                        borderRadius: '10px',
+                        fontSize: '0.84rem',
+                        color: selectedClient ? 'var(--text-primary)' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                        boxShadow: isClientDropdownOpen
+                          ? '0 0 0 3px rgba(59, 130, 246, 0.15)'
+                          : 'none',
+                        transition: 'all 0.15s ease',
+                        textAlign: 'left',
+                        minHeight: '42px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                        {selectedClient ? (
+                          <>
                             <div
-                              key={client._id}
-                              onClick={() => {
-                                setSelectedClientId(client._id);
-                                setIsClientDropdownOpen(false);
-                              }}
                               style={{
-                                padding: '8px 12px',
-                                borderRadius: '8px',
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '6px',
+                                background: 'var(--status-annual-bg)',
+                                color: 'var(--status-annual-text)',
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'space-between',
-                                cursor: 'pointer',
-                                backgroundColor: isSelected ? 'var(--bg-tertiary)' : 'transparent',
-                                transition: 'background-color 0.1s ease',
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                                justifyContent: 'center',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                flexShrink: 0,
                               }}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div
-                                  style={{
-                                    width: '22px',
-                                    height: '22px',
-                                    borderRadius: '6px',
-                                    background: 'var(--status-annual-bg)',
-                                    color: 'var(--status-annual-text)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontSize: '0.68rem',
-                                    fontWeight: 700,
-                                  }}
-                                >
-                                  {client.name.charAt(0).toUpperCase()}
-                                </div>
-                                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                  {client.name}
-                                </span>
-                                {client.projects && client.projects.length > 0 && (
-                                  <span
-                                    style={{
-                                      fontSize: '0.7rem',
-                                      color: 'var(--text-muted)',
-                                      padding: '1px 6px',
-                                      background: 'var(--bg-tertiary)',
-                                      borderRadius: '4px',
-                                      whiteSpace: 'nowrap',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      maxWidth: '160px',
-                                    }}
-                                    title={client.projects.map((p: any) => (typeof p === 'string' ? p : p?.name || '')).filter(Boolean).join(', ')}
-                                  >
-                                    {client.projects.map((p: any) => (typeof p === 'string' ? p : p?.name || '')).filter(Boolean).join(', ') || `${client.projects.length} project${client.projects.length > 1 ? 's' : ''}`}
-                                  </span>
-                                )}
-                              </div>
-                              {isSelected && <Check size={14} color="var(--accent-primary)" />}
+                              {selectedClient.name.charAt(0).toUpperCase()}
                             </div>
-                          );
-                        })}
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                              {selectedClient.name}
+                            </span>
+                            {selectedClient.projects && selectedClient.projects.length > 0 && (
+                              <span
+                                style={{
+                                  fontSize: '0.7rem',
+                                  color: 'var(--text-muted)',
+                                  padding: '1px 6px',
+                                  background: 'var(--bg-tertiary)',
+                                  borderRadius: '4px',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  maxWidth: '180px',
+                                }}
+                                title={selectedClient.projects.map((p: any) => (typeof p === 'string' ? p : p?.name || '')).filter(Boolean).join(', ')}
+                              >
+                                {selectedClient.projects.map((p: any) => (typeof p === 'string' ? p : p?.name || '')).filter(Boolean).join(', ') || `${selectedClient.projects.length} project${selectedClient.projects.length > 1 ? 's' : ''}`}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>Choose Client</span>
+                        )}
+                      </div>
+                      <ChevronDown
+                        size={16}
+                        style={{
+                          transform: isClientDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s ease',
+                          color: 'var(--text-muted)',
+                          flexShrink: 0,
+                        }}
+                      />
+                    </button>
 
-                        {filteredClients.length === 0 && clientSearch && (
-                          <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                            No clients match "{clientSearch}"
+                    {/* Dropdown Menu */}
+                    {isClientDropdownOpen && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 'calc(100% + 6px)',
+                          left: 0,
+                          right: 0,
+                          backgroundColor: 'var(--bg-secondary)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '12px',
+                          boxShadow: '0 12px 30px rgba(0, 0, 0, 0.15)',
+                          zIndex: 100,
+                          overflow: 'hidden',
+                          animation: 'fadeIn 0.15s ease-out',
+                        }}
+                      >
+                        {/* Search Input */}
+                        {clients.length > 4 && (
+                          <div
+                            style={{
+                              padding: '8px 10px',
+                              borderBottom: '1px solid var(--border-color)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                            }}
+                          >
+                            <Search size={14} color="var(--text-muted)" />
+                            <input
+                              type="text"
+                              placeholder="Filter clients..."
+                              value={clientSearch}
+                              onChange={(e) => setClientSearch(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                width: '100%',
+                                border: 'none',
+                                outline: 'none',
+                                background: 'transparent',
+                                fontSize: '0.78rem',
+                                color: 'var(--text-primary)',
+                              }}
+                            />
                           </div>
                         )}
 
-                        {/* Add Inline Client Trigger in Dropdown */}
-                        <div
-                          onClick={() => {
-                            setIsCreateClientModalOpen(true);
-                            setIsClientDropdownOpen(false);
-                            setClientError(null);
-                          }}
-                          style={{
-                            padding: '9px 12px',
-                            marginTop: '4px',
-                            borderTop: '1px solid var(--border-color)',
-                            borderRadius: '8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            cursor: 'pointer',
-                            color: 'var(--accent-primary)',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.08)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }}
-                        >
-                          <Plus size={14} />
-                          <span>Add New Client...</span>
+                        <div style={{ maxHeight: '200px', overflowY: 'auto', padding: '4px' }}>
+                          {/* None Option */}
+                          <div
+                            onClick={() => {
+                              setSelectedClientId('');
+                              setIsClientDropdownOpen(false);
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: '8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              cursor: 'pointer',
+                              backgroundColor: selectedClientId === '' ? 'var(--bg-tertiary)' : 'transparent',
+                              transition: 'background-color 0.1s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              if (selectedClientId !== '') e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (selectedClientId !== '') e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                              Choose Client (No Association)
+                            </span>
+                            {selectedClientId === '' && <Check size={14} color="var(--accent-primary)" />}
+                          </div>
+
+                          {/* Client Options */}
+                          {filteredClients.map((client: any) => {
+                            const isSelected = selectedClientId === client._id;
+                            return (
+                              <div
+                                key={client._id}
+                                onClick={() => {
+                                  setSelectedClientId(client._id);
+                                  setIsClientDropdownOpen(false);
+                                }}
+                                style={{
+                                  padding: '8px 12px',
+                                  borderRadius: '8px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  cursor: 'pointer',
+                                  backgroundColor: isSelected ? 'var(--bg-tertiary)' : 'transparent',
+                                  transition: 'background-color 0.1s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <div
+                                    style={{
+                                      width: '22px',
+                                      height: '22px',
+                                      borderRadius: '6px',
+                                      background: 'var(--status-annual-bg)',
+                                      color: 'var(--status-annual-text)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '0.68rem',
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    {client.name.charAt(0).toUpperCase()}
+                                  </div>
+                                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                    {client.name}
+                                  </span>
+                                  {client.projects && client.projects.length > 0 && (
+                                    <span
+                                      style={{
+                                        fontSize: '0.7rem',
+                                        color: 'var(--text-muted)',
+                                        padding: '1px 6px',
+                                        background: 'var(--bg-tertiary)',
+                                        borderRadius: '4px',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        maxWidth: '160px',
+                                      }}
+                                      title={client.projects.map((p: any) => (typeof p === 'string' ? p : p?.name || '')).filter(Boolean).join(', ')}
+                                    >
+                                      {client.projects.map((p: any) => (typeof p === 'string' ? p : p?.name || '')).filter(Boolean).join(', ') || `${client.projects.length} project${client.projects.length > 1 ? 's' : ''}`}
+                                    </span>
+                                  )}
+                                </div>
+                                {isSelected && <Check size={14} color="var(--accent-primary)" />}
+                              </div>
+                            );
+                          })}
+
+                          {filteredClients.length === 0 && clientSearch && (
+                            <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                              No clients match "{clientSearch}"
+                            </div>
+                          )}
+
+                          {/* Add Inline Client Trigger in Dropdown */}
+                          <div
+                            onClick={() => {
+                              setIsCreateClientModalOpen(true);
+                              setIsClientDropdownOpen(false);
+                              setClientError(null);
+                            }}
+                            style={{
+                              padding: '9px 12px',
+                              marginTop: '4px',
+                              borderTop: '1px solid var(--border-color)',
+                              borderRadius: '8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              cursor: 'pointer',
+                              color: 'var(--accent-primary)',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.08)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            <Plus size={14} />
+                            <span>Add New Client...</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
               )}
 
               {/* Assign Team Members (Collapsible / Multi-select) */}
@@ -783,45 +783,45 @@ export default function CreateProjectModal({
                     )}
                   </label>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddMemberModalOpen(true)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--accent-primary)',
-                      fontSize: '0.76rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '3px',
-                      padding: '0 2px',
-                    }}
-                  >
-                    <Plus size={13} />
-                    <span>+ Add Employee</span>
-                  </button>
-
-                  {employees.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <button
                       type="button"
-                      onClick={handleSelectAllMembers}
+                      onClick={() => setIsAddMemberModalOpen(true)}
                       style={{
                         background: 'none',
                         border: 'none',
                         color: 'var(--accent-primary)',
-                        fontSize: '0.74rem',
+                        fontSize: '0.76rem',
                         fontWeight: 700,
                         cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
                         padding: '0 2px',
                       }}
                     >
-                      {selectedMembers.length === employees.length ? 'Deselect All' : 'Select All'}
+                      <Plus size={13} />
+                      <span>+ Add Employee</span>
                     </button>
-                  )}
-                </div>
+
+                    {employees.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleSelectAllMembers}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--accent-primary)',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          padding: '0 2px',
+                        }}
+                      >
+                        {selectedMembers.length === employees.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {employees.length > 5 && (

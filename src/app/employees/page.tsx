@@ -308,7 +308,7 @@ export default function EmployeesPage() {
   };
 
   const filteredEmployees = useMemo(() => {
-    return employees.filter((emp: any) => emp.userType !== 'admin' && emp.role?.toLowerCase() !== 'admin');
+    return employees?.filter((emp: any) => emp.userType !== 'admin' && emp.role?.toLowerCase() !== 'admin');
   }, [employees]);
 
   const ITEMS_PER_PAGE = 10;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readSession } from '@/lib/session';
 
-const publicPaths = new Set(['/login', '/api/auth/login', '/api/auth/logout']);
+const publicPaths = new Set(['/','/login', '/api/auth/login', '/api/auth/logout']);
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

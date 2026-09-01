@@ -32,109 +32,18 @@ const CKEditorComponent = dynamic(
   { ssr: false }
 );
 
-interface Employee {
-  _id: string;
-  name: string;
-  email: string;
-  role: string;
-  Project: string;
-  status: string;
-  avatarColor: string;
-  totalMinutes: number;
-  workMode?: string;
-  userType?: string;
-}
+// ======================================
+// ================ Types ===============
+// ======================================
 
-interface Project {
-  _id: string;
-  name: string;
-  description?: string;
-  color: string;
-  totalMinutes: number;
-  entryCount: number;
-  members: any[];
-  clientId?: any;
-}
+import type {WorkEntry} from '../../types/WorkEntry';
+import type {Employee} from '../../types/Employee';
+import type {Project} from '../../types/Project';
+import type {Task} from '../../types/Task';
+import type {DashboardStats} from '../../types/DashboardStats';
 
-interface WorkEntry {
-  _id: string;
-  projectId: string;
-  projectName: string;
-  projectColor: string;
-  employeeId: string;
-  employeeName: string;
-  employeeAvatarColor: string;
-  employeeRole: string;
-  title: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  actualTime: number;
-  description?: string;
-  createdAt: string;
-}
 
-interface Task {
-  _id: string;
-  title: string;
-  description?: string;
-  projectId?: {
-    _id: string;
-    name: string;
-    color: string;
-  };
-  Project?: string;
-  assignedTo: Array<{
-    _id: string;
-    name: string;
-    email: string;
-    avatarColor: string;
-  }>;
-  createdBy: {
-    _id: string;
-    name: string;
-    email: string;
-    avatarColor?: string;
-  };
-  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  status: 'To Do' | 'In Progress' | 'Review' | 'Completed';
-  dueDate?: string;
-  tags?: string[];
-  createdAt: string;
-}
 
-interface DashboardStats {
-  employees: {
-    total: number;
-    active: number;
-    inactive: number;
-    present: number;
-    absent: number;
-    checkedIn: number;
-    checkedOut: number;
-    workingNow: number;
-    attendanceRate: number;
-  };
-  tasks: {
-    total: number;
-    active: number;
-    inProgress: number;
-    todo: number;
-    review: number;
-    completed: number;
-  };
-  projects: {
-    total: number;
-    active: number;
-    inactive: number;
-    totalMinutes: number;
-  };
-  productivity: {
-    todayMinutes: number;
-    totalMinutes: number;
-    attendanceRate: number;
-  };
-}
 
 export default function Dashboard() {
   const router = useRouter();
@@ -219,8 +128,6 @@ export default function Dashboard() {
 
   // Selected Day for Timeline (default to today)
   const [selectedTimelineDate, setSelectedTimelineDate] = useState('');
-
-
 
   // Client Selection & Tasks State
   const [clientsList, setClientsList] = useState<any[]>([]);
@@ -1052,19 +959,7 @@ export default function Dashboard() {
         { label: `${realProjectsDelayed} Delayed`, value: '', dotColor: '#ef4444' },
       ],
     },
-    {
-      id: 'overdue_work',
-      title: 'OVERDUE WORK',
-      icon: Clock,
-      iconBg: '#fff7ed',
-      iconColor: '#f97316',
-      value: `${realTotalOverdue}`,
-      infoTooltip: 'Tasks and project milestones past deadline requiring immediate review.',
-      rows: [
-        { label: `${realOverdueTasks} Tasks`, value: '', dotColor: '#ef4444' },
-        { label: `${realOverdueProjects} Projects`, value: '', dotColor: '#ef4444' },
-      ],
-    },
+    
     {
       id: 'team_utilization',
       title: 'TEAM UTILIZATION',
@@ -1078,32 +973,8 @@ export default function Dashboard() {
         { label: 'Scheduled', value: `${totalScheduledHours.toLocaleString('en-US')} h`, dotColor: '' },
       ],
     },
-    {
-      id: 'ai_adoption',
-      title: 'AI ADOPTION',
-      icon: Bot,
-      iconBg: '#fae8ff',
-      iconColor: '#a855f7',
-      value: `${realAiAdoptionPct}%`,
-      infoTooltip: 'Percentage of team members with recorded AI website usage sessions.',
-      rows: [
-        { label: 'AI Users', value: `${realAiUsers}`, dotColor: '' },
-        { label: 'AI Sessions', value: `${realAiSessions}`, dotColor: '' },
-      ],
-    },
-    {
-      id: 'ai_impact',
-      title: 'AI IMPACT',
-      icon: Sparkles,
-      iconBg: '#f0fdf4',
-      iconColor: '#0d9488',
-      value: `${realAiActiveHours.toFixed(1)} h`,
-      infoTooltip: 'Total active AI session time and AI-associated tasks count.',
-      rows: [
-        { label: 'AI Usage Time', value: `${realAiActiveHours.toFixed(1)} h`, dotColor: '' },
-        { label: 'AI Tasks', value: `${realAiTasksCount}`, dotColor: '' },
-      ],
-    },
+    
+    
     {
       id: 'ontime_delivery',
       title: 'ON-TIME DELIVERY',

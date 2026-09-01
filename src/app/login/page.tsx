@@ -16,7 +16,7 @@ export default function LoginPage() {
   useEffect(() => {
     const userSession = localStorage.getItem('worktracker_user');
     if (userSession) {
-      router.push('/');
+      router.push('/dashboard');
     }
   }, [router]);
 
@@ -60,7 +60,7 @@ export default function LoginPage() {
       localStorage.setItem('worktracker_user', JSON.stringify(result.data));
 
       // Redirect to main page
-      router.push('/');
+      router.push('/dashboard');
       router.refresh();
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');

@@ -6,8 +6,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Calendar, CheckCircle2, User, Loader2, AlertCircle, 
+import {
+  Calendar, CheckCircle2, User, Loader2, AlertCircle,
   Download, RefreshCw, MapPin, Globe, Clock, SlidersHorizontal, Search
 } from 'lucide-react';
 import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
@@ -39,7 +39,7 @@ interface AttendanceLog {
 export default function AttendancePage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  
+
   // Data State
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -71,7 +71,7 @@ export default function AttendancePage() {
 
     const parsed = JSON.parse(storedUser);
     setUser(parsed);
-    
+
     // Set preset dates for "This Month"
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
@@ -163,10 +163,10 @@ export default function AttendancePage() {
   // Export to CSV
   const handleExportCSV = () => {
     if (logs.length === 0) return;
-    
+
     const headers = [
-      'Date', 'Employee Name', 'Role', 'Department', 'Status', 
-      'Check In Time', 'Check In IP', 'Check In Location', 
+      'Date', 'Employee Name', 'Role', 'Department', 'Status',
+      'Check In Time', 'Check In IP', 'Check In Location',
       'Check Out Time', 'Check Out IP', 'Check Out Location'
     ];
 
@@ -184,7 +184,7 @@ export default function AttendancePage() {
       log.checkOutLocation || '—'
     ]);
 
-    const csvContent = "data:text/csv;charset=utf-8," 
+    const csvContent = "data:text/csv;charset=utf-8,"
       + [headers.join(','), ...rows.map(e => e.map(val => `"${val.replace(/"/g, '""')}"`).join(','))].join('\n');
 
     const encodedUri = encodeURI(csvContent);
@@ -260,14 +260,14 @@ export default function AttendancePage() {
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{user?.userType === 'admin' ? 'Punch In/Out Logs' : 'Attendance'}</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-            {user?.userType === 'admin' 
+            {user?.userType === 'admin'
               ? 'Inspect historical employee daily punch sessions, IP addresses, location and override authorizations.'
               : 'Inspect your historical daily attendance and punch sessions.'}
           </p>
         </div>
 
-        <button 
-          className="btn btn-secondary" 
+        <button
+          className="btn btn-secondary"
           onClick={handleExportCSV}
           disabled={logs.length === 0}
           style={{ gap: '8px' }}
@@ -286,7 +286,7 @@ export default function AttendancePage() {
 
       {/* Side-by-side Layout Wrapper */}
       <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap', width: '100%' }}>
-        
+
         {/* Left Side: Filtration Panel */}
         <div className="card" style={{ flex: '1 1 280px', maxWidth: '320px', padding: '16px', margin: 0, position: 'sticky', top: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
@@ -299,7 +299,7 @@ export default function AttendancePage() {
             {user?.userType === 'admin' && (
               <div>
                 <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>Employee</label>
-                <select 
+                <select
                   className="form-control"
                   style={{ fontSize: '0.78rem', padding: '6px 10px', width: '100%' }}
                   value={filterEmployeeId}
@@ -316,7 +316,7 @@ export default function AttendancePage() {
             {/* Status filter */}
             <div>
               <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>Status</label>
-              <select 
+              <select
                 className="form-control"
                 style={{ fontSize: '0.78rem', padding: '6px 10px', width: '100%' }}
                 value={filterStatus}
@@ -332,7 +332,7 @@ export default function AttendancePage() {
             {/* Date range presets */}
             <div>
               <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>Date Range Preset</label>
-              <select 
+              <select
                 className="form-control"
                 style={{ fontSize: '0.78rem', padding: '6px 10px', width: '100%' }}
                 value={datePreset}
@@ -352,7 +352,7 @@ export default function AttendancePage() {
               <>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>Start Date</label>
-                  <input 
+                  <input
                     type="date"
                     className="form-control"
                     style={{ fontSize: '0.78rem', padding: '5px 10px', width: '100%' }}
@@ -362,7 +362,7 @@ export default function AttendancePage() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>End Date</label>
-                  <input 
+                  <input
                     type="date"
                     className="form-control"
                     style={{ fontSize: '0.78rem', padding: '5px 10px', width: '100%' }}
@@ -375,7 +375,7 @@ export default function AttendancePage() {
 
             {/* Action buttons */}
             <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-              <button 
+              <button
                 type="button"
                 className="btn btn-secondary"
                 style={{ padding: '7px 12px', fontSize: '0.75rem', flex: 1 }}
@@ -480,8 +480,8 @@ export default function AttendancePage() {
                             <>
                               <td>
                                 {log.employeeId ? (
-                                  <div 
-                                    className="employee-cell-link" 
+                                  <div
+                                    className="employee-cell-link"
                                     style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}
                                     title="Click to view monthly attendance calendar"
                                     onClick={() => {
@@ -496,12 +496,12 @@ export default function AttendancePage() {
                                       setIsCalendarOpen(true);
                                     }}
                                   >
-                                    <div 
-                                      className="avatar" 
-                                      style={{ 
-                                        backgroundColor: log.employeeId.avatarColor || '#3b82f6', 
-                                        width: '32px', 
-                                        height: '32px', 
+                                    <div
+                                      className="avatar"
+                                      style={{
+                                        backgroundColor: log.employeeId.avatarColor || '#3b82f6',
+                                        width: '32px',
+                                        height: '32px',
                                         fontSize: '0.75rem',
                                         fontWeight: 700,
                                         borderRadius: '50%',
@@ -552,18 +552,18 @@ export default function AttendancePage() {
                                   </span>
                                 )}
                                 {cleanCheckInLoc && (
-                                  <span 
-                                    style={{ 
-                                      fontSize: '0.68rem', 
-                                      color: 'var(--text-secondary)', 
-                                      display: 'inline-flex', 
-                                      alignItems: 'center', 
+                                  <span
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      color: 'var(--text-secondary)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
                                       gap: '4px',
                                       maxWidth: '180px',
                                       whiteSpace: 'nowrap',
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis'
-                                    }} 
+                                    }}
                                     title={log.checkInLocation || undefined}
                                   >
                                     <MapPin size={11} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
@@ -591,18 +591,18 @@ export default function AttendancePage() {
                                   </span>
                                 )}
                                 {cleanCheckOutLoc && (
-                                  <span 
-                                    style={{ 
-                                      fontSize: '0.68rem', 
-                                      color: 'var(--text-secondary)', 
-                                      display: 'inline-flex', 
-                                      alignItems: 'center', 
+                                  <span
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      color: 'var(--text-secondary)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
                                       gap: '4px',
                                       maxWidth: '180px',
                                       whiteSpace: 'nowrap',
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis'
-                                    }} 
+                                    }}
                                     title={log.checkOutLocation || undefined}
                                   >
                                     <MapPin size={11} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />

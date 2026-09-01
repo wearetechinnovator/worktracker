@@ -18,6 +18,7 @@ import {
 import PageShimmer from '@/components/PageShimmer';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import CreateProjectModal from '@/components/CreateProjectModal';
+import CreateTaskModal from '@/components/CreateTaskModal';
 import {
   CustomDropdown,
   CustomDatePicker,
@@ -261,44 +262,7 @@ export default function TasksPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
-  // Form state
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    projectId: '',
-    assignedTo: [] as string[],
-    priority: 'Medium' as 'Low' | 'Medium' | 'High' | 'Urgent',
-    status: 'To Do' as 'To Do' | 'In Progress' | 'Review' | 'Completed',
-    dueDate: '',
-    dueTime: '',
-    url: '',
-    urls: [] as string[],
-    comments: '',
-    files: [] as Array<{ name: string; url: string; size?: number; type?: string }>,
-    tags: '',
-  });
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    if (!fileList || fileList.length === 0) return;
-    Array.from(fileList).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setFormData((prev) => ({
-          ...prev,
-          files: [...prev.files, { name: file.name, url: String(reader.result), size: file.size, type: file.type }],
-        }));
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleRemoveFile = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      files: prev.files.filter((_, i) => i !== index),
-    }));
-  };
 
   // Modals
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
@@ -615,58 +579,6 @@ export default function TasksPage() {
     setTaskWorkSessions([]);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-
-    try {
-      setError(null);
-      setSuccessMsg(null);
-
-      const userId = user._id || user.id || user.email;
-      const safeAssignedTo = isAdmin ? formData.assignedTo : [userId];
-
-      const payload = {
-        ...formData,
-        assignedTo: safeAssignedTo,
-        createdBy: userId,
-        userId: userId,
-        userEmail: user.email,
-        email: user.email,
-        projectId: formData.projectId || undefined,
-        Project: user.Project || undefined,
-        dueDate: formData.dueDate || undefined,
-        dueTime: formData.dueTime || undefined,
-        url: formData.urls[0] || formData.url || undefined,
-        urls: formData.urls,
-        comments: formData.comments || undefined,
-        files: formData.files,
-        tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
-      };
-
-      const url = editingTask ? `/api/tasks/${editingTask._id}` : '/api/tasks';
-      const method = editingTask ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to save task');
-
-      setSuccessMsg(editingTask ? 'Task updated successfully!' : 'Task created successfully!');
-      setTimeout(() => setSuccessMsg(null), 3000);
-
-      setShowModal(false);
-      resetForm();
-      loadTasks();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
   const canManageTask = (task: Task) => {
     if (!user) return false;
     const isAssigned = Array.isArray(task.assignedTo) && task.assignedTo.some(e => e._id === user._id);
@@ -691,52 +603,12 @@ export default function TasksPage() {
 
   const openEditModal = (task: Task) => {
     setEditingTask(task);
-    setFormData({
-      title: task.title,
-      description: task.description || '',
-      projectId: task.projectId?._id || '',
-      assignedTo: Array.isArray(task.assignedTo) ? task.assignedTo.map(e => e._id) : [],
-      priority: task.priority,
-      status: task.status,
-      dueDate: task.dueDate || '',
-      dueTime: (task as any).dueTime || '',
-      url: (task as any).url || '',
-      urls: Array.isArray((task as any).urls) ? (task as any).urls : ((task as any).url ? [(task as any).url] : []),
-      comments: (task as any).comments || '',
-      files: (task as any).files || [],
-      tags: task.tags?.join(', ') || '',
-    });
     setShowModal(true);
   };
 
   const openCreateModal = () => {
-    resetForm();
-    if (!isAdmin && user) {
-      setFormData((current) => ({
-        ...current,
-        assignedTo: user._id ? [user._id] : [],
-      }));
-    }
-    setShowModal(true);
-  };
-
-  const resetForm = () => {
-    setFormData({
-      title: '',
-      description: '',
-      projectId: '',
-      assignedTo: [],
-      priority: 'Medium',
-      status: 'To Do',
-      dueDate: '',
-      dueTime: '',
-      url: '',
-      urls: [],
-      comments: '',
-      files: [],
-      tags: '',
-    });
     setEditingTask(null);
+    setShowModal(true);
   };
 
   const filteredTasks = tasks.filter((task) => {
@@ -1441,303 +1313,28 @@ export default function TasksPage() {
       {renderPagination(filteredTasks.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
 
       {/* Create/Edit Modal */}
-      {showModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px',
-          }}
-          onClick={() => {
-            setShowModal(false);
-            resetForm();
-          }}
-        >
-          <div
-            className="card"
-            style={{
-              maxWidth: '850px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflow: 'auto',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>
-                {editingTask ? 'Edit Task' : 'Create New Task'}
-              </h2>
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  resetForm();
-                }}
-                className="btn"
-                style={{ padding: '6px' }}
-              >
-                <X size={20} />
-              </button>
-            </div>            <form onSubmit={handleSubmit}>
-              {isAdmin && (
-                <>
-                  {/* Row 1: Choose Project & Priority */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                    <CustomDropdown
-                      label="Choose Project"
-                      placeholder="Choose Project"
-                      value={formData.projectId}
-                      options={[
-                        { value: '', label: 'Choose Project' },
-                        ...projects.map((p) => ({
-                          value: p._id,
-                          label: p.name,
-                          color: p.color || '#3b82f6',
-                        })),
-                      ]}
-                      onChange={(val) => setFormData({ ...formData, projectId: val })}
-                      actionButton={{
-                        label: 'add project',
-                        onClick: () => setIsProjectModalOpen(true),
-                      }}
-                    />
-
-                    <CustomDropdown
-                      label="Priority"
-                      placeholder="Select Priority"
-                      value={formData.priority}
-                      options={[
-                        { value: 'Low', label: 'Low', color: '#3b82f6', badgeText: 'Low', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-                        { value: 'Medium', label: 'Medium', color: '#f59e0b', badgeText: 'Medium', badgeBg: '#fffbeb', badgeColor: '#b45309' },
-                        { value: 'High', label: 'High', color: '#f97316', badgeText: 'High', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
-                        { value: 'Urgent', label: 'Urgent', color: '#ef4444', badgeText: 'Urgent', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
-                      ]}
-                      onChange={(val) => setFormData({ ...formData, priority: val as any })}
-                    />
-                  </div>
-
-                  {/* Row 2: Status, Due Date, Time */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                    <CustomDropdown
-                      label="Status"
-                      placeholder="Select Status"
-                      value={formData.status}
-                      options={[
-                        { value: 'To Do', label: 'To Do', badgeText: 'To Do', badgeBg: '#f1f5f9', badgeColor: '#475569' },
-                        { value: 'In Progress', label: 'In Progress', badgeText: 'In Progress', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-                        { value: 'Review', label: 'Review', badgeText: 'Review', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
-                        { value: 'Completed', label: 'Completed', badgeText: 'Completed', badgeBg: '#ecfdf5', badgeColor: '#047857' },
-                      ]}
-                      onChange={(val) => setFormData({ ...formData, status: val as any })}
-                    />
-
-                    <CustomDatePicker
-                      label="Due Date"
-                      value={formData.dueDate}
-                      onChange={(val) => setFormData({ ...formData, dueDate: val })}
-                      placeholder="Pick date"
-                    />
-
-                    <CustomTimePicker
-                      label="Due Time"
-                      value={formData.dueTime}
-                      onChange={(val) => setFormData({ ...formData, dueTime: val })}
-                      placeholder="Pick time"
-                      align="right"
-                    />
-                  </div>
-
-                  {/* Assign To (Admin Only) */}
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <label className="form-label" style={{ marginBottom: 0 }}>Assign To *</label>
-                      <button
-                        type="button"
-                        onClick={() => setIsEmployeeModalOpen(true)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--accent-primary)',
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                          padding: '0 2px',
-                        }}
-                        title="Create and add new team member"
-                      >
-                        <Plus size={13} />
-                        <span>add employee</span>
-                      </button>
-                    </div>
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px',
-                      maxHeight: '130px',
-                      overflowY: 'auto',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: 'var(--border-radius-sm)',
-                      padding: '10px',
-                      background: 'var(--bg-secondary)'
-                    }}>
-                      {employees.map((emp) => {
-                        const isChecked = formData.assignedTo.includes(emp._id);
-                        return (
-                          <label
-                            key={emp._id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '10px',
-                              fontSize: '0.85rem',
-                              cursor: 'pointer',
-                              padding: '4px 6px',
-                              borderRadius: '4px',
-                              background: isChecked ? 'var(--bg-tertiary)' : 'transparent'
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setFormData({ ...formData, assignedTo: [...formData.assignedTo, emp._id] });
-                                } else {
-                                  setFormData({ ...formData, assignedTo: formData.assignedTo.filter(id => id !== emp._id) });
-                                }
-                              }}
-                            />
-                            <span style={{ fontWeight: isChecked ? 700 : 400 }}>{emp.name} ({emp.Project || 'Team'})</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Task Title */}
-              <div style={{ marginBottom: '16px' }}>
-                <label className="form-label">Task Title *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="e.g., Design user registration flow"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  required
-                />
-              </div>
-
-              {/* Task Description */}
-              <div style={{ marginBottom: '16px' }}>
-                <label className="form-label">Task Description</label>
-                <CKEditorComponent
-                  value={formData.description}
-                  onChange={(val: string) => setFormData({ ...formData, description: val })}
-                />
-              </div>
-
-              {/* Row: Supporting Files & URL / Resource Links */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
-                <CustomFileAttachment
-                  label="Supporting Files"
-                  files={formData.files}
-                  onUpload={handleFileUpload}
-                  onRemove={handleRemoveFile}
-                />
-
-                <CustomMultipleLinks
-                  label="URL / Resource Links"
-                  links={formData.urls}
-                  onChange={(newLinks) => setFormData({ ...formData, urls: newLinks, url: newLinks[0] || '' })}
-                />
-              </div>
-
-              {/* Comments & Tags (Admin Only) */}
-              {isAdmin && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', alignItems: 'start' }}>
-                  <div>
-                    <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-                      Comments / Notes
-                    </label>
-                    <div className="custom-input-group" style={{ alignItems: 'flex-start' }}>
-                      <span className="custom-input-addon" style={{ height: 'auto', paddingTop: '8px' }}>
-                        <MessageSquare size={14} />
-                      </span>
-                      <textarea
-                        className="custom-input-control"
-                        style={{ minHeight: '62px', height: '62px', resize: 'vertical' }}
-                        placeholder="Add any additional notes, remarks or comments..."
-                        value={formData.comments}
-                        onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-                      Tags (comma separated)
-                    </label>
-                    <textarea
-                      className="form-control"
-                      style={{ minHeight: '62px', height: '62px', resize: 'vertical', fontSize: '0.8rem', padding: '8px 10px' }}
-                      value={formData.tags}
-                      onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                      placeholder="e.g., frontend, urgent, bug"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setShowModal(false);
-                    resetForm();
-                  }}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingTask ? 'Update Task' : 'Create Task'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <CreateTaskModal
+        isOpen={showModal}
+        onClose={() => {
+          setShowModal(false);
+          setEditingTask(null);
+        }}
+        editingTask={editingTask}
+        user={user}
+        projectsOptions={projects}
+        employeesList={employees}
+        onSuccess={() => {
+          loadTasks();
+        }}
+      />
 
       {/* MODAL: NEW Project */}
       <CreateProjectModal
         isOpen={isProjectModalOpen}
         onClose={() => setIsProjectModalOpen(false)}
         employeesList={employees}
-        onSuccess={async (newProj) => {
+        onSuccess={async () => {
           await loadAllData();
-          if (newProj?._id) {
-            const memberIds = Array.isArray(newProj.members)
-              ? newProj.members.map((m: any) => (typeof m === 'string' ? m : m._id || m.id)).filter(Boolean)
-              : [];
-            setFormData((prev) => ({
-              ...prev,
-              projectId: String(newProj._id),
-              Project: '',
-              assignedTo: Array.from(new Set([...prev.assignedTo, ...memberIds])),
-            }));
-          }
         }}
       />
 
@@ -1746,16 +1343,8 @@ export default function TasksPage() {
         isOpen={isAdmin && isEmployeeModalOpen}
         onClose={() => setIsEmployeeModalOpen(false)}
         projectsList={projects}
-        onSuccess={async (newEmp) => {
+        onSuccess={async () => {
           await loadAllData();
-          if (newEmp?._id) {
-            setFormData((prev) => ({
-              ...prev,
-              assignedTo: prev.assignedTo.includes(newEmp._id)
-                ? prev.assignedTo
-                : [...prev.assignedTo, newEmp._id],
-            }));
-          }
         }}
       />
 

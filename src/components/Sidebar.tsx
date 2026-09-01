@@ -470,8 +470,8 @@ const toggleGroup = (groupKey: string) => {
               {/* 1. DASHBOARD */}
               {canAccessFeatures ? (
                 <Link
-                  href="/"
-                  className={`sidebar-link ${pathname === '/' ? 'active' : ''}`}
+                  href="/dashboard"
+                  className={`sidebar-link ${pathname === '/dashboard' ? 'active' : ''}`}
                   onMouseEnter={(e) => handleItemMouseEnter('Dashboard', e)}
                   onMouseLeave={handleItemMouseLeave}
                 >

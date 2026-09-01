@@ -75,7 +75,7 @@ export default function AddTeamMemberModal({
           setFetchedRoles(names);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     // Fetch projects if available
     fetch('/api/projects')
@@ -86,7 +86,7 @@ export default function AddTeamMemberModal({
           setFetchedProjects(pNames);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -250,7 +250,7 @@ export default function AddTeamMemberModal({
                 type="text"
                 required
                 className="custom-input-control"
-                placeholder="e.g. Brooklyn Simmons"
+                placeholder="Full Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -270,7 +270,7 @@ export default function AddTeamMemberModal({
                 type="email"
                 required
                 className="custom-input-control"
-                placeholder="e.g. brok-simms@mail.com"
+                placeholder="example@mail.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />

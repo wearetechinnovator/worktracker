@@ -435,9 +435,13 @@ export default function ProjectsPage() {
     <div>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="project-heading">
+            <h1>Projects</h1>
+          </div>
+          
+        <div style={{ display: 'flex',}}>
           {canCreateProject && (
-            <button className="btn btn-secondary" onClick={() => {
+            <button className="btn btn-primary" onClick={() => {
               setDeptName('');
               setDeptDesc('');
               setDeptColor('#3b82f6');
@@ -506,11 +510,11 @@ export default function ProjectsPage() {
                   }}
                   style={{
                     gap: '6px',
-                    cursor: isDragging ? 'grabbing' : 'grab',
+                    cursor: 'pointer',
                     opacity: isDragging ? 0.4 : 1,
                     transform: isDragging ? 'scale(0.98)' : 'scale(1)',
                     transition: 'all 0.15s ease',
-                    borderTop: isDragOver ? '2px solid var(--accent-primary)' : '1px solid transparent',
+                    // borderTop: isDragOver ? '2px solid var(--accent-primary)' : '1px solid transparent',
                     boxShadow: isDragOver ? '0 4px 12px rgba(59, 130, 246, 0.2)' : 'none',
                     userSelect: 'none',
                   }}
@@ -521,12 +525,13 @@ export default function ProjectsPage() {
                       color: 'var(--text-muted)',
                       flexShrink: 0,
                       opacity: 0.5,
-                      cursor: 'grab',
+                      // cursor: 'grab',
+                      cursor: isDragging ? 'grabbing' : 'grab',
                     }}
                   />
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: proj.color, flexShrink: 0 }} />
+                    {/* <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: proj.color, flexShrink: 0 }} /> */}
                     <span style={{ fontWeight: 700, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {proj.name}
                     </span>
@@ -550,16 +555,16 @@ export default function ProjectsPage() {
                         const presence: 'working' | 'idle' | 'offline' = typeof m === 'object' && m.presenceState ? m.presenceState : 'offline';
 
                         let dotColor = '#94a3b8'; // Grey for offline
-                        let stateText = '⚪ Offline (Not Punched In)';
+                        let stateText = 'Offline';
                         let dotGlow = 'none';
 
                         if (presence === 'working') {
                           dotColor = '#22c55e'; // Green for working
-                          stateText = '🟢 Online & Currently Working';
+                          stateText = 'Currently Working';
                           dotGlow = '0 0 4px rgba(34, 197, 94, 0.7)';
                         } else if (presence === 'idle') {
                           dotColor = '#f59e0b'; // Yellow for logged in / idle
-                          stateText = '🟡 Logged In (Idle / Not Working)';
+                          stateText = 'Idle';
                           dotGlow = '0 0 4px rgba(245, 158, 11, 0.7)';
                         }
 
@@ -873,7 +878,7 @@ export default function ProjectsPage() {
             </div>
           ) : (
             <div className="card" style={{ padding: '16px 20px' }}>
-              <div style={{ backgroundColor: activeProject.color, height: '4px', borderRadius: '2px', marginBottom: '16px' }} />
+              {/* <div style={{ backgroundColor: activeProject.color, height: '4px', borderRadius: '2px', marginBottom: '16px' }} /> */}
 
               {!editMode ? (
                 /* --- DISPLAY MODE --- */
