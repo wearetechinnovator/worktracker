@@ -796,7 +796,7 @@ export default function TasksPage() {
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
             {isAdmin
-              ? 'Create and manage tasks for projects and Projects'
+              ? 'Create and manage tasks for projects'
               : 'Create your own tasks and keep them visible to the admin team'}
           </p>
         </div>

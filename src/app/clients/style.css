@@ -1,0 +1,230 @@
+.client-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 18px;
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    background:
+        radial-gradient(circle at 18% 16%, rgba(127, 86, 217, 0.12), transparent 44%),
+        radial-gradient(circle at 82% 12%, rgba(59, 130, 246, 0.12), transparent 40%),
+        var(--bg-secondary);
+}
+
+.hero-eyebrow {
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.11em;
+    font-size: 0.63rem;
+    font-weight: 700;
+}
+
+.hero-title {
+    font-size: 1.45rem;
+    font-weight: 800;
+    margin-top: 4px;
+}
+
+.hero-copy {
+    margin-top: 4px;
+    color: var(--text-secondary);
+    max-width: 560px;
+}
+
+.summary-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.summary-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    padding: 10px;
+    display: grid;
+    gap: 5px;
+}
+
+.summary-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    display: grid;
+    place-items: center;
+    background: var(--bg-tertiary);
+    color: var(--accent-primary);
+}
+
+.summary-label {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+}
+
+.summary-value {
+    font-size: 1.22rem;
+    font-weight: 780;
+}
+
+.control-bar {
+    display: flex;
+    padding: 10px;
+}
+
+.search-box {
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius-sm);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+    padding: 0 10px;
+    height: 36px;
+}
+
+.search-box input {
+    border: none;
+    background: transparent;
+    outline: none;
+    width: 100%;
+    color: var(--text-primary);
+}
+
+.client-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.client-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    background: var(--bg-secondary);
+}
+
+.client-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+.client-avatar {
+    width: 34px;
+    height: 34px;
+    background: var(--bg-tertiary);
+    color: var(--accent-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+}
+
+.client-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.client-meta {
+    font-size: 0.68rem;
+    color: var(--text-secondary);
+}
+
+.btn-icon {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    padding: 5px;
+    border-radius: 5px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+}
+
+.btn-icon:hover {
+    background: var(--bg-tertiary);
+}
+
+.btn-danger-text {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.btn-danger-text:hover {
+    background: #fee2e2;
+}
+
+.client-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.info-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.section-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.projects-badges-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    marginTop: 4px;
+}
+
+.project-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 99px;
+    border: 1px solid;
+    white-space: nowrap;
+}
+
+.projects-select-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 140px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    padding: 10px;
+    background: var(--bg-secondary);
+}
+
+.project-select-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.color-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}

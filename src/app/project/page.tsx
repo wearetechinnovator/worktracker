@@ -933,7 +933,7 @@ export default function ProjectsPage() {
                       </div>
                       <div className="stat-info">
                         <span className="stat-value" style={{ fontSize: '0.95rem' }}>{formatMinutesToDuration(activeProjMinutes)}</span>
-                        <span className="stat-label">Total Duration</span>
+                        <span className="stat-label"> Total Duration</span>
                       </div>
                     </div>
 
@@ -943,7 +943,7 @@ export default function ProjectsPage() {
                       </div>
                       <div className="stat-info">
                         <span className="stat-value" style={{ fontSize: '0.95rem' }}>{activeProjEntries.length}</span>
-                        <span className="stat-label">Logged Logs</span>
+                        <span className="stat-label"> Logged Logs</span>
                       </div>
                     </div>
 
@@ -953,7 +953,7 @@ export default function ProjectsPage() {
                       </div>
                       <div className="stat-info">
                         <span className="stat-value" style={{ fontSize: '0.95rem' }}>{activeProject.members?.length || 0}</span>
-                        <span className="stat-label">Assigned Staff</span>
+                        <span className="stat-label"> Assigned Staff</span>
                       </div>
                     </div>
                   </div>

@@ -1,61 +1,33 @@
 'use client';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable react-hooks/set-state-in-effect */
-/* eslint-disable react-hooks/exhaustive-deps */
-
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users, UserPlus, Mail, Edit3,
-  Trash2, AlertCircle, Clock, Check, Briefcase, Calendar, Eye, EyeOff
+  Trash2, AlertCircle, Clock, Briefcase, Eye, EyeOff
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import PageShimmer from '@/components/PageShimmer';
-
-interface Employee {
-  _id: string;
-  name: string;
-  email: string;
-  role: string;
-  Project: string;
-  status: string;
-  avatarColor: string;
-  userType: 'admin' | 'employee';
-  password?: string;
-  workMode?: string;
-  totalMinutes: number;
-  todayAttendance?: {
-    allowPunchInDate?: string | null;
-    allowPunchOutDate?: string | null;
-  } | null;
-}
+import type { Employee } from '../../types/Employee2';
 
 export default function EmployeesPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
 
-  // Employees data
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [employeeDetails, setEmployeeDetails] = useState<any>(null);
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
-  const [showCalendarModal, setShowCalendarModal] = useState(false);
-  const [selectedCalendarEmp, setSelectedCalendarEmp] = useState<Employee | null>(null);
 
-  // Form State (Add/Edit)
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('UI UX Designer');
@@ -63,9 +35,8 @@ export default function EmployeesPage() {
   const [status, setStatus] = useState('Active');
   const [workMode, setWorkMode] = useState('Hybrid');
   const [color, setColor] = useState('#3b82f6');
-  const [password, setPassword] = useState('password123');
+  const [password, setPassword] = useState('');
   const [userType, setUserType] = useState<'admin' | 'employee'>('employee');
-  const [showAddPassword, setShowAddPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [roleSuggestions, setRoleSuggestions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -74,7 +45,6 @@ export default function EmployeesPage() {
   const statuses = ['Active', 'Inactive'];
   const workmodes = ['Hybrid', 'Remote', 'Onsite'];
 
-  // Check login session on mount
   useEffect(() => {
     const checkAccess = async () => {
       const storedUser = localStorage.getItem('worktracker_user');
@@ -175,43 +145,6 @@ export default function EmployeesPage() {
     }
   }, [employees]);
 
-  // Handle Add Employee Submit
-  const handleAddSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || !email.trim() || !password.trim()) return;
-
-    try {
-      setSubmitting(true);
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          email,
-          role,
-          Project,
-          status,
-          avatarColor: color,
-          password,
-          userType,
-          workMode
-        })
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to create employee');
-
-      setIsAddModalOpen(false);
-      resetForm();
-      await fetchEmployees();
-      await fetchRoleSuggestions();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // Open Edit modal
   const openEditModal = (emp: Employee) => {
     setEditingEmp(emp);
     setName(emp.name);
@@ -221,13 +154,12 @@ export default function EmployeesPage() {
     setStatus(emp.status);
     setWorkMode(emp.workMode || 'Hybrid');
     setColor(emp.avatarColor);
-    setPassword(emp.password || '');
+    setPassword('');
     setUserType(emp.userType || 'employee');
     setShowEditPassword(false);
     setIsEditModalOpen(true);
   };
 
-  // Handle Edit Employee Submit
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEmp || !name.trim() || !email.trim()) return;
@@ -269,7 +201,6 @@ export default function EmployeesPage() {
     }
   };
 
-  // Handle Delete Employee
   const handleDelete = async (empId: string) => {
     if (!confirm('Are you sure you want to delete this employee? This action is irreversible.')) return;
 
@@ -387,7 +318,6 @@ export default function EmployeesPage() {
 
   return (
     <div>
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Team Directory</h1>
@@ -407,7 +337,6 @@ export default function EmployeesPage() {
         </div>
       )}
 
-      {/* Grid List */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
         {filteredEmployees.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '32px', gridColumn: '1 / -1' }}>
@@ -438,16 +367,20 @@ export default function EmployeesPage() {
                   </div>
 
                   <div style={{ marginTop: '10px' }}>
-                    <h3 style={{ fontSize: '0.95rem', fontWeight: 800 }}>{emp.name}</h3>
-                    <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
-                      <span className="tag-badge" style={{ fontSize: '0.65rem' }}>{emp.Project}</span>
-                      <span className="tag-badge" style={{ fontSize: '0.65rem', textTransform: 'capitalize' }}>{emp.userType}</span>
-                      {emp.workMode && (
-                        <span className="tag-badge" style={{ fontSize: '0.65rem', background: 'var(--bg-tertiary)', color: 'var(--accent-primary)' }}>
-                          {emp.workMode}
-                        </span>
-                      )}
+
+                    <div style={{ display: 'flex', alignItems:'center',gap:'2px' }}>
+                      <h3 style={{ fontSize: '0.85rem', fontWeight: 800,}}>{emp.name}</h3>
+                      <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                        <span className="tag-badge" style={{ fontSize: '0.50rem' }}>{emp.Project}</span>
+                        <span className="tag-badge" style={{ fontSize: '0.50rem', textTransform: 'capitalize' }}>{emp.userType}</span>
+                        {emp.workMode && (
+                          <span className="tag-badge" style={{ fontSize: '0.50rem', background: 'var(--bg-tertiary)', color: 'var(--accent-primary)' }}>
+                            {emp.workMode}
+                          </span>
+                        )}
+                      </div>
                     </div>
+
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
                       <Briefcase size={12} style={{ color: 'var(--text-muted)' }} />
                       {emp.role}
@@ -457,7 +390,6 @@ export default function EmployeesPage() {
                       {emp.email}
                     </p>
 
-                    {/* Punch Overrides directly on Card */}
                     <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }} onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
@@ -475,6 +407,7 @@ export default function EmployeesPage() {
                       >
                         {emp.todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '✓ In Allowed' : 'Allow In'}
                       </button>
+
                       <button
                         type="button"
                         className="btn"
@@ -520,14 +453,12 @@ export default function EmployeesPage() {
         {renderPagination(filteredEmployees.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
       </div>
 
-      {/* EMPLOYEE MONTHLY ATTENDANCE & WORK DETAILS MODAL */}
       <EmployeeAttendanceCalendarModal
         employee={selectedEmployee}
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
       />
 
-      {/* ADD EMPLOYEE MODAL */}
       <AddTeamMemberModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -538,7 +469,6 @@ export default function EmployeesPage() {
         }}
       />
 
-      {/* EDIT EMPLOYEE MODAL */}
       {isEditModalOpen && (
         <div className="modal-overlay" onClick={() => setIsEditModalOpen(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
@@ -571,13 +501,14 @@ export default function EmployeesPage() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Password *</label>
+                  <label className="form-label">New Password (leave blank to keep unchanged)</label>
                   <div style={{ position: 'relative' }}>
                     <input
                       type={showEditPassword ? "text" : "password"}
                       className="form-control"
                       style={{ paddingRight: '36px' }}
                       value={password}
+                      placeholder="••••••••"
                       onChange={(e) => setPassword(e.target.value)}
                     />
                     <button

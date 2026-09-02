@@ -1,24 +1,10 @@
 'use client';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable react-hooks/set-state-in-effect */
-/* eslint-disable react-hooks/exhaustive-deps */
-
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Edit3, FileText, Loader2, Pin, PinOff, Plus, Trash2, X, StickyNote } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
-
-interface KeepNote {
-  _id: string;
-  userId: string;
-  title: string;
-  content: string;
-  color: string;
-  isPinned: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+import type {KeepNote} from '../../types/KeepNote'
 
 const NOTE_COLORS = [
   { name: 'Yellow', value: '#fef9c3', border: '#fde047', accent: '#ca8a04' },
@@ -38,18 +24,14 @@ export default function KeepNotesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Modal State for Create & Edit
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newContent, setNewContent] = useState('');
-  const [newColor, setNewColor] = useState(NOTE_COLORS[0].value);
-  const [newPinned, setNewPinned] = useState(false);
-
-  const [editTarget, setEditTarget] = useState<KeepNote | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editContent, setEditContent] = useState('');
-  const [editColor, setEditColor] = useState(NOTE_COLORS[0].value);
-  const [editPinned, setEditPinned] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    content: '',
+    color: NOTE_COLORS[0].value,
+    isPinned: false,
+  });
 
   useEffect(() => {
     const storedUser = localStorage.getItem('worktracker_user');
@@ -86,73 +68,54 @@ export default function KeepNotesPage() {
   const pinnedNotes = useMemo(() => notes.filter((n) => n.isPinned), [notes]);
   const unpinnedNotes = useMemo(() => notes.filter((n) => !n.isPinned), [notes]);
 
-  const resetCreateForm = () => {
-    setNewTitle('');
-    setNewContent('');
-    setNewColor(NOTE_COLORS[0].value);
-    setNewPinned(false);
-  };
-
-  const handleCreateNote = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle.trim() || !newContent.trim()) return;
-
-    try {
-      setSubmitting(true);
-      const res = await fetch('/api/keep-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newTitle,
-          content: newContent,
-          color: newColor,
-          isPinned: newPinned,
-        }),
+  const openModal = (note?: KeepNote) => {
+    if (note) {
+      setEditingNoteId(note._id);
+      setFormData({
+        title: note.title,
+        content: note.content,
+        color: note.color || NOTE_COLORS[0].value,
+        isPinned: note.isPinned,
       });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to create note');
-
-      resetCreateForm();
-      setIsCreateModalOpen(false);
-      await fetchNotes();
-    } catch (err: any) {
-      alert(err.message || 'Failed to create note');
-    } finally {
-      setSubmitting(false);
+    } else {
+      setEditingNoteId(null);
+      setFormData({
+        title: '',
+        content: '',
+        color: NOTE_COLORS[0].value,
+        isPinned: false,
+      });
     }
+    setIsModalOpen(true);
   };
 
-  const openEditModal = (note: KeepNote) => {
-    setEditTarget(note);
-    setEditTitle(note.title);
-    setEditContent(note.content);
-    setEditColor(note.color || NOTE_COLORS[0].value);
-    setEditPinned(note.isPinned);
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingNoteId(null);
   };
 
-  const handleSaveEdit = async (e: React.FormEvent) => {
+  const handleSaveNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editTarget || !editTitle.trim() || !editContent.trim()) return;
+    if (!formData.title.trim() || !formData.content.trim()) return;
 
     try {
       setSubmitting(true);
-      const res = await fetch(`/api/keep-notes/${editTarget._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: editTitle,
-          content: editContent,
-          color: editColor,
-          isPinned: editPinned,
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to update note');
+      const url = editingNoteId ? `/api/keep-notes/${editingNoteId}` : '/api/keep-notes';
+      const method = editingNoteId ? 'PUT' : 'POST';
 
-      setEditTarget(null);
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to save note');
+
+      closeModal();
       await fetchNotes();
     } catch (err: any) {
-      alert(err.message || 'Failed to update note');
+      alert(err.message || 'Failed to save note');
     } finally {
       setSubmitting(false);
     }
@@ -194,8 +157,6 @@ export default function KeepNotesPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
-      {/* PAGE HEADER WITH Windows-Style + New Note ACTION BUTTON */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <p className="hero-eyebrow" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -210,10 +171,7 @@ export default function KeepNotesPage() {
 
         <button
           type="button"
-          onClick={() => {
-            resetCreateForm();
-            setIsCreateModalOpen(true);
-          }}
+          onClick={() => openModal()}
           className="btn btn-primary"
           style={{
             padding: '9px 18px',
@@ -239,7 +197,6 @@ export default function KeepNotesPage() {
         </div>
       )}
 
-      {/* EMPTY STATE */}
       {notes.length === 0 ? (
         <div
           className="card"
@@ -268,10 +225,7 @@ export default function KeepNotesPage() {
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => {
-              resetCreateForm();
-              setIsCreateModalOpen(true);
-            }}
+            onClick={() => openModal()}
             style={{ marginTop: '8px', padding: '8px 16px', fontSize: '0.8rem', fontWeight: 700 }}
           >
             <Plus size={14} />
@@ -280,8 +234,6 @@ export default function KeepNotesPage() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
-          {/* PINNED NOTES SECTION */}
           {pinnedNotes.length > 0 && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px', fontSize: '0.75rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -299,7 +251,7 @@ export default function KeepNotesPage() {
                   <StickyNoteCard
                     key={note._id}
                     note={note}
-                    onEdit={() => openEditModal(note)}
+                    onEdit={() => openModal(note)}
                     onDelete={(e) => handleDelete(note._id, e)}
                     onTogglePin={(e) => handleTogglePin(note, e)}
                   />
@@ -308,7 +260,6 @@ export default function KeepNotesPage() {
             </div>
           )}
 
-          {/* OTHER NOTES SECTION */}
           {unpinnedNotes.length > 0 && (
             <div>
               {pinnedNotes.length > 0 && (
@@ -327,7 +278,7 @@ export default function KeepNotesPage() {
                   <StickyNoteCard
                     key={note._id}
                     note={note}
-                    onEdit={() => openEditModal(note)}
+                    onEdit={() => openModal(note)}
                     onDelete={(e) => handleDelete(note._id, e)}
                     onTogglePin={(e) => handleTogglePin(note, e)}
                   />
@@ -335,13 +286,11 @@ export default function KeepNotesPage() {
               </div>
             </div>
           )}
-
         </div>
       )}
 
-      {/* WINDOW MODAL: CREATE NEW NOTE */}
-      {isCreateModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)} style={{ zIndex: 1200, background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(3px)' }}>
+      {isModalOpen && (
+        <div className="modal-overlay" onClick={closeModal} style={{ zIndex: 1200, background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(3px)' }}>
           <div
             className="modal-container"
             onClick={(e) => e.stopPropagation()}
@@ -353,10 +302,9 @@ export default function KeepNotesPage() {
               borderRadius: '12px',
               border: '1px solid #cbd5e1',
               boxShadow: '0 20px 40px -10px rgba(0,0,0,0.25)',
-              backgroundColor: newColor || '#ffffff',
+              backgroundColor: formData.color || '#ffffff',
             }}
           >
-            {/* Windows Window Header Bar */}
             <div
               style={{
                 display: 'flex',
@@ -370,12 +318,14 @@ export default function KeepNotesPage() {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <StickyNote size={15} style={{ color: '#2563eb' }} />
-                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>New Sticky Note</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
+                  {editingNoteId ? 'Edit Sticky Note' : 'New Sticky Note'}
+                </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button
                   type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
+                  onClick={closeModal}
                   style={{
                     background: 'transparent',
                     border: 'none',
@@ -395,14 +345,13 @@ export default function KeepNotesPage() {
               </div>
             </div>
 
-            {/* Window Content Form */}
-            <form onSubmit={handleCreateNote} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <form onSubmit={handleSaveNote} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <input
                 type="text"
                 className="form-control"
                 placeholder="Note Title..."
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 style={{
                   fontSize: '1rem',
                   fontWeight: 800,
@@ -413,191 +362,15 @@ export default function KeepNotesPage() {
                   outline: 'none',
                   color: '#0f172a',
                 }}
-                autoFocus
+                autoFocus={!editingNoteId}
                 required
               />
 
               <textarea
                 className="form-control"
                 placeholder="Take a note..."
-                value={newContent}
-                onChange={(e) => setNewContent(e.target.value)}
-                rows={5}
-                style={{
-                  fontSize: '0.84rem',
-                  lineHeight: 1.5,
-                  border: 'none',
-                  background: 'transparent',
-                  padding: '4px 0',
-                  boxShadow: 'none',
-                  outline: 'none',
-                  resize: 'vertical',
-                  color: '#1e293b',
-                }}
-                required
-              />
-
-              {/* Window Footer Controls: Color Picker & Action Buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', paddingTop: '12px', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-
-                {/* Color Palette Dots */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {NOTE_COLORS.map((c) => (
-                    <button
-                      key={c.value}
-                      type="button"
-                      onClick={() => setNewColor(c.value)}
-                      title={c.name}
-                      style={{
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '50%',
-                        backgroundColor: c.value,
-                        border: newColor === c.value ? `2px solid ${c.accent}` : '1px solid rgba(0,0,0,0.15)',
-                        cursor: 'pointer',
-                        transform: newColor === c.value ? 'scale(1.15)' : 'scale(1)',
-                        transition: 'transform 0.15s ease',
-                      }}
-                    />
-                  ))}
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setNewPinned(!newPinned)}
-                    style={{
-                      background: newPinned ? '#eff6ff' : 'transparent',
-                      border: newPinned ? '1px solid #93c5fd' : '1px solid #cbd5e1',
-                      borderRadius: '6px',
-                      padding: '5px 10px',
-                      fontSize: '0.75rem',
-                      fontWeight: 650,
-                      color: newPinned ? '#2563eb' : '#64748b',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {newPinned ? <Pin size={13} /> : <PinOff size={13} />}
-                    <span>{newPinned ? 'Pinned' : 'Pin'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateModalOpen(false)}
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '6px',
-                      padding: '5px 12px',
-                      fontSize: '0.78rem',
-                      fontWeight: 650,
-                      color: '#475569',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={submitting}
-                    style={{ padding: '5px 14px', fontSize: '0.78rem', fontWeight: 700 }}
-                  >
-                    {submitting ? <Loader2 size={13} className="spin" /> : 'Save Note'}
-                  </button>
-                </div>
-
-              </div>
-            </form>
-
-          </div>
-        </div>
-      )}
-
-      {/* WINDOW MODAL: EDIT NOTE */}
-      {editTarget && (
-        <div className="modal-overlay" onClick={() => setEditTarget(null)} style={{ zIndex: 1200, background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(3px)' }}>
-          <div
-            className="modal-container"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: '520px',
-              width: '95%',
-              padding: 0,
-              overflow: 'hidden',
-              borderRadius: '12px',
-              border: '1px solid #cbd5e1',
-              boxShadow: '0 20px 40px -10px rgba(0,0,0,0.25)',
-              backgroundColor: editColor || '#ffffff',
-            }}
-          >
-            {/* Windows Window Header Bar */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '10px 14px',
-                background: 'rgba(255, 255, 255, 0.65)',
-                borderBottom: '1px solid rgba(0,0,0,0.08)',
-                userSelect: 'none',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <StickyNote size={15} style={{ color: '#2563eb' }} />
-                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>Edit Sticky Note</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <button
-                  type="button"
-                  onClick={() => setEditTarget(null)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    borderRadius: '4px',
-                    width: '24px',
-                    height: '24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: '#64748b',
-                  }}
-                  title="Close"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-            </div>
-
-            {/* Window Content Form */}
-            <form onSubmit={handleSaveEdit} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <input
-                type="text"
-                className="form-control"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                style={{
-                  fontSize: '1rem',
-                  fontWeight: 800,
-                  border: 'none',
-                  background: 'transparent',
-                  padding: '4px 0',
-                  boxShadow: 'none',
-                  outline: 'none',
-                  color: '#0f172a',
-                }}
-                required
-              />
-
-              <textarea
-                className="form-control"
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
+                value={formData.content}
+                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                 rows={6}
                 style={{
                   fontSize: '0.84rem',
@@ -613,25 +386,22 @@ export default function KeepNotesPage() {
                 required
               />
 
-              {/* Window Footer Controls: Color Picker & Action Buttons */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', paddingTop: '12px', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-
-                {/* Color Palette Dots */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {NOTE_COLORS.map((c) => (
                     <button
                       key={c.value}
                       type="button"
-                      onClick={() => setEditColor(c.value)}
+                      onClick={() => setFormData({ ...formData, color: c.value })}
                       title={c.name}
                       style={{
                         width: '20px',
                         height: '20px',
                         borderRadius: '50%',
                         backgroundColor: c.value,
-                        border: editColor === c.value ? `2px solid ${c.accent}` : '1px solid rgba(0,0,0,0.15)',
+                        border: formData.color === c.value ? `2px solid ${c.accent}` : '1px solid rgba(0,0,0,0.15)',
                         cursor: 'pointer',
-                        transform: editColor === c.value ? 'scale(1.15)' : 'scale(1)',
+                        transform: formData.color === c.value ? 'scale(1.15)' : 'scale(1)',
                         transition: 'transform 0.15s ease',
                       }}
                     />
@@ -641,28 +411,28 @@ export default function KeepNotesPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <button
                     type="button"
-                    onClick={() => setEditPinned(!editPinned)}
+                    onClick={() => setFormData({ ...formData, isPinned: !formData.isPinned })}
                     style={{
-                      background: editPinned ? '#eff6ff' : 'transparent',
-                      border: editPinned ? '1px solid #93c5fd' : '1px solid #cbd5e1',
+                      background: formData.isPinned ? '#eff6ff' : 'transparent',
+                      border: formData.isPinned ? '1px solid #93c5fd' : '1px solid #cbd5e1',
                       borderRadius: '6px',
                       padding: '5px 10px',
                       fontSize: '0.75rem',
                       fontWeight: 650,
-                      color: editPinned ? '#2563eb' : '#64748b',
+                      color: formData.isPinned ? '#2563eb' : '#64748b',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '4px',
                       cursor: 'pointer',
                     }}
                   >
-                    {editPinned ? <Pin size={13} /> : <PinOff size={13} />}
-                    <span>{editPinned ? 'Pinned' : 'Pin'}</span>
+                    {formData.isPinned ? <Pin size={13} /> : <PinOff size={13} />}
+                    <span>{formData.isPinned ? 'Pinned' : 'Pin'}</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setEditTarget(null)}
+                    onClick={closeModal}
                     style={{
                       background: 'transparent',
                       border: '1px solid #cbd5e1',
@@ -683,22 +453,18 @@ export default function KeepNotesPage() {
                     disabled={submitting}
                     style={{ padding: '5px 14px', fontSize: '0.78rem', fontWeight: 700 }}
                   >
-                    {submitting ? <Loader2 size={13} className="spin" /> : 'Save Changes'}
+                    {submitting ? <Loader2 size={13} className="spin" /> : (editingNoteId ? 'Save Changes' : 'Save Note')}
                   </button>
                 </div>
-
               </div>
             </form>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }
 
-// WINDOWS STICKY NOTE CARD COMPONENT
 function StickyNoteCard({
   note,
   onEdit,
@@ -741,7 +507,6 @@ function StickyNoteCard({
       }}
     >
       <div>
-        {/* Card Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
           <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.3 }}>
             {note.title}
@@ -753,7 +518,6 @@ function StickyNoteCard({
           )}
         </div>
 
-        {/* Card Content Body */}
         <p
           style={{
             margin: 0,
@@ -768,7 +532,6 @@ function StickyNoteCard({
         </p>
       </div>
 
-      {/* Card Footer Actions */}
       <div
         style={{
           display: 'flex',
@@ -816,4 +579,3 @@ function StickyNoteCard({
     </article>
   );
 }
-

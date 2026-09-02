@@ -49,8 +49,8 @@ export default function AddTeamMemberModal({
   const [password, setPassword] = useState('password123');
   const [showPassword, setShowPassword] = useState(false);
   const [userType, setUserType] = useState<'employee' | 'admin'>('employee');
-  const [role, setRole] = useState('UI UX Designer');
-  const [project, setProject] = useState('Design');
+  const [role, setRole] = useState('');
+  const [project, setProject] = useState('');
   const [status, setStatus] = useState('Active');
   const [workMode, setWorkMode] = useState('Hybrid');
   const [avatarColor, setAvatarColor] = useState('#3b82f6');
@@ -334,7 +334,7 @@ export default function AddTeamMemberModal({
           {/* Row 2: Job Title / Role & Default Project */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'start' }}>
             <CustomDropdown
-              label="Job Title / Role *"
+              label="Job Title / Designation *"
               placeholder="Select Job Title / Role"
               value={role}
               options={allRoleSuggestions.map((r) => ({

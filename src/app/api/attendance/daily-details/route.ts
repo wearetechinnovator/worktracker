@@ -4,8 +4,6 @@ import Attendance from '@/models/Attendance';
 import Employee from '@/models/Employee';
 import WorkEntry from '@/models/WorkEntry';
 import TaskWork from '@/models/TaskWork';
-import Project from '@/models/Project';
-import Task from '@/models/Task';
 
 export async function GET(request: Request) {
   try {
