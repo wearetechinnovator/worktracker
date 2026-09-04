@@ -14,20 +14,16 @@ export async function GET() {
     }
 
     const employee = await Employee.findById(user.id)
-      .select('_id name email role userType Project status avatarColor workMode')
+      .select('_id name email role roleId userType Project status avatarColor workMode')
       .lean();
 
     if (!employee || employee.status !== 'Active') {
       return NextResponse.json({ success: false, error: 'Account inactive or not found' }, { status: 403 });
     }
 
-    let roleDoc = null;
-    if (employee.role) {
-      roleDoc = await Role.findOne({
-        name: { $regex: new RegExp(`^${employee.role.trim()}$`, 'i') },
-      }).lean();
-    }
-
+    const roleDoc = employee.roleId
+      ? await Role.findById(employee.roleId).lean()
+      : await Role.findOne({ name: /^Employee$/i }).lean();
     const isSystemAdmin = employee.userType === 'admin' || Boolean(roleDoc?.isSystemAdmin);
     const permissions: string[] = roleDoc?.permissions || (isSystemAdmin ? ALL_PERMISSION_KEYS : []);
 
@@ -37,6 +33,7 @@ export async function GET() {
       name: employee.name,
       email: employee.email,
       role: employee.role,
+      roleId: employee.roleId?.toString(),
       userType: employee.userType,
       Project: employee.Project,
       avatarColor: employee.avatarColor,

@@ -93,58 +93,22 @@ export const ALL_PERMISSION_KEYS = PERMISSION_GROUPS.flatMap((g) => g.actions.ma
 
 export const DEFAULT_SYSTEM_ROLES = [
   {
-    name: 'Admin',
-    description: 'Full system administrator with unmitigated access to all resources and settings',
-    color: '#7f56d9',
-    position: 1,
-    isSystemRole: true,
-    isSystemAdmin: true,
-    permissions: ALL_PERMISSION_KEYS,
-  },
-  {
-    name: 'Project Manager',
-    description: 'Manages projects, clients, task assignments, and reviews team work logs',
-    color: '#3b82f6',
-    position: 2,
-    isSystemRole: true,
-    isSystemAdmin: false,
-    permissions: [
-      'tasks:read', 'tasks:create', 'tasks:update', 'tasks:delete', 'tasks:manage_all',
-      'projects:read', 'projects:create', 'projects:update', 'projects:delete',
-      'clients:read', 'clients:create', 'clients:update',
-      'employees:read',
-      'attendance:read', 'attendance:punch', 'attendance:manage',
-      'worklogs:read', 'worklogs:manage',
-      'reports:view', 'reports:export'
-    ],
-  },
-  {
     name: 'Employee',
-    description: 'Standard team member. Can work on assigned tasks, log work sessions, and punch attendance',
+    description: 'Standard employee role',
     color: '#10b981',
-    position: 3,
-    isSystemRole: true,
-    isSystemAdmin: false,
-    permissions: [
-      'tasks:read', 'tasks:create', 'tasks:update',
-      'projects:read',
-      'clients:read',
-      'employees:read',
-      'attendance:read', 'attendance:punch',
-      'worklogs:read'
-    ],
-  },
-  {
-    name: 'Client',
-    description: 'External guest role with read-only access to relevant tagged projects and tasks',
-    color: '#f59e0b',
-    position: 4,
+    position: 1,
     isSystemRole: true,
     isSystemAdmin: false,
     permissions: [
       'tasks:read',
+      'tasks:create',
+      'tasks:update',
       'projects:read',
-      'clients:read'
+      'clients:read',
+      'employees:read',
+      'attendance:read',
+      'attendance:punch',
+      'worklogs:read',
     ],
   },
 ];

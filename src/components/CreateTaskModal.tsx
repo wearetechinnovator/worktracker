@@ -420,7 +420,7 @@ export function CreateTaskModal({
                         gap: '3px',
                         padding: '0 2px',
                       }}
-                      title="Create and add new team member"
+                      title="Create and add new employee"
                     >
                       <Plus size={13} />
                       <span>add employee</span>

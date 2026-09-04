@@ -17,6 +17,28 @@ export default function CKEditorWrapper({ value, onChange }: CKEditorWrapperProp
       <CKEditor
         editor={ClassicEditor as any}
         data={value}
+        config={{
+          toolbar: [
+            'undo',
+            'redo',
+            '|',
+            'heading',
+            
+            '|',
+            'bold',
+            'italic',
+            // 'link',
+            // 'uploadImage',
+            // 'insertTable',
+            // 'blockQuote',
+            // 'mediaEmbed',
+            '|',
+            'bulletedList',
+            'numberedList',
+            'outdent',
+            'indent',
+          ],
+        }}
         onChange={(_event: any, editor: any) => {
           const data = editor.getData();
           onChange(data);

@@ -325,7 +325,7 @@ export default function CreateProjectModal({
           padding: '16px',
           animation: 'fadeIn 0.2s ease-out',
         }}
-        onClick={handleClose}
+        // onClick={handleClose}
       >
         <div
           className="modal-container"
@@ -405,7 +405,7 @@ export default function CreateProjectModal({
                   Description <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Optional)</span>
                 </label>
                 <div className="custom-input-group" style={{ alignItems: 'flex-start' }}>
-                  <span className="custom-input-addon" style={{ height: 'auto', paddingTop: '8px' }}>
+                  <span className="custom-input-addon" style={{ height: '100%'}}>
                     <FileText size={14} />
                   </span>
                   <textarea
@@ -414,7 +414,7 @@ export default function CreateProjectModal({
                     onChange={(e) => setDescription(e.target.value)}
                     rows={2}
                     className="custom-input-control"
-                    style={{ resize: 'vertical', minHeight: '60px' }}
+                    style={{ resize: 'vertical', minHeight: '35px' }}
                   />
                 </div>
               </div>

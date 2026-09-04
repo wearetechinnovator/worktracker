@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users, UserPlus, Mail, Edit3,
@@ -11,6 +11,7 @@ import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCale
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import PageShimmer from '@/components/PageShimmer';
 import type { Employee } from '../../types/Employee2';
+
 
 export default function EmployeesPage() {
   const router = useRouter();
@@ -35,7 +36,9 @@ export default function EmployeesPage() {
   const [status, setStatus] = useState('Active');
   const [workMode, setWorkMode] = useState('Hybrid');
   const [color, setColor] = useState('#3b82f6');
+
   const [password, setPassword] = useState('');
+
   const [userType, setUserType] = useState<'admin' | 'employee'>('employee');
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [roleSuggestions, setRoleSuggestions] = useState<string[]>([]);
@@ -96,6 +99,7 @@ export default function EmployeesPage() {
     } finally {
       setLoading(false);
     }
+
   }, [user]);
 
   useEffect(() => {
@@ -154,7 +158,7 @@ export default function EmployeesPage() {
     setStatus(emp.status);
     setWorkMode(emp.workMode || 'Hybrid');
     setColor(emp.avatarColor);
-    setPassword('');
+    setPassword(emp.password || '');
     setUserType(emp.userType || 'employee');
     setShowEditPassword(false);
     setIsEditModalOpen(true);
@@ -237,6 +241,8 @@ export default function EmployeesPage() {
       alert(err.message || 'Error updating punch override');
     }
   };
+  
+  
 
   const filteredEmployees = useMemo(() => {
     return employees?.filter((emp: any) => emp.userType !== 'admin' && emp.role?.toLowerCase() !== 'admin');
@@ -315,7 +321,7 @@ export default function EmployeesPage() {
   if (loading && employees.length === 0) {
     return <PageShimmer variant="employees" />;
   }
-
+  
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }}>
@@ -398,8 +404,8 @@ export default function EmployeesPage() {
                           fontSize: '0.65rem',
                           padding: '4px 8px',
                           fontWeight: 700,
-                          background: emp.todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#dcfce7' : 'var(--bg-tertiary)',
-                          color: emp.todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#15803d' : 'var(--text-secondary)',
+                          background: emp.todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#dcfce7' : '#15803d',
+                          color: emp.todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#15803d' : '#dcfce7',
                           border: '1px solid ' + (emp.todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#86efac' : 'var(--border-color)'),
                         }}
                         onClick={() => handleTogglePunchOverride(emp._id, 'allowPunchIn')}
@@ -415,8 +421,8 @@ export default function EmployeesPage() {
                           fontSize: '0.65rem',
                           padding: '4px 8px',
                           fontWeight: 700,
-                          background: emp.todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#fee2e2' : 'var(--bg-tertiary)',
-                          color: emp.todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#b91c1c' : 'var(--text-secondary)',
+                          background: emp.todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#fee2e2' : '#b91c1c',
+                          color: emp.todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#b91c1c' : '#fee2e2',
                           border: '1px solid ' + (emp.todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#fca5a5' : 'var(--border-color)'),
                         }}
                         onClick={() => handleTogglePunchOverride(emp._id, 'allowPunchOut')}
@@ -438,10 +444,10 @@ export default function EmployeesPage() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '4px' }} className="no-print" onClick={(e) => e.stopPropagation()}>
-                    <button className="action-btn" title="Edit Employee" onClick={() => openEditModal(emp)}>
+                    <button className="action-btn" title="Edit Employee" onClick={() => openEditModal(emp)} style={{backgroundColor:'#cdfe9c'}}>
                       <Edit3 size={12} />
                     </button>
-                    <button className="action-btn btn-delete-item" title="Delete Employee" onClick={() => handleDelete(emp._id)}>
+                    <button className="action-btn btn-delete-item" title="Delete Employee" onClick={() => handleDelete(emp._id)} style={{backgroundColor:'#f38686'}}>
                       <Trash2 size={12} />
                     </button>
                   </div>
@@ -501,16 +507,17 @@ export default function EmployeesPage() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">New Password (leave blank to keep unchanged)</label>
+                  <label className="form-label">New Password </label>
                   <div style={{ position: 'relative' }}>
                     <input
                       type={showEditPassword ? "text" : "password"}
                       className="form-control"
                       style={{ paddingRight: '36px' }}
                       value={password}
-                      placeholder="••••••••"
+                      placeholder="Enter new password"
                       onChange={(e) => setPassword(e.target.value)}
                     />
+                    
                     <button
                       type="button"
                       onClick={() => setShowEditPassword(!showEditPassword)}

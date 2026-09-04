@@ -964,7 +964,7 @@ export default function ProjectsPage() {
                     {/* Left: Logs */}
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <h3 className="card-title" style={{ fontSize: '0.85rem' }}>Work Logs ({filteredProjEntries.length})</h3>
+                        <h3 className="card-title" style={{ fontWeight:'400', fontSize: '0.85rem' }}>Work Logs ({filteredProjEntries.length})</h3>
 
                         <div style={{ display: 'flex', gap: '6px' }}>
                           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -1005,7 +1005,7 @@ export default function ProjectsPage() {
                                     <span style={{ fontWeight: 700 }}>{log.employeeName}</span>
                                     <span style={{ color: 'var(--text-muted)' }}>{log.date}</span>
                                   </div>
-                                  <h5 style={{ fontWeight: 700, fontSize: '0.78rem', margin: '1px 0' }}>{log.title}</h5>
+                                  <h5 style={{ fontWeight: 400, fontSize: '0.78rem', margin: '1px 0' }}>{log.title}</h5>
                                   {log.description && (
                                     <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '2px' }}>
                                       {log.description}
@@ -1038,7 +1038,7 @@ export default function ProjectsPage() {
 
                     {/* Right: Members */}
                     <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
-                      <h3 className="card-title" style={{ fontSize: '0.85rem', marginBottom: '8px' }}>Staff Assigned</h3>
+                      <h3 className="card-title" style={{fontWeight:'400', fontSize: '0.85rem', marginBottom: '8px' }}>Staff Assigned</h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto' }}>
                         {activeProject.members.map((m: any) => {
                           const presence: 'working' | 'idle' | 'offline' = m.presenceState || 'offline';
@@ -1063,7 +1063,6 @@ export default function ProjectsPage() {
                           }
 
                           const initials = m.name ? m.name.split(' ').map((n: string) => n[0]).join('') : 'U';
-
                           return (
                             <div key={m._id} className="list-row" style={{ padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                               <div className="avatar-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>

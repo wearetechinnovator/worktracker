@@ -84,7 +84,7 @@ export function CustomDropdown({
                 padding: '0 2px',
               }}
             >
-              <Plus size={13} />
+              <Plus size={13}/>
               <span>{actionButton.label}</span>
             </button>
           )}
@@ -134,8 +134,8 @@ export function CustomDropdown({
               style={{
                 fontSize: '0.65rem',
                 fontWeight: 700,
-                padding: '2px 6px',
-                borderRadius: '4px',
+                padding: '6px 6px',
+                borderRadius: '100%',
                 background: selectedOption.badgeBg || '#eff6ff',
                 color: selectedOption.badgeColor || 'var(--accent-primary)',
               }}

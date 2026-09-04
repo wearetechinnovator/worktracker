@@ -29,37 +29,26 @@ export async function GET() {
       }
     }
 
-    // Scan Employee collection for any distinct roles not in DB
-    const empRoles = await Employee.distinct('role');
-    const dbRoleNamesLower = dbRoles.map((r) => r.name.toLowerCase().trim());
-
-    const rolesToCreate = [];
-    for (const rName of empRoles) {
-      if (rName && rName.trim() && !dbRoleNamesLower.includes(rName.toLowerCase().trim())) {
-        rolesToCreate.push({
-          name: rName.trim(),
-          description: 'Auto-detected from employee profiles',
-          color: '#94a3b8',
-          position: dbRoles.length + 1,
-          isSystemRole: false,
-          isSystemAdmin: false,
-          permissions: ['tasks:read', 'projects:read', 'attendance:punch'],
-        });
-      }
+    // Keep one default permission role for employees and backfill legacy records.
+    let employeeRole = await Role.findOne({ name: /^Employee$/i });
+    if (!employeeRole) {
+      employeeRole = await Role.create(DEFAULT_SYSTEM_ROLES[0]);
+      dbRoles = [...dbRoles, employeeRole.toObject()];
     }
-
-    if (rolesToCreate.length > 0) {
-      const createdRoles = await Role.insertMany(rolesToCreate);
-      dbRoles = [...dbRoles, ...createdRoles.map((r) => r.toObject())];
-    }
+    await Employee.updateMany(
+      { userType: { $ne: 'admin' }, $or: [{ roleId: { $exists: false } }, { roleId: null }] },
+      { $set: { roleId: employeeRole._id } }
+    );
 
     // Fetch all employees
-    const allEmployees = await Employee.find().select('name email role avatarColor status userType').lean();
+    const allEmployees = await Employee.find()
+      .select('name email role roleId avatarColor status userType')
+      .lean();
 
     // Map employees to roles
     const rolesWithMembers = dbRoles.map((role) => {
       const members = allEmployees.filter(
-        (emp) => emp.role && emp.role.toLowerCase().trim() === role.name.toLowerCase().trim()
+        (emp) => emp.roleId?.toString() === role._id.toString()
       );
       return {
         ...role,

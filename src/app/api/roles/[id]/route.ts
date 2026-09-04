@@ -50,14 +50,6 @@ export async function PUT(
 
     const updatedRole = await Role.findByIdAndUpdate(id, updateFields, { new: true });
 
-    // Synchronize Employee role string if role name changed
-    if (body.name && body.name !== existingRole.name) {
-      await Employee.updateMany(
-        { role: existingRole.name },
-        { role: body.name.trim() }
-      );
-    }
-
     return NextResponse.json({ success: true, data: updatedRole });
   } catch (error: any) {
     console.error('Error updating role:', error);
@@ -89,10 +81,12 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'System default roles cannot be deleted' }, { status: 400 });
     }
 
-    // Re-assign employees of deleted role to Employee role
+    const employeeRole = await Role.findOne({ name: /^Employee$/i });
     await Employee.updateMany(
-      { role: roleToDelete.name },
-      { role: 'Employee' }
+      { roleId: roleToDelete._id },
+      employeeRole
+        ? { roleId: employeeRole._id }
+        : { $unset: { roleId: 1 } }
     );
 
     await Role.findByIdAndDelete(id);

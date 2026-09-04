@@ -189,16 +189,15 @@ export default function Dashboard() {
       if (!isSilent) setLoading(true);
       setError(null);
 
-      const [response, clientsRes, tasksRes, aiRes] = await Promise.all([
+      const [response, clientsRes, tasksRes] = await Promise.all([
         fetch('/api/dashboard'),
         fetch('/api/clients'),
         fetch('/api/tasks'),
-        fetch('/api/ai-sessions'),
       ]);
       const result = await response.json().catch(() => null);
       const clientsData = await clientsRes.json().catch(() => null);
       const tasksData = await tasksRes.json().catch(() => null);
-      const aiData = await aiRes.json().catch(() => null);
+
 
       if (!response.ok || !result?.success) throw new Error(result?.error || 'Failed to connect to database');
       const { projects: nextProjects, employees: nextEmployees, entries: nextEntries } = result.data;
@@ -215,10 +214,7 @@ export default function Dashboard() {
       if (tasksData && tasksData.success && Array.isArray(tasksData.data)) {
         setTasksList(tasksData.data);
       }
-      if (aiData && aiData.success) {
-        setAiSessionsData(aiData.sessions || []);
-        setAiMetricsData(aiData.metrics || null);
-      }
+      
 
       setWorkProjId((prev) => prev || (nextProjects.length > 0 ? nextProjects[0]._id : ''));
       setWorkEmpId((prev) => {
@@ -2067,7 +2063,7 @@ export default function Dashboard() {
                           gap: '3px',
                           padding: '0 2px',
                         }}
-                        title="Create and add new team member"
+                        title="Create and add new employee"
                       >
                         <Plus size={13} />
                         <span>add employee</span>

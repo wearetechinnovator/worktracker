@@ -203,7 +203,7 @@ export default function CreateClientModal({
           padding: '16px',
           animation: 'fadeIn 0.2s ease-out',
         }}
-        onClick={handleClose}
+        // onClick={handleClose}
       >
         <div
           className="modal-container"
@@ -356,18 +356,17 @@ export default function CreateClientModal({
             {/* Row 2: Contract Date & Time Picker */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'start' }}>
               <CustomDatePicker
-                label="Contract Expiry Date"
+                label="Contract Start Date"
                 placeholder="Select Date"
                 value={durationDate}
                 onChange={(val) => setDurationDate(val)}
               />
 
-              <CustomTimePicker
-                label="Contract Expiry Time"
-                placeholder="Select Time"
-                value={durationTime}
-                onChange={(val) => setDurationTime(val)}
-                align="right"
+              <CustomDatePicker
+                label="Contract End Date"
+                placeholder="Select Date"
+                value={durationDate}
+                onChange={(val) => setDurationDate(val)}
               />
             </div>
             </div>

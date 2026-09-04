@@ -20,7 +20,11 @@ const RoleSchema = new Schema<IRole>(
     position: { type: Number, default: 0 },
     isSystemRole: { type: Boolean, default: false },
     isSystemAdmin: { type: Boolean, default: false },
-    permissions: [{ type: String }],
+    permissions: {
+      type: [String],
+      default: [],
+      required: true,
+    },
   },
   { timestamps: true }
 );

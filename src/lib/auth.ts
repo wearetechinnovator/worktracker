@@ -16,17 +16,13 @@ export async function currentUser() {
 
   await dbConnect();
   const employee = await Employee.findById(session.userId)
-    .select('_id name email userType role Project status')
+    .select('_id name email userType role roleId Project status')
     .lean();
   if (!employee || employee.status !== 'Active') return null;
 
-  // Look up employee's assigned Role document in DB
-  let roleDoc = null;
-  if (employee.role) {
-    roleDoc = await Role.findOne({
-      name: { $regex: new RegExp(`^${employee.role.trim()}$`, 'i') },
-    }).lean();
-  }
+  const roleDoc = employee.roleId
+    ? await Role.findById(employee.roleId).lean()
+    : await Role.findOne({ name: /^Employee$/i }).lean();
 
   const isSystemAdmin = employee.userType === 'admin' || Boolean(roleDoc?.isSystemAdmin);
   const permissions: string[] = roleDoc?.permissions || (isSystemAdmin ? ALL_PERMISSION_KEYS : []);
@@ -48,6 +44,7 @@ export async function currentUser() {
     email: employee.email,
     userType: employee.userType,
     role: employee.role,
+    roleId: employee.roleId?.toString(),
     Project: employee.Project,
     isSystemAdmin,
     permissions,

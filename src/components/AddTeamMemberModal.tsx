@@ -48,8 +48,8 @@ export default function AddTeamMemberModal({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('password123');
   const [showPassword, setShowPassword] = useState(false);
-  const [userType, setUserType] = useState<'employee' | 'admin'>('employee');
   const [role, setRole] = useState('');
+  const [roleId, setRoleId] = useState('');
   const [project, setProject] = useState('');
   const [status, setStatus] = useState('Active');
   const [workMode, setWorkMode] = useState('Hybrid');
@@ -96,14 +96,26 @@ export default function AddTeamMemberModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    setError(null);
-
     // Fetch designations (pure text job titles, no system access roles)
     fetch('/api/designations')
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.data)) {
           setFetchedDesignations(data.data);
+        }
+      })
+      .catch(() => { });
+
+    fetch('/api/roles')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.data)) {
+          const employeeRole = data.data.find(
+            (item: { _id: string; name: string }) => item.name.toLowerCase() === 'employee'
+          );
+          if (employeeRole) {
+            setRoleId(employeeRole._id);
+          }
         }
       })
       .catch(() => { });
@@ -148,9 +160,8 @@ export default function AddTeamMemberModal({
     setEmail('');
     setPassword('password123');
     setShowPassword(false);
-    setUserType('employee');
-    setRole('UI UX Designer');
-    setProject('Design');
+    setRole('');
+    setProject('');
     setStatus('Active');
     setWorkMode('Hybrid');
     setAvatarColor('#3b82f6');
@@ -162,13 +173,17 @@ export default function AddTeamMemberModal({
     onClose();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e:any) => {
+
     e.preventDefault();
-    if (!name.trim() || !email.trim() || !role.trim() || !project.trim()) {
-      setError('Please fill in all required fields.');
+
+    
+    if (!name.trim() || !email.trim() || !password.trim() || !role.trim()) {
+      setError('Please fill all required fields');
+
       return;
     }
-
+    
     try {
       setSubmitting(true);
       setError(null);
@@ -180,8 +195,9 @@ export default function AddTeamMemberModal({
           name: name.trim(),
           email: email.trim(),
           password: password || 'password123',
-          userType,
+          userType: 'employee',
           role: role.trim(),
+          roleId,
           Project: project.trim(),
           status,
           workMode,
@@ -223,7 +239,7 @@ export default function AddTeamMemberModal({
         padding: '16px',
         animation: 'fadeIn 0.2s ease-out',
       }}
-      onClick={handleClose}
+      // onClick={handleClose}
     >
       <div
         className="modal-container"
@@ -241,7 +257,7 @@ export default function AddTeamMemberModal({
         {/* Modal Header */}
         <div className="modal-header">
           <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-            Add New Team Member
+            Add New Employee
           </h3>
           <button className="modal-close" onClick={handleClose}>&times;</button>
         </div>
@@ -270,7 +286,7 @@ export default function AddTeamMemberModal({
           {/* Full Name */}
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-              Full Name <span style={{ color: '#ef4444' }}>*</span>
+              Full Name *
             </label>
             <div className="custom-input-group">
               <span className="custom-input-addon">
@@ -278,7 +294,7 @@ export default function AddTeamMemberModal({
               </span>
               <input
                 type="text"
-                required
+
                 className="custom-input-control"
                 placeholder="Full Name"
                 value={name}
@@ -290,7 +306,7 @@ export default function AddTeamMemberModal({
           {/* Email Address */}
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-              Email Address <span style={{ color: '#ef4444' }}>*</span>
+              Email Address *
             </label>
             <div className="custom-input-group">
               <span className="custom-input-addon">
@@ -298,7 +314,7 @@ export default function AddTeamMemberModal({
               </span>
               <input
                 type="email"
-                required
+
                 className="custom-input-control"
                 placeholder="example@mail.com"
                 value={email}
@@ -311,7 +327,7 @@ export default function AddTeamMemberModal({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'start' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-                Password <span style={{ color: '#ef4444' }}>*</span>
+                Password *
               </label>
               <div className="custom-input-group" style={{ position: 'relative' }}>
                 <span className="custom-input-addon">
@@ -350,14 +366,11 @@ export default function AddTeamMemberModal({
             </div>
 
             <CustomDropdown
-              label="Access Type *"
+              label="Access Type / Role *"
               placeholder="Select Access Type"
-              value={userType}
-              options={[
-                { value: 'employee', label: 'Employee', badgeText: 'Employee', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-                { value: 'admin', label: 'Admin', badgeText: 'Admin', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
-              ]}
-              onChange={(val) => setUserType(val as 'employee' | 'admin')}
+              value="employee"
+              options={[{ value: 'employee', label: 'Employee' }]}
+              onChange={() => {}}
             />
           </div>
 
@@ -373,13 +386,13 @@ export default function AddTeamMemberModal({
               }))}
               onChange={(val) => setRole(val)}
               actionButton={{
-                label: 'Add Designation',
+                label: 'Add',
                 onClick: () => setIsAddRoleModalOpen(true),
               }}
             />
 
             <CustomDropdown
-              label="Default Project *"
+              label="Default Project"
               placeholder="Select Project"
               value={project}
               options={allProjectOptions.map((p) => ({
@@ -397,9 +410,9 @@ export default function AddTeamMemberModal({
               placeholder="Select Status"
               value={status}
               options={[
-                { value: 'Active', label: 'Active', badgeText: 'Active', badgeBg: '#ecfdf5', badgeColor: '#047857' },
-                { value: 'Inactive', label: 'Inactive', badgeText: 'Inactive', badgeBg: '#f1f5f9', badgeColor: '#475569' },
-                { value: 'On Leave', label: 'On Leave', badgeText: 'On Leave', badgeBg: '#fffbeb', badgeColor: '#b45309' },
+                { value: 'Active', label: 'Active', badgeText: '•', badgeBg: '#ecfdf5', badgeColor: '#047857' },
+                { value: 'Inactive', label: 'Inactive', badgeText: '•', badgeBg: '#f1f5f9', badgeColor: '#475569' },
+                { value: 'On Leave', label: 'On Leave', badgeText: '•', badgeBg: '#fffbeb', badgeColor: '#b45309' },
               ]}
               onChange={(val) => setStatus(val)}
             />
@@ -409,9 +422,9 @@ export default function AddTeamMemberModal({
               placeholder="Select Work Mode"
               value={workMode}
               options={[
-                { value: 'Hybrid', label: 'Hybrid', badgeText: 'Hybrid', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-                { value: 'Remote', label: 'Remote', badgeText: 'Remote', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
-                { value: 'Onsite', label: 'Onsite', badgeText: 'Onsite', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
+                { value: 'Hybrid', label: 'Hybrid', badgeText: '•', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
+                { value: 'Remote', label: 'Remote', badgeText: '•', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
+                { value: 'Onsite', label: 'Onsite', badgeText: '•', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
               ]}
               onChange={(val) => setWorkMode(val)}
             />
@@ -437,7 +450,7 @@ export default function AddTeamMemberModal({
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={submitting || !name.trim() || !email.trim()}
+              // disabled={submitting || !name.trim() || !email.trim()}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
