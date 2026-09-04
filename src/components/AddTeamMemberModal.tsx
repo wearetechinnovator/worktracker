@@ -25,16 +25,16 @@ const DEFAULT_PROJECTS = [
   'Finance',
 ];
 
-const DEFAULT_ROLES = [
+const DEFAULT_DESIGNATIONS = [
   'UI UX Designer',
-  'Frontend Developer',
-  'Backend Developer',
-  'Full Stack Developer',
-  'Project Manager',
-  'QA Engineer',
-  'DevOps Engineer',
-  'Marketing Specialist',
-  'HR Manager',
+  // 'Frontend Developer',
+  // 'Backend Developer',
+  // 'Full Stack Developer',
+  // 'Project Manager',
+  // 'QA Engineer',
+  // 'DevOps Engineer',
+  // 'Marketing Specialist',
+  // 'HR Manager',
 ];
 
 export default function AddTeamMemberModal({
@@ -55,24 +55,55 @@ export default function AddTeamMemberModal({
   const [workMode, setWorkMode] = useState('Hybrid');
   const [avatarColor, setAvatarColor] = useState('#3b82f6');
 
-  const [fetchedRoles, setFetchedRoles] = useState<string[]>([]);
+  const [fetchedDesignations, setFetchedDesignations] = useState<string[]>([]);
   const [fetchedProjects, setFetchedProjects] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch roles and projects dynamically when opened
+  // New state for Add Designation pop-up modal
+  const [isAddRoleModalOpen, setIsAddRoleModalOpen] = useState(false);
+  const [newRoleName, setNewRoleName] = useState('');
+  const [addingRole, setAddingRole] = useState(false);
+  const [roleAddError, setRoleAddError] = useState<string | null>(null);
+
+  const handleCreateNewRole = async () => {
+    const trimmed = newRoleName.trim();
+    if (!trimmed) return;
+    try {
+      setAddingRole(true);
+      setRoleAddError(null);
+
+      const res = await fetch('/api/designations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const data = await res.json();
+      const designationName = data.success && data.data ? data.data : trimmed;
+
+      setFetchedDesignations((prev) => Array.from(new Set([designationName, ...prev])));
+      setRole(designationName);
+      setNewRoleName('');
+      setIsAddRoleModalOpen(false);
+    } catch (err: any) {
+      setRoleAddError(err.message || 'Error adding designation');
+    } finally {
+      setAddingRole(false);
+    }
+  };
+
+  // Fetch designations and projects dynamically when opened
   useEffect(() => {
     if (!isOpen) return;
 
     setError(null);
 
-    // Fetch custom roles if available
-    fetch('/api/roles')
+    // Fetch designations (pure text job titles, no system access roles)
+    fetch('/api/designations')
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.data)) {
-          const names = data.data.map((r: any) => r.name || r).filter(Boolean);
-          setFetchedRoles(names);
+          setFetchedDesignations(data.data);
         }
       })
       .catch(() => { });
@@ -91,12 +122,11 @@ export default function AddTeamMemberModal({
 
   if (!isOpen) return null;
 
-  // Combine role suggestions
+  // Combine pure designation options (excluding system access roles like Admin, Employee, Client)
   const allRoleSuggestions = Array.from(
     new Set([
-      ...(roleSuggestions || []),
-      ...fetchedRoles,
-      ...DEFAULT_ROLES,
+      ...fetchedDesignations,
+      ...DEFAULT_DESIGNATIONS,
     ])
   );
 
@@ -342,6 +372,10 @@ export default function AddTeamMemberModal({
                 label: r,
               }))}
               onChange={(val) => setRole(val)}
+              actionButton={{
+                label: 'Add Designation',
+                onClick: () => setIsAddRoleModalOpen(true),
+              }}
             />
 
             <CustomDropdown
@@ -422,6 +456,138 @@ export default function AddTeamMemberModal({
           </div>
         </form>
       </div>
+
+      {/* Small Pop-up Modal to Add New Role */}
+      {isAddRoleModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 22000,
+            backgroundColor: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            animation: 'fadeIn 0.15s ease-out',
+          }}
+          onClick={() => setIsAddRoleModalOpen(false)}
+        >
+          <div
+            style={{
+              maxWidth: '400px',
+              width: '100%',
+              background: 'var(--bg-secondary)',
+              borderRadius: 'var(--border-radius-lg)',
+              border: '1px solid var(--border-color)',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Add New Job Title / Designation
+              </h4>
+              <button
+                type="button"
+                onClick={() => setIsAddRoleModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  fontSize: '1.2rem',
+                  lineHeight: 1,
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {roleAddError && (
+              <div
+                style={{
+                  padding: '8px 12px',
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  borderRadius: 'var(--border-radius-sm)',
+                  color: '#dc2626',
+                  fontSize: '0.78rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                <span>{roleAddError}</span>
+              </div>
+            )}
+
+            <div>
+              <label className="form-label" style={{ fontWeight: 700, fontSize: '0.78rem', marginBottom: '6px', display: 'block' }}>
+                Job Title / Role Name <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <div className="custom-input-group">
+                <span className="custom-input-addon">
+                  <Briefcase size={14} />
+                </span>
+                <input
+                  type="text"
+                  className="custom-input-control"
+                  placeholder="e.g. Senior Product Designer"
+                  value={newRoleName}
+                  onChange={(e) => setNewRoleName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleCreateNewRole();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setNewRoleName('');
+                  setRoleAddError(null);
+                  setIsAddRoleModalOpen(false);
+                }}
+                disabled={addingRole}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleCreateNewRole}
+                disabled={addingRole || !newRoleName.trim()}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                {addingRole ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Adding...</span>
+                  </>
+                ) : (
+                  <span>Add Designation</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
