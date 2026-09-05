@@ -218,7 +218,10 @@ export default function RolesPage() {
   // Create Role Handler
   const handleCreateRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRoleName.trim()) return;
+    if (!newRoleName.trim()) {
+      setCreateError('Please fill all required fields');
+      return;
+    }
 
     try {
       setSubmittingCreate(true);

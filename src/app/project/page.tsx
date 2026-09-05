@@ -263,7 +263,10 @@ export default function ProjectsPage() {
 
   const handleEditDeptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProjId || !deptName.trim()) return;
+    if (!selectedProjId || !deptName.trim()) {
+      alert('Please fill all required fields');
+      return;
+    }
 
     try {
       setSavingDept(true);
@@ -329,7 +332,10 @@ export default function ProjectsPage() {
   const handleAddWorkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalEmpId = user.userType === 'employee' ? user._id : workEmpId;
-    if (!workProjId || !finalEmpId || !workTitle.trim() || !workDate || !workStart || !workEnd) return;
+    if (!workProjId || !finalEmpId || !workTitle.trim() || !workDate || !workStart || !workEnd) {
+      alert('Please fill all required fields');
+      return;
+    }
 
     try {
       setSubmittingWork(true);
@@ -366,7 +372,10 @@ export default function ProjectsPage() {
 
   const handleEditLogSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingLog || !logProjId || !logEmpId || !logTitle.trim() || !logDate || !logStart || !logEnd) return;
+    if (!editingLog || !logProjId || !logEmpId || !logTitle.trim() || !logDate || !logStart || !logEnd) {
+      alert('Please fill all required fields');
+      return;
+    }
 
     try {
       setSubmittingWork(true);

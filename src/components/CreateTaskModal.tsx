@@ -238,7 +238,8 @@ export function CreateTaskModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title.trim()) {
-      setError('Task title is required');
+      setError('Please fill all required fields');
+      alert('Please fill all required fields');
       return;
     }
 
@@ -483,7 +484,6 @@ export function CreateTaskModal({
               <input
                 type="text"
                 className="form-control"
-                required
                 placeholder="e.g. Implement user authentication workflow"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}

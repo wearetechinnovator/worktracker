@@ -68,7 +68,10 @@ export default function AddTeamMemberModal({
 
   const handleCreateNewRole = async () => {
     const trimmed = newRoleName.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      setRoleAddError('Please fill all required fields');
+      return;
+    }
     try {
       setAddingRole(true);
       setRoleAddError(null);
@@ -173,17 +176,17 @@ export default function AddTeamMemberModal({
     onClose();
   };
 
-  const handleSubmit = async (e:any) => {
+  const handleSubmit = async (e: any) => {
 
     e.preventDefault();
 
-    
+
     if (!name.trim() || !email.trim() || !password.trim() || !role.trim()) {
       setError('Please fill all required fields');
-
+      // alert('Please fill all required fields');
       return;
     }
-    
+
     try {
       setSubmitting(true);
       setError(null);
@@ -239,7 +242,7 @@ export default function AddTeamMemberModal({
         padding: '16px',
         animation: 'fadeIn 0.2s ease-out',
       }}
-      // onClick={handleClose}
+    // onClick={handleClose}
     >
       <div
         className="modal-container"
@@ -335,7 +338,6 @@ export default function AddTeamMemberModal({
                 </span>
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  required
                   className="custom-input-control"
                   style={{ paddingRight: '34px' }}
                   value={password}
@@ -370,7 +372,7 @@ export default function AddTeamMemberModal({
               placeholder="Select Access Type"
               value="employee"
               options={[{ value: 'employee', label: 'Employee' }]}
-              onChange={() => {}}
+              onChange={() => { }}
             />
           </div>
 

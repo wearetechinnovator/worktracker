@@ -166,10 +166,9 @@ export async function POST(request: Request) {
       });
     }
 
-    // Default assignedTo to creator if no assigned employees resolved
-    if (assignedEmployeeDocs.length === 0) {
-      assignedEmployeeDocs = [creator];
-    }
+    // For admin: if no employees are explicitly assigned, leave assignedTo empty (unassigned)
+    // For employee: if no one assigned, default to themselves (already handled above)
+    // No fallback to creator here — admin can create unassigned tasks
 
     const task = await Task.create({
       title,

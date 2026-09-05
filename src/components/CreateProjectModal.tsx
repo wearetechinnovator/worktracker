@@ -209,7 +209,8 @@ export default function CreateProjectModal({
   const handleCreateClientSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClientName.trim()) {
-      setClientError('Client name is required');
+      setClientError('Please fill all required fields');
+      alert('Please fill all required fields');
       return;
     }
 
@@ -259,7 +260,8 @@ export default function CreateProjectModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError('Please provide a project name.');
+      setError('Please fill all required fields');
+      alert('Please fill all required fields');
       return;
     }
 
@@ -390,7 +392,6 @@ export default function CreateProjectModal({
                   </span>
                   <input
                     type="text"
-                    required
                     className="custom-input-control"
                     placeholder="e.g. Quality Assurance, Mobile App"
                     value={name}

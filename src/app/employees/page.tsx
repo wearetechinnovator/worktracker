@@ -43,6 +43,7 @@ export default function EmployeesPage() {
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [roleSuggestions, setRoleSuggestions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const Projects = ['Design', 'Development', 'Marketing', 'Human Resource', 'Management'];
   const statuses = ['Active', 'Inactive'];
@@ -161,15 +162,21 @@ export default function EmployeesPage() {
     setPassword(emp.password || '');
     setUserType(emp.userType || 'employee');
     setShowEditPassword(false);
+    setEditError(null);
     setIsEditModalOpen(true);
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingEmp || !name.trim() || !email.trim()) return;
+    if (!editingEmp || !name.trim() || !email.trim() || !role.trim()) {
+      setEditError('Please fill all required fields');
+      alert('Please fill all required fields');
+      return;
+    }
 
     try {
       setSubmitting(true);
+      setEditError(null);
       const updateBody: any = {
         name,
         email,
@@ -483,6 +490,25 @@ export default function EmployeesPage() {
               <button className="modal-close" onClick={() => setIsEditModalOpen(false)}>&times;</button>
             </div>
             <form onSubmit={handleEditSubmit}>
+              {editError && (
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    borderRadius: 'var(--border-radius-sm)',
+                    color: '#dc2626',
+                    fontSize: '0.78rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                  <span>{editError}</span>
+                </div>
+              )}
               <div className="form-group">
                 <label className="form-label">Full Name *</label>
                 <input

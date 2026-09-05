@@ -508,7 +508,10 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
 
   // Channel creation modal handler
   const handleCreateChannel = async () => {
-    if (!newChannelName.trim()) return;
+    if (!newChannelName.trim()) {
+      alert('Please fill all required fields');
+      return;
+    }
 
     setCreatingChannel(true);
     try {

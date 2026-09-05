@@ -132,7 +132,8 @@ export default function CreateClientModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError('Client / Company Name is required.');
+      setError('Please fill all required fields');
+      alert('Please fill all required fields');
       return;
     }
 
@@ -296,7 +297,6 @@ export default function CreateClientModal({
                   </span>
                   <input
                     type="text"
-                    required
                     className="custom-input-control"
                     placeholder="e.g. Acme Corporation"
                     value={name}

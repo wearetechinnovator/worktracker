@@ -151,7 +151,11 @@ export default function ClientsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setError('Please fill all required fields');
+      alert('Please fill all required fields');
+      return;
+    }
 
     try {
       setSubmitting(true);

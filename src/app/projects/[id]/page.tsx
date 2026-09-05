@@ -159,7 +159,10 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
   // Handle Edit Project Submit
   const handleEditProjectSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editProjName.trim()) return;
+    if (!editProjName.trim()) {
+      alert('Please fill all required fields');
+      return;
+    }
 
     try {
       setSavingProject(true);
@@ -204,7 +207,10 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
   const handleAddLogSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalEmpId = user.userType === 'employee' ? user._id : logEmpId;
-    if (!finalEmpId || !logTitle.trim() || !logDate || !logStart || !logEnd) return;
+    if (!finalEmpId || !logTitle.trim() || !logDate || !logStart || !logEnd) {
+      alert('Please fill all required fields');
+      return;
+    }
 
     try {
       setSavingLog(true);
@@ -251,6 +257,10 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     e.preventDefault();
     if (!editingLog) return;
     const finalEmpId = user.userType === 'employee' ? user._id : logEmpId;
+    if (!finalEmpId || !logTitle.trim() || !logDate || !logStart || !logEnd) {
+      alert('Please fill all required fields');
+      return;
+    }
 
     try {
       setSavingLog(true);

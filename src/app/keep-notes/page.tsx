@@ -26,6 +26,7 @@ export default function KeepNotesPage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -92,14 +93,19 @@ export default function KeepNotesPage() {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingNoteId(null);
+    setError(null);
   };
 
   const handleSaveNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim() || !formData.content.trim()) return;
+    if (!formData.title.trim() || !formData.content.trim()) {
+      setError('Please fill all required fields');
+      return;
+    }
 
     try {
       setSubmitting(true);
+      setError(null);
       const url = editingNoteId ? `/api/keep-notes/${editingNoteId}` : '/api/keep-notes';
       const method = editingNoteId ? 'PUT' : 'POST';
 
@@ -346,6 +352,24 @@ export default function KeepNotesPage() {
             </div>
 
             <form onSubmit={handleSaveNote} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {error && (
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    borderRadius: 'var(--border-radius-sm)',
+                    color: '#dc2626',
+                    fontSize: '0.78rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                  <span>{error}</span>
+                </div>
+              )}
               <input
                 type="text"
                 className="form-control"
