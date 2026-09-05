@@ -50,13 +50,6 @@ export default function CreateProjectModal({
 
   // Popup Client Creation Modal State
   const [isCreateClientModalOpen, setIsCreateClientModalOpen] = useState(false);
-  const [newClientName, setNewClientName] = useState('');
-  const [newClientPhone, setNewClientPhone] = useState('');
-  const [newClientEmails, setNewClientEmails] = useState('');
-  const [newClientAddress, setNewClientAddress] = useState('');
-  const [newClientDuration, setNewClientDuration] = useState('');
-  const [submittingClient, setSubmittingClient] = useState(false);
-  const [clientError, setClientError] = useState<string | null>(null);
 
   // Dropdown UI states
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
@@ -175,15 +168,9 @@ export default function CreateProjectModal({
     setSelectedClientId('');
     setSelectedMembers([]);
     setIsCreateClientModalOpen(false);
-    setNewClientName('');
-    setNewClientPhone('');
-    setNewClientEmails('');
-    setNewClientAddress('');
-    setNewClientDuration('');
     setClientSearch('');
     setMemberSearch('');
     setError(null);
-    setClientError(null);
   };
 
   const handleClose = () => {
@@ -205,63 +192,10 @@ export default function CreateProjectModal({
     }
   };
 
-  // Handle Client Creation in Popup Modal
-  const handleCreateClientSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newClientName.trim()) {
-      setClientError('Please fill all required fields');
-      alert('Please fill all required fields');
-      return;
-    }
-
-    try {
-      setSubmittingClient(true);
-      setClientError(null);
-
-      const res = await fetch('/api/clients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newClientName.trim(),
-          phone: newClientPhone.trim(),
-          emails: newClientEmails.trim(),
-          address: newClientAddress.trim(),
-          duration: newClientDuration.trim(),
-        }),
-      });
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to create client');
-      }
-
-      const createdClient = data.data;
-      setFetchedClients((prev) => [createdClient, ...prev]);
-      setSelectedClientId(createdClient._id);
-
-      // Reset client fields and close pop up modal
-      setNewClientName('');
-      setNewClientPhone('');
-      setNewClientEmails('');
-      setNewClientAddress('');
-      setNewClientDuration('');
-      setIsCreateClientModalOpen(false);
-
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('clients-updated', { detail: createdClient }));
-      }
-    } catch (err: any) {
-      setClientError(err.message || 'Failed to create client.');
-    } finally {
-      setSubmittingClient(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError('Please fill all required fields');
-      alert('Please fill all required fields');
+      setError('Please provide a project name.');
       return;
     }
 
@@ -392,6 +326,7 @@ export default function CreateProjectModal({
                   </span>
                   <input
                     type="text"
+                    // required
                     className="custom-input-control"
                     placeholder="e.g. Quality Assurance, Mobile App"
                     value={name}
@@ -449,7 +384,6 @@ export default function CreateProjectModal({
                       type="button"
                       onClick={() => {
                         setIsCreateClientModalOpen(true);
-                        setClientError(null);
                       }}
                       style={{
                         background: 'none',
@@ -714,7 +648,6 @@ export default function CreateProjectModal({
                             onClick={() => {
                               setIsCreateClientModalOpen(true);
                               setIsClientDropdownOpen(false);
-                              setClientError(null);
                             }}
                             style={{
                               padding: '9px 12px',
@@ -996,7 +929,7 @@ export default function CreateProjectModal({
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={submitting || !name.trim()}
+                // disabled={submitting}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',

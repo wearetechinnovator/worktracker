@@ -237,9 +237,9 @@ export function CreateTaskModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim()) {
+    if (!formData.title.trim() || !formData.projectId.trim()) {
       setError('Please fill all required fields');
-      alert('Please fill all required fields');
+      // alert('Please fill all required fields');
       return;
     }
 
@@ -300,7 +300,7 @@ export function CreateTaskModal({
 
   return (
     <>
-      <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={onClose}>
+      <div className="modal-overlay" style={{ zIndex: 1200 }}>
         <div
           className="modal-container"
           onClick={(e) => e.stopPropagation()}
@@ -341,7 +341,7 @@ export function CreateTaskModal({
                 {/* Row 1: Choose Project & Priority */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
                   <CustomDropdown
-                    label="Choose Project"
+                    label="Choose Project *"
                     placeholder="Choose Project"
                     value={formData.projectId}
                     options={[
@@ -556,11 +556,11 @@ export function CreateTaskModal({
                 type="button"
                 className="btn btn-secondary"
                 onClick={onClose}
-                disabled={submitting}
+               
               >
                 Cancel
               </button>
-              <button type="submit" className="btn btn-primary" disabled={submitting}>
+              <button type="submit" className="btn btn-primary" >
                 {submitting
                   ? editingTask
                     ? 'Updating...'

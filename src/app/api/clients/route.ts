@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, phone, emails, address, duration, contacts, projectId } = body;
+    const { name, phone, emails, address, duration, contacts, projectId, projects } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json({ success: false, error: 'Client name is required' }, { status: 400 });
@@ -85,9 +85,17 @@ export async function POST(request: Request) {
       contacts: processedContacts,
     });
 
-    // If projectId is provided, associate client to that project
-    if (projectId) {
-      await Project.findByIdAndUpdate(projectId, { clientId: client._id });
+    // Associate the new client with any projects selected in the modal.
+    const projectIds = Array.isArray(projects)
+      ? projects.filter((id: any) => typeof id === 'string' && id)
+      : projectId
+        ? [projectId]
+        : [];
+    if (projectIds.length > 0) {
+      await Project.updateMany(
+        { _id: { $in: projectIds } },
+        { $set: { clientId: client._id } }
+      );
     }
 
     return NextResponse.json({ success: true, data: client }, { status: 201 });

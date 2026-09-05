@@ -2,11 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  X,
   Building2,
   Phone,
   Mail,
-  Clock,
   MapPin,
   Plus,
   Trash2,
@@ -15,7 +13,6 @@ import {
   Contact,
 } from 'lucide-react';
 import CreateProjectModal from '@/components/CreateProjectModal';
-import { CustomDatePicker, CustomTimePicker } from '@/components/TaskFormControls';
 
 export interface ClientContact {
   name: string;
@@ -49,8 +46,7 @@ export default function CreateClientModal({
   const [phone, setPhone] = useState('');
   const [emailsStr, setEmailsStr] = useState('');
   const [address, setAddress] = useState('');
-  const [durationDate, setDurationDate] = useState('');
-  const [durationTime, setDurationTime] = useState('');
+  const [duration, setDuration] = useState('');
   const [contacts, setContacts] = useState<
     Array<{ name: string; email: string; phone: string; designation: string }>
   >([]);
@@ -90,8 +86,7 @@ export default function CreateClientModal({
     setPhone('');
     setEmailsStr('');
     setAddress('');
-    setDurationDate('');
-    setDurationTime('');
+    setDuration('');
     setContacts([]);
     setSelectedProjectIds([]);
     setError(null);
@@ -129,11 +124,12 @@ export default function CreateClientModal({
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e:any) => {
     e.preventDefault();
+    console.log("hhhh");
+    
     if (!name.trim()) {
       setError('Please fill all required fields');
-      alert('Please fill all required fields');
       return;
     }
 
@@ -150,14 +146,12 @@ export default function CreateClientModal({
         (c) => c.name.trim() || c.email.trim() || c.phone.trim() || c.designation.trim()
       );
 
-      const contractDurationText = [durationDate, durationTime].filter(Boolean).join(' ');
-
       const bodyPayload = {
         name: name.trim(),
         phone: phone.trim(),
         emails: parsedEmails,
         address: address.trim(),
-        duration: contractDurationText,
+        duration: duration.trim(),
         contacts: validContacts,
         projects: selectedProjectIds,
       };
@@ -301,7 +295,6 @@ export default function CreateClientModal({
                     placeholder="e.g. Acme Corporation"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    disabled={submitting}
                   />
                 </div>
               </div>
@@ -323,7 +316,6 @@ export default function CreateClientModal({
                     placeholder="e.g. +1 (555) 234-5678"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    disabled={submitting}
                   />
                 </div>
               </div>
@@ -348,27 +340,27 @@ export default function CreateClientModal({
                     placeholder="e.g. contact@acme.com, info@acme.com"
                     value={emailsStr}
                     onChange={(e) => setEmailsStr(e.target.value)}
-                    disabled={submitting}
                   />
                 </div>
               </div>
 
-            {/* Row 2: Contract Date & Time Picker */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'start' }}>
-              <CustomDatePicker
-                label="Contract Start Date"
-                placeholder="Select Date"
-                value={durationDate}
-                onChange={(val) => setDurationDate(val)}
-              />
-
-              <CustomDatePicker
-                label="Contract End Date"
-                placeholder="Select Date"
-                value={durationDate}
-                onChange={(val) => setDurationDate(val)}
-              />
-            </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label
+                  className="form-label"
+                  style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}
+                >
+                  Contract Duration (Optional)
+                </label>
+                <div className="custom-input-group">
+                  <input
+                    type="text"
+                    className="custom-input-control"
+                    placeholder="e.g. 6 Months, Annual Retainer"
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Address */}
@@ -389,7 +381,6 @@ export default function CreateClientModal({
                   placeholder="e.g. 123 Main St, Suite 400, New York, NY"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  disabled={submitting}
                 />
               </div>
             </div>
@@ -639,7 +630,6 @@ export default function CreateClientModal({
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => handleProjectToggle(proj._id)}
-                            disabled={submitting}
                           />
                           <span
                             style={{
@@ -676,14 +666,13 @@ export default function CreateClientModal({
                 type="button"
                 className="btn btn-secondary"
                 onClick={handleClose}
-                disabled={submitting}
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={submitting || !name.trim()}
+                // disabled={submitting}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',

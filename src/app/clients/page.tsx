@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, Briefcase, Mail, Phone, MapPin, Clock, Plus, Search, X, AlertCircle, Edit3, Trash2, UserPlus, FileBarChart, Sparkles, Contact } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
+import CreateClientModal from '@/components/CreateClientModal';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import type { ClientData } from '../../types/ClientData';
 import type { ProjectOption } from '../../types/ProjectOption';
@@ -18,6 +19,7 @@ export default function ClientsPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const [showModal, setShowModal] = useState(false);
+  const [isCreateClientModalOpen, setIsCreateClientModalOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<ClientData | null>(null);
   const [name, setName] = useState('');
@@ -99,16 +101,7 @@ export default function ClientsPage() {
   const isAdmin = user?.userType === 'admin';
 
   const openAddModal = () => {
-    setEditingClient(null);
-    setName('');
-    setPhone('');
-    setEmailsStr('');
-    setAddress('');
-    setDuration('');
-    setContacts([]);
-    setSelectedProjectIds([]);
-    setError(null);
-    setShowModal(true);
+    setIsCreateClientModalOpen(true);
   };
 
   const openEditModal = (client: ClientData) => {
@@ -153,7 +146,7 @@ export default function ClientsPage() {
     e.preventDefault();
     if (!name.trim()) {
       setError('Please fill all required fields');
-      alert('Please fill all required fields');
+      // alert('Please fill all required fields');
       return;
     }
 
@@ -603,6 +596,15 @@ export default function ClientsPage() {
         )}
       </section>
 
+      <CreateClientModal
+        isOpen={isCreateClientModalOpen}
+        onClose={() => setIsCreateClientModalOpen(false)}
+        projectsOptions={projectsOptions}
+        onSuccess={async () => {
+          await fetchData();
+        }}
+      />
+
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div 
@@ -654,11 +656,11 @@ export default function ClientsPage() {
                   <input
                     type="text"
                     className="form-control"
-                    required
+                    // required
                     placeholder="e.g. Acme Corporation"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    disabled={submitting}
+                    
                   />
                 </div>
 
@@ -670,7 +672,7 @@ export default function ClientsPage() {
                     placeholder="e.g. +1 (555) 234-5678"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    disabled={submitting}
+                    
                   />
                 </div>
               </div>
@@ -684,7 +686,7 @@ export default function ClientsPage() {
                     placeholder="e.g. contact@acme.com, info@acme.com"
                     value={emailsStr}
                     onChange={(e) => setEmailsStr(e.target.value)}
-                    disabled={submitting}
+                    
                   />
                 </div>
 
@@ -696,7 +698,7 @@ export default function ClientsPage() {
                     placeholder="e.g. 6 Months, Annual Retainer"
                     value={duration}
                     onChange={(e) => setDuration(e.target.value)}
-                    disabled={submitting}
+                    
                   />
                 </div>
               </div>
@@ -709,7 +711,7 @@ export default function ClientsPage() {
                   placeholder="e.g. 123 Main St, Suite 400, New York, NY"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  disabled={submitting}
+                  
                 />
               </div>
 
@@ -881,7 +883,7 @@ export default function ClientsPage() {
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => handleProjectToggle(proj._id)}
-                            disabled={submitting}
+                            
                           />
                           <span
                             className="color-dot"
@@ -903,11 +905,11 @@ export default function ClientsPage() {
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setShowModal(false)}
-                  disabled={submitting}
+                  
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                <button type="submit" className="btn btn-primary" >
                   {submitting ? 'Saving...' : editingClient ? 'Save Changes' : 'Create Client'}
                 </button>
               </div>
