@@ -286,7 +286,7 @@ export default function TaskHistoryPage() {
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <h1 style={{ fontSize: '1.6rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Clock size={28} style={{ color: 'var(--accent-primary)' }} />
+          {/* <Clock size={28} style={{ color: 'var(--accent-primary)' }} /> */}
           Task Work History
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>

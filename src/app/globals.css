@@ -1064,13 +1064,13 @@ button, input, select, textarea {
   background: var(--bg-tertiary) !important;
 }
 
-.task-row-interactive:hover td:first-child {
+/* .task-row-interactive:hover td:first-child {
   box-shadow: inset 3px 0 0 var(--accent-primary);
-}
+} */
 
-.task-row-interactive:hover .task-title-link {
+/* .task-row-interactive:hover .task-title-link {
   color: var(--accent-primary) !important;
-}
+} */
 
 .employee-cell-link:hover .employee-name-hover {
   color: var(--accent-primary) !important;

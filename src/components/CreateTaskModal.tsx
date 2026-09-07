@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import {
   X,
@@ -12,6 +12,7 @@ import CreateProjectModal from '@/components/CreateProjectModal';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import {
   CustomDropdown,
+  CustomMultiSelectDropdown,
   CustomDatePicker,
   CustomTimePicker,
   CustomFileAttachment,
@@ -27,6 +28,7 @@ export interface ProjectOption {
   _id: string;
   name: string;
   color?: string;
+  clientId?: any;
 }
 
 export interface EmployeeOption {
@@ -61,6 +63,7 @@ export function CreateTaskModal({
   const [currentUser, setCurrentUser] = useState<any>(propUser || null);
   const [projects, setProjects] = useState<ProjectOption[]>(projectsOptions || []);
   const [employees, setEmployees] = useState<EmployeeOption[]>(employeesList || []);
+  const [clients, setClients] = useState<any[]>([]);
 
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
@@ -80,6 +83,8 @@ export function CreateTaskModal({
     url: '',
     urls: [] as string[],
     comments: '',
+    contactPerson: '',
+    contactPersons: [] as string[],
     files: [] as Array<{ name: string; url: string; size?: number; type?: string }>,
     tags: '',
   });
@@ -116,6 +121,93 @@ export function CreateTaskModal({
     return [];
   }, []);
 
+  // Fetch clients from API
+  const fetchClients = useCallback(async () => {
+    try {
+      const res = await fetch('/api/clients');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setClients(data.data);
+        return data.data;
+      }
+    } catch (err) {
+      console.error('Failed to fetch clients in CreateTaskModal:', err);
+    }
+    return [];
+  }, []);
+
+  const getProjectContacts = () => {
+    let matchedContacts: any[] = [];
+    let clientName = '';
+
+    if (formData.projectId) {
+      const selectedProj = projects.find(
+        (p: any) => p._id === formData.projectId || p._id?.toString() === formData.projectId?.toString()
+      );
+
+      const targetClientId = selectedProj?.clientId?._id || selectedProj?.clientId;
+
+      if (selectedProj && typeof selectedProj.clientId === 'object' && Array.isArray((selectedProj.clientId as any).contacts) && (selectedProj.clientId as any).contacts.length > 0) {
+        matchedContacts = (selectedProj.clientId as any).contacts;
+        clientName = (selectedProj.clientId as any).name || '';
+      } else if (clients && clients.length > 0) {
+        const clientForProject = clients.find((c: any) => {
+          const cId = c._id?.toString();
+          const tId = targetClientId?.toString();
+          if (tId && cId === tId) return true;
+          return Array.isArray(c.projects) && c.projects.some((p: any) => (p._id || p)?.toString() === formData.projectId?.toString());
+        });
+        if (clientForProject && Array.isArray(clientForProject.contacts)) {
+          matchedContacts = clientForProject.contacts;
+          clientName = clientForProject.name || '';
+        }
+      }
+    }
+
+    if (!matchedContacts || matchedContacts.length === 0) {
+      const allContacts: any[] = [];
+      (clients || []).forEach((c: any) => {
+        if (Array.isArray(c.contacts)) {
+          c.contacts.forEach((contact: any) => {
+            if (contact && contact.name) {
+              allContacts.push({
+                ...contact,
+                _clientName: c.name || '',
+              });
+            }
+          });
+        }
+      });
+      return { contacts: allContacts, isFallback: true, clientName: '' };
+    }
+
+    return { contacts: matchedContacts, isFallback: false, clientName };
+  };
+
+  const getContactDropdownOptions = () => {
+    const { contacts: projectContacts, clientName } = getProjectContacts();
+
+    if (!projectContacts || projectContacts.length === 0) {
+      return { options: [], disabledMessage: 'No contact persons available' };
+    }
+
+    const options = projectContacts.map((c: any) => {
+      const cName = c._clientName || clientName;
+      return {
+        value: c.name,
+        label: `${c.name}${c.designation ? ` (${c.designation})` : ''}${cName ? ` - ${cName}` : ''}`,
+      };
+    });
+
+    formData.contactPersons.forEach((name) => {
+      if (name && !options.some((o: any) => o.value === name)) {
+        options.push({ value: name, label: name });
+      }
+    });
+
+    return { options, disabledMessage: undefined };
+  };
+
   useEffect(() => {
     if (projectsOptions && projectsOptions.length > 0) {
       setProjects(projectsOptions);
@@ -128,9 +220,14 @@ export function CreateTaskModal({
     }
   }, [employeesList]);
 
+  const lastInitializedRef = useRef<string | null>(null);
+
   // Setup modal data whenever modal opens or editingTask changes
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      lastInitializedRef.current = null;
+      return;
+    }
 
     let activeUser = propUser;
     if (!activeUser) {
@@ -147,52 +244,67 @@ export function CreateTaskModal({
       fetchProjects();
     }
 
+    fetchClients();
+
     const adminFlag = activeUser?.userType === 'admin';
     if (adminFlag && (!employeesList || employeesList.length === 0)) {
       fetchEmployees();
     }
 
-    if (editingTask) {
-      setFormData({
-        title: editingTask.title || '',
-        description: editingTask.description || '',
-        projectId: editingTask.projectId?._id || editingTask.projectId || '',
-        assignedTo: Array.isArray(editingTask.assignedTo)
-          ? editingTask.assignedTo.map((e: any) => (typeof e === 'object' && e !== null ? e._id : e))
-          : [],
-        priority: editingTask.priority || 'Medium',
-        status: editingTask.status || 'To Do',
-        dueDate: editingTask.dueDate || '',
-        dueTime: editingTask.dueTime || '',
-        url: editingTask.url || '',
-        urls: Array.isArray(editingTask.urls)
-          ? editingTask.urls
-          : (editingTask.url ? [editingTask.url] : []),
-        comments: editingTask.comments || '',
-        files: editingTask.files || [],
-        tags: Array.isArray(editingTask.tags)
-          ? editingTask.tags.join(', ')
-          : (editingTask.tags || ''),
-      });
-    } else {
-      setFormData({
-        title: '',
-        description: '',
-        projectId: initialProjectId || '',
-        assignedTo: !adminFlag && activeUser?._id ? [activeUser._id] : [],
-        priority: 'Medium',
-        status: 'To Do',
-        dueDate: '',
-        dueTime: '',
-        url: '',
-        urls: [],
-        comments: '',
-        files: [],
-        tags: '',
-      });
+    const sessionKey = editingTask ? String(editingTask._id || JSON.stringify(editingTask)) : 'new_task';
+    if (lastInitializedRef.current !== sessionKey) {
+      lastInitializedRef.current = sessionKey;
+
+      if (editingTask) {
+        const initialContactPersons = Array.isArray(editingTask.contactPersons) && editingTask.contactPersons.length > 0
+          ? editingTask.contactPersons
+          : (editingTask.contactPerson ? editingTask.contactPerson.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
+
+        setFormData({
+          title: editingTask.title || '',
+          description: editingTask.description || '',
+          projectId: editingTask.projectId?._id || editingTask.projectId || '',
+          assignedTo: Array.isArray(editingTask.assignedTo)
+            ? editingTask.assignedTo.map((e: any) => (typeof e === 'object' && e !== null ? e._id : e))
+            : [],
+          priority: editingTask.priority || 'Medium',
+          status: editingTask.status || 'To Do',
+          dueDate: editingTask.dueDate || '',
+          dueTime: editingTask.dueTime || '',
+          url: editingTask.url || '',
+          urls: Array.isArray(editingTask.urls)
+            ? editingTask.urls
+            : (editingTask.url ? [editingTask.url] : []),
+          comments: editingTask.comments || '',
+          contactPerson: editingTask.contactPerson || '',
+          contactPersons: initialContactPersons,
+          files: editingTask.files || [],
+          tags: Array.isArray(editingTask.tags)
+            ? editingTask.tags.join(', ')
+            : (editingTask.tags || ''),
+        });
+      } else {
+        setFormData({
+          title: '',
+          description: '',
+          projectId: initialProjectId || '',
+          assignedTo: !adminFlag && activeUser?._id ? [activeUser._id] : [],
+          priority: 'Medium',
+          status: 'To Do',
+          dueDate: '',
+          dueTime: '',
+          url: '',
+          urls: [],
+          comments: '',
+          contactPerson: '',
+          contactPersons: [],
+          files: [],
+          tags: '',
+        });
+      }
+      setError(null);
     }
-    setError(null);
-  }, [isOpen, editingTask, initialProjectId, projectsOptions, employeesList, propUser, fetchProjects, fetchEmployees]);
+  }, [isOpen, editingTask, initialProjectId, projectsOptions, employeesList, propUser, fetchProjects, fetchEmployees, fetchClients]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -264,6 +376,8 @@ export function CreateTaskModal({
         url: formData.urls[0] || formData.url || undefined,
         urls: formData.urls,
         comments: formData.comments || undefined,
+        contactPerson: formData.contactPersons.join(', ') || undefined,
+        contactPersons: formData.contactPersons,
         files: formData.files,
         tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
       };
@@ -338,8 +452,8 @@ export function CreateTaskModal({
           <form onSubmit={handleSubmit}>
             {isAdmin && (
               <>
-                {/* Row 1: Choose Project & Priority */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
+                {/* Row 1: Choose Project, Contact Person, & Priority */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
                   <CustomDropdown
                     label="Choose Project *"
                     placeholder="Choose Project"
@@ -352,12 +466,26 @@ export function CreateTaskModal({
                         color: p.color || '#3b82f6',
                       })),
                     ]}
-                    onChange={(val) => setFormData({ ...formData, projectId: val })}
+                    onChange={(val) => setFormData((prev) => ({ ...prev, projectId: val, contactPersons: prev.projectId === val ? prev.contactPersons : [] }))}
                     actionButton={{
                       label: 'add project',
                       onClick: () => setIsProjectModalOpen(true),
                     }}
                   />
+
+                  {(() => {
+                    const { options: contactOpts, disabledMessage } = getContactDropdownOptions();
+                    return (
+                      <CustomMultiSelectDropdown
+                        label="Contact Person"
+                        placeholder="Select Contact Person"
+                        values={formData.contactPersons}
+                        options={contactOpts}
+                        disabledMessage={disabledMessage}
+                        onChange={(newVals) => setFormData({ ...formData, contactPersons: newVals })}
+                      />
+                    );
+                  })()}
 
                   <CustomDropdown
                     label="Priority"
@@ -405,7 +533,7 @@ export function CreateTaskModal({
                 {/* Assign To (Admin Only) */}
                 <div style={{ marginBottom: '16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label className="form-label" style={{ marginBottom: 0 }}>Assign To *</label>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Assign To </label>
                     <button
                       type="button"
                       onClick={() => setIsEmployeeModalOpen(true)}
@@ -477,6 +605,22 @@ export function CreateTaskModal({
                 </div>
               </>
             )}
+
+            {!isAdmin && (() => {
+              const { options: contactOpts, disabledMessage } = getContactDropdownOptions();
+              return (
+                <div style={{ marginBottom: '16px' }}>
+                  <CustomMultiSelectDropdown
+                    label="Contact Person"
+                    placeholder="Select Contact Person"
+                    values={formData.contactPersons}
+                    options={contactOpts}
+                    disabledMessage={disabledMessage}
+                    onChange={(newVals) => setFormData({ ...formData, contactPersons: newVals })}
+                  />
+                </div>
+              );
+            })()}
 
             {/* Task Title */}
             <div className="form-group" style={{ marginBottom: '16px' }}>

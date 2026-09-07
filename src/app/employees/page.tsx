@@ -483,7 +483,7 @@ export default function EmployeesPage() {
       />
 
       {isEditModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsEditModalOpen(false)}>
+        <div className="modal-overlay" >
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Edit Employee Details</h3>

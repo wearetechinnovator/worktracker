@@ -271,6 +271,202 @@ export function CustomDropdown({
 
 
 /* ==========================================================================
+   1B. CUSTOM MULTI SELECT DROPDOWN COMPONENT
+   ========================================================================== */
+interface CustomMultiSelectDropdownProps {
+  label?: string;
+  placeholder?: string;
+  values: string[];
+  options: DropdownOption[];
+  onChange: (values: string[]) => void;
+  disabledMessage?: string;
+  style?: React.CSSProperties;
+}
+
+export function CustomMultiSelectDropdown({
+  label,
+  placeholder = 'Select options',
+  values = [],
+  options = [],
+  onChange,
+  disabledMessage,
+  style,
+}: CustomMultiSelectDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const isValueMatch = (val: string, opt: DropdownOption) => {
+    if (!val) return false;
+    const v = val.trim().toLowerCase();
+    const optVal = (opt.value || '').trim().toLowerCase();
+    const optLbl = (opt.label || '').trim().toLowerCase();
+    return v === optVal || v === optLbl || optLbl.startsWith(v);
+  };
+
+  const matchedValues = new Set<string>();
+  const selectedLabels: string[] = [];
+
+  options.forEach((opt) => {
+    values.forEach((val) => {
+      if (isValueMatch(val, opt)) {
+        matchedValues.add(val);
+        if (!selectedLabels.includes(opt.label)) {
+          selectedLabels.push(opt.label);
+        }
+      }
+    });
+  });
+
+  values.forEach((val) => {
+    if (val && !matchedValues.has(val) && !selectedLabels.includes(val)) {
+      selectedLabels.push(val);
+    }
+  });
+
+  const displayText = disabledMessage
+    ? disabledMessage
+    : selectedLabels.length > 0
+    ? selectedLabels.join(', ')
+    : placeholder;
+
+  return (
+    <div style={{ position: 'relative', width: '100%', ...style }} ref={containerRef}>
+      {label && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <label className="form-label" style={{ marginBottom: 0, fontWeight: 700, fontSize: '0.75rem' }}>
+            {label}
+          </label>
+        </div>
+      )}
+
+      {/* Trigger button */}
+      <button
+        type="button"
+        disabled={!!disabledMessage}
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '7px 12px',
+          background: 'var(--bg-secondary)',
+          border: isOpen ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+          borderRadius: 'var(--border-radius-sm)',
+          fontSize: '0.8rem',
+          color: selectedLabels.length > 0 ? 'var(--text-primary)' : 'var(--text-muted)',
+          cursor: disabledMessage ? 'not-allowed' : 'pointer',
+          boxShadow: isOpen ? '0 0 0 2px rgba(59, 130, 246, 0.15)' : 'none',
+          transition: 'all 0.15s ease',
+          textAlign: 'left',
+          minHeight: '36px',
+          opacity: disabledMessage ? 0.7 : 1,
+        }}
+      >
+        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: selectedLabels.length > 0 ? 600 : 400 }}>
+          {displayText}
+        </span>
+        <ChevronDown
+          size={15}
+          style={{
+            color: 'var(--text-muted)',
+            transform: isOpen ? 'rotate(180deg)' : 'none',
+            transition: 'transform 0.2s ease',
+            flexShrink: 0,
+            marginLeft: '6px',
+          }}
+        />
+      </button>
+
+      {/* Dropdown Menu */}
+      {isOpen && !disabledMessage && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--border-radius-md)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+            zIndex: 1300,
+            maxHeight: '230px',
+            overflowY: 'auto',
+            padding: '4px',
+            animation: 'fadeIn 0.15s ease',
+          }}
+        >
+          {options.length === 0 ? (
+            <div style={{ padding: '8px 10px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              No contact persons available
+            </div>
+          ) : (
+            options.map((opt) => {
+              const isChecked = values.some((val) => isValueMatch(val, opt));
+              return (
+                <div
+                  key={opt.value}
+                  onClick={() => {
+                    if (isChecked) {
+                      onChange(values.filter((val) => !isValueMatch(val, opt)));
+                    } else {
+                      onChange([...values, opt.value]);
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '7px 10px',
+                    borderRadius: '4px',
+                    fontSize: '0.78rem',
+                    color: isChecked ? 'var(--accent-primary)' : 'var(--text-primary)',
+                    background: isChecked ? 'var(--bg-tertiary)' : 'transparent',
+                    fontWeight: isChecked ? 700 : 500,
+                    cursor: 'pointer',
+                    transition: 'background 0.12s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isChecked) e.currentTarget.style.background = 'var(--bg-tertiary)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isChecked) e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      readOnly
+                      style={{ pointerEvents: 'none' }}
+                    />
+                    <span>{opt.label}</span>
+                  </div>
+                  {isChecked && <Check size={14} style={{ color: 'var(--accent-primary)' }} />}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+/* ==========================================================================
    2. CUSTOM DATE PICKER COMPONENT
    ========================================================================== */
 interface CustomDatePickerProps {

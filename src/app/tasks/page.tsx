@@ -56,6 +56,8 @@ interface Task {
   url?: string;
   urls?: string[];
   comments?: string;
+  contactPerson?: string;
+  contactPersons?: string[];
   files?: Array<{ name: string; url: string; size?: number; type?: string }>;
   tags?: string[];
   createdBy?: {
@@ -791,7 +793,7 @@ export default function TasksPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '1.6rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <CheckSquare size={28} style={{ color: 'var(--accent-primary)' }} />
+            {/* <CheckSquare size={28} style={{ color: 'var(--accent-primary)' }} /> */}
             Task Management
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
@@ -1176,19 +1178,19 @@ export default function TasksPage() {
                                 const completedToday = hasCompletedWorkToday(task._id);
 
                                 if (activeWork) {
-                                    const timerStr = (() => {
-                                      if (!activeWork.startTime) return '00:00:00';
-                                      const parts = activeWork.startTime.split(':');
-                                      if (parts.length < 3) return '00:00:00';
-                                      const [hours, minutes, seconds] = parts.map(Number);
-                                      const start = new Date(currentTime);
-                                      start.setHours(hours, minutes, seconds, 0);
+                                  const timerStr = (() => {
+                                    if (!activeWork.startTime) return '00:00:00';
+                                    const parts = activeWork.startTime.split(':');
+                                    if (parts.length < 3) return '00:00:00';
+                                    const [hours, minutes, seconds] = parts.map(Number);
+                                    const start = new Date(currentTime);
+                                    start.setHours(hours, minutes, seconds, 0);
 
-                                      const totalPaused = pausedDurations[activeWork._id] || 0;
-                                      let elapsed = Math.floor((currentTime.getTime() - start.getTime() - totalPaused) / 1000);
-                                      if (elapsed < 0) {
-                                        elapsed += 24 * 60 * 60;
-                                      }
+                                    const totalPaused = pausedDurations[activeWork._id] || 0;
+                                    let elapsed = Math.floor((currentTime.getTime() - start.getTime() - totalPaused) / 1000);
+                                    if (elapsed < 0) {
+                                      elapsed += 24 * 60 * 60;
+                                    }
                                     const h = Math.floor(elapsed / 3600);
                                     const m = Math.floor((elapsed % 3600) / 60);
                                     const s = elapsed % 60;
@@ -1698,6 +1700,25 @@ export default function TasksPage() {
                       : '—'}
                   </div>
                 </div>
+
+                {/* Contact Person */}
+                {Boolean((selectedTaskForDetails.contactPersons && selectedTaskForDetails.contactPersons.length > 0) || (selectedTaskForDetails.contactPerson && selectedTaskForDetails.contactPerson.trim())) && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <User size={12} style={{ color: 'var(--accent-primary)' }} />
+                      <span>Contact Person</span>
+                    </div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {selectedTaskForDetails.contactPersons && selectedTaskForDetails.contactPersons.length > 0
+                        ? selectedTaskForDetails.contactPersons.map((cp) => (
+                          <span key={cp} style={{ background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.78rem' }}>
+                            {cp}
+                          </span>
+                        ))
+                        : selectedTaskForDetails.contactPerson}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Resource URLs / Links */}

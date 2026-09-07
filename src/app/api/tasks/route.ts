@@ -96,9 +96,15 @@ export async function POST(request: Request) {
       url,
       urls,
       comments,
+      contactPerson,
+      contactPersons,
       files,
       tags,
     } = body;
+
+    const finalContactPersons = Array.isArray(contactPersons)
+      ? contactPersons.filter(Boolean)
+      : (contactPerson ? [contactPerson] : []);
 
     // Validation
     if (!title) {
@@ -184,6 +190,8 @@ export async function POST(request: Request) {
       url,
       urls: Array.isArray(urls) ? urls : (url ? [url] : []),
       comments,
+      contactPerson: finalContactPersons.join(', ') || undefined,
+      contactPersons: finalContactPersons,
       files: Array.isArray(files) ? files : [],
       tags: tags || [],
     });

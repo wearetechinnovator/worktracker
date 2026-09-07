@@ -86,6 +86,7 @@ export async function GET(request: Request) {
             emails: (project.clientId as any).emails,
             address: (project.clientId as any).address,
             duration: (project.clientId as any).duration,
+            contacts: (project.clientId as any).contacts || [],
           } : null,
           totalMinutes: stat?.totalMinutes ?? 0,
           entryCount: stat?.entryCount ?? 0,

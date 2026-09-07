@@ -481,7 +481,7 @@ export default function ClientsPage() {
 
               <div className="client-card-body">
                 <div className="info-section">
-                  <h4 className="section-label">Contact Details</h4>
+                  {/* <h4 className="section-label">Contact Details</h4> */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px' }}>
                     {client.phone && (
                       <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem' }}>
@@ -558,7 +558,7 @@ export default function ClientsPage() {
 
                 {client.address && (
                   <div className="info-section">
-                    <h4 className="section-label">Address</h4>
+                    {/* <h4 className="section-label">Address</h4> */}
                     <p className="info-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
                       <MapPin size={11} style={{ color: 'var(--text-muted)' }} />
                       <span>{client.address}</span>
@@ -567,7 +567,7 @@ export default function ClientsPage() {
                 )}
 
                 <div className="info-section">
-                  <h4 className="section-label">Associated Projects</h4>
+                  {/* <h4 className="section-label">Associated Projects</h4> */}
                   {client.projects.length === 0 ? (
                     <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
                       No active projects assigned

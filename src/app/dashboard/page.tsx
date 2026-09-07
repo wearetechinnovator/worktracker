@@ -20,6 +20,7 @@ import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import {
   CustomDropdown,
+  CustomMultiSelectDropdown,
   CustomDatePicker,
   CustomTimePicker,
   CustomFileAttachment,
@@ -515,9 +516,83 @@ export default function Dashboard() {
     url: '',
     urls: [] as string[],
     comments: '',
+    contactPerson: '',
+    contactPersons: [] as string[],
     files: [] as Array<{ name: string; url: string; size?: number; type?: string }>,
     tags: '',
   });
+
+  const getProjectContacts = () => {
+    let matchedContacts: any[] = [];
+    let clientName = '';
+
+    if (formData.projectId) {
+      const selectedProj = projects.find(
+        (p: any) => p._id === formData.projectId || p._id?.toString() === formData.projectId?.toString()
+      );
+
+      const targetClientId = selectedProj?.clientId?._id || selectedProj?.clientId;
+
+      if (selectedProj && typeof selectedProj.clientId === 'object' && Array.isArray((selectedProj.clientId as any).contacts) && (selectedProj.clientId as any).contacts.length > 0) {
+        matchedContacts = (selectedProj.clientId as any).contacts;
+        clientName = (selectedProj.clientId as any).name || '';
+      } else if (clientsList && clientsList.length > 0) {
+        const clientForProject = clientsList.find((c: any) => {
+          const cId = c._id?.toString();
+          const tId = targetClientId?.toString();
+          if (tId && cId === tId) return true;
+          return Array.isArray(c.projects) && c.projects.some((p: any) => (p._id || p)?.toString() === formData.projectId?.toString());
+        });
+        if (clientForProject && Array.isArray(clientForProject.contacts)) {
+          matchedContacts = clientForProject.contacts;
+          clientName = clientForProject.name || '';
+        }
+      }
+    }
+
+    if (!matchedContacts || matchedContacts.length === 0) {
+      const allContacts: any[] = [];
+      (clientsList || []).forEach((c: any) => {
+        if (Array.isArray(c.contacts)) {
+          c.contacts.forEach((contact: any) => {
+            if (contact && contact.name) {
+              allContacts.push({
+                ...contact,
+                _clientName: c.name || '',
+              });
+            }
+          });
+        }
+      });
+      return { contacts: allContacts, isFallback: true, clientName: '' };
+    }
+
+    return { contacts: matchedContacts, isFallback: false, clientName };
+  };
+
+  const getContactDropdownOptions = () => {
+    const { contacts: projectContacts, clientName } = getProjectContacts();
+
+    if (!projectContacts || projectContacts.length === 0) {
+      return { options: [], disabledMessage: 'No contact persons available' };
+    }
+
+    const options = projectContacts.map((c: any) => {
+      const cName = c._clientName || clientName;
+      return {
+        value: c.name,
+        label: `${c.name}${c.designation ? ` (${c.designation})` : ''}${cName ? ` - ${cName}` : ''}`,
+      };
+    });
+
+    formData.contactPersons.forEach((name) => {
+      if (name && !options.some((o: any) => o.value === name)) {
+        options.push({ value: name, label: name });
+      }
+    });
+
+    return { options, disabledMessage: undefined };
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -566,6 +641,8 @@ export default function Dashboard() {
       url: '',
       urls: [],
       comments: '',
+      contactPerson: '',
+      contactPersons: [],
       files: [],
       tags: '',
     });
@@ -594,6 +671,8 @@ export default function Dashboard() {
         url: formData.urls[0] || formData.url || undefined,
         urls: formData.urls,
         comments: formData.comments || undefined,
+        contactPerson: formData.contactPersons.join(', ') || undefined,
+        contactPersons: formData.contactPersons,
         files: formData.files,
         tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()) : [],
       };
@@ -1978,8 +2057,8 @@ export default function Dashboard() {
             <form onSubmit={handleSubmit}>
               {isAdmin && (
                 <>
-                  {/* Row 1: Choose Project & Priority */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                  {/* Row 1: Choose Project, Contact Person, & Priority */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                     <CustomDropdown
                       label="Choose Project"
                       placeholder="Choose Project"
@@ -1992,12 +2071,26 @@ export default function Dashboard() {
                           color: p.color || '#3b82f6',
                         })),
                       ]}
-                      onChange={(val) => setFormData({ ...formData, projectId: val })}
+                      onChange={(val) => setFormData((prev) => ({ ...prev, projectId: val, contactPersons: prev.projectId === val ? prev.contactPersons : [] }))}
                       actionButton={{
                         label: 'add project',
                         onClick: () => setIsProjectModalOpen(true),
                       }}
                     />
+
+                    {(() => {
+                      const { options: contactOpts, disabledMessage } = getContactDropdownOptions();
+                      return (
+                        <CustomMultiSelectDropdown
+                          label="Contact Person"
+                          placeholder="Select Contact Person"
+                          values={formData.contactPersons}
+                          options={contactOpts}
+                          disabledMessage={disabledMessage}
+                          onChange={(newVals) => setFormData({ ...formData, contactPersons: newVals })}
+                        />
+                      );
+                    })()}
 
                     <CustomDropdown
                       label="Priority"
@@ -2115,6 +2208,7 @@ export default function Dashboard() {
                   </div>
                 </>
               )}
+
 
               {/* Task Title */}
               <div style={{ marginBottom: '16px' }}>

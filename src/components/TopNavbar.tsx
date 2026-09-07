@@ -32,6 +32,7 @@ import {
   CustomMultipleLinks
 } from '@/components/TaskFormControls';
 import dynamic from 'next/dynamic';
+import { log } from 'console';
 
 const CKEditorComponent = dynamic(
   () => import('@/components/CKEditorWrapper'),
@@ -328,6 +329,7 @@ export default function TopNavbar() {
                 transition: 'all 0.15s ease',
               }}
             >
+              
               <span>{dateRangeText}</span>
               <ChevronDown size={14} style={{ color: '#64748b' }} />
             </button>

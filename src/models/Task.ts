@@ -14,6 +14,8 @@ export interface ITask extends Document {
   url?: string;
   urls?: string[];
   comments?: string;
+  contactPerson?: string;
+  contactPersons?: string[];
   files?: Array<{ name: string; url: string; size?: number; type?: string }>;
   tags?: string[];
   createdAt: Date;
@@ -45,6 +47,8 @@ const TaskSchema = new Schema<ITask>(
     url: { type: String, trim: true },
     urls: [{ type: String }],
     comments: { type: String, trim: true },
+    contactPerson: { type: String, trim: true },
+    contactPersons: [{ type: String, trim: true }],
     files: [{
       name: { type: String },
       url: { type: String },

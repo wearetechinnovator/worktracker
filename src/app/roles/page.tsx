@@ -412,7 +412,8 @@ export default function RolesPage() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '10px'
+                    gap: '10px',
+                    
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
@@ -429,7 +430,7 @@ export default function RolesPage() {
                     />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 400, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {role.name}
                         </span>
                         {role.isSystemRole && (
@@ -566,7 +567,7 @@ export default function RolesPage() {
             {/* Discord Feature Flag Toggles Bar */}
             <div style={{ background: 'var(--bg-secondary)', padding: '14px 18px', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
               <div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 400, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Shield size={16} style={{ color: '#7f56d9' }} />
                   <span>Administrator Override Access</span>
                 </div>
@@ -583,7 +584,7 @@ export default function RolesPage() {
                   disabled={!isAdmin || selectedRole.name === 'Admin'}
                   style={{ width: '16px', height: '16px', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
                 />
-                <span style={{ fontSize: '0.82rem', fontWeight: 750, color: activeRoleAdmin ? '#7f56d9' : 'var(--text-secondary)' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 450, color: activeRoleAdmin ? '#7f56d9' : 'var(--text-secondary)' }}>
                   {activeRoleAdmin ? 'System Admin Bypass ACTIVE' : 'Standard Permission Checks'}
                 </span>
               </label>
@@ -592,14 +593,14 @@ export default function RolesPage() {
             {/* Strapi-style Action-Subject Permission Matrix Header */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-                <div>
+                {/* <div>
                   <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
                     Granular Resource Permissions Matrix
                   </h3>
                   <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                     Select actions that members with the <strong>{activeRoleName}</strong> role can perform across workspace domains.
                   </div>
-                </div>
+                </div> */}
 
                 {isAdmin && !activeRoleAdmin && (
                   <button
@@ -614,7 +615,7 @@ export default function RolesPage() {
               </div>
 
               {/* Permission Groups Accordion List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', }}>
                 {PERMISSION_GROUPS.map((group) => {
                   const groupKeys = group.actions.map((a) => a.key);
                   const selectedCount = groupKeys.filter((k) => activePermissions.includes(k)).length;
