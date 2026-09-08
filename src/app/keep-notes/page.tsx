@@ -165,14 +165,7 @@ export default function KeepNotesPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <p className="hero-eyebrow" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <StickyNote size={14} style={{ color: '#2563eb' }} />
-            <span>Personal Workspace</span>
-          </p>
           <h1 className="hero-title" style={{ margin: 0, fontSize: '1.45rem', fontWeight: 850 }}>Keep Notes</h1>
-          <p style={{ color: '#64748b', fontSize: '0.82rem', marginTop: '2px', margin: 0 }}>
-            Sticky notes to capture quick reminders, task notes, and ideas.
-          </p>
         </div>
 
         <button

@@ -26,6 +26,7 @@ import {
   CustomFileAttachment,
   CustomMultipleLinks
 } from '@/components/TaskFormControls';
+import { ProjectAssigneeSelector } from '@/components/ProjectAssigneeSelector';
 import dynamic from 'next/dynamic';
 
 const CKEditorComponent = dynamic(
@@ -510,7 +511,7 @@ export default function Dashboard() {
     projectId: '',
     assignedTo: [] as string[],
     priority: 'Medium' as 'Low' | 'Medium' | 'High' | 'Urgent',
-    status: 'To Do' as 'To Do' | 'In Progress' | 'Review' | 'Completed',
+    status: 'To Do' as 'To Do' | 'In Progress' | 'Partially Completed' | 'Review' | 'Completed',
     dueDate: '',
     dueTime: '',
     url: '',
@@ -550,45 +551,28 @@ export default function Dashboard() {
       }
     }
 
-    if (!matchedContacts || matchedContacts.length === 0) {
-      const allContacts: any[] = [];
-      (clientsList || []).forEach((c: any) => {
-        if (Array.isArray(c.contacts)) {
-          c.contacts.forEach((contact: any) => {
-            if (contact && contact.name) {
-              allContacts.push({
-                ...contact,
-                _clientName: c.name || '',
-              });
-            }
-          });
-        }
-      });
-      return { contacts: allContacts, isFallback: true, clientName: '' };
-    }
-
-    return { contacts: matchedContacts, isFallback: false, clientName };
+    // Only return contacts that belong to the selected project/client
+    const validContacts = (matchedContacts || []).filter((c: any) => c && c.name && typeof c.name === 'string' && c.name.trim().length > 0);
+    return { contacts: validContacts, isFallback: false, clientName };
   };
 
   const getContactDropdownOptions = () => {
+    if (!formData.projectId) {
+      return { options: [], disabledMessage: 'Select a project first' };
+    }
+
     const { contacts: projectContacts, clientName } = getProjectContacts();
 
     if (!projectContacts || projectContacts.length === 0) {
-      return { options: [], disabledMessage: 'No contact persons available' };
+      return { options: [], disabledMessage: 'No contact persons for this project' };
     }
 
     const options = projectContacts.map((c: any) => {
-      const cName = c._clientName || clientName;
+      const designationText = c.designation ? ` (${c.designation})` : '';
       return {
         value: c.name,
-        label: `${c.name}${c.designation ? ` (${c.designation})` : ''}${cName ? ` - ${cName}` : ''}`,
+        label: `${c.name}${designationText}`,
       };
-    });
-
-    formData.contactPersons.forEach((name) => {
-      if (name && !options.some((o: any) => o.value === name)) {
-        options.push({ value: name, label: name });
-      }
     });
 
     return { options, disabledMessage: undefined };
@@ -2115,6 +2099,7 @@ export default function Dashboard() {
                       options={[
                         { value: 'To Do', label: 'To Do', badgeText: 'To Do', badgeBg: '#f1f5f9', badgeColor: '#475569' },
                         { value: 'In Progress', label: 'In Progress', badgeText: 'In Progress', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
+                        { value: 'Partially Completed', label: 'Partially Completed', badgeText: 'Partially Completed', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
                         { value: 'Review', label: 'Review', badgeText: 'Review', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
                         { value: 'Completed', label: 'Completed', badgeText: 'Completed', badgeBg: '#ecfdf5', badgeColor: '#047857' },
                       ]}
@@ -2137,75 +2122,27 @@ export default function Dashboard() {
                     />
                   </div>
 
-                  {/* Assign To (Admin Only) */}
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <label className="form-label" style={{ marginBottom: 0 }}>Assign To *</label>
-                      <button
-                        type="button"
-                        onClick={() => setIsEmployeeModalOpen(true)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--accent-primary)',
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                          padding: '0 2px',
-                        }}
-                        title="Create and add new employee"
-                      >
-                        <Plus size={13} />
-                        <span>add employee</span>
-                      </button>
-                    </div>
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px',
-                      maxHeight: '130px',
-                      overflowY: 'auto',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: 'var(--border-radius-sm)',
-                      padding: '10px',
-                      background: 'var(--bg-secondary)'
-                    }}>
-                      {employees.map((emp) => {
-                        const isChecked = formData.assignedTo.includes(emp._id);
-                        return (
-                          <label
-                            key={emp._id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '10px',
-                              fontSize: '0.85rem',
-                              cursor: 'pointer',
-                              padding: '4px 6px',
-                              borderRadius: '4px',
-                              background: isChecked ? 'var(--bg-tertiary)' : 'transparent'
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setFormData({ ...formData, assignedTo: [...formData.assignedTo, emp._id] });
-                                } else {
-                                  setFormData({ ...formData, assignedTo: formData.assignedTo.filter(id => id !== emp._id) });
-                                }
-                              }}
-                            />
-                            <span style={{ fontWeight: isChecked ? 700 : 400 }}>{emp.name} ({emp.Project || emp.role})</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  {/* Assign To (Admin Only) - Dual-Column Drag & Drop / Project-Scoped Selection */}
+                  <ProjectAssigneeSelector
+                    projectId={formData.projectId}
+                    projects={projects as any}
+                    allEmployees={employees as any}
+                    assignedTo={formData.assignedTo}
+                    onChangeAssignedTo={(newAssignedTo) =>
+                      setFormData((prev) => ({ ...prev, assignedTo: newAssignedTo }))
+                    }
+                    onProjectUpdated={(updatedProject) => {
+                      setProjects((prev) =>
+                        prev.map((p) =>
+                          p._id === updatedProject._id || p._id?.toString() === updatedProject._id?.toString()
+                            ? { ...p, ...updatedProject }
+                            : p
+                        )
+                      );
+                      fetchData(true);
+                    }}
+                    onAddNewEmployeeClick={() => setIsEmployeeModalOpen(true)}
+                  />
                 </>
               )}
 

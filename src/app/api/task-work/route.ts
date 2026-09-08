@@ -31,12 +31,24 @@ export async function GET(request: Request) {
       TaskWork.find(query)
       .populate({
         path: 'taskId',
-        select: 'title description priority status projectId',
-        populate: {
-          path: 'projectId',
-          model: 'Project',
-          select: 'name color'
-        }
+        select: 'title description priority status projectId createdBy assignedTo',
+        populate: [
+          {
+            path: 'projectId',
+            model: 'Project',
+            select: 'name color'
+          },
+          {
+            path: 'createdBy',
+            model: 'Employee',
+            select: 'name email avatarColor'
+          },
+          {
+            path: 'assignedTo',
+            model: 'Employee',
+            select: 'name email avatarColor'
+          }
+        ]
       })
       .populate('employeeId', 'name email avatarColor')
       .sort({ createdAt: -1 })

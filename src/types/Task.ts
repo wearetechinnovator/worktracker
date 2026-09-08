@@ -21,8 +21,24 @@ export interface Task {
     avatarColor?: string;
   };
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  status: 'To Do' | 'In Progress' | 'Review' | 'Completed';
+  status: 'To Do' | 'In Progress' | 'Partially Completed' | 'Review' | 'Completed';
   dueDate?: string;
+  dueTime?: string;
+  url?: string;
+  urls?: string[];
+  comments?: string;
+  commentsList?: Array<{
+    _id?: string;
+    author: {
+      _id: string;
+      name: string;
+      email?: string;
+      avatarColor?: string;
+      role?: string;
+    };
+    content: string;
+    createdAt: string;
+  }>;
   tags?: string[];
   createdAt: string;
 }

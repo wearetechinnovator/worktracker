@@ -1016,9 +1016,11 @@ export default function ProjectsPage() {
                                   </div>
                                   <h5 style={{ fontWeight: 400, fontSize: '0.78rem', margin: '1px 0' }}>{log.title}</h5>
                                   {log.description && (
-                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '2px' }}>
-                                      {log.description}
-                                    </p>
+                                    <div
+                                      className="work-entry-desc"
+                                      style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '2px' }}
+                                      dangerouslySetInnerHTML={{ __html: log.description }}
+                                    />
                                   )}
                                 </div>
                               </div>

@@ -58,7 +58,7 @@ export async function GET() {
     // Task calculations
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter((t) => t.status === 'Completed').length;
-    const inProgressTasks = tasks.filter((t) => t.status === 'In Progress').length;
+    const inProgressTasks = tasks.filter((t) => t.status === 'In Progress' || t.status === 'Partially Completed').length;
     const todoTasks = tasks.filter((t) => t.status === 'To Do').length;
     const reviewTasks = tasks.filter((t) => t.status === 'Review').length;
     const activeTasks = totalTasks - completedTasks;

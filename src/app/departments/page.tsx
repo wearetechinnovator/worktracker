@@ -135,11 +135,7 @@ const DepartmentPage = () => {
       <div style={{ display: 'grid', gap: '14px', height: 'fit-content' }}>
         <section className="department-hero">
           <div>
-            <p className="hero-eyebrow">Workspace Overview</p>
             <h1 className="hero-title">Departments</h1>
-            <p className="hero-copy">
-              Track department capacity, hiring pressure, and active delivery streams in one place.
-            </p>
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <button

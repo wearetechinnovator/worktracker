@@ -334,7 +334,6 @@ export default function EmployeesPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Team Directory</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Manage company members, assign credentials, and inspect total work tracking statistics.</p>
         </div>
 
         <button className="btn btn-primary" onClick={() => { resetForm(); setIsAddModalOpen(true); }}>

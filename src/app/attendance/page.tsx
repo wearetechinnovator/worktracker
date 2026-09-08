@@ -259,11 +259,6 @@ export default function AttendancePage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{user?.userType === 'admin' ? 'Punch In/Out Logs' : 'Attendance'}</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-            {user?.userType === 'admin'
-              ? 'Inspect historical employee daily punch sessions, IP addresses, location and override authorizations.'
-              : 'Inspect your historical daily attendance and punch sessions.'}
-          </p>
         </div>
 
         <button

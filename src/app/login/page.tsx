@@ -88,9 +88,6 @@ export default function LoginPage() {
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>
             Punch In
           </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-            Enter your credentials to punch in for today
-          </p>
         </div>
 
         {error && (

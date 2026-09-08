@@ -1563,6 +1563,14 @@ textarea.form-control {
   padding: 10px 14px;
 }
 
+.work-entry-desc p {
+  margin: 0;
+}
+
+.work-entry-desc p + p {
+  margin-top: 4px;
+}
+
 .work-entry-duration {
   font-size: 0.95rem;
   min-width: 60px;

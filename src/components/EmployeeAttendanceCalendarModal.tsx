@@ -736,9 +736,11 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
                             </div>
 
                             {work.description && (
-                              <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: '4px 0 0 0', background: 'var(--bg-tertiary)', padding: '6px 8px', borderRadius: '4px' }}>
-                                {work.description}
-                              </p>
+                              <div
+                                className="work-entry-desc"
+                                style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: '4px 0 0 0', background: 'var(--bg-tertiary)', padding: '6px 8px', borderRadius: '4px' }}
+                                dangerouslySetInnerHTML={{ __html: work.description }}
+                              />
                             )}
                           </div>
                         ))}
@@ -793,9 +795,11 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
                             </div>
 
                             {tw.notes && (
-                              <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: '4px 0 0 0', background: 'var(--bg-tertiary)', padding: '6px 8px', borderRadius: '4px' }}>
-                                Notes: {tw.notes}
-                              </p>
+                              <div
+                                className="work-entry-desc"
+                                style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: '4px 0 0 0', background: 'var(--bg-tertiary)', padding: '6px 8px', borderRadius: '4px' }}
+                                dangerouslySetInnerHTML={{ __html: tw.notes }}
+                              />
                             )}
                           </div>
                         ))}

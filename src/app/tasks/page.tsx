@@ -50,12 +50,24 @@ interface Task {
     avatarColor: string;
   }>;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  status: 'To Do' | 'In Progress' | 'Review' | 'Completed';
+  status: 'To Do' | 'In Progress' | 'Partially Completed' | 'Review' | 'Completed';
   dueDate?: string;
   dueTime?: string;
   url?: string;
   urls?: string[];
   comments?: string;
+  commentsList?: Array<{
+    _id?: string;
+    author: {
+      _id: string;
+      name: string;
+      email?: string;
+      avatarColor?: string;
+      role?: string;
+    };
+    content: string;
+    createdAt: string;
+  }>;
   contactPerson?: string;
   contactPersons?: string[];
   files?: Array<{ name: string; url: string; size?: number; type?: string }>;
@@ -127,6 +139,71 @@ export default function TasksPage() {
   const [copiedUrlIndex, setCopiedUrlIndex] = useState<number | null>(null);
   const [isCopiedAllUrls, setIsCopiedAllUrls] = useState<boolean>(false);
   const [isDownloadingZip, setIsDownloadingZip] = useState<boolean>(false);
+
+  // Comment & Progress Updates States
+  const [newCommentText, setNewCommentText] = useState<string>('');
+  const [newCommentStatus, setNewCommentStatus] = useState<string>('');
+  const [submittingComment, setSubmittingComment] = useState<boolean>(false);
+  const [copiedCommentId, setCopiedCommentId] = useState<string | null>(null);
+  const [isCopiedAllComments, setIsCopiedAllComments] = useState<boolean>(false);
+
+  const handleAddComment = async (taskId: string) => {
+    if (!newCommentText.trim() || !user) return;
+    setSubmittingComment(true);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: newCommentText.trim(),
+          userId: user._id || user.id,
+          newStatus: newCommentStatus || undefined,
+        }),
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error);
+
+      setNewCommentText('');
+      setNewCommentStatus('');
+      if (selectedTaskForDetails && selectedTaskForDetails._id === taskId) {
+        setSelectedTaskForDetails({
+          ...selectedTaskForDetails,
+          commentsList: result.data,
+          status: result.taskStatus || selectedTaskForDetails.status,
+        });
+      }
+      loadAllData();
+    } catch (err: any) {
+      console.error('Error posting comment:', err);
+      alert(err.message || 'Failed to post comment');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const handleCopyComment = (commentId: string, content: string) => {
+    navigator.clipboard.writeText(content);
+    setCopiedCommentId(commentId);
+    setTimeout(() => setCopiedCommentId(null), 2000);
+  };
+
+  const handleCopyAllComments = (task: Task) => {
+    const parts: string[] = [];
+    if (task.comments) {
+      parts.push(`Initial Note: ${task.comments}`);
+    }
+    if (task.commentsList && task.commentsList.length > 0) {
+      task.commentsList.forEach((c, idx) => {
+        const author = c.author?.name || 'Team Member';
+        const time = c.createdAt ? new Date(c.createdAt).toLocaleString() : '';
+        parts.push(`Update ${idx + 1} (${author} - ${time}):\n${c.content}`);
+      });
+    }
+    if (parts.length === 0) return;
+    navigator.clipboard.writeText(parts.join('\n\n'));
+    setIsCopiedAllComments(true);
+    setTimeout(() => setIsCopiedAllComments(false), 2000);
+  };
 
   const handleCopyAllUrls = (urlsList: string[]) => {
     if (!urlsList || urlsList.length === 0) return;
@@ -293,26 +370,28 @@ export default function TasksPage() {
     try {
       setTimeout(() => setLoading(true), 0);
       const endpoint = isAdmin ? '/api/tasks' : `/api/tasks?employeeId=${user._id}`;
+      const workEndpoint = isAdmin ? '/api/task-work?limit=500' : `/api/task-work?employeeId=${user._id}&limit=200`;
 
-      const promises: Promise<Response>[] = [fetch(endpoint), fetch('/api/projects')];
+      const promises: Promise<Response>[] = [
+        fetch(endpoint),
+        fetch('/api/projects'),
+        fetch(workEndpoint),
+      ];
       if (isAdmin) {
         promises.push(fetch('/api/employees'));
-      } else {
-        promises.push(fetch(`/api/task-work?employeeId=${user._id}&limit=100`));
       }
 
       const results = await Promise.all(promises);
       const tasksRes = await results[0].json();
       const projectsRes = await results[1].json();
+      const worksRes = await results[2].json();
 
       if (tasksRes.success) setTasks(tasksRes.data);
       if (projectsRes.success) setProjects(projectsRes.data);
-      if (isAdmin && results[2]) {
-        const empRes = await results[2].json();
+      if (worksRes.success && Array.isArray(worksRes.data)) setTaskWorks(worksRes.data);
+      if (isAdmin && results[3]) {
+        const empRes = await results[3].json();
         if (empRes.success) setEmployees(empRes.data);
-      } else if (!isAdmin && results[2]) {
-        const worksRes = await results[2].json();
-        if (worksRes.success) setTaskWorks(worksRes.data);
       }
     } catch (err: any) {
       console.error(err);
@@ -551,12 +630,28 @@ export default function TasksPage() {
   };
 
   const getActiveWork = (taskId: string) => {
-    return taskWorks.find(w => w.taskId?._id === taskId && w.status === 'In Progress');
+    return taskWorks.find(w => (w.taskId?._id === taskId || w.taskId === taskId) && w.status === 'In Progress' && (w.employeeId?._id === user?._id || w.employeeId === user?._id));
+  };
+
+  const getActiveWorkersForTask = (taskId: string) => {
+    return taskWorks.filter(w => (w.taskId?._id === taskId || w.taskId === taskId) && w.status === 'In Progress');
+  };
+
+  const getTaskProgress = (taskId: string) => {
+    const sessions = taskWorks.filter(w => (w.taskId?._id === taskId || w.taskId === taskId) && w.status === 'Completed');
+    const totalMins = sessions.reduce((sum, s) => sum + (s.totalMinutes || 0), 0);
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    return {
+      totalMinutes: totalMins,
+      timeText: totalMins > 0 ? (hours > 0 ? `${hours}h ${mins}m` : `${mins}m`) : null,
+      sessionCount: sessions.length,
+    };
   };
 
   const hasCompletedWorkToday = (taskId: string): boolean => {
     const todayStr = getLocalDateValue(new Date());
-    return taskWorks.some(w => w.taskId?._id === taskId && w.status === 'Completed' && w.date === todayStr);
+    return taskWorks.some(w => (w.taskId?._id === taskId || w.taskId === taskId) && w.status === 'Completed' && w.date === todayStr);
   };
 
   const openTaskDetailsModal = async (task: Task) => {
@@ -696,6 +791,7 @@ export default function TasksPage() {
     switch (status) {
       case 'Completed': return 'var(--status-active-bg)';
       case 'In Progress': return 'var(--status-pending-bg)';
+      case 'Partially Completed': return '#ffedd5';
       case 'Review': return '#dbeafe';
       case 'To Do': return 'var(--bg-tertiary)';
       default: return 'var(--bg-tertiary)';
@@ -708,6 +804,8 @@ export default function TasksPage() {
         return { background: '#ecfdf5', color: '#047857', border: '1px solid #10b98130' };
       case 'In Progress':
         return { background: '#eff6ff', color: '#1d4ed8', border: '1px solid #3b82f630' };
+      case 'Partially Completed':
+        return { background: '#fff7ed', color: '#c2410c', border: '1px solid #f9731630' };
       case 'Review':
         return { background: '#f5f3ff', color: '#6d28d9', border: '1px solid #8b5cf630' };
       case 'To Do':
@@ -796,11 +894,6 @@ export default function TasksPage() {
             {/* <CheckSquare size={28} style={{ color: 'var(--accent-primary)' }} /> */}
             Task Management
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            {isAdmin
-              ? 'Create and manage tasks for projects'
-              : 'Create your own tasks and keep them visible to the admin team'}
-          </p>
         </div>
 
         <button
@@ -922,6 +1015,7 @@ export default function TasksPage() {
               <option value="all">All Tasks (Inc. Completed)</option>
               <option value="To Do">To Do</option>
               <option value="In Progress">In Progress</option>
+              <option value="Partially Completed">Partially Completed</option>
               <option value="Review">Review</option>
               <option value="Completed">Completed Only</option>
             </select>
@@ -1015,12 +1109,13 @@ export default function TasksPage() {
             <thead>
               <tr>
                 <th>Task Title & Description</th>
-                <th style={{ width: '130px' }}>Project</th>
-                <th style={{ width: '110px' }}>Status</th>
-                <th style={{ width: '100px' }}>Priority</th>
-                <th style={{ width: '130px' }}>Assigned By</th>
+                <th style={{ width: '120px' }}>Project</th>
+                <th style={{ width: '125px' }}>Status</th>
+                <th style={{ width: '90px' }}>Priority</th>
+                <th style={{ width: '120px' }}>Assigned By</th>
                 <th style={{ width: '130px' }}>Assigned To</th>
-                <th style={{ width: '110px' }}>Due Date</th>
+                <th style={{ width: '110px' }}>Progress</th>
+                <th style={{ width: '105px' }}>Due Date</th>
                 {filteredTasks.some(canManageTask) && (
                   <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>
                 )}
@@ -1029,7 +1124,7 @@ export default function TasksPage() {
             <tbody>
               {filteredTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-secondary)' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-secondary)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                       <CheckSquare size={40} style={{ color: 'var(--text-muted)' }} />
                       <div style={{ fontWeight: 700, fontSize: '1rem' }}>No tasks found</div>
@@ -1055,257 +1150,324 @@ export default function TasksPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedTasks.map((task) => (
-                  <tr
-                    key={task._id}
-                    onClick={() => openTaskDetailsModal(task)}
-                    className="task-row-interactive"
-                  >
-                    <td>
-                      <div
-                        className="task-title-link"
-                        style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-primary)' }}
-                        title="Click to view task details & work logs"
-                      >
-                        {task.title}
-                      </div>
-                      {task.description && (
+                paginatedTasks.map((task) => {
+                  const activeWorkers = getActiveWorkersForTask(task._id);
+                  const isSomeoneWorking = activeWorkers.length > 0;
+                  const progress = getTaskProgress(task._id);
+
+                  return (
+                    <tr
+                      key={task._id}
+                      onClick={() => openTaskDetailsModal(task)}
+                      className="task-row-interactive"
+                      style={{
+                        background: isSomeoneWorking ? 'rgba(16, 185, 129, 0.04)' : undefined,
+                      }}
+                    >
+                      <td>
                         <div
-                          style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}
-                          dangerouslySetInnerHTML={{ __html: task.description }}
-                        />
-                      )}
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        Created by: <strong>{task.createdBy?.name || 'Unknown'}</strong>
-                      </div>
-                    </td>
-                    <td>
-                      {task.projectId ? (
-                        <span className="tag-badge" style={{ backgroundColor: `${task.projectId.color}15`, color: task.projectId.color, borderColor: `${task.projectId.color}30`, display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
-                          <Folder size={10} style={{ color: task.projectId.color }} />
-                          {task.projectId.name}
-                        </span>
-                      ) : task.Project ? (
-                        <span className="tag-badge" style={{ backgroundColor: '#cbd5e120', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
-                          <Folder size={10} />
-                          {task.Project}
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>None</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className="tag-badge" style={{ ...getStatusBadgeStyles(task.status), fontWeight: 700, fontSize: '0.72rem' }}>
-                        {task.status}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="tag-badge" style={{ ...getPriorityBadgeStyles(task.priority), fontWeight: 700, fontSize: '0.72rem' }}>
-                        {task.priority}
-                      </span>
-                    </td>
-                    <td>
-                      {task.createdBy ? (
-                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                          <div
-                            className="avatar"
-                            style={{
-                              backgroundColor: task.createdBy.avatarColor || '#7f56d9',
-                              width: '24px',
-                              height: '24px',
-                              fontSize: '0.62rem',
-                              color: '#ffffff',
-                              flexShrink: 0
-                            }}
-                            title={`Assigned by: ${task.createdBy.name}`}
-                          >
-                            {task.createdBy.name.split(' ').map((n: string) => n[0]).join('')}
-                          </div>
-                          <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '85px' }}>
-                            {task.createdBy.name.split(' ')[0]}
-                          </span>
+                          className="task-title-link"
+                          style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-primary)' }}
+                          title="Click to view task details & work logs"
+                        >
+                          {task.title}
                         </div>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>System Admin</span>
-                      )}
-                    </td>
-                    <td>
-                      {task.assignedTo && task.assignedTo.length > 0 ? (
-                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
-                          {task.assignedTo.map((emp: any, eIdx: number) => (
+                        {task.description && (
+                          <div
+                            style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}
+                            dangerouslySetInnerHTML={{ __html: task.description }}
+                          />
+                        )}
+                        {task.comments && (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '4px' }}>
+                            <MessageSquare size={11} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                            <span style={{ maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {task.comments}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        {task.projectId ? (
+                          <span className="tag-badge" style={{ backgroundColor: `${task.projectId.color}15`, color: task.projectId.color, borderColor: `${task.projectId.color}30`, display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
+                            <Folder size={10} style={{ color: task.projectId.color }} />
+                            {task.projectId.name}
+                          </span>
+                        ) : task.Project ? (
+                          <span className="tag-badge" style={{ backgroundColor: '#cbd5e120', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
+                            <Folder size={10} />
+                            {task.Project}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>None</span>
+                        )}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <span className="tag-badge" style={{ ...getStatusBadgeStyles(task.status), fontWeight: 750, fontSize: '0.72rem', width: 'fit-content' }}>
+                            {task.status}
+                          </span>
+                          {isSomeoneWorking && (
+                            <span className="tag-badge" style={{
+                              background: '#ecfdf5',
+                              color: '#047857',
+                              borderColor: '#10b98140',
+                              fontSize: '0.66rem',
+                              fontWeight: 750,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 6px',
+                              width: 'fit-content'
+                            }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} className="animate-pulse" />
+                              <span>Working Now</span>
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="tag-badge" style={{ ...getPriorityBadgeStyles(task.priority), fontWeight: 700, fontSize: '0.72rem' }}>
+                          {task.priority}
+                        </span>
+                      </td>
+                      <td>
+                        {task.createdBy ? (
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                             <div
-                              key={emp._id || emp.id || eIdx}
                               className="avatar"
                               style={{
-                                backgroundColor: emp.avatarColor || '#3b82f6',
+                                backgroundColor: task.createdBy.avatarColor || '#7f56d9',
                                 width: '24px',
                                 height: '24px',
                                 fontSize: '0.62rem',
                                 color: '#ffffff',
-                                border: '2px solid var(--bg-primary)',
-                                marginLeft: eIdx > 0 ? '-6px' : '0',
                                 flexShrink: 0
                               }}
-                              title={`Assigned to: ${emp.name}`}
+                              title={`Assigned by: ${task.createdBy.name}`}
                             >
-                              {emp.name.split(' ').map((n: string) => n[0]).join('')}
+                              {task.createdBy.name.split(' ').map((n: string) => n[0]).join('')}
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Unassigned</span>
-                      )}
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                      {task.dueDate ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <Calendar size={12} />
-                          {new Date(task.dueDate).toLocaleDateString()}
-                        </span>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    {canManageTask(task) && (
-                      <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', justifyContent: 'center' }}>
-
-                          {/* Work session controls for standard employees */}
-                          {!isAdmin && (
-                            <>
-                              {(() => {
-                                const activeWork = getActiveWork(task._id);
-                                const completedToday = hasCompletedWorkToday(task._id);
-
-                                if (activeWork) {
-                                  const timerStr = (() => {
-                                    if (!activeWork.startTime) return '00:00:00';
-                                    const parts = activeWork.startTime.split(':');
-                                    if (parts.length < 3) return '00:00:00';
-                                    const [hours, minutes, seconds] = parts.map(Number);
-                                    const start = new Date(currentTime);
-                                    start.setHours(hours, minutes, seconds, 0);
-
-                                    const totalPaused = pausedDurations[activeWork._id] || 0;
-                                    let elapsed = Math.floor((currentTime.getTime() - start.getTime() - totalPaused) / 1000);
-                                    if (elapsed < 0) {
-                                      elapsed += 24 * 60 * 60;
-                                    }
-                                    const h = Math.floor(elapsed / 3600);
-                                    const m = Math.floor((elapsed % 3600) / 60);
-                                    const s = elapsed % 60;
-                                    return [
-                                      String(h).padStart(2, '0'),
-                                      String(m).padStart(2, '0'),
-                                      String(s).padStart(2, '0')
-                                    ].join(':');
-                                  })();
-
-                                  return (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <div style={{
-                                        fontFamily: 'monospace',
-                                        fontSize: '0.72rem',
-                                        fontWeight: 800,
-                                        color: '#ef4444',
-                                        background: '#fee2e2',
-                                        padding: '4px 8px',
-                                        borderRadius: '4px',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '4px'
-                                      }}>
-                                        <Loader2 className="animate-spin" size={10} />
-                                        {timerStr}
-                                      </div>
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); openEndWorkDialog(activeWork._id); }}
-                                        disabled={processingTaskId === activeWork._id}
-                                        className="btn btn-danger"
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '4px',
-                                          padding: '5px 10px',
-                                          fontSize: '0.72rem'
-                                        }}
-                                        title="End Work Session"
-                                      >
-                                        <StopCircle size={12} />
-                                        <span>End Work</span>
-                                      </button>
-                                    </div>
-                                  );
-                                } else {
-                                  return (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      {completedToday && (
-                                        <span
-                                          className="tag-badge"
-                                          style={{
-                                            background: '#d1fae5',
-                                            color: '#065f46',
-                                            fontSize: '0.68rem',
-                                            padding: '2px 6px',
-                                            fontWeight: 700,
-                                            border: '1px solid #10b98130',
-                                          }}
-                                        >
-                                          Worked Today
-                                        </span>
-                                      )}
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); handleStartWork(task._id); }}
-                                        disabled={processingTaskId === task._id || task.status === 'Completed'}
-                                        className="btn btn-primary"
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '4px',
-                                          padding: '5px 10px',
-                                          fontSize: '0.72rem'
-                                        }}
-                                      >
-                                        {processingTaskId === task._id ? (
-                                          <Loader2 className="animate-spin" size={12} />
-                                        ) : (
-                                          <Play size={12} />
-                                        )}
-                                        <span>Start Work</span>
-                                      </button>
-                                    </div>
-                                  );
-                                }
-                              })()}
-                            </>
-                          )}
-
-                          {/* Edit / Delete actions */}
-                          {(isAdmin || (user && task.createdBy?._id === user._id)) && (
-                            <>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); openEditModal(task); }}
-                                className="btn btn-secondary"
-                                style={{ padding: '4px 6px', fontSize: '0.75rem' }}
-                                title="Edit"
-                              >
-                                <Edit size={12} />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleDelete(task._id); }}
-                                className="btn btn-danger"
-                                style={{ padding: '4px 6px', fontSize: '0.75rem' }}
-                                title="Delete"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </>
-                          )}
-                        </div>
+                            <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '85px' }}>
+                              {task.createdBy.name.split(' ')[0]}
+                            </span>
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>System Admin</span>
+                        )}
                       </td>
-                    )}
-                  </tr>
-                ))
+                      <td>
+                        {task.assignedTo && task.assignedTo.length > 0 ? (
+                          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px' }}>
+                            {task.assignedTo.map((emp: any, eIdx: number) => {
+                              const isWorkerActive = activeWorkers.some(w => w.employeeId?._id === emp._id || w.employeeId === emp._id);
+                              return (
+                                <div
+                                  key={emp._id || emp.id || eIdx}
+                                  className="avatar"
+                                  style={{
+                                    backgroundColor: emp.avatarColor || '#3b82f6',
+                                    width: '24px',
+                                    height: '24px',
+                                    fontSize: '0.62rem',
+                                    color: '#ffffff',
+                                    border: isWorkerActive ? '2px solid #10b981' : '2px solid var(--bg-primary)',
+                                    boxShadow: isWorkerActive ? '0 0 6px #10b98180' : undefined,
+                                    marginLeft: eIdx > 0 && !isWorkerActive ? '-6px' : '0',
+                                    flexShrink: 0
+                                  }}
+                                  title={`Assigned to: ${emp.name}${isWorkerActive ? ' (Working Now)' : ''}`}
+                                >
+                                  {emp.name.split(' ').map((n: string) => n[0]).join('')}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Unassigned</span>
+                        )}
+                      </td>
+                      <td>
+                        {progress.totalMinutes > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span style={{
+                              fontSize: '0.74rem',
+                              color: '#047857',
+                              fontWeight: 750,
+                              background: '#ecfdf5',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              border: '1px solid #a7f3d0',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              width: 'fit-content'
+                            }}>
+                              <Clock size={11} />
+                              {progress.timeText}
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                              {progress.sessionCount} session{progress.sessionCount !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>No time logged</span>
+                        )}
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                        {task.dueDate ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Calendar size={12} />
+                            {new Date(task.dueDate).toLocaleDateString()}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      {filteredTasks.some(canManageTask) && (
+                        <td style={{ textAlign: 'center' }}>
+                          {canManageTask(task) ? (
+                            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', justifyContent: 'center' }}>
+                              {/* Work session controls for standard employees */}
+                              {!isAdmin && (
+                                <>
+                                  {(() => {
+                                    const activeWork = getActiveWork(task._id);
+                                    const completedToday = hasCompletedWorkToday(task._id);
+
+                                    if (activeWork) {
+                                      const timerStr = (() => {
+                                        if (!activeWork.startTime) return '00:00:00';
+                                        const parts = activeWork.startTime.split(':');
+                                        if (parts.length < 3) return '00:00:00';
+                                        const [hours, minutes, seconds] = parts.map(Number);
+                                        const start = new Date(currentTime);
+                                        start.setHours(hours, minutes, seconds, 0);
+
+                                        const totalPaused = pausedDurations[activeWork._id] || 0;
+                                        let elapsed = Math.floor((currentTime.getTime() - start.getTime() - totalPaused) / 1000);
+                                        if (elapsed < 0) {
+                                          elapsed += 24 * 60 * 60;
+                                        }
+                                        const h = Math.floor(elapsed / 3600);
+                                        const m = Math.floor((elapsed % 3600) / 60);
+                                        const s = elapsed % 60;
+                                        return [
+                                          String(h).padStart(2, '0'),
+                                          String(m).padStart(2, '0'),
+                                          String(s).padStart(2, '0')
+                                        ].join(':');
+                                      })();
+
+                                      return (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                          <div style={{
+                                            fontFamily: 'monospace',
+                                            fontSize: '0.72rem',
+                                            fontWeight: 800,
+                                            color: '#ef4444',
+                                            background: '#fee2e2',
+                                            padding: '4px 8px',
+                                            borderRadius: '4px',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                          }}>
+                                            <Loader2 className="animate-spin" size={10} />
+                                            {timerStr}
+                                          </div>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); openEndWorkDialog(activeWork._id); }}
+                                            disabled={processingTaskId === activeWork._id}
+                                            className="btn btn-danger"
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '4px',
+                                              padding: '5px 10px',
+                                              fontSize: '0.72rem'
+                                            }}
+                                            title="End Work Session"
+                                          >
+                                            <StopCircle size={12} />
+                                            <span>End Work</span>
+                                          </button>
+                                        </div>
+                                      );
+                                    } else {
+                                      return (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                          {completedToday && (
+                                            <span
+                                              className="tag-badge"
+                                              style={{
+                                                background: '#d1fae5',
+                                                color: '#065f46',
+                                                fontSize: '0.68rem',
+                                                padding: '2px 6px',
+                                                fontWeight: 700,
+                                                border: '1px solid #10b98130',
+                                              }}
+                                            >
+                                              Worked Today
+                                            </span>
+                                          )}
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); handleStartWork(task._id); }}
+                                            disabled={processingTaskId === task._id || task.status === 'Completed'}
+                                            className="btn btn-primary"
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '4px',
+                                              padding: '5px 10px',
+                                              fontSize: '0.72rem'
+                                            }}
+                                          >
+                                            {processingTaskId === task._id ? (
+                                              <Loader2 className="animate-spin" size={12} />
+                                            ) : (
+                                              <Play size={12} />
+                                            )}
+                                            <span>Start Work</span>
+                                          </button>
+                                        </div>
+                                      );
+                                    }
+                                  })()}
+                                </>
+                              )}
+
+                              {/* Edit / Delete actions */}
+                              {(isAdmin || (user && task.createdBy?._id === user._id)) && (
+                                <>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); openEditModal(task); }}
+                                    className="btn btn-secondary"
+                                    style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                                    title="Edit"
+                                  >
+                                    <Edit size={12} />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDelete(task._id); }}
+                                    className="btn btn-danger"
+                                    style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                                    title="Delete"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>-</span>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -1999,32 +2161,239 @@ export default function TasksPage() {
                 </div>
               )}
 
-              {/* Task Comments / Notes */}
-              {selectedTaskForDetails.comments && (
-                <div>
-                  <h4 style={{ fontSize: '0.78rem', fontWeight: 750, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {/* Task Comments & Progress Updates Thread */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                  <h4 style={{ fontSize: '0.78rem', fontWeight: 750, color: 'var(--text-muted)', textTransform: 'uppercase', margin: 0, letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <MessageSquare size={14} style={{ color: 'var(--accent-primary)' }} />
-                    <span>Comments / Notes</span>
+                    <span>Task Comments & Progress Updates</span>
                   </h4>
-                  <div
-                    style={{
-                      fontSize: '0.85rem',
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      background: 'var(--bg-tertiary)',
                       color: 'var(--text-secondary)',
-                      background: 'var(--bg-secondary)',
-                      padding: '12px 16px',
-                      borderRadius: '8px',
-                      borderLeft: '4px solid var(--accent-primary)',
-                      borderTop: '1px solid var(--border-color)',
-                      borderRight: '1px solid var(--border-color)',
-                      borderBottom: '1px solid var(--border-color)',
-                      whiteSpace: 'pre-wrap',
-                      lineHeight: '1.5',
-                    }}
-                  >
-                    {selectedTaskForDetails.comments}
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      border: '1px solid var(--border-color)'
+                    }}>
+                      {((selectedTaskForDetails.commentsList?.length || 0) + (selectedTaskForDetails.comments ? 1 : 0))} updates
+                    </span>
+                    {((selectedTaskForDetails.commentsList?.length || 0) > 0 || selectedTaskForDetails.comments) && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAllComments(selectedTaskForDetails)}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 750,
+                          color: isCopiedAllComments ? '#059669' : 'var(--accent-primary)',
+                          background: isCopiedAllComments ? '#d1fae5' : 'rgba(59, 130, 246, 0.1)',
+                          border: isCopiedAllComments ? '1px solid #10b98140' : '1px solid rgba(59, 130, 246, 0.25)',
+                          padding: '3px 10px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="Copy full update history to clipboard"
+                      >
+                        {isCopiedAllComments ? <Check size={11} /> : <Copy size={11} />}
+                        <span>{isCopiedAllComments ? 'Copied Updates!' : 'Copy Updates'}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
-              )}
+
+                {/* Thread of Comments */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
+                  {/* Initial Note if present */}
+                  {selectedTaskForDetails.comments && (
+                    <div style={{
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)',
+                      borderLeft: '4px solid var(--accent-primary)',
+                      borderRadius: '8px',
+                      padding: '12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 750, color: 'var(--accent-primary)', background: 'rgba(59, 130, 246, 0.1)', padding: '1px 6px', borderRadius: '4px' }}>
+                            Initial Note
+                          </span>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>From task creation</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyComment('initial', selectedTaskForDetails.comments!)}
+                          style={{
+                            fontSize: '0.7rem',
+                            color: copiedCommentId === 'initial' ? '#059669' : 'var(--text-muted)',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px'
+                          }}
+                          title="Copy note"
+                        >
+                          {copiedCommentId === 'initial' ? <Check size={11} /> : <Copy size={11} />}
+                          <span>{copiedCommentId === 'initial' ? 'Copied' : 'Copy'}</span>
+                        </button>
+                      </div>
+                      <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                        {selectedTaskForDetails.comments}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Comment List items */}
+                  {selectedTaskForDetails.commentsList && selectedTaskForDetails.commentsList.length > 0 ? (
+                    selectedTaskForDetails.commentsList.map((cmt, cIdx) => {
+                      const cId = cmt._id || String(cIdx);
+                      const isCopied = copiedCommentId === cId;
+                      return (
+                        <div
+                          key={cId}
+                          style={{
+                            background: 'var(--bg-secondary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            padding: '12px 14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div
+                                className="avatar"
+                                style={{
+                                  backgroundColor: cmt.author?.avatarColor || '#3b82f6',
+                                  width: '24px',
+                                  height: '24px',
+                                  fontSize: '0.62rem',
+                                  color: '#ffffff',
+                                  flexShrink: 0
+                                }}
+                                title={cmt.author?.name}
+                              >
+                                {cmt.author?.name?.split(' ').map((n: string) => n[0]).join('') || '?'}
+                              </div>
+                              <div>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 750, color: 'var(--text-primary)', marginRight: '6px' }}>
+                                  {cmt.author?.name || 'Team Member'}
+                                </span>
+                                {cmt.author?.role && (
+                                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', background: 'var(--bg-tertiary)', padding: '1px 5px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                                    {cmt.author.role}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                {cmt.createdAt ? new Date(cmt.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyComment(cId, cmt.content)}
+                                style={{
+                                  fontSize: '0.7rem',
+                                  color: isCopied ? '#059669' : 'var(--text-muted)',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
+                                }}
+                                title="Copy comment"
+                              >
+                                {isCopied ? <Check size={11} /> : <Copy size={11} />}
+                                <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                              </button>
+                            </div>
+                          </div>
+                          <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: '1.5', paddingLeft: '32px' }}>
+                            {cmt.content}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (!selectedTaskForDetails.comments && (
+                    <div style={{ textAlign: 'center', padding: '16px', background: 'var(--bg-primary)', borderRadius: '8px', border: '1px dashed var(--border-color)', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                      No update comments yet. Add a progress update below.
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add Comment Input Form */}
+                <div style={{
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '10px',
+                  padding: '14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', fontWeight: 750, color: 'var(--text-primary)' }}>
+                    <Plus size={13} style={{ color: 'var(--accent-primary)' }} />
+                    <span>Add Task Update / Comment</span>
+                  </div>
+                  <textarea
+                    className="form-control"
+                    rows={3}
+                    placeholder="Type a progress update, remark, or comment for this task..."
+                    value={newCommentText}
+                    onChange={(e) => setNewCommentText(e.target.value)}
+                    style={{ fontSize: '0.84rem', resize: 'vertical', background: 'var(--bg-primary)' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Status update:</span>
+                      <select
+                        value={newCommentStatus}
+                        onChange={(e) => setNewCommentStatus(e.target.value)}
+                        className="form-control"
+                        style={{ fontSize: '0.75rem', padding: '4px 8px', height: 'auto', width: 'auto' }}
+                      >
+                        <option value="">Keep status ({selectedTaskForDetails.status})</option>
+                        <option value="To Do">To Do</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Partially Completed">Partially Completed</option>
+                        <option value="Review">Review</option>
+                        <option value="Completed">Completed</option>
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleAddComment(selectedTaskForDetails._id)}
+                      disabled={submittingComment || !newCommentText.trim()}
+                      className="btn btn-primary"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 14px',
+                        fontSize: '0.78rem',
+                        opacity: (!newCommentText.trim() || submittingComment) ? 0.6 : 1
+                      }}
+                    >
+                      {submittingComment ? <Loader2 className="animate-spin" size={13} /> : <MessageSquare size={13} />}
+                      <span>Post Update</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               {/* Work Session History Logs */}
               <div>

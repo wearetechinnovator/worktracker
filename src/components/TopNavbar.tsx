@@ -571,6 +571,7 @@ export default function TopNavbar() {
                       <option value="">All Statuses</option>
                       <option value="To Do">To Do</option>
                       <option value="In Progress">In Progress</option>
+                      <option value="Partially Completed">Partially Completed</option>
                       <option value="Review">Review</option>
                       <option value="Completed">Completed</option>
                     </select>

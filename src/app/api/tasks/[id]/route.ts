@@ -12,8 +12,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     const task = await Task.findById(id)
       .populate('assignedTo', 'name email avatarColor role Project')
-      .populate('createdBy', 'name email')
-      .populate('projectId', 'name color description');
+      .populate('createdBy', 'name email avatarColor')
+      .populate('projectId', 'name color description')
+      .populate('commentsList.author', 'name email avatarColor role');
 
     if (!task) {
       return NextResponse.json({ success: false, error: 'Task not found' }, { status: 404 });

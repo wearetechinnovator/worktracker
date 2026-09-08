@@ -8,12 +8,18 @@ export interface ITask extends Document {
   assignedTo: mongoose.Types.ObjectId[]; // Array of employee IDs
   createdBy: mongoose.Types.ObjectId; // Admin/Manager who created it
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  status: 'To Do' | 'In Progress' | 'Review' | 'Completed';
+  status: 'To Do' | 'In Progress' | 'Partially Completed' | 'Review' | 'Completed';
   dueDate?: string; // YYYY-MM-DD
   dueTime?: string; // HH:MM
   url?: string;
   urls?: string[];
   comments?: string;
+  commentsList?: Array<{
+    _id?: mongoose.Types.ObjectId;
+    author: mongoose.Types.ObjectId;
+    content: string;
+    createdAt: Date;
+  }>;
   contactPerson?: string;
   contactPersons?: string[];
   files?: Array<{ name: string; url: string; size?: number; type?: string }>;
@@ -38,7 +44,7 @@ const TaskSchema = new Schema<ITask>(
     },
     status: { 
       type: String, 
-      enum: ['To Do', 'In Progress', 'Review', 'Completed'], 
+      enum: ['To Do', 'In Progress', 'Partially Completed', 'Review', 'Completed'], 
       default: 'To Do',
       required: true 
     },
@@ -47,6 +53,11 @@ const TaskSchema = new Schema<ITask>(
     url: { type: String, trim: true },
     urls: [{ type: String }],
     comments: { type: String, trim: true },
+    commentsList: [{
+      author: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
+      content: { type: String, required: true, trim: true },
+      createdAt: { type: Date, default: Date.now },
+    }],
     contactPerson: { type: String, trim: true },
     contactPersons: [{ type: String, trim: true }],
     files: [{

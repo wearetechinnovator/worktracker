@@ -57,8 +57,9 @@ export async function GET(request: Request) {
     const [tasks, total] = await Promise.all([
       Task.find(query)
       .populate('assignedTo', 'name email avatarColor role Project')
-      .populate('createdBy', 'name email')
+      .populate('createdBy', 'name email avatarColor')
       .populate('projectId', 'name color')
+      .populate('commentsList.author', 'name email avatarColor role')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)

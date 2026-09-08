@@ -336,9 +336,6 @@ export default function RolesPage() {
             <ShieldCheck size={28} style={{ color: 'var(--accent-primary)' }} />
             Role & Permission Management
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', margin: '4px 0 0' }}>
-            Configure custom role hierarchies, assign color badges, and manage granular system access permissions.
-          </p>
         </div>
 
         {isAdmin && (
@@ -430,7 +427,7 @@ export default function RolesPage() {
                     />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.88rem', fontWeight: 400, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {role.name}
                         </span>
                         {role.isSystemRole && (
@@ -443,9 +440,6 @@ export default function RolesPage() {
                             ADMIN
                           </span>
                         )}
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
-                        {role.description || 'No description provided'}
                       </div>
                     </div>
                   </div>
@@ -466,53 +460,63 @@ export default function RolesPage() {
         {selectedRole ? (
           <div className="card" style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: '22px' }}>
             {/* Header: Selected Role Metadata Editor */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '18px' }}>
-              <div style={{ flex: 1, minWidth: '240px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                  <div
-                    style={{
-                      width: '16px',
-                      height: '16px',
-                      borderRadius: '50%',
-                      backgroundColor: activeRoleColor,
-                      boxShadow: `0 0 10px ${activeRoleColor}80`
-                    }}
-                  />
-                  {selectedRole.isSystemRole ? (
-                    <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                      {selectedRole.name}
-                    </h2>
-                  ) : (
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={activeRoleName}
-                      onChange={(e) => setActiveRoleName(e.target.value)}
-                      disabled={!isAdmin}
-                      style={{ fontSize: '1.2rem', fontWeight: 800, padding: '4px 10px', width: 'auto' }}
-                    />
-                  )}
-                  {selectedRole.isSystemRole && (
-                    <span style={{ fontSize: '0.7rem', fontWeight: 750, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <Lock size={11} /> System Default
-                    </span>
-                  )}
-                </div>
-
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Role description..."
-                  value={activeRoleDesc}
-                  onChange={(e) => setActiveRoleDesc(e.target.value)}
-                  disabled={!isAdmin}
-                  style={{ fontSize: '0.82rem', width: '100%', marginTop: '6px' }}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '50%',
+                    backgroundColor: activeRoleColor,
+                    boxShadow: `0 0 10px ${activeRoleColor}80`
+                  }}
                 />
+                {selectedRole.isSystemRole ? (
+                  <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {selectedRole.name}
+                  </h2>
+                ) : (
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={activeRoleName}
+                    onChange={(e) => setActiveRoleName(e.target.value)}
+                    disabled={!isAdmin}
+                    style={{ fontSize: '1.2rem', fontWeight: 800, padding: '4px 10px', width: 'auto' }}
+                  />
+                )}
+                {selectedRole.isSystemRole && (
+                  <span style={{ fontSize: '0.7rem', fontWeight: 750, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <Lock size={11} /> System Default
+                  </span>
+                )}
               </div>
 
               {/* Action Buttons & Color Swatch Selector */}
               {isAdmin && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                  {/* Preset Color Swatches */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Badge:</span>
+                    {PRESET_COLORS.map((hex) => (
+                      <button
+                        key={hex}
+                        type="button"
+                        onClick={() => setActiveRoleColor(hex)}
+                        style={{
+                          width: '16px',
+                          height: '16px',
+                          borderRadius: '50%',
+                          backgroundColor: hex,
+                          border: activeRoleColor === hex ? '2px solid var(--text-primary)' : 'none',
+                          cursor: 'pointer',
+                          transform: activeRoleColor === hex ? 'scale(1.2)' : 'scale(1)',
+                          transition: 'all 0.15s ease'
+                        }}
+                      />
+                    ))}
+                  </div>
+
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {!selectedRole.isSystemRole && (
                       <button
@@ -538,42 +542,15 @@ export default function RolesPage() {
                       <span>{isSaving ? 'Saving...' : 'Save Permissions'}</span>
                     </button>
                   </div>
-
-                  {/* Preset Color Swatches */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Badge Color:</span>
-                    {PRESET_COLORS.map((hex) => (
-                      <button
-                        key={hex}
-                        type="button"
-                        onClick={() => setActiveRoleColor(hex)}
-                        style={{
-                          width: '16px',
-                          height: '16px',
-                          borderRadius: '50%',
-                          backgroundColor: hex,
-                          border: activeRoleColor === hex ? '2px solid var(--text-primary)' : 'none',
-                          cursor: 'pointer',
-                          transform: activeRoleColor === hex ? 'scale(1.2)' : 'scale(1)',
-                          transition: 'all 0.15s ease'
-                        }}
-                      />
-                    ))}
-                  </div>
                 </div>
               )}
             </div>
 
             {/* Discord Feature Flag Toggles Bar */}
-            <div style={{ background: 'var(--bg-secondary)', padding: '14px 18px', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-              <div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 400, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Shield size={16} style={{ color: '#7f56d9' }} />
-                  <span>Administrator Override Access</span>
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Enabling this option grants full administrative bypass access to all workspace features.
-                </div>
+            <div style={{ background: 'var(--bg-secondary)', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Shield size={16} style={{ color: '#7f56d9' }} />
+                <span>Administrator Override Access</span>
               </div>
 
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: isAdmin ? 'pointer' : 'default' }}>
@@ -584,7 +561,7 @@ export default function RolesPage() {
                   disabled={!isAdmin || selectedRole.name === 'Admin'}
                   style={{ width: '16px', height: '16px', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
                 />
-                <span style={{ fontSize: '0.82rem', fontWeight: 450, color: activeRoleAdmin ? '#7f56d9' : 'var(--text-secondary)' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 550, color: activeRoleAdmin ? '#7f56d9' : 'var(--text-secondary)' }}>
                   {activeRoleAdmin ? 'System Admin Bypass ACTIVE' : 'Standard Permission Checks'}
                 </span>
               </label>
@@ -593,14 +570,7 @@ export default function RolesPage() {
             {/* Strapi-style Action-Subject Permission Matrix Header */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-                {/* <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                    Granular Resource Permissions Matrix
-                  </h3>
-                  <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    Select actions that members with the <strong>{activeRoleName}</strong> role can perform across workspace domains.
-                  </div>
-                </div> */}
+                <div />
 
                 {isAdmin && !activeRoleAdmin && (
                   <button
@@ -615,7 +585,7 @@ export default function RolesPage() {
               </div>
 
               {/* Permission Groups Accordion List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 {PERMISSION_GROUPS.map((group) => {
                   const groupKeys = group.actions.map((a) => a.key);
                   const selectedCount = groupKeys.filter((k) => activePermissions.includes(k)).length;
@@ -646,14 +616,9 @@ export default function RolesPage() {
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           {renderDomainIcon(group.iconName)}
-                          <div>
-                            <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                              {group.label}
-                            </span>
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '8px' }}>
-                              ({group.description})
-                            </span>
-                          </div>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            {group.label}
+                          </span>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -682,7 +647,7 @@ export default function RolesPage() {
                       </div>
 
                       {/* Group Actions Checklist Grid */}
-                      <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
+                      <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
                         {group.actions.map((action) => {
                           const isChecked = activePermissions.includes(action.key) || activeRoleAdmin;
                           return (
@@ -690,12 +655,12 @@ export default function RolesPage() {
                               key={action.key}
                               style={{
                                 display: 'flex',
-                                alignItems: 'flex-start',
+                                alignItems: 'center',
                                 gap: '8px',
-                                padding: '8px 10px',
+                                padding: '8px 12px',
                                 borderRadius: '6px',
-                                background: isChecked ? 'rgba(59, 130, 246, 0.06)' : 'var(--bg-primary)',
-                                border: isChecked ? '1px solid rgba(59, 130, 246, 0.25)' : '1px solid var(--border-color)',
+                                background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'var(--bg-primary)',
+                                border: isChecked ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid var(--border-color)',
                                 cursor: isAdmin && !activeRoleAdmin ? 'pointer' : 'default',
                                 transition: 'all 0.15s ease'
                               }}
@@ -705,16 +670,11 @@ export default function RolesPage() {
                                 checked={isChecked}
                                 onChange={() => togglePermission(action.key)}
                                 disabled={!isAdmin || activeRoleAdmin}
-                                style={{ marginTop: '2px', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                                style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
                               />
-                              <div>
-                                <div style={{ fontSize: '0.78rem', fontWeight: 750, color: isChecked ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                                  {action.label}
-                                </div>
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: '1.3', marginTop: '1px' }}>
-                                  {action.description}
-                                </div>
-                              </div>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isChecked ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                {action.label}
+                              </span>
                             </label>
                           );
                         })}

@@ -289,9 +289,6 @@ export default function TaskHistoryPage() {
           {/* <Clock size={28} style={{ color: 'var(--accent-primary)' }} /> */}
           Task Work History
         </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-          View all task work sessions and time tracking records
-        </p>
       </div>
 
       {error && (

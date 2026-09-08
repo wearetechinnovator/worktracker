@@ -234,11 +234,7 @@ export default function ClientsPage() {
       
       <section className="client-hero">
         <div>
-          <p className="hero-eyebrow">Workspace Configuration</p>
           <h1 className="hero-title">Clients Directory</h1>
-          <p className="hero-copy">
-            Manage clients, contact emails, addresses, project durations, and assign clients to ongoing active workspace projects.
-          </p>
         </div>
         {isAdmin && (
           <button className="btn btn-primary" type="button" onClick={openAddModal} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

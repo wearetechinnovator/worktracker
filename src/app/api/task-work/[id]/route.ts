@@ -45,7 +45,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     // Update parent task completion status
     const parentTask = await Task.findById(taskWork.taskId);
     if (parentTask) {
-      parentTask.status = isFullyCompleted ? 'Completed' : 'In Progress';
+      parentTask.status = isFullyCompleted ? 'Completed' : 'Partially Completed';
       await parentTask.save();
     }
 

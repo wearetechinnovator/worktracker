@@ -434,9 +434,11 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
                         </div>
                         <h4 style={{ fontWeight: 700, margin: '2px 0', fontSize: '0.8rem' }}>{entry.title}</h4>
                         {entry.description && (
-                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '4px' }}>
-                            {entry.description}
-                          </p>
+                          <div
+                            className="work-entry-desc"
+                            style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '4px' }}
+                            dangerouslySetInnerHTML={{ __html: entry.description }}
+                          />
                         )}
                       </div>
                     </div>
