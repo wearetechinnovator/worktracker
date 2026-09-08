@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 const DEFAULT_PAGE_SIZE = 1000;
 const MAX_PAGE_SIZE = 5000;
 
+// pagination er jonno
 export function getPagination(searchParams: URLSearchParams) {
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const requestedLimit = Number.parseInt(searchParams.get('limit') ?? String(DEFAULT_PAGE_SIZE), 10) || DEFAULT_PAGE_SIZE;
@@ -10,7 +11,7 @@ export function getPagination(searchParams: URLSearchParams) {
 
   return { page, limit, skip: (page - 1) * limit };
 }
-
+// after pagination api call 
 export function paginatedResponse<T>(data: T[], page: number, limit: number, total: number) {
   return NextResponse.json({
     success: true,

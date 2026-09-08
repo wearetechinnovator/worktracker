@@ -3,11 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { X, Eye, EyeOff, Loader2, UserPlus, AlertCircle, User, Mail, Lock, Briefcase } from 'lucide-react';
 import { CustomDropdown } from '@/components/TaskFormControls';
+import type { Employee } from '@/types/Employee2';
 
 export interface AddTeamMemberModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (newEmployee?: any) => void;
+  mode?: 'add' | 'edit';
+  employee?: Employee | null;
   roleSuggestions?: string[];
   projectsList?: string[] | { _id: string; name: string }[];
 }
@@ -41,19 +44,22 @@ export default function AddTeamMemberModal({
   isOpen,
   onClose,
   onSuccess,
+  mode = 'add',
+  employee = null,
   roleSuggestions,
   projectsList,
 }: AddTeamMemberModalProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('password123');
+  const [password, setPassword] = useState(mode === 'add' ? 'password123' : '');
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState('');
+  const [role, setRole] = useState(mode === 'add' ? '' : employee?.role || '');
   const [roleId, setRoleId] = useState('');
-  const [project, setProject] = useState('');
-  const [status, setStatus] = useState('Active');
-  const [workMode, setWorkMode] = useState('Hybrid');
-  const [avatarColor, setAvatarColor] = useState('#3b82f6');
+  const [project, setProject] = useState(mode === 'add' ? '' : employee?.Project || '');
+  const [status, setStatus] = useState(mode === 'add' ? 'Active' : employee?.status || 'Active');
+  const [workMode, setWorkMode] = useState(mode === 'add' ? 'Hybrid' : employee?.workMode || 'Hybrid');
+  const [avatarColor, setAvatarColor] = useState(employee?.avatarColor || '#3b82f6');
+  const [userType, setUserType] = useState<'admin' | 'employee'>(employee?.userType || 'employee');
 
   const [fetchedDesignations, setFetchedDesignations] = useState<string[]>([]);
   const [fetchedProjects, setFetchedProjects] = useState<string[]>([]);
@@ -135,12 +141,28 @@ export default function AddTeamMemberModal({
       .catch(() => { });
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen || mode !== 'edit' || !employee) return;
+    setName(employee.name);
+    setEmail(employee.email);
+    setPassword(employee.password || 'password123');
+    setRole(employee.role || '');
+    setProject(employee.Project || '');
+    setStatus(employee.status || 'Active');
+    setWorkMode(employee.workMode || 'Hybrid');
+    setAvatarColor(employee.avatarColor || '#3b82f6');
+    setUserType(employee.userType || 'employee');
+    setError(null);
+  }, [employee, isOpen, mode]);
+
   if (!isOpen) return null;
 
   // Combine pure designation options (excluding system access roles like Admin, Employee, Client)
   const allRoleSuggestions = Array.from(
     new Set([
       ...fetchedDesignations,
+      ...(roleSuggestions || []),
+      ...(role ? [role] : []),
       ...DEFAULT_DESIGNATIONS,
     ])
   );
@@ -161,13 +183,14 @@ export default function AddTeamMemberModal({
   const resetForm = () => {
     setName('');
     setEmail('');
-    setPassword('password123');
+    setPassword(mode === 'add' ? 'password123' : '');
     setShowPassword(false);
     setRole('');
     setProject('');
     setStatus('Active');
     setWorkMode('Hybrid');
     setAvatarColor('#3b82f6');
+    setUserType('employee');
     setError(null);
   };
 
@@ -181,7 +204,7 @@ export default function AddTeamMemberModal({
     e.preventDefault();
 
 
-    if (!name.trim() || !email.trim() || !password.trim() || !role.trim()) {
+    if (!name.trim() || !email.trim() || (mode === 'add' && !password.trim()) || !role.trim()) {
       setError('Please fill all required fields');
       // alert('Please fill all required fields');
       return;
@@ -191,26 +214,31 @@ export default function AddTeamMemberModal({
       setSubmitting(true);
       setError(null);
 
-      const res = await fetch('/api/employees', {
-        method: 'POST',
+      if (mode === 'edit' && !employee?._id) {
+        throw new Error('Employee details are unavailable');
+      }
+
+      const updateBody: Record<string, string> = {
+        name: name.trim(),
+        email: email.trim(),
+        role: role.trim(),
+        Project: project.trim(),
+        status,
+        workMode,
+        avatarColor,
+        userType,
+      };
+      if (password.trim()) updateBody.password = password.trim();
+
+      const res = await fetch(mode === 'add' ? '/api/employees' : `/api/employees/${employee?._id}`, {
+        method: mode === 'add' ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          password: password || 'password123',
-          userType: 'employee',
-          role: role.trim(),
-          roleId,
-          Project: project.trim(),
-          status,
-          workMode,
-          avatarColor,
-        }),
+        body: JSON.stringify(mode === 'add' ? { ...updateBody, password: password || 'password123', roleId } : updateBody),
       });
 
       const data = await res.json();
       if (!data.success) {
-        throw new Error(data.error || 'Failed to create team member');
+        throw new Error(data.error || `Failed to ${mode === 'add' ? 'create team member' : 'update employee details'}`);
       }
 
       if (typeof window !== 'undefined') {
@@ -260,7 +288,7 @@ export default function AddTeamMemberModal({
         {/* Modal Header */}
         <div className="modal-header">
           <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-            Add New Employee
+            {mode === 'add' ? 'Add New Employee' : 'Edit Employee Details'}
           </h3>
           <button className="modal-close" onClick={handleClose}>&times;</button>
         </div>
@@ -330,7 +358,7 @@ export default function AddTeamMemberModal({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'start' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-                Password *
+                {mode === 'add' ? 'Password *' : 'Password'}
               </label>
               <div className="custom-input-group" style={{ position: 'relative' }}>
                 <span className="custom-input-addon">
@@ -462,10 +490,10 @@ export default function AddTeamMemberModal({
               {submitting ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  <span>Creating...</span>
+                  <span>{mode === 'add' ? 'Creating...' : 'Saving...'}</span>
                 </>
               ) : (
-                <span>Create Member</span>
+                <span>{mode === 'add' ? 'Create Member' : 'Save Changes'}</span>
               )}
             </button>
           </div>

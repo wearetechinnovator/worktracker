@@ -285,7 +285,7 @@ export async function POST(request: Request) {
             status: 'Present',
             checkIn: currentTime,
             checkInIpAddress: ipAddress,
-            checkInLocation: location?.label || location?.address || 'Location captured',
+            checkInLocation: location?.address || (location?.latitude != null && location?.longitude != null ? `${location.latitude}, ${location.longitude}` : location?.label || 'Location captured'),
             checkInLatitude: location?.latitude ?? undefined,
             checkInLongitude: location?.longitude ?? undefined,
           },

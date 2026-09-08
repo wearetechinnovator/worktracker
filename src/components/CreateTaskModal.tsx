@@ -476,10 +476,10 @@ export function CreateTaskModal({
                     placeholder="Select Priority"
                     value={formData.priority}
                     options={[
-                      { value: 'Low', label: 'Low', color: '#3b82f6', badgeText: 'Low', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-                      { value: 'Medium', label: 'Medium', color: '#f59e0b', badgeText: 'Medium', badgeBg: '#fffbeb', badgeColor: '#b45309' },
-                      { value: 'High', label: 'High', color: '#f97316', badgeText: 'High', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
-                      { value: 'Urgent', label: 'Urgent', color: '#ef4444', badgeText: 'Urgent', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
+                      { value: 'Low', label: 'Low', color: '#3b82f6', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
+                      { value: 'Medium', label: 'Medium', color: '#f59e0b',  badgeBg: '#fffbeb', badgeColor: '#b45309' },
+                      { value: 'High', label: 'High', color: '#f97316',  badgeBg: '#fff7ed', badgeColor: '#c2410c' },
+                      { value: 'Urgent', label: 'Urgent', color: '#ef4444', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
                     ]}
                     onChange={(val) => setFormData({ ...formData, priority: val as any })}
                   />
@@ -492,11 +492,11 @@ export function CreateTaskModal({
                     placeholder="Select Status"
                     value={formData.status}
                     options={[
-                      { value: 'To Do', label: 'To Do', badgeText: 'To Do', badgeBg: '#f1f5f9', badgeColor: '#475569' },
-                      { value: 'In Progress', label: 'In Progress', badgeText: 'In Progress', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-                      { value: 'Partially Completed', label: 'Partially Completed', badgeText: 'Partially Completed', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
-                      { value: 'Review', label: 'Review', badgeText: 'Review', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
-                      { value: 'Completed', label: 'Completed', badgeText: 'Completed', badgeBg: '#ecfdf5', badgeColor: '#047857' },
+                      { value: 'To Do', label: 'To Do', badgeBg: '#f1f5f9', badgeColor: '#475569' },
+                      // { value: 'In Progress', label: 'In Progress',  badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
+                      // { value: 'Partially Completed', label: 'Partially Completed', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
+                      // { value: 'Review', label: 'Review', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
+                      // { value: 'Completed', label: 'Completed', badgeBg: '#ecfdf5', badgeColor: '#047857' },
                     ]}
                     onChange={(val) => setFormData({ ...formData, status: val as any })}
                   />

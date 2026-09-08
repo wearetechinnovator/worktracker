@@ -463,8 +463,16 @@ export default function AttendancePage() {
                         );
                       }
 
-                      const cleanCheckInLoc = cleanLocation(log.checkInLocation);
-                      const cleanCheckOutLoc = cleanLocation(log.checkOutLocation);
+                      const cleanCheckInLoc = cleanLocation(log.checkInLocation) || (
+                        log.checkInLatitude != null && log.checkInLongitude != null
+                          ? `${log.checkInLatitude}, ${log.checkInLongitude}`
+                          : null
+                      );
+                      const cleanCheckOutLoc = cleanLocation(log.checkOutLocation) || (
+                        log.checkOutLatitude != null && log.checkOutLongitude != null
+                          ? `${log.checkOutLatitude}, ${log.checkOutLongitude}`
+                          : null
+                      );
 
                       return (
                         <tr key={log._id}>

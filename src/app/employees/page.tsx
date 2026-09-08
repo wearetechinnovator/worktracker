@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users, UserPlus, Mail, Edit3,
-  Trash2, AlertCircle, Clock, Briefcase, Eye, EyeOff
+  Trash2, AlertCircle, Clock, Briefcase
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
@@ -27,27 +27,7 @@ export default function EmployeesPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
-
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('UI UX Designer');
-  const [Project, setProject] = useState('Design');
-  const [status, setStatus] = useState('Active');
-  const [workMode, setWorkMode] = useState('Hybrid');
-  const [color, setColor] = useState('#3b82f6');
-
-  const [password, setPassword] = useState('');
-
-  const [userType, setUserType] = useState<'admin' | 'employee'>('employee');
-  const [showEditPassword, setShowEditPassword] = useState(false);
   const [roleSuggestions, setRoleSuggestions] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
-
-  const Projects = ['Design', 'Development', 'Marketing', 'Human Resource', 'Management'];
-  const statuses = ['Active', 'Inactive'];
-  const workmodes = ['Hybrid', 'Remote', 'Onsite'];
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -151,65 +131,8 @@ export default function EmployeesPage() {
   }, [employees]);
 
   const openEditModal = (emp: Employee) => {
-    setEditingEmp(emp);
-    setName(emp.name);
-    setEmail(emp.email);
-    setRole(emp.role);
-    setProject(emp.Project);
-    setStatus(emp.status);
-    setWorkMode(emp.workMode || 'Hybrid');
-    setColor(emp.avatarColor);
-    setPassword(emp.password || '');
-    setUserType(emp.userType || 'employee');
-    setShowEditPassword(false);
-    setEditError(null);
+    setSelectedEmployee(emp);
     setIsEditModalOpen(true);
-  };
-
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingEmp || !name.trim() || !email.trim() || !role.trim()) {
-      setEditError('Please fill all required fields');
-      alert('Please fill all required fields');
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      setEditError(null);
-      const updateBody: any = {
-        name,
-        email,
-        role,
-        Project,
-        status,
-        avatarColor: color,
-        userType,
-        workMode
-      };
-
-      if (password && password.trim()) {
-        updateBody.password = password.trim();
-      }
-
-      const res = await fetch(`/api/employees/${editingEmp._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateBody)
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to update employee details');
-
-      setIsEditModalOpen(false);
-      setEditingEmp(null);
-      resetForm();
-      await fetchEmployees();
-      await fetchRoleSuggestions();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   const handleDelete = async (empId: string) => {
@@ -313,18 +236,6 @@ export default function EmployeesPage() {
     setIsDetailModalOpen(true);
   };
 
-  const resetForm = () => {
-    setName('');
-    setEmail('');
-    setRole('UI UX Designer');
-    setProject('Design');
-    setStatus('Active');
-    setWorkMode('Hybrid');
-    setColor('#3b82f6');
-    setPassword('password123');
-    setUserType('employee');
-  };
-
   if (loading && employees.length === 0) {
     return <PageShimmer variant="employees" />;
   }
@@ -336,7 +247,7 @@ export default function EmployeesPage() {
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Team Directory</h1>
         </div>
 
-        <button className="btn btn-primary" onClick={() => { resetForm(); setIsAddModalOpen(true); }}>
+        <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
           <UserPlus size={14} />
           <span>Add Employee</span>
         </button>
@@ -481,186 +392,17 @@ export default function EmployeesPage() {
         }}
       />
 
-      {isEditModalOpen && (
-        <div className="modal-overlay" >
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Edit Employee Details</h3>
-              <button className="modal-close" onClick={() => setIsEditModalOpen(false)}>&times;</button>
-            </div>
-            <form onSubmit={handleEditSubmit}>
-              {editError && (
-                <div
-                  style={{
-                    padding: '8px 12px',
-                    background: 'rgba(239, 68, 68, 0.08)',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    borderRadius: 'var(--border-radius-sm)',
-                    color: '#dc2626',
-                    fontSize: '0.78rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    marginBottom: '12px',
-                  }}
-                >
-                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
-                  <span>{editError}</span>
-                </div>
-              )}
-              <div className="form-group">
-                <label className="form-label">Full Name *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Email Address *</label>
-                <input
-                  type="email"
-                  className="form-control"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">New Password </label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type={showEditPassword ? "text" : "password"}
-                      className="form-control"
-                      style={{ paddingRight: '36px' }}
-                      value={password}
-                      placeholder="Enter new password"
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                    
-                    <button
-                      type="button"
-                      onClick={() => setShowEditPassword(!showEditPassword)}
-                      style={{
-                        position: 'absolute',
-                        right: '8px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--text-muted)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '4px'
-                      }}
-                      title={showEditPassword ? "Hide Password" : "Show Password"}
-                    >
-                      {showEditPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Access Type *</label>
-                  <select
-                    className="form-control"
-                    value={userType}
-                    onChange={(e) => setUserType(e.target.value as any)}
-                  >
-                    <option value="employee">Employee</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Job Title / Role *</label>
-                  <select
-                    className="form-control"
-                    required
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                  >
-                    {Array.from(new Set([
-                      role,
-                      'Admin',
-                      'Project Manager',
-                      'Employee',
-                      'Client',
-                      'UI UX Designer',
-                      'Software Engineer',
-                      'Frontend Developer',
-                      'Backend Developer',
-                      'Full Stack Developer',
-                      'QA Engineer',
-                      'Marketing Specialist',
-                      ...roleSuggestions
-                    ].filter(Boolean))).map((roleOption) => (
-                      <option key={roleOption} value={roleOption}>
-                        {roleOption}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Project *</label>
-                  <select
-                    className="form-control"
-                    value={Project}
-                    onChange={(e) => setProject(e.target.value)}
-                  >
-                    {Projects.map((dept) => (
-                      <option key={dept} value={dept}>{dept}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Initial Status</label>
-                  <select
-                    className="form-control"
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                  >
-                    {statuses.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Work Mode</label>
-                  <select
-                    className="form-control"
-                    value={workMode}
-                    onChange={(e) => setWorkMode(e.target.value)}
-                  >
-                    {workmodes.map((workmode) => (
-                      <option key={workmode} value={workmode}>{workmode}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>
-                  {submitting ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <AddTeamMemberModal
+        isOpen={isEditModalOpen}
+        mode="edit"
+        employee={selectedEmployee}
+        onClose={() => setIsEditModalOpen(false)}
+        onSuccess={async () => {
+          setIsEditModalOpen(false);
+          await fetchEmployees();
+          await fetchRoleSuggestions();
+        }}
+      />
     </div>
   );
 }
