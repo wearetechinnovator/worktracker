@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { getClientPunchLocation } from '@/lib/geoClient';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -28,21 +29,8 @@ export default function LoginPage() {
       setLoading(true);
       setError(null);
 
-      // Attempt to capture geolocation
-      let location: any = undefined;
-      if (typeof navigator !== 'undefined' && navigator.geolocation) {
-        location = await new Promise((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => resolve({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-              label: 'Device geolocation'
-            }),
-            () => resolve(undefined),
-            { enableHighAccuracy: true, timeout: 6000 }
-          );
-        });
-      }
+      // Attempt to capture location & public IP
+      const location = await getClientPunchLocation();
 
       const res = await fetch('/api/auth/login', {
         method: 'POST',

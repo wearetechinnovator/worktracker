@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Eye, EyeOff, Loader2, UserPlus, AlertCircle, User, Mail, Lock, Briefcase } from 'lucide-react';
 import { CustomDropdown } from '@/components/TaskFormControls';
+import { toast } from '@/lib/toast';
+import { useModalDraft } from '@/context/ModalDraftContext';
 import type { Employee } from '@/types/Employee2';
 
 export interface AddTeamMemberModalProps {
@@ -26,18 +28,6 @@ const DEFAULT_PROJECTS = [
   'Sales',
   'Support',
   'Finance',
-];
-
-const DEFAULT_DESIGNATIONS = [
-  'UI UX Designer',
-  // 'Frontend Developer',
-  // 'Backend Developer',
-  // 'Full Stack Developer',
-  // 'Project Manager',
-  // 'QA Engineer',
-  // 'DevOps Engineer',
-  // 'Marketing Specialist',
-  // 'HR Manager',
 ];
 
 export default function AddTeamMemberModal({
@@ -75,7 +65,7 @@ export default function AddTeamMemberModal({
   const handleCreateNewRole = async () => {
     const trimmed = newRoleName.trim();
     if (!trimmed) {
-      setRoleAddError('Please fill all required fields');
+      setRoleAddError('Please enter a designation name');
       return;
     }
     try {
@@ -88,12 +78,16 @@ export default function AddTeamMemberModal({
         body: JSON.stringify({ name: trimmed }),
       });
       const data = await res.json();
-      const designationName = data.success && data.data ? data.data : trimmed;
+      if (!data.success) {
+        throw new Error(data.error || 'Error adding designation');
+      }
+      const designationName = data.data || trimmed;
 
       setFetchedDesignations((prev) => Array.from(new Set([designationName, ...prev])));
       setRole(designationName);
       setNewRoleName('');
       setIsAddRoleModalOpen(false);
+      toast.success(`Designation "${designationName}" added successfully`);
     } catch (err: any) {
       setRoleAddError(err.message || 'Error adding designation');
     } finally {
@@ -105,7 +99,7 @@ export default function AddTeamMemberModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Fetch designations (pure text job titles, no system access roles)
+    // Fetch designations (pure dynamic job titles created by users)
     fetch('/api/designations')
       .then((res) => res.json())
       .then((data) => {
@@ -141,31 +135,56 @@ export default function AddTeamMemberModal({
       .catch(() => { });
   }, [isOpen]);
 
+  const draftKey = mode === 'add' ? 'add-employee' : `edit-employee-${employee?._id || 'unknown'}`;
+  const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
+
   useEffect(() => {
-    if (!isOpen || mode !== 'edit' || !employee) return;
-    setName(employee.name);
-    setEmail(employee.email);
-    setPassword(employee.password || 'password123');
-    setRole(employee.role || '');
-    setProject(employee.Project || '');
-    setStatus(employee.status || 'Active');
-    setWorkMode(employee.workMode || 'Hybrid');
-    setAvatarColor(employee.avatarColor || '#3b82f6');
-    setUserType(employee.userType || 'employee');
-    setError(null);
-  }, [employee, isOpen, mode]);
+    if (!isOpen) return;
+
+    setModalOpenState(draftKey, true);
+
+    // Check if there is an active draft
+    const draft = getDraft(draftKey);
+    if (draft) {
+      if (draft.name !== undefined) setName(draft.name);
+      if (draft.email !== undefined) setEmail(draft.email);
+      if (draft.password !== undefined) setPassword(draft.password);
+      if (draft.role !== undefined) setRole(draft.role);
+      if (draft.roleId !== undefined) setRoleId(draft.roleId);
+      if (draft.project !== undefined) setProject(draft.project);
+      if (draft.status !== undefined) setStatus(draft.status);
+      if (draft.workMode !== undefined) setWorkMode(draft.workMode);
+      if (draft.avatarColor !== undefined) setAvatarColor(draft.avatarColor);
+      if (draft.userType !== undefined) setUserType(draft.userType);
+      setError(null);
+      return;
+    }
+
+    if (mode === 'edit' && employee) {
+      setName(employee.name);
+      setEmail(employee.email);
+      setPassword(employee.password || 'password123');
+      setRole(employee.role || '');
+      setProject(employee.Project || '');
+      setStatus(employee.status || 'Active');
+      setWorkMode(employee.workMode || 'Hybrid');
+      setAvatarColor(employee.avatarColor || '#3b82f6');
+      setUserType(employee.userType || 'employee');
+      setError(null);
+    } else if (mode === 'add') {
+      resetForm();
+    }
+  }, [employee, isOpen, mode, draftKey, getDraft, setModalOpenState]);
 
   if (!isOpen) return null;
 
-  // Combine pure designation options (excluding system access roles like Admin, Employee, Client)
+  // Pure dynamic designation options from database and current selection
   const allRoleSuggestions = Array.from(
     new Set([
       ...fetchedDesignations,
-      ...(roleSuggestions || []),
       ...(role ? [role] : []),
-      ...DEFAULT_DESIGNATIONS,
     ])
-  );
+  ).filter(Boolean);
 
   // Combine project options
   const projectNamesFromProp = Array.isArray(projectsList)
@@ -186,6 +205,7 @@ export default function AddTeamMemberModal({
     setPassword(mode === 'add' ? 'password123' : '');
     setShowPassword(false);
     setRole('');
+    setRoleId('');
     setProject('');
     setStatus('Active');
     setWorkMode('Hybrid');
@@ -194,19 +214,65 @@ export default function AddTeamMemberModal({
     setError(null);
   };
 
+  const isFormDirty = () => {
+    if (mode === 'add') {
+      return Boolean(
+        name.trim() ||
+        email.trim() ||
+        role.trim() ||
+        project.trim() ||
+        (password && password !== 'password123')
+      );
+    }
+    if (mode === 'edit' && employee) {
+      return (
+        name !== employee.name ||
+        email !== employee.email ||
+        role !== (employee.role || '') ||
+        project !== (employee.Project || '') ||
+        status !== (employee.status || 'Active') ||
+        workMode !== (employee.workMode || 'Hybrid')
+      );
+    }
+    return false;
+  };
+
   const handleClose = () => {
-    resetForm();
+    if (isFormDirty()) {
+      const displayTitle = name.trim()
+        ? (mode === 'add' ? `Employee: ${name.trim()}` : `Edit: ${name.trim()}`)
+        : (mode === 'add' ? 'Add Employee' : 'Edit Employee');
+
+      saveDraft(draftKey, {
+        type: 'employee',
+        title: displayTitle,
+        subtitle: email.trim() || role.trim() || 'Draft saved',
+        data: {
+          name,
+          email,
+          password,
+          role,
+          roleId,
+          project,
+          status,
+          workMode,
+          avatarColor,
+          userType,
+          employeeId: employee?._id,
+        },
+      });
+    } else {
+      clearDraft(draftKey);
+      resetForm();
+    }
     onClose();
   };
 
   const handleSubmit = async (e: any) => {
-
     e.preventDefault();
-
 
     if (!name.trim() || !email.trim() || (mode === 'add' && !password.trim()) || !role.trim()) {
       setError('Please fill all required fields');
-      // alert('Please fill all required fields');
       return;
     }
 
@@ -245,7 +311,10 @@ export default function AddTeamMemberModal({
         window.dispatchEvent(new CustomEvent('employees-updated', { detail: data.data }));
       }
 
+      clearDraft(draftKey);
       resetForm();
+      const empName = data.data?.name || name.trim();
+      toast.success(mode === 'add' ? `${empName} added successfully` : `${empName} updated successfully`);
       if (onSuccess) {
         onSuccess(data.data);
       }

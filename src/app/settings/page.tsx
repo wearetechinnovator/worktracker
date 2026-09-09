@@ -6,6 +6,7 @@ import { Settings as SettingsIcon, Clock, Save, Loader2, CheckCircle2, AlertCirc
 import PageShimmer from '@/components/PageShimmer';
 import type { SettingsData } from '../../types/SettingsData';
 import { CustomTimePicker } from '@/components/TaskFormControls';
+import { toast } from '@/lib/toast';
 import './style.css';
 
 export default function SettingsPage() {
@@ -112,15 +113,20 @@ export default function SettingsPage() {
       const result = await res.json();
 
       if (!result.success) {
-        setError(result.error || 'Failed to save settings');
+        const msg = result.error || 'Failed to save settings';
+        setError(msg);
+        toast.error(msg);
         setSaving(false);
         return;
       }
 
       setSuccessMsg('Settings saved successfully!');
+      toast.success('Settings saved successfully!');
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: any) {
-      setError(err.message || 'Error saving settings');
+      const msg = err.message || 'Error saving settings';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }

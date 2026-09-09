@@ -127,9 +127,15 @@ export async function POST(request: Request) {
 
         if (isAllowedByAdmin || isWithinWindow) {
           // Auto Punch In
+          const cfConnectingIp = request.headers.get('cf-connecting-ip');
           const forwarded = request.headers.get('x-forwarded-for');
           const realIp = request.headers.get('x-real-ip');
-          const ipAddress = forwarded ? forwarded.split(',')[0].trim() : realIp || 'unknown';
+          const headerIp = cfConnectingIp || (forwarded ? forwarded.split(',')[0].trim() : realIp);
+          const ipAddress = (headerIp && headerIp !== '::1' && headerIp !== '127.0.0.1')
+            ? headerIp
+            : (location?.ip || headerIp || '127.0.0.1');
+
+          const locString = location?.address || location?.label || (location?.latitude != null && location?.longitude != null ? `${location.latitude}, ${location.longitude}` : 'Office / Remote');
 
           await Attendance.findOneAndUpdate(
             { employeeId: employee._id, date: today },
@@ -140,7 +146,7 @@ export async function POST(request: Request) {
                 status: 'Present',
                 checkIn: currentTime,
                 checkInIpAddress: ipAddress,
-                checkInLocation: location?.label || location?.address || (location?.latitude ? `${location.latitude}, ${location.longitude}` : null),
+                checkInLocation: locString,
                 checkInLatitude: location?.latitude ?? undefined,
                 checkInLongitude: location?.longitude ?? undefined,
               },

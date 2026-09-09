@@ -9,6 +9,7 @@ import {
 import { formatMinutesToDuration } from '@/lib/time';
 import PageShimmer from '@/components/PageShimmer';
 import CreateProjectModal from '@/components/CreateProjectModal';
+import { toast } from '@/lib/toast';
 
 interface Employee {
   _id: string;
@@ -304,16 +305,19 @@ export default function ProjectsPage() {
       setNewClientAddress('');
       setNewClientDuration('');
       setEditMode(false);
+      const projName = result.data?.name || deptName.trim();
+      toast.success(`${projName} updated successfully`);
       await fetchData();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to save project changes');
     } finally {
       setSavingDept(false);
     }
   };
 
   const handleDeleteDept = async () => {
-    if (!selectedProjId || !confirm('Are you sure you want to delete this Project? All associated logs will be deleted!')) return;
+    const projName = activeProject?.name || 'Project';
+    if (!selectedProjId || !confirm(`Are you sure you want to delete ${projName}? All associated logs will be deleted!`)) return;
 
     try {
       const res = await fetch(`/api/projects/${selectedProjId}`, { method: 'DELETE' });
@@ -322,9 +326,10 @@ export default function ProjectsPage() {
 
       setSelectedProjId(null);
       setEditMode(false);
+      toast.success(`${projName} deleted successfully`);
       await fetchData();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to delete project');
     }
   };
 
@@ -350,9 +355,10 @@ export default function ProjectsPage() {
       setWorkTitle('');
       setWorkDesc('');
       setIsLogWorkOpen(false);
+      toast.success('Work session logged successfully');
       await fetchData();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to log work session');
     } finally {
       setSubmittingWork(false);
     }
@@ -389,9 +395,10 @@ export default function ProjectsPage() {
 
       setIsEditLogOpen(false);
       setEditingLog(null);
+      toast.success('Work log updated successfully');
       await fetchData();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to update work entry');
     } finally {
       setSubmittingWork(false);
     }
@@ -405,9 +412,10 @@ export default function ProjectsPage() {
       const result = await res.json();
       if (!result.success) throw new Error(result.error || 'Failed to delete');
 
+      toast.success('Work log deleted successfully');
       await fetchData();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to delete work log');
     }
   };
 

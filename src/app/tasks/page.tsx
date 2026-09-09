@@ -27,6 +27,7 @@ import {
   CustomMultipleLinks
 } from '@/components/TaskFormControls';
 import dynamic from 'next/dynamic';
+import { toast } from '@/lib/toast';
 
 const CKEditorComponent = dynamic(
   () => import('@/components/CKEditorWrapper'),
@@ -370,7 +371,7 @@ export default function TasksPage() {
     try {
       setTimeout(() => setLoading(true), 0);
       const endpoint = isAdmin ? '/api/tasks' : `/api/tasks?employeeId=${user._id}`;
-      const workEndpoint = isAdmin ? '/api/task-work?limit=500' : `/api/task-work?employeeId=${user._id}&limit=200`;
+      const workEndpoint = '/api/task-work?limit=500';
 
       const promises: Promise<Response>[] = [
         fetch(endpoint),
@@ -650,8 +651,29 @@ export default function TasksPage() {
   };
 
   const hasCompletedWorkToday = (taskId: string): boolean => {
+    if (!user) return false;
+    const currentUserId = (user._id || user.id)?.toString();
     const todayStr = getLocalDateValue(new Date());
-    return taskWorks.some(w => (w.taskId?._id === taskId || w.taskId === taskId) && w.status === 'Completed' && w.date === todayStr);
+    return taskWorks.some(
+      w => ((w.taskId?._id || w.taskId)?.toString() === taskId.toString()) &&
+           w.status === 'Completed' &&
+           w.date === todayStr &&
+           ((w.employeeId?._id || w.employeeId)?.toString() === currentUserId)
+    );
+  };
+
+  const isTaskFullyCompletedByMe = (taskId: string): boolean => {
+    if (!user) return false;
+    const currentUserId = (user._id || user.id)?.toString();
+    if (!currentUserId) return false;
+
+    const mySessions = taskWorks.filter(
+      w => ((w.taskId?._id || w.taskId)?.toString() === taskId.toString()) &&
+           w.status === 'Completed' &&
+           ((w.employeeId?._id || w.employeeId)?.toString() === currentUserId)
+    );
+    if (mySessions.length === 0) return false;
+    return Boolean(mySessions[0]?.isFullyCompleted);
   };
 
   const openTaskDetailsModal = async (task: Task) => {
@@ -683,18 +705,21 @@ export default function TasksPage() {
   };
 
   const handleDelete = async (taskId: string) => {
-    if (!confirm('Are you sure you want to delete this task?')) return;
+    const task = tasks.find(t => t._id === taskId);
+    const taskTitle = task?.title || 'Task';
+    if (!confirm(`Are you sure you want to delete "${taskTitle}"?`)) return;
 
     try {
       const res = await fetch(`/api/tasks/${taskId}?userId=${user?._id}`, { method: 'DELETE' });
       const result = await res.json();
       if (!result.success) throw new Error(result.error);
 
-      setSuccessMsg('Task deleted successfully!');
-      setTimeout(() => setSuccessMsg(null), 3000);
+      toast.success(`${taskTitle} deleted successfully`);
       loadTasks();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      toast.error(msg || 'Failed to delete task');
     }
   };
 
@@ -724,11 +749,14 @@ export default function TasksPage() {
     // 2. Status Filter
     if (filterStatus === 'all') {
       // Show all including Completed
+    } else if (filterStatus === 'Completed') {
+      if (task.status !== 'Completed' && !isTaskFullyCompletedByMe(task._id)) return false;
     } else if (filterStatus) {
       if (task.status !== filterStatus) return false;
     } else {
-      // Default: show all active (non-completed) tasks
+      // Default: show all active (non-completed) tasks for this user
       if (task.status === 'Completed') return false;
+      if (!isAdmin && isTaskFullyCompletedByMe(task._id)) return false;
     }
 
     // 3. Priority Filter
@@ -1260,10 +1288,24 @@ export default function TasksPage() {
                         {task.assignedTo && task.assignedTo.length > 0 ? (
                           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px' }}>
                             {task.assignedTo.map((emp: any, eIdx: number) => {
-                              const isWorkerActive = activeWorkers.some(w => w.employeeId?._id === emp._id || w.employeeId === emp._id);
+                              const empIdStr = emp._id || emp.id;
+                              const isWorkerActive = activeWorkers.some(w => w.employeeId?._id === empIdStr || w.employeeId === empIdStr);
+                              const empSessions = taskWorks.filter(w => (w.taskId?._id === task._id || w.taskId === task._id) && w.status === 'Completed' && (w.employeeId?._id === empIdStr || w.employeeId === empIdStr));
+                              const latestSession = empSessions[0];
+                              const isEmpDone = latestSession?.isFullyCompleted;
+                              const isEmpPartial = latestSession && !latestSession.isFullyCompleted;
+
+                              const statusDesc = isWorkerActive
+                                ? ' (Working Now)'
+                                : isEmpDone
+                                  ? ' (Completed their part)'
+                                  : isEmpPartial
+                                    ? ' (Partially Done)'
+                                    : '';
+
                               return (
                                 <div
-                                  key={emp._id || emp.id || eIdx}
+                                  key={empIdStr || eIdx}
                                   className="avatar"
                                   style={{
                                     backgroundColor: emp.avatarColor || '#3b82f6',
@@ -1271,12 +1313,18 @@ export default function TasksPage() {
                                     height: '24px',
                                     fontSize: '0.62rem',
                                     color: '#ffffff',
-                                    border: isWorkerActive ? '2px solid #10b981' : '2px solid var(--bg-primary)',
+                                    border: isWorkerActive 
+                                      ? '2px solid #10b981' 
+                                      : isEmpDone 
+                                        ? '2px solid #047857' 
+                                        : isEmpPartial 
+                                          ? '2px solid #f97316' 
+                                          : '2px solid var(--bg-primary)',
                                     boxShadow: isWorkerActive ? '0 0 6px #10b98180' : undefined,
                                     marginLeft: eIdx > 0 && !isWorkerActive ? '-6px' : '0',
                                     flexShrink: 0
                                   }}
-                                  title={`Assigned to: ${emp.name}${isWorkerActive ? ' (Working Now)' : ''}`}
+                                  title={`Assigned to: ${emp.name}${statusDesc}`}
                                 >
                                   {emp.name.split(' ').map((n: string) => n[0]).join('')}
                                 </div>
@@ -1395,6 +1443,48 @@ export default function TasksPage() {
                                         </div>
                                       );
                                     } else {
+                                      if (isTaskFullyCompletedByMe(task._id)) {
+                                        return (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span
+                                              className="tag-badge"
+                                              style={{
+                                                background: '#ecfdf5',
+                                                color: '#047857',
+                                                fontSize: '0.72rem',
+                                                padding: '4px 8px',
+                                                fontWeight: 750,
+                                                border: '1px solid #10b98130',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                              }}
+                                            >
+                                              <CheckCircle2 size={12} />
+                                              Done by You
+                                            </span>
+                                            {task.status !== 'Completed' && (
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); handleStartWork(task._id); }}
+                                                disabled={processingTaskId === task._id}
+                                                className="btn btn-secondary"
+                                                style={{
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  gap: '4px',
+                                                  padding: '4px 8px',
+                                                  fontSize: '0.7rem'
+                                                }}
+                                                title="Resume or log more work"
+                                              >
+                                                <Play size={11} />
+                                                <span>Resume</span>
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      }
+
                                       return (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                           {completedToday && (
@@ -2509,14 +2599,14 @@ export default function TasksPage() {
                               {session.startTime} - {session.endTime || 'Active'}
                             </span>
                             <span className="tag-badge" style={{
-                              background: session.status === 'Completed' ? '#d1fae5' : '#fee2e2',
-                              color: session.status === 'Completed' ? '#065f46' : '#b91c1c',
-                              borderColor: session.status === 'Completed' ? '#10b98130' : '#ef444430',
+                              background: session.status === 'Completed' ? (session.isFullyCompleted ? '#d1fae5' : '#fff7ed') : '#fee2e2',
+                              color: session.status === 'Completed' ? (session.isFullyCompleted ? '#065f46' : '#c2410c') : '#b91c1c',
+                              borderColor: session.status === 'Completed' ? (session.isFullyCompleted ? '#10b98130' : '#fed7aa') : '#ef444430',
                               fontWeight: 750,
                               fontSize: '0.68rem',
                               padding: '2px 8px'
                             }}>
-                              {session.status}
+                              {session.status === 'Completed' ? (session.isFullyCompleted ? 'Completed' : 'Partially Done') : 'In Progress'}
                             </span>
                             {session.totalMinutes > 0 && (
                               <span className="tag-badge" style={{

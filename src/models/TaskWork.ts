@@ -8,6 +8,7 @@ export interface ITaskWork extends Document {
   endTime?: string; // HH:MM:SS
   totalMinutes?: number; // Calculated duration
   status: 'In Progress' | 'Completed';
+  isFullyCompleted?: boolean; // Whether the employee completed their work fully
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -27,6 +28,7 @@ const TaskWorkSchema = new Schema<ITaskWork>(
       default: 'In Progress',
       required: true 
     },
+    isFullyCompleted: { type: Boolean, default: false },
     notes: { type: String, trim: true },
   },
   { timestamps: true }

@@ -6,6 +6,7 @@ import Task from '@/models/Task';
 import Project from '@/models/Project';
 import Employee from '@/models/Employee';
 import { calculateElapsedMinutes } from '@/lib/time';
+import { syncTaskStatus } from '@/lib/taskStatusHelper';
 
 export async function PUT(
   request: Request,
@@ -107,6 +108,10 @@ export async function DELETE(
     const entry = await TaskWork.findByIdAndDelete(id);
     if (!entry) {
       return NextResponse.json({ success: false, error: 'Work session not found' }, { status: 404 });
+    }
+
+    if (entry.taskId) {
+      await syncTaskStatus(entry.taskId);
     }
 
     return NextResponse.json({ success: true, message: 'Work session deleted successfully' });

@@ -72,8 +72,10 @@ interface TaskWork {
   endTime?: string;
   totalMinutes?: number;
   status: 'In Progress' | 'Completed';
+  isFullyCompleted?: boolean;
   date: string;
   notes?: string;
+  createdAt?: string;
 }
 
 const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '').trim();
@@ -111,6 +113,9 @@ export default function MyTasks({ userId }: { userId: string }) {
   // Comment & Progress Updates States
   const [newCommentText, setNewCommentText] = useState<string>('');
   const [newCommentStatus, setNewCommentStatus] = useState<string>('');
+
+  // Task Filter Tabs
+  const [taskTab, setTaskTab] = useState<'pending' | 'completed' | 'all'>('pending');
   const [submittingComment, setSubmittingComment] = useState<boolean>(false);
   const [copiedCommentId, setCopiedCommentId] = useState<string | null>(null);
   const [isCopiedAllComments, setIsCopiedAllComments] = useState<boolean>(false);
@@ -545,16 +550,29 @@ export default function MyTasks({ userId }: { userId: string }) {
   };
 
   const getActiveWork = (taskId: string): TaskWork | undefined => {
-    return taskWorks.find(w => w.taskId._id === taskId && w.status === 'In Progress');
+    return taskWorks.find(
+      w => ((w.taskId?._id || w.taskId)?.toString() === taskId.toString()) &&
+           w.status === 'In Progress' &&
+           ((w.employeeId?._id || w.employeeId)?.toString() === userId.toString())
+    );
   };
 
   const hasCompletedWorkToday = (taskId: string): boolean => {
     const todayStr = getLocalDateValue(new Date());
-    return taskWorks.some(w => w.taskId._id === taskId && w.status === 'Completed' && w.date === todayStr);
+    return taskWorks.some(
+      w => ((w.taskId?._id || w.taskId)?.toString() === taskId.toString()) &&
+           w.status === 'Completed' &&
+           w.date === todayStr &&
+           ((w.employeeId?._id || w.employeeId)?.toString() === userId.toString())
+    );
   };
 
   const getCompletedWorkTime = (taskId: string): { hours: number; minutes: number; isUnderAMinute?: boolean } | null => {
-    const completedSessions = taskWorks.filter(w => w.taskId._id === taskId && w.status === 'Completed');
+    const completedSessions = taskWorks.filter(
+      w => ((w.taskId?._id || w.taskId)?.toString() === taskId.toString()) &&
+           w.status === 'Completed' &&
+           ((w.employeeId?._id || w.employeeId)?.toString() === userId.toString())
+    );
     if (completedSessions.length === 0) return null;
     const totalMins = completedSessions.reduce((sum, w) => sum + (w.totalMinutes || 0), 0);
     if (totalMins === 0) {
@@ -639,19 +657,108 @@ export default function MyTasks({ userId }: { userId: string }) {
     );
   }
 
-  const activeTasks = tasks.filter(t => t.status !== 'Completed');
+  const isTaskFullyCompletedByMe = (taskId: string) => {
+    const mySessions = taskWorks.filter(
+      w => (w.taskId?._id === taskId || w.taskId === taskId) &&
+           w.status === 'Completed' &&
+           (w.employeeId?._id === userId || w.employeeId === userId)
+    );
+    if (mySessions.length === 0) return false;
+    return Boolean(mySessions[0]?.isFullyCompleted);
+  };
+
+  const pendingTasks = tasks.filter(t => {
+    if (t.status === 'Completed') return false;
+    const activeWork = getActiveWork(t._id);
+    if (activeWork) return true; // currently working
+    return !isTaskFullyCompletedByMe(t._id);
+  });
+
+  const completedByMeTasks = tasks.filter(t => {
+    if (t.status === 'Completed') return true;
+    return isTaskFullyCompletedByMe(t._id);
+  });
+
+  const displayedTasks = taskTab === 'pending'
+    ? pendingTasks
+    : taskTab === 'completed'
+      ? completedByMeTasks
+      : tasks;
 
   return (
     <div>
-      <div className="card-header" style={{ marginBottom: '16px' }}>
+      <div className="card-header" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <CheckSquare size={20} style={{ color: 'var(--accent-primary)' }} />
             My Assigned Tasks
           </h3>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            {activeTasks.length} task{activeTasks.length !== 1 ? 's' : ''} assigned to you
+            {pendingTasks.length} pending task{pendingTasks.length !== 1 ? 's' : ''} to work on ({tasks.length} total assigned)
           </p>
+        </div>
+
+        {/* Tab Switcher */}
+        <div style={{
+          display: 'inline-flex',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-color)',
+          borderRadius: '8px',
+          padding: '3px',
+          gap: '2px'
+        }}>
+          <button
+            type="button"
+            onClick={() => setTaskTab('pending')}
+            style={{
+              padding: '5px 12px',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              background: taskTab === 'pending' ? 'var(--accent-primary)' : 'transparent',
+              color: taskTab === 'pending' ? '#ffffff' : 'var(--text-secondary)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Pending ({pendingTasks.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setTaskTab('completed')}
+            style={{
+              padding: '5px 12px',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              background: taskTab === 'completed' ? '#10b981' : 'transparent',
+              color: taskTab === 'completed' ? '#ffffff' : 'var(--text-secondary)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Completed by You ({completedByMeTasks.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setTaskTab('all')}
+            style={{
+              padding: '5px 12px',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              background: taskTab === 'all' ? 'var(--bg-primary)' : 'transparent',
+              color: taskTab === 'all' ? 'var(--text-primary)' : 'var(--text-secondary)',
+              boxShadow: taskTab === 'all' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            All ({tasks.length})
+          </button>
         </div>
       </div>
 
@@ -673,12 +780,14 @@ export default function MyTasks({ userId }: { userId: string }) {
         </div>
       )}
 
-      {activeTasks.length === 0 ? (
+      {displayedTasks.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
           <CheckSquare size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 16px' }} />
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '8px' }}>No active tasks</h3>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '8px' }}>
+            {taskTab === 'pending' ? 'No pending tasks!' : taskTab === 'completed' ? 'No completed tasks yet' : 'No tasks assigned'}
+          </h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-            You have no active tasks assigned at this moment.
+            {taskTab === 'pending' ? 'You have completed all assigned tasks or have no active work assigned right now.' : 'Tasks will appear here once they are assigned or completed.'}
           </p>
         </div>
       ) : (
@@ -698,7 +807,7 @@ export default function MyTasks({ userId }: { userId: string }) {
                 </tr>
               </thead>
               <tbody>
-                {activeTasks.map((task) => {
+                {displayedTasks.map((task) => {
                   const activeWork = getActiveWork(task._id);
                   const isWorking = !!activeWork;
                   const isSomeoneWorking = taskWorks.some(w => (w.taskId?._id === task._id || w.taskId === task._id) && w.status === 'In Progress');
@@ -774,7 +883,21 @@ export default function MyTasks({ userId }: { userId: string }) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
                               <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginRight: '2px' }}>Team:</span>
                               {task.assignedTo.map((emp: any, eIdx: number) => {
-                                const isEmpWorking = taskWorks.some(w => (w.taskId?._id === task._id || w.taskId === task._id) && w.status === 'In Progress' && (w.employeeId?._id === emp._id || w.employeeId === emp._id));
+                                const empIdStr = emp._id || emp.id;
+                                const isEmpWorking = taskWorks.some(w => (w.taskId?._id === task._id || w.taskId === task._id) && w.status === 'In Progress' && (w.employeeId?._id === empIdStr || w.employeeId === empIdStr));
+                                const empSessions = taskWorks.filter(w => (w.taskId?._id === task._id || w.taskId === task._id) && w.status === 'Completed' && (w.employeeId?._id === empIdStr || w.employeeId === empIdStr));
+                                const latestSession = empSessions[0];
+                                const isEmpDone = latestSession?.isFullyCompleted;
+                                const isEmpPartial = latestSession && !latestSession.isFullyCompleted;
+
+                                const statusDesc = isEmpWorking
+                                  ? ' (Working Now)'
+                                  : isEmpDone
+                                    ? ' (Completed their part)'
+                                    : isEmpPartial
+                                      ? ' (Partially Done)'
+                                      : '';
+
                                 return (
                                   <div
                                     key={emp._id || emp.id || eIdx}
@@ -785,11 +908,17 @@ export default function MyTasks({ userId }: { userId: string }) {
                                       height: '18px',
                                       fontSize: '0.52rem',
                                       color: '#ffffff',
-                                      border: isEmpWorking ? '1.5px solid #10b981' : '1px solid var(--border-color)',
+                                      border: isEmpWorking 
+                                        ? '1.5px solid #10b981' 
+                                        : isEmpDone 
+                                          ? '1.5px solid #047857' 
+                                          : isEmpPartial 
+                                            ? '1.5px solid #f97316' 
+                                            : '1px solid var(--border-color)',
                                       boxShadow: isEmpWorking ? '0 0 4px #10b98180' : undefined,
                                       flexShrink: 0
                                     }}
-                                    title={`Assigned to: ${emp.name}${isEmpWorking ? ' (Working Now)' : ''}`}
+                                    title={`Assigned to: ${emp.name}${statusDesc}`}
                                   >
                                     {emp.name.split(' ').map((n: string) => n[0]).join('')}
                                   </div>
@@ -1021,41 +1150,83 @@ export default function MyTasks({ userId }: { userId: string }) {
                                 return null;
                               })()}
 
-                              {completedToday && (
-                                <span
-                                  className="tag-badge"
-                                  style={{
-                                    background: '#d1fae5',
-                                    color: '#065f46',
-                                    fontSize: '0.7rem',
-                                    padding: '2px 8px',
-                                    fontWeight: 700,
-                                    border: '1px solid #10b98130',
-                                  }}
-                                >
-                                  Worked Today
-                                </span>
-                              )}
+                              {isTaskFullyCompletedByMe(task._id) ? (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                  <span
+                                    className="tag-badge"
+                                    style={{
+                                      background: '#ecfdf5',
+                                      color: '#047857',
+                                      fontSize: '0.72rem',
+                                      padding: '4px 8px',
+                                      fontWeight: 750,
+                                      border: '1px solid #10b98130',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}
+                                  >
+                                    <CheckCircle2 size={12} />
+                                    Done by You
+                                  </span>
+                                  {task.status !== 'Completed' && (
+                                    <button
+                                      onClick={() => handleStartWork(task._id)}
+                                      disabled={processingTaskId === task._id}
+                                      className="btn btn-secondary"
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '4px 8px',
+                                        fontSize: '0.7rem'
+                                      }}
+                                      title="Resume or log more work on this task"
+                                    >
+                                      <Play size={11} />
+                                      <span>Resume</span>
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <>
+                                  {completedToday && (
+                                    <span
+                                      className="tag-badge"
+                                      style={{
+                                        background: '#d1fae5',
+                                        color: '#065f46',
+                                        fontSize: '0.7rem',
+                                        padding: '2px 8px',
+                                        fontWeight: 700,
+                                        border: '1px solid #10b98130',
+                                      }}
+                                    >
+                                      Worked Today
+                                    </span>
+                                  )}
 
-                              <button
-                                onClick={() => handleStartWork(task._id)}
-                                disabled={processingTaskId === task._id || task.status === 'Completed'}
-                                className="btn btn-primary"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  padding: '5px 10px',
-                                  fontSize: '0.75rem'
-                                }}
-                              >
-                                {processingTaskId === task._id ? (
-                                  <Loader2 className="animate-spin" size={12} />
-                                ) : (
-                                  <Play size={12} />
-                                )}
-                                <span>Start Work</span>
-                              </button>
+                                  <button
+                                    onClick={() => handleStartWork(task._id)}
+                                    disabled={processingTaskId === task._id || task.status === 'Completed'}
+                                    className="btn btn-primary"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      padding: '5px 10px',
+                                      fontSize: '0.75rem'
+                                    }}
+                                  >
+                                    {processingTaskId === task._id ? (
+                                      <Loader2 className="animate-spin" size={12} />
+                                    ) : (
+                                      <Play size={12} />
+                                    )}
+                                    <span>Start Work</span>
+                                  </button>
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
@@ -2147,14 +2318,14 @@ export default function MyTasks({ userId }: { userId: string }) {
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span className="tag-badge" style={{
-                              background: session.status === 'Completed' ? '#ecfdf5' : '#eff6ff',
-                              color: session.status === 'Completed' ? '#047857' : '#1d4ed8',
-                              border: session.status === 'Completed' ? '1px solid #a7f3d0' : '1px solid #bfdbfe',
+                              background: session.status === 'Completed' ? (session.isFullyCompleted ? '#ecfdf5' : '#fff7ed') : '#eff6ff',
+                              color: session.status === 'Completed' ? (session.isFullyCompleted ? '#047857' : '#c2410c') : '#1d4ed8',
+                              border: session.status === 'Completed' ? (session.isFullyCompleted ? '1px solid #a7f3d0' : '1px solid #fed7aa') : '1px solid #bfdbfe',
                               fontSize: '0.7rem',
                               fontWeight: 700,
                               padding: '2px 8px'
                             }}>
-                              {session.status}
+                              {session.status === 'Completed' ? (session.isFullyCompleted ? 'Completed' : 'Partially Done') : 'In Progress'}
                             </span>
                             <span style={{
                               fontSize: '0.74rem',

@@ -8,6 +8,8 @@ export interface ClientData {
   emails: string[];
   address?: string;
   duration?: string;
+  contractStartDate?: string;
+  contractEndDate?: string;
   contacts?: ClientContact[];
   projects: TaggedProject[];
 }

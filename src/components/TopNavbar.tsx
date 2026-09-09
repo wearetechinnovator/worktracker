@@ -241,8 +241,20 @@ export default function TopNavbar() {
     const handleRefresh = () => {
       loadUserAndResources();
     };
+    const handleRestoreModal = (e: any) => {
+      const { type } = e.detail || {};
+      if (type === 'employee') setIsEmployeeModalOpen(true);
+      if (type === 'client') setIsClientModalOpen(true);
+      if (type === 'project') setIsProjectModalOpen(true);
+      if (type === 'task') setIsTaskModalOpen(true);
+    };
+
     window.addEventListener('worktracker-refresh', handleRefresh);
-    return () => window.removeEventListener('worktracker-refresh', handleRefresh);
+    window.addEventListener('app-restore-modal', handleRestoreModal as EventListener);
+    return () => {
+      window.removeEventListener('worktracker-refresh', handleRefresh);
+      window.removeEventListener('app-restore-modal', handleRestoreModal as EventListener);
+    };
   }, [pathname]);
 
 

@@ -5,6 +5,9 @@ import Sidebar from '@/components/Sidebar';
 import TopNavbar from '@/components/TopNavbar';
 import PunchGuard from '@/components/PunchGuard';
 import ChatWidget from '@/components/ChatWidget';
+import ToastContainer from '@/components/ToastContainer';
+import { ModalDraftProvider } from '@/context/ModalDraftContext';
+import MinimizedModalDock from '@/components/MinimizedModalDock';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -29,16 +32,20 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
-        <PunchGuard>
-          <div className="app-layout">
-            <Sidebar />
-            <div className="main-wrapper">
-              <TopNavbar />
-              <main className="main-content">{children}</main>
+        <ModalDraftProvider>
+          <PunchGuard>
+            <div className="app-layout">
+              <Sidebar />
+              <div className="main-wrapper">
+                <TopNavbar />
+                <main className="main-content">{children}</main>
+              </div>
+              <ChatWidget />
+              <ToastContainer />
+              <MinimizedModalDock />
             </div>
-            <ChatWidget />
-          </div>
-        </PunchGuard>
+          </PunchGuard>
+        </ModalDraftProvider>
       </body>
     </html>
   );

@@ -11,14 +11,20 @@ import {
   AlertCircle,
   Loader2,
   Contact,
+  Edit2,
+  Check,
 } from 'lucide-react';
 import CreateProjectModal from '@/components/CreateProjectModal';
+import { CustomDatePicker } from '@/components/TaskFormControls';
+import { toast } from '@/lib/toast';
+import { useModalDraft } from '@/context/ModalDraftContext';
 
 export interface ClientContact {
   name: string;
   email?: string;
   phone?: string;
   designation?: string;
+  label?: string;
 }
 
 export interface ProjectOption {
@@ -47,15 +53,19 @@ export default function CreateClientModal({
   const [emailsStr, setEmailsStr] = useState('');
   const [address, setAddress] = useState('');
   const [duration, setDuration] = useState('');
-  const [contacts, setContacts] = useState<
-    Array<{ name: string; email: string; phone: string; designation: string }>
-  >([]);
+  const [contractStartDate, setContractStartDate] = useState('');
+  const [contractEndDate, setContractEndDate] = useState('');
+  const [contacts, setContacts] = useState<ClientContact[]>([]);
+  const [editingLabelIndex, setEditingLabelIndex] = useState<number | null>(null);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [fetchedProjects, setFetchedProjects] = useState<ProjectOption[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+
+  const draftKey = 'create-client';
+  const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
 
   // Fetch projects list if not supplied via props
   const fetchProjects = async () => {
@@ -74,8 +84,22 @@ export default function CreateClientModal({
     if (isOpen) {
       setError(null);
       fetchProjects();
+      setModalOpenState(draftKey, true);
+
+      const draft = getDraft(draftKey);
+      if (draft) {
+        if (draft.name !== undefined) setName(draft.name);
+        if (draft.phone !== undefined) setPhone(draft.phone);
+        if (draft.emailsStr !== undefined) setEmailsStr(draft.emailsStr);
+        if (draft.address !== undefined) setAddress(draft.address);
+        if (draft.duration !== undefined) setDuration(draft.duration);
+        if (draft.contractStartDate !== undefined) setContractStartDate(draft.contractStartDate);
+        if (draft.contractEndDate !== undefined) setContractEndDate(draft.contractEndDate);
+        if (draft.contacts !== undefined) setContacts(draft.contacts);
+        if (draft.selectedProjectIds !== undefined) setSelectedProjectIds(draft.selectedProjectIds);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, draftKey, getDraft, setModalOpenState]);
 
   if (!isOpen) return null;
 
@@ -87,30 +111,69 @@ export default function CreateClientModal({
     setEmailsStr('');
     setAddress('');
     setDuration('');
+    setContractStartDate('');
+    setContractEndDate('');
     setContacts([]);
     setSelectedProjectIds([]);
     setError(null);
   };
 
+  const isFormDirty = () => {
+    return Boolean(
+      name.trim() ||
+      phone.trim() ||
+      emailsStr.trim() ||
+      address.trim() ||
+      duration.trim() ||
+      contractStartDate.trim() ||
+      contractEndDate.trim() ||
+      contacts.length > 0 ||
+      selectedProjectIds.length > 0
+    );
+  };
+
   const handleClose = () => {
-    resetForm();
+    if (isFormDirty()) {
+      saveDraft(draftKey, {
+        type: 'client',
+        title: name.trim() ? `Client: ${name.trim()}` : 'New Client',
+        subtitle: emailsStr.trim() || phone.trim() || 'Draft saved',
+        data: {
+          name,
+          phone,
+          emailsStr,
+          address,
+          duration,
+          contractStartDate,
+          contractEndDate,
+          contacts,
+          selectedProjectIds,
+        },
+      });
+    } else {
+      clearDraft(draftKey);
+      resetForm();
+    }
     onClose();
   };
 
   const handleAddContact = () => {
     setContacts((prev) => [
       ...prev,
-      { name: '', email: '', phone: '', designation: '' },
+      { name: '', email: '', phone: '', designation: '', label: '' },
     ]);
   };
 
   const handleRemoveContact = (index: number) => {
     setContacts((prev) => prev.filter((_, idx) => idx !== index));
+    if (editingLabelIndex === index) {
+      setEditingLabelIndex(null);
+    }
   };
 
   const handleContactChange = (
     index: number,
-    field: 'name' | 'email' | 'phone' | 'designation',
+    field: keyof ClientContact,
     val: string
   ) => {
     setContacts((prev) =>
@@ -126,7 +189,6 @@ export default function CreateClientModal({
 
   const handleSubmit = async (e:any) => {
     e.preventDefault();
-    console.log("hhhh");
     
     if (!name.trim()) {
       setError('Please fill all required fields');
@@ -143,7 +205,7 @@ export default function CreateClientModal({
         .filter(Boolean);
 
       const validContacts = contacts.filter(
-        (c) => c.name.trim() || c.email.trim() || c.phone.trim() || c.designation.trim()
+        (c) => (c.name || '').trim() || (c.email || '').trim() || (c.phone || '').trim() || (c.designation || '').trim() || (c.label || '').trim()
       );
 
       const bodyPayload = {
@@ -152,6 +214,8 @@ export default function CreateClientModal({
         emails: parsedEmails,
         address: address.trim(),
         duration: duration.trim(),
+        contractStartDate: contractStartDate.trim() || undefined,
+        contractEndDate: contractEndDate.trim() || undefined,
         contacts: validContacts,
         projects: selectedProjectIds,
       };
@@ -172,13 +236,16 @@ export default function CreateClientModal({
         window.dispatchEvent(new CustomEvent('clients-updated', { detail: data.data }));
       }
 
+      clearDraft(draftKey);
       resetForm();
+      const clientName = data.data?.name || name.trim();
+      toast.success(`${clientName} created successfully`);
       if (onSuccess) {
         onSuccess(data.data);
       }
       onClose();
     } catch (err: any) {
-      setError(err.message || 'An error occurred while creating client.');
+      setError(err.message || 'Error occurred while creating client.');
     } finally {
       setSubmitting(false);
     }
@@ -321,46 +388,44 @@ export default function CreateClientModal({
               </div>
             </div>
 
-            {/* Row 2: Emails & Contract Duration */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label
-                  className="form-label"
-                  style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}
-                >
-                  General Emails (comma-separated)
-                </label>
-                <div className="custom-input-group">
-                  <span className="custom-input-addon">
-                    <Mail size={14} />
-                  </span>
-                  <input
-                    type="text"
-                    className="custom-input-control"
-                    placeholder="e.g. contact@acme.com, info@acme.com"
-                    value={emailsStr}
-                    onChange={(e) => setEmailsStr(e.target.value)}
-                  />
-                </div>
+            {/* Row 2: General Emails */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label
+                className="form-label"
+                style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}
+              >
+                General Emails (comma-separated)
+              </label>
+              <div className="custom-input-group">
+                <span className="custom-input-addon">
+                  <Mail size={14} />
+                </span>
+                <input
+                  type="text"
+                  className="custom-input-control"
+                  placeholder="e.g. contact@acme.com, info@acme.com"
+                  value={emailsStr}
+                  onChange={(e) => setEmailsStr(e.target.value)}
+                />
               </div>
+            </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label
-                  className="form-label"
-                  style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}
-                >
-                  Contract Duration (Optional)
-                </label>
-                <div className="custom-input-group">
-                  <input
-                    type="text"
-                    className="custom-input-control"
-                    placeholder="e.g. 6 Months, Annual Retainer"
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                  />
-                </div>
-              </div>
+            {/* Row: Contract Start Date & Contract End Date */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <CustomDatePicker
+                label="Contract Start Date"
+                placeholder="Pick start date"
+                value={contractStartDate}
+                onChange={(val) => setContractStartDate(val)}
+              />
+
+              <CustomDatePicker
+                label="Contract End Date"
+                placeholder="Pick end date"
+                value={contractEndDate}
+                onChange={(val) => setContractEndDate(val)}
+                align="right"
+              />
             </div>
 
             {/* Address */}
@@ -494,9 +559,82 @@ export default function CreateClientModal({
                           marginBottom: '6px',
                         }}
                       >
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                          Contact #{idx + 1}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {editingLabelIndex === idx ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <input
+                                type="text"
+                                className="form-control"
+                                style={{
+                                  height: '24px',
+                                  padding: '2px 6px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  width: '130px',
+                                  borderRadius: '4px',
+                                }}
+                                value={contact.label !== undefined && contact.label !== '' ? contact.label : `Contact #${idx + 1}`}
+                                onChange={(e) => handleContactChange(idx, 'label', e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    setEditingLabelIndex(null);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingLabelIndex(null);
+                                  }
+                                }}
+                                autoFocus
+                                onBlur={() => setEditingLabelIndex(null)}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setEditingLabelIndex(null)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--accent-primary)',
+                                  cursor: 'pointer',
+                                  padding: '2px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                }}
+                                title="Save title"
+                              >
+                                <Check size={13} />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                                {contact.label?.trim() || `Contact #${idx + 1}`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setEditingLabelIndex(idx)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--text-muted)',
+                                  cursor: 'pointer',
+                                  padding: '2px 4px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  borderRadius: '4px',
+                                  transition: 'all 0.15s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.color = 'var(--accent-primary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.color = 'var(--text-muted)';
+                                }}
+                                title="Edit contact label"
+                              >
+                                <Edit2 size={12} />
+                              </button>
+                            </>
+                          )}
+                        </div>
                         <button
                           type="button"
                           onClick={() => handleRemoveContact(idx)}
@@ -508,7 +646,10 @@ export default function CreateClientModal({
                             padding: '2px',
                             display: 'flex',
                             alignItems: 'center',
+                            transition: 'color 0.15s ease',
                           }}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
                           title="Remove contact"
                         >
                           <Trash2 size={13} />

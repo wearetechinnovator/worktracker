@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import CreateClientModal from '@/components/CreateClientModal';
+import { toast } from '@/lib/toast';
+import { useModalDraft } from '@/context/ModalDraftContext';
 
 export interface CreateProjectModalProps {
   isOpen: boolean;
@@ -65,11 +67,15 @@ export default function CreateProjectModal({
 
   const clientDropdownRef = useRef<HTMLDivElement>(null);
 
+  const draftKey = 'create-project';
+  const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
+
   // Load clients and employees if not provided or when modal opens
   useEffect(() => {
     if (!isOpen) return;
 
     setError(null);
+    setModalOpenState(draftKey, true);
 
     // Fetch clients
     fetch('/api/clients')
@@ -90,7 +96,15 @@ export default function CreateProjectModal({
         }
       })
       .catch(() => { });
-  }, [isOpen]);
+
+    const draft = getDraft(draftKey);
+    if (draft) {
+      if (draft.name !== undefined) setName(draft.name);
+      if (draft.description !== undefined) setDescription(draft.description);
+      if (draft.selectedClientId !== undefined) setSelectedClientId(draft.selectedClientId);
+      if (draft.selectedMembers !== undefined) setSelectedMembers(draft.selectedMembers);
+    }
+  }, [isOpen, draftKey, getDraft, setModalOpenState]);
 
   // Handle outside click for custom client dropdown
   useEffect(() => {
@@ -100,7 +114,9 @@ export default function CreateProjectModal({
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   // Handle escape key
@@ -173,8 +189,32 @@ export default function CreateProjectModal({
     setError(null);
   };
 
+  const isFormDirty = () => {
+    return Boolean(
+      name.trim() ||
+      description.trim() ||
+      selectedClientId ||
+      selectedMembers.length > 0
+    );
+  };
+
   const handleClose = () => {
-    resetForm();
+    if (isFormDirty()) {
+      saveDraft(draftKey, {
+        type: 'project',
+        title: name.trim() ? `Project: ${name.trim()}` : 'New Project',
+        subtitle: description.trim() || 'Draft saved',
+        data: {
+          name,
+          description,
+          selectedClientId,
+          selectedMembers,
+        },
+      });
+    } else {
+      clearDraft(draftKey);
+      resetForm();
+    }
     onClose();
   };
 
@@ -230,7 +270,10 @@ export default function CreateProjectModal({
         window.dispatchEvent(new CustomEvent('projects-updated', { detail: data.data }));
       }
 
+      clearDraft(draftKey);
       resetForm();
+      const projName = data.data?.name || name.trim();
+      toast.success(`${projName} created successfully`);
       if (onSuccess) {
         onSuccess(data.data);
       }

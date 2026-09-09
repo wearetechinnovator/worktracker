@@ -17,6 +17,7 @@ import { formatMinutesToDuration } from '@/lib/time';
 import MyTasks from '@/components/MyTasks';
 import PageShimmer from '@/components/PageShimmer';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
+import { getClientPunchLocation } from '@/lib/geoClient';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import {
   CustomDropdown,
@@ -284,16 +285,7 @@ export default function Dashboard() {
     if (!user) return;
     try {
       setIsPunchingOut(true);
-      let location: any = undefined;
-      if (typeof navigator !== 'undefined' && navigator.geolocation) {
-        location = await new Promise((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, label: 'Device geolocation' }),
-            () => resolve(undefined),
-            { enableHighAccuracy: true, timeout: 5000 }
-          );
-        });
-      }
+      const location = await getClientPunchLocation();
 
       const now = new Date();
       const localDate = now.toISOString().split('T')[0];
@@ -534,7 +526,7 @@ export default function Dashboard() {
 
       const targetClientId = selectedProj?.clientId?._id || selectedProj?.clientId;
 
-      if (selectedProj && typeof selectedProj.clientId === 'object' && Array.isArray((selectedProj.clientId as any).contacts) && (selectedProj.clientId as any).contacts.length > 0) {
+      if (selectedProj && selectedProj.clientId && typeof selectedProj.clientId === 'object' && Array.isArray((selectedProj.clientId as any).contacts) && (selectedProj.clientId as any).contacts.length > 0) {
         matchedContacts = (selectedProj.clientId as any).contacts;
         clientName = (selectedProj.clientId as any).name || '';
       } else if (clientsList && clientsList.length > 0) {

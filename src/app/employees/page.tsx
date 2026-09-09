@@ -11,6 +11,7 @@ import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCale
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import PageShimmer from '@/components/PageShimmer';
 import type { Employee } from '../../types/Employee2';
+import { toast } from '@/lib/toast';
 
 
 export default function EmployeesPage() {
@@ -27,7 +28,6 @@ export default function EmployeesPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [roleSuggestions, setRoleSuggestions] = useState<string[]>([]);
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -89,34 +89,6 @@ export default function EmployeesPage() {
     }
   }, [user, fetchEmployees]);
 
-  const fetchRoleSuggestions = useCallback(async () => {
-    if (!user) return;
-
-    try {
-      const res = await fetch('/api/roles');
-      const data = await res.json();
-      if (!data.success || !Array.isArray(data.data)) return;
-
-      const names: string[] = Array.from(
-        new Set<string>(
-          data.data
-            .map((item: any) => (typeof item?.name === 'string' ? item.name.trim() : ''))
-            .filter(Boolean)
-        )
-      ).sort((a, b) => a.localeCompare(b));
-
-      setRoleSuggestions(names);
-    } catch (err) {
-      console.error('Failed to fetch role suggestions:', err);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (user) {
-      fetchRoleSuggestions();
-    }
-  }, [user, fetchRoleSuggestions]);
-
   useEffect(() => {
     if (typeof window !== 'undefined' && employees.length > 0) {
       const selectId = new URLSearchParams(window.location.search).get('select');
@@ -136,16 +108,19 @@ export default function EmployeesPage() {
   };
 
   const handleDelete = async (empId: string) => {
-    if (!confirm('Are you sure you want to delete this employee? This action is irreversible.')) return;
+    const emp = employees.find(e => e._id === empId);
+    const empName = emp?.name || 'Employee';
+    if (!confirm(`Are you sure you want to delete ${empName}? This action is irreversible.`)) return;
 
     try {
       const res = await fetch(`/api/employees/${empId}`, { method: 'DELETE' });
       const result = await res.json();
       if (!result.success) throw new Error(result.error || 'Failed to delete');
 
+      toast.success(`${empName} deleted successfully`);
       await fetchEmployees();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to delete employee');
     }
   };
 
@@ -385,10 +360,8 @@ export default function EmployeesPage() {
       <AddTeamMemberModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        roleSuggestions={roleSuggestions}
         onSuccess={async () => {
           await fetchEmployees();
-          await fetchRoleSuggestions();
         }}
       />
 
@@ -400,7 +373,6 @@ export default function EmployeesPage() {
         onSuccess={async () => {
           setIsEditModalOpen(false);
           await fetchEmployees();
-          await fetchRoleSuggestions();
         }}
       />
     </div>

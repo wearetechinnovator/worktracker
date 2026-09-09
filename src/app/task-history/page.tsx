@@ -28,6 +28,7 @@ interface TaskWorkRecord {
   endTime?: string;
   totalMinutes?: number;
   status: 'In Progress' | 'Completed';
+  isFullyCompleted?: boolean;
   notes?: string;
   createdAt: string;
 }
@@ -538,14 +539,15 @@ export default function TaskHistoryPage() {
                                         {formatDuration(subEntry.totalMinutes)}
                                       </td>
                                       <td style={{ padding: '4px 6px', paddingLeft: '12px' }}>
-                                        <span className="tag-badge" style={{
-                                          background: subEntry.status === 'Completed' ? '#ecfdf5' : '#fef3c7',
-                                          color: subEntry.status === 'Completed' ? '#065f46' : '#92400e',
-                                          fontSize: '0.66rem',
-                                          padding: '2px 6px',
-                                        }}>
-                                          {subEntry.status}
-                                        </span>
+                                         <span className="tag-badge" style={{
+                                           background: subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? '#ecfdf5' : '#fff7ed') : '#eff6ff',
+                                           color: subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? '#065f46' : '#c2410c') : '#1d4ed8',
+                                           border: subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? '1px solid #10b98130' : '1px solid #fed7aa') : '1px solid #3b82f630',
+                                           fontSize: '0.66rem',
+                                           padding: '2px 6px',
+                                         }}>
+                                           {subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? 'Completed' : 'Partially Done') : 'In Progress'}
+                                         </span>
                                       </td>
                                       <td style={{ padding: '4px 6px', textAlign: 'center' }}>
                                         {subEntry.notes ? (
@@ -652,14 +654,14 @@ export default function TaskHistoryPage() {
                       <span
                         className="tag-badge"
                         style={{
-                          background: record.status === 'Completed' ? '#ecfdf5' : '#fef3c7',
-                          color: record.status === 'Completed' ? '#065f46' : '#92400e',
+                          background: record.status === 'Completed' ? (record.isFullyCompleted !== false ? '#ecfdf5' : '#fff7ed') : '#eff6ff',
+                          color: record.status === 'Completed' ? (record.isFullyCompleted !== false ? '#065f46' : '#c2410c') : '#1d4ed8',
                           fontSize: '0.7rem',
                           padding: '3px 10px',
-                          border: `1px solid ${record.status === 'Completed' ? '#10b98130' : '#f59e0b30'}`,
+                          border: `1px solid ${record.status === 'Completed' ? (record.isFullyCompleted !== false ? '#10b98130' : '#fed7aa') : '#3b82f630'}`,
                         }}
                       >
-                        {record.status}
+                        {record.status === 'Completed' ? (record.isFullyCompleted !== false ? 'Completed' : 'Partially Done') : 'In Progress'}
                       </span>
                     </td>
                     <td>

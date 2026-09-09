@@ -3,4 +3,5 @@ export interface ClientContact {
   email?: string;
   phone?: string;
   designation?: string;
+  label?: string;
 }

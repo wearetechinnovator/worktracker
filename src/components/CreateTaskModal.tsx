@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
+import { toast } from '@/lib/toast';
+import { useModalDraft } from '@/context/ModalDraftContext';
 import {
   CustomDropdown,
   CustomMultiSelectDropdown,
@@ -90,6 +92,9 @@ export function CreateTaskModal({
     tags: '',
   });
 
+  const draftKey = editingTask ? `edit-task-${editingTask._id || 'unknown'}` : 'create-task';
+  const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
+
   const isAdmin = currentUser?.userType === 'admin';
 
   // Fetch projects from API
@@ -148,7 +153,7 @@ export function CreateTaskModal({
 
       const targetClientId = selectedProj?.clientId?._id || selectedProj?.clientId;
 
-      if (selectedProj && typeof selectedProj.clientId === 'object' && Array.isArray((selectedProj.clientId as any).contacts) && (selectedProj.clientId as any).contacts.length > 0) {
+      if (selectedProj && selectedProj.clientId && typeof selectedProj.clientId === 'object' && Array.isArray((selectedProj.clientId as any).contacts) && (selectedProj.clientId as any).contacts.length > 0) {
         matchedContacts = (selectedProj.clientId as any).contacts;
         clientName = (selectedProj.clientId as any).name || '';
       } else if (clients && clients.length > 0) {
@@ -235,11 +240,16 @@ export function CreateTaskModal({
       fetchEmployees();
     }
 
+    setModalOpenState(draftKey, true);
+
     const sessionKey = editingTask ? String(editingTask._id || JSON.stringify(editingTask)) : 'new_task';
     if (lastInitializedRef.current !== sessionKey) {
       lastInitializedRef.current = sessionKey;
 
-      if (editingTask) {
+      const draft = getDraft(draftKey);
+      if (draft) {
+        setFormData(draft);
+      } else if (editingTask) {
         const initialContactPersons = Array.isArray(editingTask.contactPersons) && editingTask.contactPersons.length > 0
           ? editingTask.contactPersons
           : (editingTask.contactPerson ? editingTask.contactPerson.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
@@ -288,7 +298,7 @@ export function CreateTaskModal({
       }
       setError(null);
     }
-  }, [isOpen, editingTask, initialProjectId, projectsOptions, employeesList, propUser, fetchProjects, fetchEmployees, fetchClients]);
+  }, [isOpen, editingTask, initialProjectId, projectsOptions, employeesList, propUser, fetchProjects, fetchEmployees, fetchClients, getDraft]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -331,11 +341,48 @@ export function CreateTaskModal({
     }
   };
 
+  const isFormDirty = () => {
+    if (!editingTask) {
+      return Boolean(
+        formData.title.trim() ||
+        formData.description.trim() ||
+        formData.projectId.trim() ||
+        formData.comments.trim() ||
+        formData.dueDate ||
+        formData.dueTime ||
+        formData.tags.trim() ||
+        formData.files.length > 0 ||
+        formData.urls.length > 0
+      );
+    }
+    return Boolean(
+      formData.title !== (editingTask.title || '') ||
+      formData.description !== (editingTask.description || '') ||
+      formData.priority !== (editingTask.priority || 'Medium') ||
+      formData.status !== (editingTask.status || 'To Do') ||
+      formData.dueDate !== (editingTask.dueDate || '') ||
+      formData.comments !== (editingTask.comments || '')
+    );
+  };
+
+  const handleClose = () => {
+    if (isFormDirty()) {
+      saveDraft(draftKey, {
+        type: 'task',
+        title: formData.title.trim() ? `Task: ${formData.title.trim()}` : (editingTask ? 'Edit Task' : 'New Task'),
+        subtitle: formData.dueDate ? `Due: ${formData.dueDate}` : 'Draft saved',
+        data: formData,
+      });
+    } else {
+      clearDraft(draftKey);
+    }
+    onClose();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title.trim() || !formData.projectId.trim()) {
       setError('Please fill all required fields');
-      // alert('Please fill all required fields');
       return;
     }
 
@@ -382,6 +429,10 @@ export function CreateTaskModal({
 
       window.dispatchEvent(new CustomEvent('worktracker-refresh'));
 
+      clearDraft(draftKey);
+      const taskTitle = data.data?.title || formData.title.trim();
+      toast.success(editingTask ? `${taskTitle} updated successfully` : `${taskTitle} created successfully`);
+
       if (onSuccess) {
         onSuccess(data.data);
       }
@@ -408,7 +459,7 @@ export function CreateTaskModal({
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>
               {editingTask ? 'Edit Task' : 'Create New Task'}
             </h3>
-            <button className="modal-close" onClick={onClose}>
+            <button className="modal-close" onClick={handleClose}>
               &times;
             </button>
           </div>
@@ -539,21 +590,6 @@ export function CreateTaskModal({
               </>
             )}
 
-            {!isAdmin && (() => {
-              const { options: contactOpts, disabledMessage } = getContactDropdownOptions();
-              return (
-                <div style={{ marginBottom: '16px' }}>
-                  <CustomMultiSelectDropdown
-                    label="Contact Person"
-                    placeholder="Select Contact Person"
-                    values={formData.contactPersons}
-                    options={contactOpts}
-                    disabledMessage={disabledMessage}
-                    onChange={(newVals) => setFormData({ ...formData, contactPersons: newVals })}
-                  />
-                </div>
-              );
-            })()}
 
             {/* Task Title */}
             <div className="form-group" style={{ marginBottom: '16px' }}>

@@ -3,6 +3,10 @@ import dbConnect from '@/lib/dbConnect';
 import Designation from '@/models/Designation';
 import { requireUser, isErrorResponse } from '@/lib/auth';
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export async function GET(request: Request) {
   try {
     await dbConnect();
@@ -42,9 +46,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if designation already exists
+    // Check if designation already exists (case-insensitive)
     const existing = await Designation.findOne({
-      name: { $regex: new RegExp(`^${trimmed}$`, 'i') },
+      name: { $regex: new RegExp(`^${escapeRegex(trimmed)}$`, 'i') },
     });
 
     if (existing) {

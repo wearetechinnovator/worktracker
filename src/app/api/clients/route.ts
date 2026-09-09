@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, phone, emails, address, duration, contacts, projectId, projects } = body;
+    const { name, phone, emails, address, duration, contractStartDate, contractEndDate, contacts, projectId, projects } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json({ success: false, error: 'Client name is required' }, { status: 400 });
@@ -67,12 +67,13 @@ export async function POST(request: Request) {
     let processedContacts: any[] = [];
     if (Array.isArray(contacts)) {
       processedContacts = contacts
-        .filter((c: any) => c && (c.name || c.email || c.phone || c.designation))
+        .filter((c: any) => c && (c.name || c.email || c.phone || c.designation || c.label))
         .map((c: any) => ({
           name: String(c.name || '').trim(),
           email: String(c.email || '').trim().toLowerCase(),
           phone: String(c.phone || '').trim(),
           designation: String(c.designation || '').trim(),
+          label: String(c.label || '').trim(),
         }));
     }
 
@@ -82,6 +83,8 @@ export async function POST(request: Request) {
       emails: processedEmails,
       address: address ? address.trim() : '',
       duration: duration ? duration.trim() : '',
+      contractStartDate: contractStartDate ? String(contractStartDate).trim() : undefined,
+      contractEndDate: contractEndDate ? String(contractEndDate).trim() : undefined,
       contacts: processedContacts,
     });
 

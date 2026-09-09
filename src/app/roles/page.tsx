@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
 import { PERMISSION_GROUPS, ALL_PERMISSION_KEYS, PermissionGroup } from '@/lib/permissions';
+import { toast } from '@/lib/toast';
 
 interface Employee {
   _id: string;
@@ -206,10 +207,13 @@ export default function RolesPage() {
       }
 
       setSaveSuccess(true);
+      toast.success(`Role "${activeRoleName}" updated successfully`);
       setTimeout(() => setSaveSuccess(false), 3000);
       fetchRoles();
     } catch (err: any) {
-      setError(err.message || 'Error saving role changes');
+      const msg = err.message || 'Error saving role changes';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setIsSaving(false);
     }
@@ -223,6 +227,8 @@ export default function RolesPage() {
       return;
     }
 
+    const createdRoleName = newRoleName.trim();
+
     try {
       setSubmittingCreate(true);
       setCreateError(null);
@@ -231,7 +237,7 @@ export default function RolesPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: newRoleName,
+          name: createdRoleName,
           description: newRoleDesc,
           color: newRoleColor,
           isSystemAdmin: newRoleAdmin,
@@ -250,12 +256,15 @@ export default function RolesPage() {
       setNewRoleColor('#3b82f6');
       setNewRoleAdmin(false);
       setCreateError(null);
+      toast.success(`Role "${createdRoleName}" created successfully`);
       fetchRoles();
       if (result.data && result.data._id) {
         setSelectedRoleId(result.data._id);
       }
     } catch (err: any) {
-      setCreateError(err.message || 'Error creating role');
+      const msg = err.message || 'Error creating role';
+      setCreateError(msg);
+      toast.error(msg);
     } finally {
       setSubmittingCreate(false);
     }
@@ -264,7 +273,8 @@ export default function RolesPage() {
   // Delete Role Handler
   const handleDeleteRole = async () => {
     if (!selectedRole || selectedRole.isSystemRole) return;
-    if (!confirm(`Are you sure you want to delete the "${selectedRole.name}" role? All assigned members will be reassigned to Employee role.`)) return;
+    const roleName = selectedRole.name;
+    if (!confirm(`Are you sure you want to delete the "${roleName}" role? All assigned members will be reassigned to Employee role.`)) return;
 
     try {
       const res = await fetch(`/api/roles/${selectedRole._id}`, {
@@ -276,9 +286,10 @@ export default function RolesPage() {
       }
 
       setSelectedRoleId(null);
+      toast.success(`Role "${roleName}" deleted successfully`);
       fetchRoles();
     } catch (err: any) {
-      alert(err.message || 'Error deleting role');
+      toast.error(err.message || 'Error deleting role');
     }
   };
 
@@ -301,6 +312,7 @@ export default function RolesPage() {
 
       setShowReassignModal(false);
       setSelectedEmpId('');
+      toast.success(`Role "${selectedRole.name}" assigned successfully`);
       fetchRoles();
       fetchEmployees();
     } catch (err: any) {

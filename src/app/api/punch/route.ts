@@ -179,9 +179,17 @@ export async function POST(request: Request) {
     const employee = await Employee.findById(targetEmployeeId);
     const isAdmin = employee?.userType === 'admin';
 
+    const cfConnectingIp = request.headers.get('cf-connecting-ip');
     const forwarded = request.headers.get('x-forwarded-for');
     const realIp = request.headers.get('x-real-ip');
-    const ipAddress = forwarded ? forwarded.split(',')[0].trim() : realIp || 'unknown';
+    const headerIp = cfConnectingIp || (forwarded ? forwarded.split(',')[0].trim() : realIp);
+    const ipAddress = (headerIp && headerIp !== '::1' && headerIp !== '127.0.0.1')
+      ? headerIp
+      : (location?.ip || body.clientIp || headerIp || '127.0.0.1');
+
+    const locString = location?.address || location?.label || (location?.latitude != null && location?.longitude != null ? `${location.latitude}, ${location.longitude}` : 'Office / Remote');
+    const locLat = location?.latitude ?? undefined;
+    const locLon = location?.longitude ?? undefined;
 
     const today = getValidatedDate(localDate);
     const currentTime = localTime || new Date().toTimeString().slice(0, 5); // HH:MM format
@@ -285,9 +293,9 @@ export async function POST(request: Request) {
             status: 'Present',
             checkIn: currentTime,
             checkInIpAddress: ipAddress,
-            checkInLocation: location?.address || (location?.latitude != null && location?.longitude != null ? `${location.latitude}, ${location.longitude}` : location?.label || 'Location captured'),
-            checkInLatitude: location?.latitude ?? undefined,
-            checkInLongitude: location?.longitude ?? undefined,
+            checkInLocation: locString,
+            checkInLatitude: locLat,
+            checkInLongitude: locLon,
           },
           $unset: {
             checkOut: 1,
@@ -339,9 +347,9 @@ export async function POST(request: Request) {
       // Update with punch out time, IP address, and Geolocation
       existing.checkOut = currentTime;
       existing.checkOutIpAddress = ipAddress;
-      existing.checkOutLocation = location?.label || location?.address || (location?.latitude ? `${location.latitude}, ${location.longitude}` : 'Location captured');
-      existing.checkOutLatitude = location?.latitude ?? undefined;
-      existing.checkOutLongitude = location?.longitude ?? undefined;
+      existing.checkOutLocation = locString;
+      existing.checkOutLatitude = locLat;
+      existing.checkOutLongitude = locLon;
       await existing.save();
 
       return NextResponse.json({

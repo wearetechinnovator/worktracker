@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Edit3, FileText, Loader2, Pin, PinOff, Plus, Trash2, X, StickyNote } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
-import type {KeepNote} from '../../types/KeepNote'
+import type {KeepNote} from '../../types/KeepNote';
+import { toast } from '@/lib/toast';
+import { useModalDraft } from '@/context/ModalDraftContext';
 
 const NOTE_COLORS = [
   { name: 'Yellow', value: '#fef9c3', border: '#fde047', accent: '#ca8a04' },
@@ -69,28 +71,93 @@ export default function KeepNotesPage() {
   const pinnedNotes = useMemo(() => notes.filter((n) => n.isPinned), [notes]);
   const unpinnedNotes = useMemo(() => notes.filter((n) => !n.isPinned), [notes]);
 
+  const draftKey = editingNoteId ? `edit-note-${editingNoteId}` : 'create-note';
+  const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
+
+  useEffect(() => {
+    const handleRestore = (e: CustomEvent) => {
+      const { type, data } = e.detail || {};
+      if (type === 'keep-note' && data) {
+        setEditingNoteId(data.editingNoteId || null);
+        setFormData({
+          title: data.title || '',
+          content: data.content || '',
+          color: data.color || NOTE_COLORS[0].value,
+          isPinned: Boolean(data.isPinned),
+        });
+        const activeKey = data.editingNoteId ? `edit-note-${data.editingNoteId}` : 'create-note';
+        setModalOpenState(activeKey, true);
+        setIsModalOpen(true);
+      }
+    };
+    window.addEventListener('app-restore-modal', handleRestore as EventListener);
+    return () => {
+      window.removeEventListener('app-restore-modal', handleRestore as EventListener);
+    };
+  }, [setModalOpenState]);
+
   const openModal = (note?: KeepNote) => {
     if (note) {
       setEditingNoteId(note._id);
-      setFormData({
-        title: note.title,
-        content: note.content,
-        color: note.color || NOTE_COLORS[0].value,
-        isPinned: note.isPinned,
-      });
+      const noteDraftKey = `edit-note-${note._id}`;
+      setModalOpenState(noteDraftKey, true);
+      const draft = getDraft(noteDraftKey);
+      if (draft) {
+        setFormData({
+          title: draft.title || note.title,
+          content: draft.content || note.content,
+          color: draft.color || note.color || NOTE_COLORS[0].value,
+          isPinned: draft.isPinned !== undefined ? draft.isPinned : note.isPinned,
+        });
+      } else {
+        setFormData({
+          title: note.title,
+          content: note.content,
+          color: note.color || NOTE_COLORS[0].value,
+          isPinned: note.isPinned,
+        });
+      }
     } else {
       setEditingNoteId(null);
-      setFormData({
-        title: '',
-        content: '',
-        color: NOTE_COLORS[0].value,
-        isPinned: false,
-      });
+      setModalOpenState('create-note', true);
+      const draft = getDraft('create-note');
+      if (draft) {
+        setFormData({
+          title: draft.title || '',
+          content: draft.content || '',
+          color: draft.color || NOTE_COLORS[0].value,
+          isPinned: Boolean(draft.isPinned),
+        });
+      } else {
+        setFormData({
+          title: '',
+          content: '',
+          color: NOTE_COLORS[0].value,
+          isPinned: false,
+        });
+      }
     }
     setIsModalOpen(true);
   };
 
+  const isFormDirty = () => {
+    return Boolean(formData.title.trim() || formData.content.trim());
+  };
+
   const closeModal = () => {
+    if (isFormDirty()) {
+      saveDraft(draftKey, {
+        type: 'keep-note',
+        title: formData.title.trim() ? `Note: ${formData.title.trim()}` : (editingNoteId ? 'Edit Note' : 'New Note'),
+        subtitle: formData.content.slice(0, 30) || 'Draft saved',
+        data: {
+          ...formData,
+          editingNoteId,
+        },
+      });
+    } else {
+      clearDraft(draftKey);
+    }
     setIsModalOpen(false);
     setEditingNoteId(null);
     setError(null);
@@ -102,6 +169,8 @@ export default function KeepNotesPage() {
       setError('Please fill all required fields');
       return;
     }
+
+    const noteTitle = formData.title.trim();
 
     try {
       setSubmitting(true);
@@ -118,10 +187,16 @@ export default function KeepNotesPage() {
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to save note');
 
-      closeModal();
+      clearDraft(draftKey);
+      setIsModalOpen(false);
+      setEditingNoteId(null);
+      setError(null);
+      toast.success(editingNoteId ? `Note "${noteTitle}" updated successfully` : `Note "${noteTitle}" created successfully`);
       await fetchNotes();
     } catch (err: any) {
-      alert(err.message || 'Failed to save note');
+      const msg = err.message || 'Failed to save note';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -129,15 +204,18 @@ export default function KeepNotesPage() {
 
   const handleDelete = async (noteId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!confirm('Delete this sticky note?')) return;
+    const note = notes.find(n => n._id === noteId);
+    const noteTitle = note?.title || 'Note';
+    if (!confirm(`Delete sticky note "${noteTitle}"?`)) return;
 
     try {
       const res = await fetch(`/api/keep-notes/${noteId}`, { method: 'DELETE' });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to delete note');
+      toast.success(`Note "${noteTitle}" deleted successfully`);
       await fetchNotes();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete note');
+      toast.error(err.message || 'Failed to delete note');
     }
   };
 

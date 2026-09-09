@@ -19,7 +19,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, phone, emails, address, duration, contacts, projectIds } = body;
+    const { name, phone, emails, address, duration, contractStartDate, contractEndDate, contacts, projectIds } = body;
 
     const client = await Client.findById(id);
     if (!client) {
@@ -39,16 +39,19 @@ export async function PUT(
 
     if (address !== undefined) client.address = address.trim();
     if (duration !== undefined) client.duration = duration.trim();
+    if (contractStartDate !== undefined) client.contractStartDate = contractStartDate ? String(contractStartDate).trim() : undefined;
+    if (contractEndDate !== undefined) client.contractEndDate = contractEndDate ? String(contractEndDate).trim() : undefined;
 
     if (contacts !== undefined) {
       if (Array.isArray(contacts)) {
         client.contacts = contacts
-          .filter((c: any) => c && (c.name || c.email || c.phone || c.designation))
+          .filter((c: any) => c && (c.name || c.email || c.phone || c.designation || c.label))
           .map((c: any) => ({
             name: String(c.name || '').trim(),
             email: String(c.email || '').trim().toLowerCase(),
             phone: String(c.phone || '').trim(),
             designation: String(c.designation || '').trim(),
+            label: String(c.label || '').trim(),
           }));
       }
     }

@@ -4,6 +4,7 @@ import Employee from '@/models/Employee';
 import WorkEntry from '@/models/WorkEntry';
 import Attendance from '@/models/Attendance';
 import Role from '@/models/Role';
+import Designation from '@/models/Designation';
 import { hashPassword } from '@/lib/password';
 import { isErrorResponse, requireUser } from '@/lib/auth';
 
@@ -103,7 +104,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Invalid system role' }, { status: 400 });
     }
 
-    // const plainPassword = password || 'password123';
+    if (normalizedRole) {
+      const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      await Designation.findOneAndUpdate(
+        { name: { $regex: new RegExp(`^${escapeRegex(normalizedRole)}$`, 'i') } },
+        { $setOnInsert: { name: normalizedRole } },
+        { upsert: true }
+      ).catch(() => {});
+    }
+
     const employee = await Employee.create({
       name,
       email,
@@ -113,7 +122,6 @@ export async function POST(request: Request) {
       status: status || 'Active',
       avatarColor: avatarColor || '#7f56d9',
       password,
-      // rawPassword: plainPassword,
       userType: 'employee',
       workMode: workMode || 'Hybrid',
     });

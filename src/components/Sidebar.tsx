@@ -11,6 +11,7 @@ import {
   LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, ChevronLeft, ChevronDown, LogOut, Clock, Settings, CheckSquare, History, Briefcase, FileText, Mail, Copy, Loader2, Menu, X
 } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
+import { getClientPunchLocation } from '@/lib/geoClient';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -284,16 +285,7 @@ export default function Sidebar() {
     if (!user) return;
     try {
       setIsPunchingOut(true);
-      let location: any = undefined;
-      if (typeof navigator !== 'undefined' && navigator.geolocation) {
-        location = await new Promise((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, label: 'Device geolocation' }),
-            () => resolve(undefined),
-            { enableHighAccuracy: true, timeout: 5000 }
-          );
-        });
-      }
+      const location = await getClientPunchLocation();
 
       const now = new Date();
       const localDate = now.toISOString().split('T')[0];
@@ -471,7 +463,7 @@ const toggleGroup = (groupKey: string) => {
               {canAccessFeatures ? (
                 <Link
                   href="/dashboard"
-                  className={`sidebar-link ${pathname === '/dashboard' ? 'active' : ''}`}
+                  className={`sidebar-link ${pathname === '/dashboard' || pathname === '/' ? 'active' : ''}`}
                   onMouseEnter={(e) => handleItemMouseEnter('Dashboard', e)}
                   onMouseLeave={handleItemMouseLeave}
                 >

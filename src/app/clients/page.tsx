@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, Briefcase, Mail, Phone, MapPin, Clock, Plus, Search, X, AlertCircle, Edit3, Trash2, UserPlus, FileBarChart, Sparkles, Contact } from 'lucide-react';
+import { Users, Briefcase, Mail, Phone, MapPin, Clock, Calendar, Plus, Search, X, AlertCircle, Edit3, Edit2, Check, Trash2, UserPlus, FileBarChart, Sparkles, Contact } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
 import CreateClientModal from '@/components/CreateClientModal';
 import CreateProjectModal from '@/components/CreateProjectModal';
+import { CustomDatePicker } from '@/components/TaskFormControls';
+import { toast } from '@/lib/toast';
 import type { ClientData } from '../../types/ClientData';
 import type { ProjectOption } from '../../types/ProjectOption';
 import './style.css';
@@ -27,7 +29,10 @@ export default function ClientsPage() {
   const [emailsStr, setEmailsStr] = useState('');
   const [address, setAddress] = useState('');
   const [duration, setDuration] = useState('');
-  const [contacts, setContacts] = useState<Array<{ name: string; email: string; phone: string; designation: string }>>([]);
+  const [contractStartDate, setContractStartDate] = useState('');
+  const [contractEndDate, setContractEndDate] = useState('');
+  const [contacts, setContacts] = useState<Array<{ name: string; email: string; phone: string; designation: string; label?: string }>>([]);
+  const [editingLabelIndex, setEditingLabelIndex] = useState<number | null>(null);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +116,8 @@ export default function ClientsPage() {
     setEmailsStr(client.emails.join(', '));
     setAddress(client.address || '');
     setDuration(client.duration || '');
+    setContractStartDate(client.contractStartDate || '');
+    setContractEndDate(client.contractEndDate || '');
     setContacts(
       client.contacts && client.contacts.length > 0
         ? client.contacts.map(c => ({
@@ -118,6 +125,7 @@ export default function ClientsPage() {
             email: c.email || '',
             phone: c.phone || '',
             designation: c.designation || '',
+            label: c.label || '',
           }))
         : []
     );
@@ -127,7 +135,7 @@ export default function ClientsPage() {
   };
 
   const handleAddContact = () => {
-    setContacts(prev => [...prev, { name: '', designation: '', email: '', phone: '' }]);
+    setContacts(prev => [...prev, { name: '', designation: '', email: '', phone: '', label: '' }]);
   };
 
   const handleContactChange = (index: number, field: string, value: string) => {
@@ -140,6 +148,9 @@ export default function ClientsPage() {
 
   const handleRemoveContact = (index: number) => {
     setContacts(prev => prev.filter((_, i) => i !== index));
+    if (editingLabelIndex === index) {
+      setEditingLabelIndex(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -160,7 +171,9 @@ export default function ClientsPage() {
         emails: emailsStr.split(',').map(email => email.trim()).filter(Boolean),
         address,
         duration,
-        contacts: contacts.filter(c => c.name.trim() || c.email.trim() || c.phone.trim() || c.designation.trim()),
+        contractStartDate: contractStartDate.trim() || undefined,
+        contractEndDate: contractEndDate.trim() || undefined,
+        contacts: contacts.filter(c => c.name.trim() || c.email.trim() || c.phone.trim() || c.designation.trim() || c.label?.trim()),
         ...(editingClient
           ? { projectIds: selectedProjectIds }
           : { projectId: selectedProjectIds[0] || undefined }
@@ -182,6 +195,8 @@ export default function ClientsPage() {
       }
 
       setShowModal(false);
+      const clientName = result.data?.name || name.trim();
+      toast.success(editingClient ? `${clientName} updated successfully` : `${clientName} created successfully`);
       fetchData();
     } catch (err: any) {
       setError(err.message || String(err));
@@ -191,7 +206,9 @@ export default function ClientsPage() {
   };
 
   const handleDelete = async (clientId: string) => {
-    if (!confirm('Are you sure you want to delete this client? All associated project tags will be cleared.')) return;
+    const client = clients.find(c => c._id === clientId);
+    const clientName = client?.name || 'Client';
+    if (!confirm(`Are you sure you want to delete ${clientName}? All associated project tags will be cleared.`)) return;
 
     try {
       const res = await fetch(`/api/clients/${clientId}`, {
@@ -201,9 +218,10 @@ export default function ClientsPage() {
       if (!result.success) {
         throw new Error(result.error || 'Failed to delete client');
       }
+      toast.success(`${clientName} deleted successfully`);
       fetchData();
     } catch (err: any) {
-      alert(err.message || String(err));
+      toast.error(err.message || 'Failed to delete client');
     }
   };
 
@@ -460,6 +478,16 @@ export default function ClientsPage() {
                         <span>Contract: {client.duration}</span>
                       </p>
                     )}
+                    {(client.contractStartDate || client.contractEndDate) && (
+                      <p className="client-meta" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                        <Calendar size={11} />
+                        <span>
+                          {client.contractStartDate ? new Date(client.contractStartDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Start'}
+                          {' - '}
+                          {client.contractEndDate ? new Date(client.contractEndDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Ongoing'}
+                        </span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -520,7 +548,14 @@ export default function ClientsPage() {
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-                            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{c.name}</span>
+                            <div>
+                              <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{c.name}</span>
+                              {c.label && (
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: '6px', fontWeight: 500 }}>
+                                  ({c.label})
+                                </span>
+                              )}
+                            </div>
                             {c.designation && (
                               <span style={{
                                 fontSize: '0.65rem',
@@ -673,30 +708,33 @@ export default function ClientsPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">General Emails (comma-separated)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. contact@acme.com, info@acme.com"
-                    value={emailsStr}
-                    onChange={(e) => setEmailsStr(e.target.value)}
-                    
-                  />
-                </div>
+              <div className="form-group" style={{ marginBottom: '10px' }}>
+                <label className="form-label">General Emails (comma-separated)</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="e.g. contact@acme.com, info@acme.com"
+                  value={emailsStr}
+                  onChange={(e) => setEmailsStr(e.target.value)}
+                />
+              </div>
 
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Contract Duration (Optional)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. 6 Months, Annual Retainer"
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                    
-                  />
-                </div>
+              {/* Row: Contract Start Date & Contract End Date */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <CustomDatePicker
+                  label="Contract Start Date"
+                  placeholder="Pick start date"
+                  value={contractStartDate}
+                  onChange={(val) => setContractStartDate(val)}
+                />
+
+                <CustomDatePicker
+                  label="Contract End Date"
+                  placeholder="Pick end date"
+                  value={contractEndDate}
+                  onChange={(val) => setContractEndDate(val)}
+                  align="right"
+                />
               </div>
 
               <div className="form-group" style={{ marginBottom: '12px' }}>
@@ -771,9 +809,82 @@ export default function ClientsPage() {
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                            Contact #{idx + 1}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {editingLabelIndex === idx ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <input
+                                  type="text"
+                                  className="form-control"
+                                  style={{
+                                    height: '24px',
+                                    padding: '2px 6px',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    width: '130px',
+                                    borderRadius: '4px',
+                                  }}
+                                  value={contact.label !== undefined && contact.label !== '' ? contact.label : `Contact #${idx + 1}`}
+                                  onChange={(e) => handleContactChange(idx, 'label', e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      setEditingLabelIndex(null);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingLabelIndex(null);
+                                    }
+                                  }}
+                                  autoFocus
+                                  onBlur={() => setEditingLabelIndex(null)}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingLabelIndex(null)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--accent-primary)',
+                                    cursor: 'pointer',
+                                    padding: '2px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                  }}
+                                  title="Save title"
+                                >
+                                  <Check size={13} />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                                  {contact.label?.trim() || `Contact #${idx + 1}`}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingLabelIndex(idx)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-muted)',
+                                    cursor: 'pointer',
+                                    padding: '2px 4px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    borderRadius: '4px',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.color = 'var(--accent-primary)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.color = 'var(--text-muted)';
+                                  }}
+                                  title="Edit contact label"
+                                >
+                                  <Edit2 size={12} />
+                                </button>
+                              </>
+                            )}
+                          </div>
                           <button
                             type="button"
                             onClick={() => handleRemoveContact(idx)}
@@ -785,7 +896,11 @@ export default function ClientsPage() {
                               padding: '2px',
                               display: 'flex',
                               alignItems: 'center',
+                              transition: 'color 0.15s ease',
                             }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                            title="Remove contact"
                           >
                             <Trash2 size={13} />
                           </button>

@@ -11,6 +11,7 @@ import {
   ChevronRight, ChevronLeft, Hash, Lock, Search, X, CornerUpLeft,
   Paperclip, FileText, ChevronDown, Settings, Trash2
 } from 'lucide-react';
+import { toast } from '@/lib/toast';
 import '@/app/chat.css';
 
 interface IAttachment {
@@ -530,6 +531,7 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
       if (result.success) {
         await fetchCustomChannels();
         setShowCreateChannelModal(false);
+        const chanName = newChannelName.trim();
         setNewChannelName('');
         setNewChannelDesc('');
         setNewChannelAllowMessages('anyone');
@@ -537,12 +539,13 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
         setChannelVisibility('public');
         setSelectedAllowedMembers([]);
         setActiveChannelId(`#${result.data.name}`);
+        toast.success(`Channel #${chanName} created successfully`);
       } else {
-        alert(result.error || 'Failed to create channel');
+        toast.error(result.error || 'Failed to create channel');
       }
     } catch (err) {
       console.error('Error creating custom channel:', err);
-      alert('Error creating channel');
+      toast.error('Error creating channel');
     } finally {
       setCreatingChannel(false);
     }
@@ -588,6 +591,7 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
       if (result.success) {
         await fetchCustomChannels();
         setShowCreateChannelModal(false);
+        const chanName = newChannelName.trim();
         setNewChannelName('');
         setNewChannelDesc('');
         setNewChannelAllowMessages('anyone');
@@ -596,12 +600,13 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
         setSelectedAllowedMembers([]);
         setEditingChannelId(null);
         setActiveChannelId(`#${result.data.name}`);
+        toast.success(`Channel #${chanName} updated successfully`);
       } else {
-        alert(result.error || 'Failed to update channel');
+        toast.error(result.error || 'Failed to update channel');
       }
     } catch (err) {
       console.error('Error updating custom channel:', err);
-      alert('Error updating channel');
+      toast.error('Error updating channel');
     } finally {
       setCreatingChannel(false);
     }
@@ -619,12 +624,13 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
       if (result.success) {
         await fetchCustomChannels();
         setActiveChannelId('#general');
+        toast.success(`Channel #${name} deleted successfully`);
       } else {
-        alert(result.error || 'Failed to delete channel');
+        toast.error(result.error || 'Failed to delete channel');
       }
     } catch (err) {
       console.error('Error deleting channel:', err);
-      alert('Error deleting channel');
+      toast.error('Error deleting channel');
     }
   };
 

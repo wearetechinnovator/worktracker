@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import TaskWork from '@/models/TaskWork';
 import Task from '@/models/Task';
+import { syncTaskStatus } from '@/lib/taskStatusHelper';
 
 // PUT - End work on a task
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -34,20 +35,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     
     const totalMinutes = Math.round(endMinutes - startMinutes);
 
-    // Update task work
+    // Update task work with completion flag
     taskWork.endTime = currentTime;
     taskWork.totalMinutes = totalMinutes;
     taskWork.status = 'Completed';
+    taskWork.isFullyCompleted = Boolean(isFullyCompleted);
     if (notes) taskWork.notes = notes;
     
     await taskWork.save();
 
-    // Update parent task completion status
-    const parentTask = await Task.findById(taskWork.taskId);
-    if (parentTask) {
-      parentTask.status = isFullyCompleted ? 'Completed' : 'Partially Completed';
-      await parentTask.save();
-    }
+    // Re-evaluate parent task completion status considering all assignees
+    await syncTaskStatus(taskWork.taskId);
 
     const populatedWork = await TaskWork.findById(id)
       .populate('taskId', 'title description priority status')
@@ -74,6 +72,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (!taskWork) {
       return NextResponse.json({ success: false, error: 'Work session not found' }, { status: 404 });
     }
+
+    // Re-evaluate parent task status after deleting session
+    await syncTaskStatus(taskWork.taskId);
 
     return NextResponse.json({ success: true, message: 'Work session deleted successfully' });
   } catch (error: any) {

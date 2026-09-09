@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Employee from '@/models/Employee';
 import Role from '@/models/Role';
+import Designation from '@/models/Designation';
 import WorkEntry from '@/models/WorkEntry';
 import { hashPassword } from '@/lib/password';
 
@@ -86,7 +87,15 @@ export async function PUT(
 
     if (name) employee.name = name;
     if (email) employee.email = email;
-    if (normalizedRole) employee.role = normalizedRole;
+    if (normalizedRole) {
+      employee.role = normalizedRole;
+      const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      await Designation.findOneAndUpdate(
+        { name: { $regex: new RegExp(`^${escapeRegex(normalizedRole)}$`, 'i') } },
+        { $setOnInsert: { name: normalizedRole } },
+        { upsert: true }
+      ).catch(() => {});
+    }
     if (roleId) {
       const selectedRole = await Role.findById(roleId).lean();
       if (!selectedRole) {

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, LogIn, LogOut, CheckCircle2, AlertCircle, Calendar, Users } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
+import { getClientPunchLocation } from '@/lib/geoClient';
 
 interface PunchData {
   attendance: {
@@ -216,35 +217,15 @@ export default function PunchPage() {
       setProcessing(true);
       setError(null);
       setSuccessMsg(null);
+      setLocationStatus('Detecting network and location...');
 
-      let location: { latitude?: number; longitude?: number; label?: string; address?: string } | undefined;
-
-      if (!navigator.geolocation) {
-        setLocationStatus('Geolocation is not supported in this browser.');
+      const location = await getClientPunchLocation();
+      if (location.address) {
+        setLocationStatus(`Location: ${location.address}`);
+      } else if (location.latitude && location.longitude) {
+        setLocationStatus(`Location: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`);
       } else {
-        setLocationStatus('Requesting location permission...');
-        location = await new Promise((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              setLocationStatus(`Location captured: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`);
-              resolve({
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-                label: 'Device geolocation',
-              });
-            },
-            (geoError) => {
-              const reason = geoError.code === 1
-                ? 'Location permission was denied by the browser.'
-                : geoError.code === 2
-                  ? 'Location is unavailable right now.'
-                  : 'Location request timed out.';
-              setLocationStatus(reason);
-              resolve(undefined);
-            },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-          );
-        });
+        setLocationStatus('Location captured');
       }
 
       const now = new Date();
