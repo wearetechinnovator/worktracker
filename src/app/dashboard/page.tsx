@@ -1067,7 +1067,7 @@ export default function Dashboard() {
       {/* KPI Section Header with 3-Dot Settings Button */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>Dashboard</h2>
+          <h2 style={{ fontSize: '1.05rem', fontWeight: 400, color: 'var(--text-primary)' }}>Dashboard</h2>
         </div>
 
         {/* 3-Dot Settings Menu Trigger (Right side of KPI section) */}
@@ -1301,7 +1301,7 @@ export default function Dashboard() {
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>Work Hours Trend</h3>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: 400, color: 'var(--text-primary)' }}>Work Hours Trend</h3>
               <span title="Weekly trend of tracked hours, overtime, and untracked hours" style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
                 <Info size={13} style={{ color: '#94a3b8' }} />
               </span>
@@ -1441,7 +1441,7 @@ export default function Dashboard() {
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>Project Performance</h3>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: 400, color: 'var(--text-primary)' }}>Project Performance</h3>
               <span title="Compare estimated vs actual hours and track progress variance" style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
                 <Info size={13} style={{ color: '#94a3b8' }} />
               </span>
@@ -1467,13 +1467,13 @@ export default function Dashboard() {
               <tbody>
                 {displayPerformanceProjects.map((row, idx) => (
                   <tr key={idx} style={{ borderBottom: idx === displayPerformanceProjects.length - 1 ? 'none' : '1px solid #f8fafc' }}>
-                    <td style={{ padding: '9px 8px 9px 0', fontWeight: 700, color: '#0f172a' }}>{row.name}</td>
-                    <td style={{ textAlign: 'center', padding: '9px 8px', fontWeight: 600, color: '#475569' }}>{row.est}</td>
-                    <td style={{ textAlign: 'center', padding: '9px 8px', fontWeight: 700, color: '#0f172a' }}>{row.act}</td>
+                    <td style={{ padding: '9px 8px 9px 0', fontWeight: 400, color: '#0f172a' }}>{row.name}</td>
+                    <td style={{ textAlign: 'center', padding: '9px 8px', fontWeight: 400, color: '#475569' }}>{row.est}</td>
+                    <td style={{ textAlign: 'center', padding: '9px 8px', fontWeight: 400, color: '#0f172a' }}>{row.act}</td>
                     <td style={{ textAlign: 'center', padding: '9px 8px', fontWeight: 700, color: row.varColor }}>{row.var}</td>
                     <td style={{ padding: '9px 8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 650, color: '#475569', minWidth: '28px' }}>{row.pct}%</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 400, color: '#475569', minWidth: '28px' }}>{row.pct}%</span>
                         <div style={{ flex: 1, height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
                           <div style={{ width: `${row.pct}%`, height: '100%', background: row.barColor, borderRadius: '3px' }} />
                         </div>
@@ -1495,7 +1495,7 @@ export default function Dashboard() {
         <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '14px' }}>
-            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>Project Health</h3>
+            <h3 style={{ fontSize: '0.98rem', fontWeight: 400, color: 'var(--text-primary)' }}>Project Health</h3>
             <span title="Overall health distribution of active projects" style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
               <Info size={13} style={{ color: '#94a3b8' }} />
             </span>
@@ -1622,7 +1622,7 @@ export default function Dashboard() {
         <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '14px' }}>
-            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>Time Distribution</h3>
+            <h3 style={{ fontSize: '0.98rem', fontWeight: 400, color: 'var(--text-primary)' }}>Time Distribution</h3>
             <span title="Work hour breakdown by project category" style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
               <Info size={13} style={{ color: '#94a3b8' }} />
             </span>
@@ -1674,8 +1674,8 @@ export default function Dashboard() {
 
           {/* Footer Total */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #f1f5f9', marginTop: '12px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>Total</span>
-            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>{totalDistHoursStr} h</span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#475569' }}>Total</span>
+            <span style={{ fontSize: '0.95rem', fontWeight: 400, color: '#0f172a' }}>{totalDistHoursStr} h</span>
           </div>
         </div>
 
@@ -1684,7 +1684,7 @@ export default function Dashboard() {
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>Team Utilization</h3>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: 400, color: 'var(--text-primary)' }}>Team Utilization</h3>
               <span title="Scheduled hours vs total department capacity" style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
                 <Info size={13} style={{ color: '#94a3b8' }} />
               </span>
@@ -1707,7 +1707,7 @@ export default function Dashboard() {
               <tbody>
                 {teamUtilizationData.map((row, idx) => (
                   <tr key={idx} style={{ borderBottom: idx === teamUtilizationData.length - 1 ? 'none' : '1px solid #f8fafc' }}>
-                    <td style={{ padding: '9px 8px 9px 0', fontWeight: 700, color: '#0f172a' }}>{row.name}</td>
+                    <td style={{ padding: '9px 8px 9px 0', fontWeight: 400, color: '#0f172a' }}>{row.name}</td>
                     <td style={{ padding: '9px 8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0f172a', minWidth: '30px' }}>{row.pct}%</span>
@@ -1729,7 +1729,7 @@ export default function Dashboard() {
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>Top Employees This Week</h3>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: 400, color: 'var(--text-primary)' }}>Top Employees This Week</h3>
               <span title="Highest performing team members by logged hours and completed tasks" style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center' }}>
                 <Info size={13} style={{ color: '#94a3b8' }} />
               </span>
@@ -1759,10 +1759,10 @@ export default function Dashboard() {
                         <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: emp.avatarColor, color: '#fff', fontSize: '0.65rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           {emp.initials}
                         </div>
-                        <span style={{ fontWeight: 700, color: '#0f172a' }}>{emp.name}</span>
+                        <span style={{ fontWeight: 400, color: '#0f172a' }}>{emp.name}</span>
                       </div>
                     </td>
-                    <td style={{ textAlign: 'center', padding: '8px', fontWeight: 700, color: '#0f172a' }}>{emp.hours}</td>
+                    <td style={{ textAlign: 'center', padding: '8px', fontWeight: 400, color: '#0f172a' }}>{emp.hours}</td>
                     <td style={{ textAlign: 'center', padding: '8px', fontWeight: 600, color: '#475569' }}>{emp.tasksDone}</td>
                     <td style={{ textAlign: 'center', padding: '8px', fontWeight: 700, color: '#0f172a' }}>{emp.onTimePct}</td>
                     <td style={{ textAlign: 'right', padding: '8px 0 8px 8px', fontWeight: 700, color: '#0f172a' }}>{emp.aiAssistedPct}</td>

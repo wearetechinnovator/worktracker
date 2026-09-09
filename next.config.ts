@@ -6,5 +6,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['mongoose'],
   devIndicators: false
 };
-
+module.exports = {
+  allowedDevOrigins: ['192.168.0.148'],
+}
 export default nextConfig;

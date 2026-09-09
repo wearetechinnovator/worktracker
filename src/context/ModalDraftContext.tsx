@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
 export interface ModalDraftItem {
   key: string;
@@ -28,6 +28,10 @@ const STORAGE_KEY = 'worktracker_modal_drafts_v1';
 
 export function ModalDraftProvider({ children }: { children: React.ReactNode }) {
   const [drafts, setDrafts] = useState<Record<string, ModalDraftItem>>({});
+  const draftsRef = useRef(drafts);
+  useEffect(() => {
+    draftsRef.current = drafts;
+  }, [drafts]);
 
   // Initialize from sessionStorage safely on client
   useEffect(() => {
@@ -72,6 +76,7 @@ export function ModalDraftProvider({ children }: { children: React.ReactNode }) 
   const setModalOpenState = useCallback((key: string, isOpen: boolean) => {
     setDrafts((prev) => {
       if (!prev[key]) return prev;
+      if (prev[key].isMinimized === !isOpen) return prev;
       const next = {
         ...prev,
         [key]: {
@@ -85,8 +90,8 @@ export function ModalDraftProvider({ children }: { children: React.ReactNode }) 
   }, [persistDrafts]);
 
   const getDraft = useCallback((key: string) => {
-    return drafts[key]?.data || null;
-  }, [drafts]);
+    return draftsRef.current[key]?.data || null;
+  }, []);
 
   const clearDraft = useCallback((key: string) => {
     setDrafts((prev) => {
@@ -99,7 +104,7 @@ export function ModalDraftProvider({ children }: { children: React.ReactNode }) 
   }, [persistDrafts]);
 
   const restoreModal = useCallback((key: string) => {
-    const draft = drafts[key];
+    const draft = draftsRef.current[key];
     if (!draft) return;
 
     // Mark as no longer minimized since it is opening
@@ -113,7 +118,7 @@ export function ModalDraftProvider({ children }: { children: React.ReactNode }) 
         })
       );
     }
-  }, [drafts, setModalOpenState]);
+  }, [setModalOpenState]);
 
   const minimizedDrafts = Object.values(drafts)
     .filter((d) => d.isMinimized !== false)

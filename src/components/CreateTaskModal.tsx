@@ -227,7 +227,14 @@ export function CreateTaskModal({
         console.error(e);
       }
     }
-    setCurrentUser(activeUser);
+    if (activeUser) {
+      setCurrentUser((prev: any) => {
+        if (prev && (prev._id === activeUser._id || prev.id === activeUser.id) && prev.userType === activeUser.userType) {
+          return prev;
+        }
+        return activeUser;
+      });
+    }
 
     if (!projectsOptions || projectsOptions.length === 0) {
       fetchProjects();
