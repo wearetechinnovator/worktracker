@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
 import PageShimmer from '@/components/PageShimmer';
+import { staticClient } from '@/lib/staticClient';
 
 interface AttendanceLog {
   _id: string;
@@ -36,15 +37,58 @@ interface AttendanceLog {
   checkOutLongitude?: number | null;
 }
 
+const DEFAULT_INLINE_ATTENDANCE: AttendanceLog[] = [
+  {
+    _id: 'att-1',
+    date: new Date().toISOString().split('T')[0],
+    status: 'Present',
+    employeeId: { _id: 'emp-1', name: 'Alex Johnson', role: 'System Admin', avatarColor: '#4f46e5', Project: 'AI WorkTracker Pro' },
+    checkIn: '09:00 AM',
+    checkOut: '05:30 PM',
+    checkInLocation: 'Office HQ - New York',
+    checkOutLocation: 'Office HQ - New York'
+  },
+  {
+    _id: 'att-2',
+    date: new Date().toISOString().split('T')[0],
+    status: 'Present',
+    employeeId: { _id: 'emp-2', name: 'Sarah Connor', role: 'Project Manager', avatarColor: '#ec4899', Project: 'Mobile Banking App' },
+    checkIn: '09:15 AM',
+    checkOut: null,
+    checkInLocation: 'Remote - San Francisco',
+  },
+  {
+    _id: 'att-3',
+    date: new Date().toISOString().split('T')[0],
+    status: 'On Leave',
+    employeeId: { _id: 'emp-3', name: 'Michael Scott', role: 'Senior Developer', avatarColor: '#10b981', Project: 'Enterprise CRM' },
+    checkIn: null,
+    checkOut: null,
+  }
+];
+
+const DEFAULT_INLINE_EMPLOYEES = [
+  { _id: 'emp-1', name: 'Alex Johnson', role: 'System Admin', avatarColor: '#4f46e5' },
+  { _id: 'emp-2', name: 'Sarah Connor', role: 'Project Manager', avatarColor: '#ec4899' },
+  { _id: 'emp-3', name: 'Michael Scott', role: 'Senior Developer', avatarColor: '#10b981' },
+];
+
+const DEFAULT_DEMO_USER = {
+  _id: 'emp-1',
+  name: 'Alex Johnson',
+  email: 'alex@techinnovator.com',
+  userType: 'admin'
+};
+
 export default function AttendancePage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
 
   // Data State
-  const [logs, setLogs] = useState<AttendanceLog[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [logs, setLogs] = useState<AttendanceLog[]>(DEFAULT_INLINE_ATTENDANCE);
+  const [employees, setEmployees] = useState<any[]>(DEFAULT_INLINE_EMPLOYEES);
+  const [loading, setLoading] = useState(false);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Filters State
@@ -84,11 +128,8 @@ export default function AttendancePage() {
   const loadEmployees = useCallback(async () => {
     try {
       setLoadingEmployees(true);
-      const res = await fetch('/api/employees');
-      const data = await res.json();
-      if (data.success) {
-        setEmployees(data.data);
-      }
+      const data = staticClient.getEmployees();
+      setEmployees(data as any);
     } catch (err) {
       console.error('Error fetching employees:', err);
     } finally {
@@ -101,44 +142,8 @@ export default function AttendancePage() {
     try {
       setLoading(true);
       setError(null);
-
-      const params = new URLSearchParams();
-      if (filterEmployeeId) params.set('filterEmployeeId', filterEmployeeId);
-      if (filterStatus) params.set('filterStatus', filterStatus);
-
-      // Handle Date Presets
-      const today = new Date();
-      let start = '';
-      let end = today.toISOString().split('T')[0];
-
-      if (datePreset === 'Today') {
-        start = end;
-      } else if (datePreset === 'Yesterday') {
-        const yesterday = new Date();
-        yesterday.setDate(today.getDate() - 1);
-        start = yesterday.toISOString().split('T')[0];
-        end = start;
-      } else if (datePreset === 'This Week') {
-        const currentDay = today.getDay();
-        const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1); // start on Monday
-        const monday = new Date(today.setDate(diff));
-        start = monday.toISOString().split('T')[0];
-        end = new Date().toISOString().split('T')[0];
-      } else if (datePreset === 'This Month') {
-        start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-      } else if (datePreset === 'Custom') {
-        start = customStartDate;
-        end = customEndDate;
-      }
-
-      if (start) params.set('startDate', start);
-      if (end) params.set('endDate', end);
-
-      const res = await fetch(`/api/attendance?` + params.toString());
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to load punch logs');
-
-      setLogs(result.data || []);
+      const result = await staticClient.getAttendance();
+      setLogs((result.data as any) || []);
       setCurrentPage(1);
     } catch (err: any) {
       console.error(err);
@@ -474,6 +479,13 @@ export default function AttendancePage() {
                           : null
                       );
 
+                      const empObj = typeof log.employeeId === 'object' && log.employeeId ? log.employeeId : null;
+                      const empName = empObj?.name || (typeof log.employeeId === 'string' ? log.employeeId : '');
+                      const empInitials = empName ? empName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').toUpperCase() : 'E';
+                      const empAvatarColor = empObj?.avatarColor || '#3b82f6';
+                      const empProject = empObj?.Project || '—';
+                      const empRole = empObj?.role || '—';
+
                       return (
                         <tr key={log._id}>
                           <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
@@ -482,19 +494,19 @@ export default function AttendancePage() {
                           {user?.userType === 'admin' && (
                             <>
                               <td>
-                                {log.employeeId ? (
+                                {empName ? (
                                   <div
                                     className="employee-cell-link"
                                     style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}
                                     title="Click to view monthly attendance calendar"
                                     onClick={() => {
                                       setSelectedEmpForCalendar({
-                                        _id: log.employeeId?._id,
-                                        name: log.employeeId?.name,
+                                        _id: empObj?._id || '',
+                                        name: empName,
                                         email: '',
-                                        role: log.employeeId?.role,
-                                        Project: log.employeeId?.Project,
-                                        avatarColor: log.employeeId?.avatarColor,
+                                        role: empRole,
+                                        Project: empProject,
+                                        avatarColor: empAvatarColor,
                                       });
                                       setIsCalendarOpen(true);
                                     }}
@@ -502,7 +514,7 @@ export default function AttendancePage() {
                                     <div
                                       className="avatar"
                                       style={{
-                                        backgroundColor: log.employeeId.avatarColor || '#3b82f6',
+                                        backgroundColor: empAvatarColor,
                                         width: '32px',
                                         height: '32px',
                                         fontSize: '0.75rem',
@@ -512,11 +524,11 @@ export default function AttendancePage() {
                                         flexShrink: 0
                                       }}
                                     >
-                                      {log.employeeId.name.split(' ').map((n) => n[0]).join('')}
+                                      {empInitials}
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                       <div className="employee-name-hover" style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.84rem', lineHeight: '1.2' }}>
-                                        {log.employeeId.name}
+                                        {empName}
                                       </div>
                                       <div style={{ fontSize: '0.68rem', color: 'var(--accent-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
                                         <span>Monthly Details</span>
@@ -529,14 +541,14 @@ export default function AttendancePage() {
                                 )}
                               </td>
                               <td>
-                                {log.employeeId ? (
+                                {empName ? (
                                   <span className="tag-badge">
-                                    {log.employeeId.Project}
+                                    {empProject}
                                   </span>
                                 ) : '—'}
                               </td>
                               <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500 }}>
-                                {log.employeeId?.role || '—'}
+                                {empRole}
                               </td>
                             </>
                           )}

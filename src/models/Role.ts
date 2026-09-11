@@ -1,38 +1,26 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+const mongoose = require('mongoose');
 
-export interface IRole extends Document {
-  name: string;
-  description?: string;
-  color?: string;
-  position?: number;
-  isSystemRole?: boolean;
-  isSystemAdmin?: boolean;
-  permissions: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
+const roleSchema = new mongoose.Schema({
+    name: String,
+    short_description: String,
 
-const RoleSchema = new Schema<IRole>(
-  {
-    name: { type: String, required: true, unique: true, trim: true },
-    description: { type: String, trim: true },
-    color: { type: String, default: '#7f56d9' },
-    position: { type: Number, default: 0 },
-    isSystemRole: { type: Boolean, default: false },
-    isSystemAdmin: { type: Boolean, default: false },
-    permissions: {
-      type: [String],
-      default: [],
-      required: true,
+    created_by:{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'users',
+        default: null
     },
-  },
-  { timestamps: true }
-);
+    modified_by:{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'users',
+        default: null
+    },
+    status: Boolean
 
-if (mongoose.models && mongoose.models.Role) {
-  delete (mongoose.models as any).Role;
-}
+}, {timestamps: true})
 
-const Role: Model<IRole> = mongoose.models.Role || mongoose.model<IRole>('Role', RoleSchema);
+
+const Role =
+    mongoose.models.Role ||
+    mongoose.model("Role", roleSchema);
 
 export default Role;

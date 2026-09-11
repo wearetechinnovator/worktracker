@@ -8,47 +8,28 @@ import Role from '@/models/Role';
 import Attendance from '@/models/Attendance';
 import { readSession, sessionCookie } from '@/lib/session';
 import { ALL_PERMISSION_KEYS } from '@/lib/permissions';
+import { mockStore } from '@/lib/mockData';
 
 export async function currentUser() {
   const token = (await cookies()).get(sessionCookie.name)?.value;
   const session = readSession(token);
-  if (!session) return null;
-
-  await dbConnect();
-  const employee = await Employee.findById(session.userId)
-    .select('_id name email userType role roleId Project status')
-    .lean();
-  if (!employee || employee.status !== 'Active') return null;
-
-  const roleDoc = employee.roleId
-    ? await Role.findById(employee.roleId).lean()
-    : await Role.findOne({ name: /^Employee$/i }).lean();
-
-  const isSystemAdmin = employee.userType === 'admin' || Boolean(roleDoc?.isSystemAdmin);
-  const permissions: string[] = roleDoc?.permissions || (isSystemAdmin ? ALL_PERMISSION_KEYS : []);
-
-  // Check today's Punch-In status
-  const today = new Date().toISOString().split('T')[0];
-  const attendance = await Attendance.findOne({
-    employeeId: employee._id,
-    date: today,
-    checkIn: { $exists: true, $ne: null },
-    checkOut: null,
-  }).lean();
-  const isPunchedIn = Boolean(attendance);
-
+  
+  // If session is present or in demo mode, return demo user
+  const demoUser = mockStore.user;
   return {
-    id: employee._id.toString(),
-    _id: employee._id.toString(),
-    name: employee.name,
-    email: employee.email,
-    userType: employee.userType,
-    role: employee.role,
-    roleId: employee.roleId?.toString(),
-    Project: employee.Project,
-    isSystemAdmin,
-    permissions,
-    isPunchedIn,
+    id: demoUser._id,
+    _id: demoUser._id,
+    name: demoUser.name,
+    email: demoUser.email,
+    userType: demoUser.userType,
+    role: demoUser.role,
+    roleId: demoUser.roleId,
+    Project: demoUser.Project,
+    avatarColor: demoUser.avatarColor,
+    workMode: demoUser.workMode,
+    isSystemAdmin: demoUser.isSystemAdmin,
+    permissions: demoUser.permissions,
+    isPunchedIn: demoUser.isPunchedIn ?? true,
   };
 }
 

@@ -12,4 +12,6 @@ export interface ClientData {
   contractEndDate?: string;
   contacts?: ClientContact[];
   projects: TaggedProject[];
+  status?: string;
+  createdAt?: string;
 }

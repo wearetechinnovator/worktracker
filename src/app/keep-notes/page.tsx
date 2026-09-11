@@ -7,6 +7,7 @@ import PageShimmer from '@/components/PageShimmer';
 import type {KeepNote} from '../../types/KeepNote';
 import { toast } from '@/lib/toast';
 import { useModalDraft } from '@/context/ModalDraftContext';
+import { staticClient } from '@/lib/staticClient';
 
 const NOTE_COLORS = [
   { name: 'Yellow', value: '#fef9c3', border: '#fde047', accent: '#ca8a04' },
@@ -18,11 +19,40 @@ const NOTE_COLORS = [
   { name: 'White', value: '#ffffff', border: '#e2e8f0', accent: '#475569' },
 ];
 
+const DEFAULT_INLINE_NOTES: KeepNote[] = [
+  {
+    _id: 'note-1',
+    userId: 'emp-1',
+    title: 'Sprint Planning Key Takeaways',
+    content: '1. Finalize UI dark mode color palette.\n2. Add instant search filter to clients table.\n3. Conduct load testing on static routes.',
+    color: '#1e293b',
+    isPinned: true,
+    createdAt: '2026-09-05T10:00:00.000Z',
+    updatedAt: '2026-09-05T10:00:00.000Z'
+  },
+  {
+    _id: 'note-2',
+    userId: 'emp-1',
+    title: 'Client Meeting Checklist',
+    content: 'Verify contract renewal dates for Acme Financials and review active team members assigned to Mobile Banking App.',
+    color: '#064e3b',
+    isPinned: false,
+    createdAt: '2026-09-06T14:30:00.000Z',
+    updatedAt: '2026-09-06T14:30:00.000Z'
+  }
+];
+
+const DEFAULT_DEMO_USER = {
+  _id: 'emp-1',
+  name: 'Alex Johnson',
+  email: 'alex@techinnovator.com',
+  userType: 'admin'
+};
+
 export default function KeepNotesPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [notes, setNotes] = useState<KeepNote[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
+  const [notes, setNotes] = useState<KeepNote[]>(DEFAULT_INLINE_NOTES);
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,30 +67,16 @@ export default function KeepNotesPage() {
   });
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('worktracker_user');
-    if (!storedUser) {
-      router.push('/login');
-      return;
-    }
-    setUser(JSON.parse(storedUser));
-  }, [router]);
+    const demoUser = staticClient.getUser();
+    setUser(demoUser);
+    setNotes(staticClient.getKeepNotes() as any);
+    setLoading(false);
+  }, []);
 
   const fetchNotes = useCallback(async () => {
-    if (!user) return;
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch('/api/keep-notes');
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to fetch notes');
-      setNotes(data.data || []);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Unable to load notes.');
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+    setNotes(staticClient.getKeepNotes() as any);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -172,34 +188,17 @@ export default function KeepNotesPage() {
 
     const noteTitle = formData.title.trim();
 
-    try {
-      setSubmitting(true);
-      setError(null);
-      const url = editingNoteId ? `/api/keep-notes/${editingNoteId}` : '/api/keep-notes';
-      const method = editingNoteId ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to save note');
-
-      clearDraft(draftKey);
-      setIsModalOpen(false);
-      setEditingNoteId(null);
-      setError(null);
-      toast.success(editingNoteId ? `Note "${noteTitle}" updated successfully` : `Note "${noteTitle}" created successfully`);
-      await fetchNotes();
-    } catch (err: any) {
-      const msg = err.message || 'Failed to save note';
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      setSubmitting(false);
+    if (editingNoteId) {
+      setNotes(prev => prev.map(n => n._id === editingNoteId ? { ...n, ...formData } : n));
+    } else {
+      const newNote = { _id: 'note-' + Date.now(), ...formData, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      setNotes(prev => [newNote as any, ...prev]);
     }
+    clearDraft(draftKey);
+    setIsModalOpen(false);
+    setEditingNoteId(null);
+    toast.success(editingNoteId ? `Note "${noteTitle}" updated` : `Note "${noteTitle}" created`);
+    setSubmitting(false);
   };
 
   const handleDelete = async (noteId: string, e?: React.MouseEvent) => {
@@ -207,32 +206,13 @@ export default function KeepNotesPage() {
     const note = notes.find(n => n._id === noteId);
     const noteTitle = note?.title || 'Note';
     if (!confirm(`Delete sticky note "${noteTitle}"?`)) return;
-
-    try {
-      const res = await fetch(`/api/keep-notes/${noteId}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to delete note');
-      toast.success(`Note "${noteTitle}" deleted successfully`);
-      await fetchNotes();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete note');
-    }
+    setNotes(prev => prev.filter(n => n._id !== noteId));
+    toast.success(`Note "${noteTitle}" deleted`);
   };
 
   const handleTogglePin = async (note: KeepNote, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    try {
-      const res = await fetch(`/api/keep-notes/${note._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isPinned: !note.isPinned }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to update note');
-      await fetchNotes();
-    } catch (err: any) {
-      alert(err.message || 'Failed to update note');
-    }
+    setNotes(prev => prev.map(n => n._id === note._id ? { ...n, isPinned: !n.isPinned } : n));
   };
 
   if (loading && notes.length === 0) {

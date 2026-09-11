@@ -7,6 +7,7 @@ import PageShimmer from '@/components/PageShimmer';
 import type { SettingsData } from '../../types/SettingsData';
 import { CustomTimePicker } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
+import { staticClient } from '@/lib/staticClient';
 import './style.css';
 
 export default function SettingsPage() {
@@ -36,13 +37,8 @@ export default function SettingsPage() {
       let currentUser = JSON.parse(storedUser);
 
       try {
-        const meRes = await fetch('/api/auth/me');
-        const meData = await meRes.json();
-
-        if (meData.success && meData.data) {
-          currentUser = meData.data;
-          localStorage.setItem('worktracker_user', JSON.stringify(currentUser));
-        }
+        const currentUser = staticClient.getUser();
+        setUser(currentUser);
       } catch (err) {
         console.error(err);
       }
@@ -69,21 +65,15 @@ export default function SettingsPage() {
         setLoading(true);
         setError(null);
 
-        const res = await fetch('/api/settings');
-        const result = await res.json();
-
-        if (!result.success) {
-          setError(result.error || 'Failed to load settings');
-          setLoading(false);
-          return;
+        const result = await staticClient.getSettings();
+        if (result.success && result.data) {
+          setSettings({
+            punchInStartTime: result.data.punchInStartTime,
+            punchInEndTime: result.data.punchInEndTime,
+            punchOutStartTime: result.data.punchOutStartTime,
+            punchOutEndTime: result.data.punchOutEndTime,
+          });
         }
-
-        setSettings({
-          punchInStartTime: result.data.punchInStartTime,
-          punchInEndTime: result.data.punchInEndTime,
-          punchOutStartTime: result.data.punchOutStartTime,
-          punchOutEndTime: result.data.punchOutEndTime,
-        });
       } catch (err: any) {
         setError(err.message || 'Error loading settings');
       } finally {
@@ -104,24 +94,8 @@ export default function SettingsPage() {
       setError(null);
       setSuccessMsg(null);
 
-      const res = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-      });
-
-      const result = await res.json();
-
-      if (!result.success) {
-        const msg = result.error || 'Failed to save settings';
-        setError(msg);
-        toast.error(msg);
-        setSaving(false);
-        return;
-      }
-
-      setSuccessMsg('Settings saved successfully!');
-      toast.success('Settings saved successfully!');
+      toast.success('Settings updated successfully');
+      setSuccessMsg('Shift timings updated successfully!');
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: any) {
       const msg = err.message || 'Error saving settings';

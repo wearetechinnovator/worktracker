@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, AlertCircle, Loader2 } from 'lucide-react';
 
+import { staticClient } from '@/lib/staticClient';
+
 export default function MiddlewareCheckPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -20,24 +22,16 @@ export default function MiddlewareCheckPage() {
       const parsed = JSON.parse(storedUser);
       setUser(parsed);
 
-      // Admin can bypass punch requirement
       if (parsed.userType === 'admin') {
         router.push('/');
         return;
       }
 
       try {
-        const res = await fetch(`/api/punch?employeeId=${parsed._id}`);
-        const result = await res.json();
-
-        const attendance = result.data?.attendance;
-        const isCurrentlyCheckedIn = !!attendance?.checkIn && !attendance?.checkOut;
-
-        if (result.success && isCurrentlyCheckedIn) {
-          // Employee has punched in, allow access
+        const punch = staticClient.getPunchStatus();
+        if (punch.isPunchedIn) {
           router.push('/');
         } else {
-          // Not punched in, redirect to punch page
           router.push('/punch');
         }
       } catch (err) {

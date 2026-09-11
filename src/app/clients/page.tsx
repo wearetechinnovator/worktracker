@@ -8,16 +8,67 @@ import CreateClientModal from '@/components/CreateClientModal';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { CustomDatePicker } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
+import { staticClient } from '@/lib/staticClient';
 import type { ClientData } from '../../types/ClientData';
 import type { ProjectOption } from '../../types/ProjectOption';
 import './style.css';
 
+const DEFAULT_INLINE_CLIENTS = [
+  {
+    _id: 'client-1',
+    name: 'Acme Financials Corp',
+    phone: '+1 (555) 234-5678',
+    emails: ['contact@acmefin.com', 'support@acmefin.com'],
+    address: '100 Wall Street, Floor 24, New York, NY 10005',
+    duration: '12 Months',
+    contacts: [
+      { name: 'Robert Vance', email: 'robert@acmefin.com', phone: '+1 555-0192', designation: 'Chief Financial Officer' },
+      { name: 'Pam Beesly', email: 'pam@acmefin.com', phone: '+1 555-0193', designation: 'Operations Manager' }
+    ],
+    projects: [
+      { _id: 'proj-1', name: 'AI WorkTracker Pro', color: '#4f46e5' },
+      { _id: 'proj-2', name: 'Mobile Banking App', color: '#ec4899' }
+    ],
+    status: 'Active',
+    createdAt: '2026-01-15T10:00:00.000Z'
+  },
+  {
+    _id: 'client-2',
+    name: 'Nexus Tech Global',
+    phone: '+1 (555) 987-6543',
+    emails: ['hello@nexustech.io'],
+    address: '500 Innovation Way, San Francisco, CA 94105',
+    duration: '24 Months',
+    contacts: [
+      { name: 'David Wallace', email: 'david@nexustech.io', phone: '+1 555-0821', designation: 'VP of Technology' }
+    ],
+    projects: [
+      { _id: 'proj-3', name: 'Enterprise CRM Redesign', color: '#10b981' }
+    ],
+    status: 'Active',
+    createdAt: '2026-02-01T09:30:00.000Z'
+  }
+];
+
+const DEFAULT_INLINE_PROJECTS = [
+  { _id: 'proj-1', name: 'AI WorkTracker Pro', color: '#4f46e5' },
+  { _id: 'proj-2', name: 'Mobile Banking App', color: '#ec4899' },
+  { _id: 'proj-3', name: 'Enterprise CRM Redesign', color: '#10b981' }
+];
+
+const DEFAULT_DEMO_USER = {
+  _id: 'emp-1',
+  name: 'Alex Johnson',
+  email: 'alex@techinnovator.com',
+  userType: 'admin'
+};
+
 export default function ClientsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [clients, setClients] = useState<ClientData[]>([]);
-  const [projectsOptions, setProjectsOptions] = useState<ProjectOption[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
+  const [clients, setClients] = useState<ClientData[]>(DEFAULT_INLINE_CLIENTS as any);
+  const [projectsOptions, setProjectsOptions] = useState<ProjectOption[]>(DEFAULT_INLINE_PROJECTS as any);
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [showModal, setShowModal] = useState(false);
@@ -52,26 +103,13 @@ export default function ClientsPage() {
     if (!user) return;
     try {
       setLoading(true);
-      const [clientsRes, projectsRes, employeesRes] = await Promise.all([
-        fetch('/api/clients'),
-        fetch('/api/projects'),
-        fetch('/api/employees')
-      ]);
-      const clientsResult = await clientsRes.json();
-      const projectsResult = await projectsRes.json();
-      const employeesResult = await employeesRes.json();
+      const clientsData = staticClient.getClients();
+      const projectsData = staticClient.getProjects();
 
-      if (clientsResult.success) {
-        setClients(clientsResult.data);
-      }
-      if (projectsResult.success) {
-        setProjectsOptions(projectsResult.data);
-      }
-      if (employeesResult.success) {
-        setEmployeesOptions(employeesResult.data);
-      }
+      setClients(clientsData as any);
+      setProjectsOptions(projectsData as any);
     } catch (err) {
-      console.error('Error fetching data:', err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -85,12 +123,12 @@ export default function ClientsPage() {
 
   const filteredClients = useMemo(() => {
     return clients.filter(client =>
-      client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (client.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (client.phone && client.phone.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      client.emails.some(email => email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (Array.isArray(client.emails) && client.emails.some(email => (email || '').toLowerCase().includes(searchQuery.toLowerCase()))) ||
       (client.address && client.address.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (client.contacts && client.contacts.some(c =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (c.designation && c.designation.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (c.phone && c.phone.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -100,7 +138,7 @@ export default function ClientsPage() {
 
   const totalClientsCount = clients.length;
   const totalProjectsTagged = useMemo(() => {
-    return clients.reduce((sum, client) => sum + client.projects.length, 0);
+    return clients.reduce((sum, client) => sum + (Array.isArray(client.projects) ? client.projects.length : 0), 0);
   }, [clients]);
 
   const isAdmin = user?.userType === 'admin';
@@ -129,7 +167,7 @@ export default function ClientsPage() {
           }))
         : []
     );
-    setSelectedProjectIds(client.projects.map(p => p._id));
+    setSelectedProjectIds((client.projects || []).map((p: any) => typeof p === 'object' ? p._id : p));
     setError(null);
     setShowModal(true);
   };
@@ -180,24 +218,30 @@ export default function ClientsPage() {
         )
       };
 
-      const url = editingClient ? `/api/clients/${editingClient._id}` : '/api/clients';
-      const method = editingClient ? 'PUT' : 'POST';
+      const newClientObj = {
+        _id: editingClient ? editingClient._id : `client-${Date.now()}`,
+        name,
+        phone: phone.trim() || undefined,
+        emails: emailsStr.split(',').map(email => email.trim()).filter(Boolean),
+        address,
+        duration,
+        contractStartDate: contractStartDate.trim() || undefined,
+        contractEndDate: contractEndDate.trim() || undefined,
+        contacts: contacts.filter(c => c.name.trim() || c.email.trim() || c.phone.trim() || c.designation.trim() || c.label?.trim()),
+        projects: selectedProjectIds,
+        status: 'Active',
+        createdAt: editingClient ? editingClient.createdAt : new Date().toISOString()
+      };
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const result = await res.json();
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to save client details');
+      if (editingClient) {
+        setClients(prev => prev.map(c => c._id === editingClient._id ? (newClientObj as any) : c));
+      } else {
+        setClients(prev => [newClientObj as any, ...prev]);
       }
 
       setShowModal(false);
-      const clientName = result.data?.name || name.trim();
+      const clientName = name.trim();
       toast.success(editingClient ? `${clientName} updated successfully` : `${clientName} created successfully`);
-      fetchData();
     } catch (err: any) {
       setError(err.message || String(err));
     } finally {
@@ -211,12 +255,9 @@ export default function ClientsPage() {
     if (!confirm(`Are you sure you want to delete ${clientName}? All associated project tags will be cleared.`)) return;
 
     try {
-      const res = await fetch(`/api/clients/${clientId}`, {
-        method: 'DELETE'
-      });
-      const result = await res.json();
+      const result = await staticClient.deleteClient(clientId);
       if (!result.success) {
-        throw new Error(result.error || 'Failed to delete client');
+        throw new Error('Failed to delete client');
       }
       toast.success(`${clientName} deleted successfully`);
       fetchData();
@@ -515,8 +556,8 @@ export default function ClientsPage() {
                         </a>
                       </div>
                     )}
-                    {client.emails.length === 0 && !client.phone ? (
-                      <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>No primary contact info</p>
+                    {!Array.isArray(client.emails) || client.emails.length === 0 ? (
+                      !client.phone ? <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>No primary contact info</p> : null
                     ) : (
                       client.emails.map((email, idx) => (
                         <div key={idx} className="info-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem' }}>
@@ -599,25 +640,28 @@ export default function ClientsPage() {
 
                 <div className="info-section">
                   {/* <h4 className="section-label">Associated Projects</h4> */}
-                  {client.projects.length === 0 ? (
+                  {!client.projects || client.projects.length === 0 ? (
                     <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
                       No active projects assigned
                     </p>
                   ) : (
                     <div className="projects-badges-list">
-                      {client.projects.map((project) => (
-                        <span
-                          key={project._id}
-                          className="project-badge"
-                          style={{
-                            background: `${project.color || '#3b82f6'}15`,
-                            color: project.color || '#3b82f6',
-                            borderColor: `${project.color || '#3b82f6'}30`
-                          }}
-                        >
-                          {project.name}
-                        </span>
-                      ))}
+                      {client.projects.map((project: any, pIdx: number) => {
+                        const projObj = typeof project === 'object' && project ? project : (projectsOptions.find(p => p._id === project) || { _id: String(project || pIdx), name: String(project || 'Project'), color: '#3b82f6' });
+                        return (
+                          <span
+                            key={projObj._id || `proj-${pIdx}`}
+                            className="project-badge"
+                            style={{
+                              background: `${projObj.color || '#3b82f6'}15`,
+                              color: projObj.color || '#3b82f6',
+                              borderColor: `${projObj.color || '#3b82f6'}30`
+                            }}
+                          >
+                            {projObj.name}
+                          </span>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

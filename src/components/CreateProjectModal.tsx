@@ -22,6 +22,7 @@ import {
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import CreateClientModal from '@/components/CreateClientModal';
 import { toast } from '@/lib/toast';
+import { staticClient } from '@/lib/staticClient';
 import { useModalDraft } from '@/context/ModalDraftContext';
 
 export interface CreateProjectModalProps {
@@ -77,25 +78,8 @@ export default function CreateProjectModal({
     setError(null);
     setModalOpenState(draftKey, true);
 
-    // Fetch clients
-    fetch('/api/clients')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && Array.isArray(data.data)) {
-          setFetchedClients(data.data);
-        }
-      })
-      .catch(() => { });
-
-    // Fetch employees
-    fetch('/api/employees')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && Array.isArray(data.data)) {
-          setFetchedEmployees(data.data);
-        }
-      })
-      .catch(() => { });
+    setFetchedClients(staticClient.getClients() as any);
+    setFetchedEmployees(staticClient.getEmployees() as any);
 
     const draft = getDraft(draftKey);
     if (draft) {
@@ -254,28 +238,24 @@ export default function CreateProjectModal({
         bodyPayload.clientId = selectedClientId;
       }
 
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload),
-      });
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to create project');
-      }
+      const newProj = {
+        _id: 'proj-' + Date.now(),
+        ...bodyPayload,
+        createdAt: new Date().toISOString()
+      };
+      staticClient.getProjects().unshift(newProj as any);
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('worktracker-refresh'));
-        window.dispatchEvent(new CustomEvent('projects-updated', { detail: data.data }));
+        window.dispatchEvent(new CustomEvent('projects-updated', { detail: newProj }));
       }
 
       clearDraft(draftKey);
       resetForm();
-      const projName = data.data?.name || name.trim();
+      const projName = name.trim();
       toast.success(`${projName} created successfully`);
       if (onSuccess) {
-        onSuccess(data.data);
+        onSuccess(newProj);
       }
       onClose();
     } catch (err: any) {

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Eye, EyeOff, Loader2, UserPlus, AlertCircle, User, Mail, Lock, Briefcase } from 'lucide-react';
 import { CustomDropdown } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
+import { staticClient } from '@/lib/staticClient';
 import { useModalDraft } from '@/context/ModalDraftContext';
 import type { Employee } from '@/types/Employee2';
 
@@ -72,17 +73,7 @@ export default function AddTeamMemberModal({
       setAddingRole(true);
       setRoleAddError(null);
 
-      const res = await fetch('/api/designations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmed }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Error adding designation');
-      }
-      const designationName = data.data || trimmed;
-
+      const designationName = trimmed;
       setFetchedDesignations((prev) => Array.from(new Set([designationName, ...prev])));
       setRole(designationName);
       setNewRoleName('');
@@ -99,40 +90,13 @@ export default function AddTeamMemberModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Fetch designations (pure dynamic job titles created by users)
-    fetch('/api/designations')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && Array.isArray(data.data)) {
-          setFetchedDesignations(data.data);
-        }
-      })
-      .catch(() => { });
+    setFetchedDesignations(staticClient.getDesignations());
+    const roles = staticClient.getRoles();
+    const empRole = roles.find((item: any) => item.name.toLowerCase() === 'employee');
+    if (empRole) setRoleId(empRole._id);
 
-    fetch('/api/roles')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && Array.isArray(data.data)) {
-          const employeeRole = data.data.find(
-            (item: { _id: string; name: string }) => item.name.toLowerCase() === 'employee'
-          );
-          if (employeeRole) {
-            setRoleId(employeeRole._id);
-          }
-        }
-      })
-      .catch(() => { });
-
-    // Fetch projects if available
-    fetch('/api/projects')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && Array.isArray(data.data)) {
-          const pNames = data.data.map((p: any) => p.name).filter(Boolean);
-          setFetchedProjects(pNames);
-        }
-      })
-      .catch(() => { });
+    const projs = staticClient.getProjects().map((p: any) => p.name).filter(Boolean);
+    setFetchedProjects(projs);
   }, [isOpen]);
 
   const draftKey = mode === 'add' ? 'add-employee' : `edit-employee-${employee?._id || 'unknown'}`;
@@ -296,27 +260,27 @@ export default function AddTeamMemberModal({
       };
       if (password.trim()) updateBody.password = password.trim();
 
-      const res = await fetch(mode === 'add' ? '/api/employees' : `/api/employees/${employee?._id}`, {
-        method: mode === 'add' ? 'POST' : 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mode === 'add' ? { ...updateBody, password: password || 'password123', roleId } : updateBody),
-      });
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || `Failed to ${mode === 'add' ? 'create team member' : 'update employee details'}`);
+      const newEmp = {
+        _id: mode === 'add' ? 'emp-' + Date.now() : employee?._id,
+        ...updateBody
+      };
+      if (mode === 'add') {
+        staticClient.getEmployees().unshift(newEmp as any);
+      } else if (employee) {
+        const idx = staticClient.getEmployees().findIndex(e => e._id === employee._id);
+        if (idx !== -1) staticClient.getEmployees()[idx] = newEmp as any;
       }
 
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('employees-updated', { detail: data.data }));
+        window.dispatchEvent(new CustomEvent('employees-updated', { detail: newEmp }));
       }
 
       clearDraft(draftKey);
       resetForm();
-      const empName = data.data?.name || name.trim();
+      const empName = name.trim();
       toast.success(mode === 'add' ? `${empName} added successfully` : `${empName} updated successfully`);
       if (onSuccess) {
-        onSuccess(data.data);
+        onSuccess(newEmp);
       }
       onClose();
     } catch (err: any) {

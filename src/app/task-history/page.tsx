@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, Calendar, CheckSquare, AlertCircle, Filter, Folder, ChevronDown, ChevronRight } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
+import { staticClient } from '@/lib/staticClient';
 
 interface TaskWorkRecord {
   _id: string;
@@ -64,72 +65,44 @@ export default function TaskHistoryPage() {
 
   const loadRecords = useCallback(async () => {
     try {
-      setTimeout(() => setLoading(true), 0);
-      let url = '/api/task-work?';
-      
-      if (filterDate) url += `date=${filterDate}&`;
-      if (filterEmployee) url += `employeeId=${filterEmployee}&`;
-      if (filterStatus) url += `status=${filterStatus}&`;
-      if (filterProject) url += `projectId=${filterProject}&`;
-
-      const res = await fetch(url);
-      const result = await res.json();
-      
-      if (!result.success) throw new Error(result.error);
-      
-      setRecords(result.data);
+      const data = staticClient.getWorkEntries();
+      setRecords(data as any);
     } catch (err: unknown) {
       console.error(err);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, [filterDate, filterEmployee, filterStatus, filterProject]);
+  }, []);
 
   // Authenticate
   useEffect(() => {
     const storedUser = localStorage.getItem('worktracker_user');
-    if (!storedUser) {
-      router.push('/login');
-      return;
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        setUser(parsed);
+      } catch (e) {
+        console.error(e);
+      }
     }
-
-    const parsed = JSON.parse(storedUser);
-    const timer = setTimeout(() => {
-      setUser(parsed);
-      // Default to today
-      setFilterDate(new Date().toISOString().split('T')[0]);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [router]);
+    setFilterDate(new Date().toISOString().split('T')[0]);
+  }, []);
 
   // Load data
   useEffect(() => {
-    if (user) {
-      const timer = setTimeout(() => {
-        loadRecords();
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-  }, [user, loadRecords]);
+    loadRecords();
+  }, [loadRecords]);
 
   // Load Projects for Filter
   useEffect(() => {
-    async function loadProjects() {
-      try {
-        const res = await fetch('/api/projects');
-        const data = await res.json();
-        if (data.success) {
-          setProjects(data.data);
-        }
-      } catch (err) {
-        console.error('Error fetching projects:', err);
-      }
+    try {
+      const data = staticClient.getProjects();
+      setProjects(data as any);
+    } catch (err) {
+      console.error('Error fetching projects:', err);
     }
-    if (user) {
-      loadProjects();
-    }
-  }, [user]);
+  }, []);
 
   const formatDuration = (minutes?: number): string => {
     if (minutes === undefined || minutes === null) return '-';
@@ -198,8 +171,11 @@ export default function TaskHistoryPage() {
         groups[key].latestDate = record.date;
       }
 
-      if (record.employeeId && !groups[key].employeeNames.includes(record.employeeId.name)) {
-        groups[key].employeeNames.push(record.employeeId.name);
+      if (record.employeeId) {
+        const empName = typeof record.employeeId === 'object' ? record.employeeId?.name : String(record.employeeId);
+        if (empName && !groups[key].employeeNames.includes(empName)) {
+          groups[key].employeeNames.push(empName);
+        }
       }
 
       groups[key].entries.push(record);
@@ -271,8 +247,12 @@ export default function TaskHistoryPage() {
   const getUniqueEmployees = (): Array<{ _id: string; name: string }> => {
     const map = new Map();
     records.forEach(r => {
-      if (!map.has(r.employeeId._id)) {
-        map.set(r.employeeId._id, r.employeeId.name);
+      if (r.employeeId) {
+        const empId = typeof r.employeeId === 'object' ? r.employeeId._id : String(r.employeeId);
+        const name = typeof r.employeeId === 'object' ? r.employeeId.name : String(r.employeeId);
+        if (empId && !map.has(empId)) {
+          map.set(empId, name || empId);
+        }
       }
     });
     return Array.from(map, ([_id, name]) => ({ _id, name }));
@@ -523,51 +503,57 @@ export default function TaskHistoryPage() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {group.entries.map((subEntry: any) => (
-                                    <tr key={subEntry._id} style={{ borderBottom: '1px solid var(--border-color)', height: '32px' }}>
-                                      <td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>{new Date(subEntry.date).toLocaleDateString()}</td>
-                                      <td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                          <div className="avatar" style={{ backgroundColor: subEntry.employeeId.avatarColor, width: '18px', height: '18px', fontSize: '0.55rem' }}>
-                                            {subEntry.employeeId.name.split(' ').map((n: string) => n[0]).join('')}
+                                  {group.entries.map((subEntry: any) => {
+                                    const subName = typeof subEntry.employeeId === 'object' && subEntry.employeeId?.name ? subEntry.employeeId.name : (typeof subEntry.employeeId === 'string' ? subEntry.employeeId : 'Employee');
+                                    const subInitials = subName ? subName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').toUpperCase() : 'E';
+                                    const subBg = typeof subEntry.employeeId === 'object' && subEntry.employeeId?.avatarColor ? subEntry.employeeId.avatarColor : '#3b82f6';
+
+                                    return (
+                                      <tr key={subEntry._id} style={{ borderBottom: '1px solid var(--border-color)', height: '32px' }}>
+                                        <td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>{new Date(subEntry.date).toLocaleDateString()}</td>
+                                        <td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div className="avatar" style={{ backgroundColor: subBg, width: '18px', height: '18px', fontSize: '0.55rem' }}>
+                                              {subInitials}
+                                            </div>
+                                            <span style={{ fontWeight: 600 }}>{subName}</span>
                                           </div>
-                                          <span style={{ fontWeight: 600 }}>{subEntry.employeeId.name}</span>
-                                        </div>
-                                      </td>
-                                      <td style={{ padding: '4px 6px', color: 'var(--text-secondary)' }}>{subEntry.startTime} - {subEntry.endTime || 'Active'}</td>
-                                      <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                                        {formatDuration(subEntry.totalMinutes)}
-                                      </td>
-                                      <td style={{ padding: '4px 6px', paddingLeft: '12px' }}>
-                                         <span className="tag-badge" style={{
-                                           background: subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? '#ecfdf5' : '#fff7ed') : '#eff6ff',
-                                           color: subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? '#065f46' : '#c2410c') : '#1d4ed8',
-                                           border: subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? '1px solid #10b98130' : '1px solid #fed7aa') : '1px solid #3b82f630',
-                                           fontSize: '0.66rem',
-                                           padding: '2px 6px',
-                                         }}>
-                                           {subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? 'Completed' : 'Partially Done') : 'In Progress'}
-                                         </span>
-                                      </td>
-                                      <td style={{ padding: '4px 6px', textAlign: 'center' }}>
-                                        {subEntry.notes ? (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setSelectedRecord(subEntry);
-                                              setShowDetailsModal(true);
-                                            }}
-                                            className="btn btn-secondary"
-                                            style={{ padding: '2px 8px', fontSize: '0.7rem' }}
-                                          >
-                                            View Notes
-                                          </button>
-                                        ) : (
-                                          <span style={{ color: 'var(--text-muted)' }}>-</span>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  ))}
+                                        </td>
+                                        <td style={{ padding: '4px 6px', color: 'var(--text-secondary)' }}>{subEntry.startTime} - {subEntry.endTime || 'Active'}</td>
+                                        <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                                          {formatDuration(subEntry.totalMinutes)}
+                                        </td>
+                                        <td style={{ padding: '4px 6px', paddingLeft: '12px' }}>
+                                           <span className="tag-badge" style={{
+                                             background: subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? '#ecfdf5' : '#fff7ed') : '#eff6ff',
+                                             color: subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? '#065f46' : '#c2410c') : '#1d4ed8',
+                                             border: subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? '1px solid #10b98130' : '1px solid #fed7aa') : '1px solid #3b82f630',
+                                             fontSize: '0.66rem',
+                                             padding: '2px 6px',
+                                           }}>
+                                             {subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? 'Completed' : 'Partially Done') : 'In Progress'}
+                                           </span>
+                                        </td>
+                                        <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                                          {subEntry.notes ? (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedRecord(subEntry);
+                                                setShowDetailsModal(true);
+                                              }}
+                                              className="btn btn-secondary"
+                                              style={{ padding: '2px 8px', fontSize: '0.7rem' }}
+                                            >
+                                              View Notes
+                                            </button>
+                                          ) : (
+                                            <span style={{ color: 'var(--text-muted)' }}>-</span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>
@@ -579,6 +565,10 @@ export default function TaskHistoryPage() {
                 }
  
                 const record = item as TaskWorkRecord;
+                const recName = typeof record.employeeId === 'object' && record.employeeId?.name ? record.employeeId.name : (typeof record.employeeId === 'string' ? record.employeeId : 'Employee');
+                const recInitials = recName ? recName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() : 'E';
+                const recBg = typeof record.employeeId === 'object' && record.employeeId?.avatarColor ? record.employeeId.avatarColor : '#3b82f6';
+
                 return (
                   <tr key={record._id}>
                     <td>
@@ -586,17 +576,17 @@ export default function TaskHistoryPage() {
                         <div
                           className="avatar"
                           style={{
-                            backgroundColor: record.employeeId.avatarColor,
+                            backgroundColor: recBg,
                             width: '28px',
                             height: '28px',
                             fontSize: '0.7rem',
                           }}
                         >
-                          {record.employeeId.name.split(' ').map(n => n[0]).join('')}
+                          {recInitials}
                         </div>
                         <div>
                           <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>
-                            {record.employeeId.name}
+                            {recName}
                           </div>
                         </div>
                       </div>
@@ -739,7 +729,7 @@ export default function TaskHistoryPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.85rem', marginTop: '12px' }}>
                 <div>
                   <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Employee</div>
-                  <div style={{ fontWeight: 600 }}>{selectedRecord.employeeId.name}</div>
+                  <div style={{ fontWeight: 600 }}>{typeof selectedRecord.employeeId === 'object' ? selectedRecord.employeeId?.name : (selectedRecord.employeeId || 'Employee')}</div>
                 </div>
                 <div>
                   <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Date</div>

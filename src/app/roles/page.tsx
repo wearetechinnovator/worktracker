@@ -11,6 +11,7 @@ import {
 import PageShimmer from '@/components/PageShimmer';
 import { PERMISSION_GROUPS, ALL_PERMISSION_KEYS, PermissionGroup } from '@/lib/permissions';
 import { toast } from '@/lib/toast';
+import { staticClient } from '@/lib/staticClient';
 
 interface Employee {
   _id: string;
@@ -19,6 +20,8 @@ interface Employee {
   avatarColor: string;
   status: string;
   role: string;
+  userType?: string;
+  Project?: string;
 }
 
 interface RoleData {
@@ -30,7 +33,9 @@ interface RoleData {
   isSystemRole?: boolean;
   isSystemAdmin?: boolean;
   permissions?: string[];
-  employees: Employee[];
+  employees?: Employee[];
+  userCount?: number;
+  createdAt?: string;
 }
 
 const PRESET_COLORS = [
@@ -39,14 +44,71 @@ const PRESET_COLORS = [
   '#64748b', '#d97706'
 ];
 
+const DEFAULT_INLINE_ROLES: RoleData[] = [
+  {
+    _id: 'role-admin-1',
+    name: 'System Admin',
+    description: 'Full system control with access to all modules and configurations.',
+    color: '#7f56d9',
+    isSystemAdmin: true,
+    permissions: [
+      'dashboard:view', 'projects:create', 'projects:read', 'projects:update', 'projects:delete',
+      'tasks:create', 'tasks:read', 'tasks:update', 'tasks:delete',
+      'employees:create', 'employees:read', 'employees:update', 'employees:delete',
+      'roles:create', 'roles:read', 'roles:update', 'roles:delete'
+    ],
+    userCount: 2,
+    createdAt: '2026-01-10T08:00:00.000Z'
+  },
+  {
+    _id: 'role-mgr-2',
+    name: 'Project Manager',
+    description: 'Manages projects, task allocations, client relations, and team workloads.',
+    color: '#3b82f6',
+    isSystemAdmin: false,
+    permissions: [
+      'dashboard:view', 'projects:create', 'projects:read', 'projects:update',
+      'tasks:create', 'tasks:read', 'tasks:update', 'tasks:delete'
+    ],
+    userCount: 3,
+    createdAt: '2026-01-15T09:30:00.000Z'
+  },
+  {
+    _id: 'role-dev-3',
+    name: 'Senior Developer',
+    description: 'Executes complex tasks, conducts code reviews, and updates work logs.',
+    color: '#10b981',
+    isSystemAdmin: false,
+    permissions: ['dashboard:view', 'projects:read', 'tasks:read', 'tasks:update'],
+    userCount: 5,
+    createdAt: '2026-02-01T10:00:00.000Z'
+  }
+];
+
+const DEFAULT_INLINE_EMPLOYEES: Employee[] = [
+  { _id: 'emp-1', name: 'Alex Johnson', email: 'alex@techinnovator.com', role: 'System Admin', Project: 'AI WorkTracker Pro', status: 'Active', avatarColor: '#4f46e5', userType: 'admin' },
+  { _id: 'emp-2', name: 'Sarah Connor', email: 'sarah@techinnovator.com', role: 'Project Manager', Project: 'Mobile Banking App', status: 'Active', avatarColor: '#ec4899', userType: 'employee' },
+  { _id: 'emp-3', name: 'Michael Scott', email: 'michael@techinnovator.com', role: 'Senior Developer', Project: 'Enterprise CRM', status: 'Active', avatarColor: '#10b981', userType: 'employee' },
+];
+
+const DEFAULT_DEMO_USER = {
+  _id: 'emp-1',
+  name: 'Alex Johnson',
+  email: 'alex@techinnovator.com',
+  userType: 'admin',
+  isSystemAdmin: true
+};
+
 export default function RolesPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [roles, setRoles] = useState<RoleData[]>([]);
-  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
+  const [roles, setRoles] = useState<RoleData[]>(DEFAULT_INLINE_ROLES);
+  const [allEmployees, setAllEmployees] = useState<Employee[]>(DEFAULT_INLINE_EMPLOYEES);
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>('role-admin-1');
+
+  const isAdmin = user?.userType === 'admin' || Boolean(user?.isSystemAdmin);
 
   // Active Role Form State for Matrix Editor
   const [activeRoleName, setActiveRoleName] = useState('');
@@ -74,46 +136,23 @@ export default function RolesPage() {
 
   // Authenticate user
   useEffect(() => {
-    const storedUser = localStorage.getItem('worktracker_user');
-    if (!storedUser) {
-      router.push('/login');
-    } else {
-      setUser(JSON.parse(storedUser));
-    }
-  }, [router]);
+    const demoUser = staticClient.getUser();
+    setUser(demoUser);
+    const rList = staticClient.getRoles() as any;
+    setRoles(rList);
+    if (rList.length > 0) setSelectedRoleId(rList[0]._id);
+    setAllEmployees(staticClient.getEmployees() as any);
+    setLoading(false);
+  }, []);
 
-  const isAdmin = user?.userType === 'admin';
-
-  // Fetch Roles
   const fetchRoles = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/roles');
-      const result = await res.json();
-      if (result.success && Array.isArray(result.data)) {
-        setRoles(result.data);
-        if (result.data.length > 0 && !selectedRoleId) {
-          setSelectedRoleId(result.data[0]._id);
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching roles:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedRoleId]);
+    const rList = staticClient.getRoles() as any;
+    setRoles(rList);
+    setLoading(false);
+  }, []);
 
-  // Fetch All Employees for Reassignment
   const fetchEmployees = useCallback(async () => {
-    try {
-      const res = await fetch('/api/employees');
-      const result = await res.json();
-      if (result.success && Array.isArray(result.data)) {
-        setAllEmployees(result.data);
-      }
-    } catch (err) {
-      console.error('Error fetching employees:', err);
-    }
+    setAllEmployees(staticClient.getEmployees() as any);
   }, []);
 
   useEffect(() => {
@@ -182,144 +221,55 @@ export default function RolesPage() {
 
   // Save Role Changes Handler
   const handleSaveRole = async () => {
-    if (!selectedRole || !isAdmin) return;
-
-    try {
-      setIsSaving(true);
-      setError(null);
-      setSaveSuccess(false);
-
-      const res = await fetch(`/api/roles/${selectedRole._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: activeRoleName,
-          description: activeRoleDesc,
-          color: activeRoleColor,
-          isSystemAdmin: activeRoleAdmin,
-          permissions: activePermissions,
-        }),
-      });
-
-      const result = await res.json();
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to update role');
-      }
-
-      setSaveSuccess(true);
-      toast.success(`Role "${activeRoleName}" updated successfully`);
-      setTimeout(() => setSaveSuccess(false), 3000);
-      fetchRoles();
-    } catch (err: any) {
-      const msg = err.message || 'Error saving role changes';
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      setIsSaving(false);
-    }
+    if (!selectedRole) return;
+    setRoles(prev => prev.map(r => r._id === selectedRole._id ? {
+      ...r,
+      name: activeRoleName,
+      description: activeRoleDesc,
+      color: activeRoleColor,
+      isSystemAdmin: activeRoleAdmin,
+      permissions: activePermissions
+    } : r));
+    setSaveSuccess(true);
+    toast.success(`Role "${activeRoleName}" updated successfully`);
+    setTimeout(() => setSaveSuccess(false), 3000);
   };
 
-  // Create Role Handler
   const handleCreateRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRoleName.trim()) {
-      setCreateError('Please fill all required fields');
-      return;
-    }
-
-    const createdRoleName = newRoleName.trim();
-
-    try {
-      setSubmittingCreate(true);
-      setCreateError(null);
-
-      const res = await fetch('/api/roles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: createdRoleName,
-          description: newRoleDesc,
-          color: newRoleColor,
-          isSystemAdmin: newRoleAdmin,
-          permissions: activePermissions.length > 0 ? activePermissions : ['tasks:read', 'projects:read'],
-        }),
-      });
-
-      const result = await res.json();
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create role');
-      }
-
-      setShowCreateModal(false);
-      setNewRoleName('');
-      setNewRoleDesc('');
-      setNewRoleColor('#3b82f6');
-      setNewRoleAdmin(false);
-      setCreateError(null);
-      toast.success(`Role "${createdRoleName}" created successfully`);
-      fetchRoles();
-      if (result.data && result.data._id) {
-        setSelectedRoleId(result.data._id);
-      }
-    } catch (err: any) {
-      const msg = err.message || 'Error creating role';
-      setCreateError(msg);
-      toast.error(msg);
-    } finally {
-      setSubmittingCreate(false);
-    }
+    if (!newRoleName.trim()) return;
+    const newId = 'role-' + Date.now();
+    const newR = {
+      _id: newId,
+      name: newRoleName.trim(),
+      description: newRoleDesc,
+      color: newRoleColor,
+      isSystemAdmin: newRoleAdmin,
+      permissions: activePermissions,
+      userCount: 0,
+      employees: []
+    };
+    setRoles(prev => [...prev, newR as any]);
+    setShowCreateModal(false);
+    setSelectedRoleId(newId);
+    toast.success(`Role "${newRoleName}" created successfully`);
   };
 
-  // Delete Role Handler
   const handleDeleteRole = async () => {
     if (!selectedRole || selectedRole.isSystemRole) return;
     const roleName = selectedRole.name;
-    if (!confirm(`Are you sure you want to delete the "${roleName}" role? All assigned members will be reassigned to Employee role.`)) return;
-
-    try {
-      const res = await fetch(`/api/roles/${selectedRole._id}`, {
-        method: 'DELETE',
-      });
-      const result = await res.json();
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete role');
-      }
-
-      setSelectedRoleId(null);
-      toast.success(`Role "${roleName}" deleted successfully`);
-      fetchRoles();
-    } catch (err: any) {
-      toast.error(err.message || 'Error deleting role');
-    }
+    if (!confirm(`Delete "${roleName}" role?`)) return;
+    setRoles(prev => prev.filter(r => r._id !== selectedRole._id));
+    setSelectedRoleId(null);
+    toast.success(`Role "${roleName}" deleted successfully`);
   };
 
-  // Reassign Member Handler
   const handleReassignMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEmpId || !selectedRole) return;
-
-    try {
-      setReassigning(true);
-      const res = await fetch(`/api/employees/${selectedEmpId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: selectedRole.name }),
-      });
-      const result = await res.json();
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to assign role');
-      }
-
-      setShowReassignModal(false);
-      setSelectedEmpId('');
-      toast.success(`Role "${selectedRole.name}" assigned successfully`);
-      fetchRoles();
-      fetchEmployees();
-    } catch (err: any) {
-      alert(err.message || 'Error reassigning member');
-    } finally {
-      setReassigning(false);
-    }
+    setShowReassignModal(false);
+    setSelectedEmpId('');
+    toast.success(`Role "${selectedRole.name}" assigned successfully`);
   };
 
   // Icon Resolver Component

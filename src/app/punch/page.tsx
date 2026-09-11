@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation';
 import { Clock, LogIn, LogOut, CheckCircle2, AlertCircle, Calendar, Users } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
 import { getClientPunchLocation } from '@/lib/geoClient';
+import { staticClient } from '@/lib/staticClient';
 
 interface PunchData {
+  isPunchedIn?: boolean;
   attendance: {
-    checkIn: string;
-    checkOut: string;
-    status: string;
+    checkIn: string | null;
+    checkOut: string | null;
+    status?: string;
     checkInIpAddress?: string;
     checkInLocation?: string;
     checkInLatitude?: number;
@@ -29,11 +31,36 @@ interface PunchData {
   };
 }
 
+const DEFAULT_INLINE_PUNCH: PunchData = {
+  isPunchedIn: true,
+  attendance: {
+    checkIn: '09:00 AM',
+    checkOut: null,
+    checkInLocation: 'Office HQ - New York',
+    checkInLatitude: 40.7128,
+    checkInLongitude: -74.0060,
+  },
+  canPunchIn: false,
+  canPunchOut: true,
+  currentTime: new Date().toLocaleTimeString(),
+  settings: {
+    punchInWindow: '09:00 AM - 10:00 AM',
+    punchOutWindow: '05:00 PM - 07:00 PM',
+  }
+};
+
+const DEFAULT_DEMO_USER = {
+  _id: 'emp-1',
+  name: 'Alex Johnson',
+  email: 'alex@techinnovator.com',
+  userType: 'admin'
+};
+
 export default function PunchPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [punchData, setPunchData] = useState<PunchData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
+  const [punchData, setPunchData] = useState<PunchData | null>(DEFAULT_INLINE_PUNCH);
+  const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -75,55 +102,16 @@ export default function PunchPage() {
 
   // Authenticate user & load employees for Admin
   useEffect(() => {
-    const storedUser = localStorage.getItem('worktracker_user');
-    if (!storedUser) {
-      router.push('/login');
-      return;
-    }
+    const demoUser = staticClient.getUser();
+    setUser(demoUser);
+    setEmployeesList(staticClient.getEmployees() as any);
+    setPunchData(staticClient.getPunchStatus() as any);
+    setLoading(false);
+  }, []);
 
-    const parsed = JSON.parse(storedUser);
-    setUser(parsed);
-    if (parsed?.userType !== 'admin') {
-      router.push('/');
-      return;
-    }
-    
-    if (parsed?.userType === 'admin') {
-      fetch('/api/employees')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success) {
-            setEmployeesList(data.data);
-          }
-        })
-        .catch((err) => console.error(err));
-    }
-  }, [router]);
-
-  // Load punch status
   const loadPunchStatus = async (showLoading = true) => {
-    if (!user) return;
-
-    try {
-      if (showLoading) setLoading(true);
-      setError(null);
-      const now = new Date();
-      const localDate = getLocalDateValue(now);
-      const localTime = getLocalTimeValue(now);
-      const targetEmpId = selectedEmpId || user._id;
-
-      const res = await fetch(`/api/punch?employeeId=${targetEmpId}&date=${localDate}&time=${localTime}`);
-      const result = await res.json();
-      
-      if (!result.success) throw new Error(result.error || 'Failed to load punch status');
-      
-      setPunchData(result.data);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Error loading punch status');
-    } finally {
-      if (showLoading) setLoading(false);
-    }
+    setPunchData(staticClient.getPunchStatus() as any);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -179,98 +167,17 @@ export default function PunchPage() {
   };
 
   const preparePunchOutReport = async () => {
-    if (!user) return;
-
-    try {
-      setIsPreparingReport(true);
-      setError(null);
-      const today = getLocalDateValue(new Date());
-      const [tasksRes, worksRes] = await Promise.all([
-        fetch(`/api/tasks?employeeId=${user._id}`),
-        fetch(`/api/task-work?employeeId=${user._id}&date=${today}`),
-      ]);
-
-      const tasksData = await tasksRes.json();
-      const worksData = await worksRes.json();
-
-      if (!tasksData.success) throw new Error(tasksData.error || 'Failed to load tasks');
-      if (!worksData.success) throw new Error(worksData.error || 'Failed to load work report');
-
-      const taskMap = new Map<string, any>((tasksData.data || []).map((task: any) => [task._id, task]));
-      const completedEntries = (worksData.data || []).filter((entry: any) => entry.status === 'Completed');
-      const report = buildDailyReport(completedEntries, taskMap);
-
-      setReportPreview(report);
-      setShowReportModal(true);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Unable to generate punch-out report');
-    } finally {
-      setIsPreparingReport(false);
-    }
+    const today = getLocalDateValue(new Date());
+    setReportPreview(`Daily Work Summary (${today})\n\nShift punch out report completed.`);
+    setShowReportModal(true);
   };
 
   const submitPunch = async (action: 'punchIn' | 'punchOut') => {
-    if (!user) return;
-
-    try {
-      setProcessing(true);
-      setError(null);
-      setSuccessMsg(null);
-      setLocationStatus('Detecting network and location...');
-
-      const location = await getClientPunchLocation();
-      if (location.address) {
-        setLocationStatus(`Location: ${location.address}`);
-      } else if (location.latitude && location.longitude) {
-        setLocationStatus(`Location: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`);
-      } else {
-        setLocationStatus('Location captured');
-      }
-
-      const now = new Date();
-      const localDate = getLocalDateValue(now);
-      const localTime = getLocalTimeValue(now);
-
-      const targetEmpId = selectedEmpId || user._id;
-      const punchTime = (useCustomTime && customTime) ? customTime : localTime;
-
-      const res = await fetch('/api/punch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employeeId: targetEmpId,
-          action,
-          location,
-          localDate,
-          localTime: punchTime,
-        }),
-      });
-
-      const result = await res.json();
-      
-      if (!result.success) throw new Error(result.error || 'Failed to punch');
-
-      if (action === 'punchIn') {
-        localStorage.setItem('worktracker_punch_status', 'in');
-        window.dispatchEvent(new Event('punch-status-changed'));
-      } else {
-        localStorage.setItem('worktracker_punch_status', 'out');
-        window.dispatchEvent(new Event('punch-status-changed'));
-        router.replace('/punch');
-      }
-
-      setSuccessMsg(result.message);
-      setTimeout(() => setSuccessMsg(null), 4000);
-      
-      // Reload punch status
-      await loadPunchStatus();
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Error processing punch');
-    } finally {
-      setProcessing(false);
-    }
+    setProcessing(true);
+    const newStatus = staticClient.togglePunch();
+    setPunchData(newStatus as any);
+    setSuccessMsg(action === 'punchIn' ? 'Punched in successfully' : 'Punched out successfully');
+    setProcessing(false);
   };
 
   const handlePunch = async (action: 'punchIn' | 'punchOut') => {
@@ -506,8 +413,8 @@ export default function PunchPage() {
             <strong>Allowed Timings:</strong>
           </div>
           <div style={{ color: 'var(--text-secondary)', marginLeft: '24px' }}>
-            <div>• Punch In: {punchData?.settings.punchInWindow}</div>
-            <div>• Punch Out: {punchData?.settings.punchOutWindow}</div>
+            <div>• Punch In: {punchData?.settings?.punchInWindow || '09:00 AM - 10:00 AM'}</div>
+            <div>• Punch Out: {punchData?.settings?.punchOutWindow || '05:00 PM - 07:00 PM'}</div>
           </div>
 
           {locationStatus && (
@@ -528,7 +435,7 @@ export default function PunchPage() {
                 Status
               </div>
               <div style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>
-                {punchData.attendance.status}
+                {punchData.attendance?.status || 'Present'}
               </div>
             </div>
             <div>
@@ -536,7 +443,7 @@ export default function PunchPage() {
                 Check In
               </div>
               <div style={{ fontWeight: 700 }}>
-                {punchData.attendance.checkIn || '-'}
+                {punchData.attendance?.checkIn || '-'}
               </div>
             </div>
             <div>
@@ -544,7 +451,7 @@ export default function PunchPage() {
                 Check Out
               </div>
               <div style={{ fontWeight: 700 }}>
-                {punchData.attendance.checkOut || '-'}
+                {punchData.attendance?.checkOut || '-'}
               </div>
             </div>
           </div>
@@ -562,10 +469,10 @@ export default function PunchPage() {
                 Check In Details
               </div>
               <div style={{ color: 'var(--text-secondary)' }}>
-                <div>• <strong>IP Address:</strong> {punchData.attendance.checkInIpAddress || '-'}</div>
-                <div>• <strong>Location:</strong> {punchData.attendance.checkInLocation || '-'}</div>
-                {punchData.attendance.checkInLatitude !== undefined && punchData.attendance.checkInLongitude !== undefined && (
-                  <div>• <strong>Geo Coordinates:</strong> {punchData.attendance.checkInLatitude.toFixed(4)}, {punchData.attendance.checkInLongitude.toFixed(4)}</div>
+                <div>• <strong>IP Address:</strong> {punchData.attendance?.checkInIpAddress || '-'}</div>
+                <div>• <strong>Location:</strong> {punchData.attendance?.checkInLocation || '-'}</div>
+                {punchData.attendance?.checkInLatitude !== undefined && punchData.attendance?.checkInLongitude !== undefined && (
+                  <div>• <strong>Geo Coordinates:</strong> {punchData.attendance.checkInLatitude?.toFixed(4)}, {punchData.attendance.checkInLongitude?.toFixed(4)}</div>
                 )}
               </div>
             </div>
@@ -575,10 +482,10 @@ export default function PunchPage() {
                 Check Out Details
               </div>
               <div style={{ color: 'var(--text-secondary)' }}>
-                <div>• <strong>IP Address:</strong> {punchData.attendance.checkOutIpAddress || '-'}</div>
-                <div>• <strong>Location:</strong> {punchData.attendance.checkOutLocation || '-'}</div>
-                {punchData.attendance.checkOutLatitude !== undefined && punchData.attendance.checkOutLongitude !== undefined && (
-                  <div>• <strong>Geo Coordinates:</strong> {punchData.attendance.checkOutLatitude.toFixed(4)}, {punchData.attendance.checkOutLongitude.toFixed(4)}</div>
+                <div>• <strong>IP Address:</strong> {punchData.attendance?.checkOutIpAddress || '-'}</div>
+                <div>• <strong>Location:</strong> {punchData.attendance?.checkOutLocation || '-'}</div>
+                {punchData.attendance?.checkOutLatitude !== undefined && punchData.attendance?.checkOutLongitude !== undefined && (
+                  <div>• <strong>Geo Coordinates:</strong> {punchData.attendance.checkOutLatitude?.toFixed(4)}, {punchData.attendance.checkOutLongitude?.toFixed(4)}</div>
                 )}
               </div>
             </div>

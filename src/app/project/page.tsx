@@ -10,6 +10,7 @@ import { formatMinutesToDuration } from '@/lib/time';
 import PageShimmer from '@/components/PageShimmer';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { toast } from '@/lib/toast';
+import { staticClient } from '@/lib/staticClient';
 
 interface Employee {
   _id: string;
@@ -60,17 +61,40 @@ interface WorkEntry {
   createdAt: string;
 }
 
+const DEFAULT_DEMO_USER = {
+  _id: 'emp-1',
+  id: 'emp-1',
+  name: 'Alex Johnson',
+  email: 'alex@techinnovator.com',
+  userType: 'admin',
+  role: 'System Administrator'
+};
+
+const DEFAULT_INLINE_PROJECTS: Project[] = [
+  { _id: 'proj-1', name: 'AI WorkTracker Pro', description: 'Next-gen workforce management platform with AI insights.', color: '#4f46e5', members: ['emp-1', 'emp-5'], entryCount: 12, totalMinutes: 4800 },
+  { _id: 'proj-2', name: 'Mobile Banking App', description: 'Fintech mobile application with biometric login.', color: '#ec4899', members: ['emp-2'], entryCount: 8, totalMinutes: 2400 },
+  { _id: 'proj-3', name: 'Enterprise CRM Redesign', description: 'Complete UI overhaul for corporate CRM clients.', color: '#10b981', members: ['emp-3'], entryCount: 6, totalMinutes: 1800 },
+  { _id: 'proj-4', name: 'Cloud Analytics Dashboard', description: 'Real-time telemetry and reporting system.', color: '#f59e0b', members: ['emp-4'], entryCount: 4, totalMinutes: 1200 },
+];
+
+const DEFAULT_INLINE_EMPLOYEES: Employee[] = [
+  { _id: 'emp-1', name: 'Alex Johnson', email: 'alex@techinnovator.com', role: 'System Admin', Project: 'AI WorkTracker Pro', status: 'Active', avatarColor: '#4f46e5', userType: 'admin', totalMinutes: 1420 },
+  { _id: 'emp-2', name: 'Sarah Connor', email: 'sarah@techinnovator.com', role: 'Project Manager', Project: 'Mobile Banking App', status: 'Active', avatarColor: '#ec4899', userType: 'employee', totalMinutes: 1180 },
+  { _id: 'emp-3', name: 'Michael Scott', email: 'michael@techinnovator.com', role: 'Senior Developer', Project: 'Enterprise CRM', status: 'Active', avatarColor: '#10b981', userType: 'employee', totalMinutes: 960 },
+  { _id: 'emp-4', name: 'Dwight Schrute', email: 'dwight@techinnovator.com', role: 'UI/UX Designer', Project: 'Cloud Analytics', status: 'Active', avatarColor: '#f59e0b', userType: 'employee', totalMinutes: 840 },
+];
+
 export default function ProjectsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
 
   // Shared Data State
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>(DEFAULT_INLINE_EMPLOYEES);
+  const [projects, setProjects] = useState<Project[]>(DEFAULT_INLINE_PROJECTS);
   const [entries, setEntries] = useState<WorkEntry[]>([]);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
-  const [isRoleAdmin, setIsRoleAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [isRoleAdmin, setIsRoleAdmin] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Split View State
@@ -183,30 +207,16 @@ export default function ProjectsPage() {
       setLoading(true);
       setError(null);
 
-      const isEmployee = user.userType === 'employee';
-      const projUrl = isEmployee ? `/api/projects?employeeId=${user._id}` : '/api/projects';
-      const empUrl = '/api/employees';
-      const workUrl = isEmployee ? `/api/work?employeeId=${user._id}` : '/api/work';
+      let loadedProjects = staticClient.getProjects() as any[];
+      const loadedEmployees = staticClient.getEmployees() as any[];
+      const loadedWork = staticClient.getWorkEntries() as any[];
+      const loadedClients = staticClient.getClients() as any[];
+      const loadedRoles = staticClient.getRoles() as any[];
 
-      const [projRes, empRes, workRes, clientsRes, rolesRes] = await Promise.all([
-        fetch(projUrl),
-        fetch(empUrl),
-        fetch(workUrl),
-        fetch('/api/clients'),
-        fetch('/api/roles')
-      ]);
+      setEmployees(loadedEmployees);
+      setEntries(loadedWork as any);
+      setClientsList(loadedClients as any);
 
-      const projData = await projRes.json().catch(() => null);
-      const empData = await empRes.json().catch(() => null);
-      const workData = await workRes.json().catch(() => null);
-      const clientsData = await clientsRes.json().catch(() => null);
-      const rolesData = await rolesRes.json().catch(() => null);
-
-      if (!projRes.ok || !projData || !projData.success) throw new Error(projData?.error || 'Failed to load projects');
-      if (!empRes.ok || !empData || !empData.success) throw new Error(empData?.error || 'Failed to load employees');
-      if (!workRes.ok || !workData || !workData.success) throw new Error(workData?.error || 'Failed to load work entries');
-
-      let loadedProjects = projData.data || [];
       if (typeof window !== 'undefined') {
         const savedOrder = localStorage.getItem('worktracker_project_order');
         if (savedOrder) {
@@ -224,26 +234,14 @@ export default function ProjectsPage() {
         }
       }
       setProjects(loadedProjects);
-      setEmployees(empData.data);
-      setEntries(workData.data);
-      if (clientsData && clientsData.success) {
-        setClientsList(clientsData.data);
-      }
-      if (rolesData && rolesData.success && Array.isArray(rolesData.data)) {
-        const myRoleDoc = rolesData.data.find((r: any) => r.name && r.name.toLowerCase().trim() === (user.role || '').toLowerCase().trim());
-        if (myRoleDoc) {
-          setUserPermissions(myRoleDoc.permissions || []);
-          setIsRoleAdmin(Boolean(myRoleDoc.isSystemAdmin));
-        }
-      }
 
-      if (projData.data.length > 0 && !workProjId) {
-        setWorkProjId(projData.data[0]._id);
+      if (loadedProjects.length > 0 && !workProjId) {
+        setWorkProjId(loadedProjects[0]._id);
       }
       if (user.userType === 'employee') {
         setWorkEmpId(user._id);
-      } else if (empData.data.length > 0 && !workEmpId) {
-        setWorkEmpId(empData.data[0]._id);
+      } else if (loadedEmployees.length > 0 && !workEmpId) {
+        setWorkEmpId(loadedEmployees[0]._id);
       }
     } catch (err: any) {
       console.error(err);
@@ -291,13 +289,8 @@ export default function ProjectsPage() {
         bodyPayload.clientId = selectedClientId || null;
       }
 
-      const res = await fetch(`/api/projects/${selectedProjId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload)
-      });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to save Project changes');
+      const result = await staticClient.updateProject(selectedProjId, bodyPayload);
+      if (!result.success) throw new Error('Failed to save Project changes');
 
       setNewClientName('');
       setNewClientPhone('');
@@ -320,9 +313,8 @@ export default function ProjectsPage() {
     if (!selectedProjId || !confirm(`Are you sure you want to delete ${projName}? All associated logs will be deleted!`)) return;
 
     try {
-      const res = await fetch(`/api/projects/${selectedProjId}`, { method: 'DELETE' });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to delete Project');
+      const result = await staticClient.deleteProject(selectedProjId);
+      if (!result.success) throw new Error('Failed to delete Project');
 
       setSelectedProjId(null);
       setEditMode(false);
@@ -344,13 +336,8 @@ export default function ProjectsPage() {
 
     try {
       setSubmittingWork(true);
-      const res = await fetch('/api/work', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: workProjId, employeeId: finalEmpId, title: workTitle, date: workDate, startTime: workStart, endTime: workEnd, description: workDesc })
-      });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to log work session');
+      const result = await staticClient.createWorkLog({ projectId: workProjId, employeeId: finalEmpId, title: workTitle, date: workDate, startTime: workStart, endTime: workEnd, description: workDesc });
+      if (!result.success) throw new Error('Failed to log work session');
 
       setWorkTitle('');
       setWorkDesc('');
@@ -385,13 +372,8 @@ export default function ProjectsPage() {
 
     try {
       setSubmittingWork(true);
-      const res = await fetch(`/api/work/${editingLog._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: logProjId, employeeId: logEmpId, title: logTitle, date: logDate, startTime: logStart, endTime: logEnd, description: logDesc })
-      });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to update work entry');
+      const result = await staticClient.updateWorkLog(editingLog._id, { projectId: logProjId, employeeId: logEmpId, title: logTitle, date: logDate, startTime: logStart, endTime: logEnd, description: logDesc });
+      if (!result.success) throw new Error('Failed to update work entry');
 
       setIsEditLogOpen(false);
       setEditingLog(null);
@@ -408,9 +390,8 @@ export default function ProjectsPage() {
     if (!confirm('Are you sure you want to delete this work log?')) return;
 
     try {
-      const res = await fetch(`/api/work/${logId}`, { method: 'DELETE' });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Failed to delete');
+      const result = await staticClient.deleteWorkLog(logId);
+      if (!result.success) throw new Error('Failed to delete');
 
       toast.success('Work log deleted successfully');
       await fetchData();
@@ -433,10 +414,11 @@ export default function ProjectsPage() {
   const activeProjMinutes = activeProjEntries.reduce((sum, e) => sum + e.actualTime, 0);
 
   const filteredProjEntries = activeProjEntries.filter((e) => {
+    const searchLower = (logSearchQuery || '').toLowerCase();
     const matchesSearch =
-      e.title.toLowerCase().includes(logSearchQuery.toLowerCase()) ||
-      (e.description || '').toLowerCase().includes(logSearchQuery.toLowerCase()) ||
-      e.employeeName.toLowerCase().includes(logSearchQuery.toLowerCase());
+      (e.title || '').toLowerCase().includes(searchLower) ||
+      (e.description || '').toLowerCase().includes(searchLower) ||
+      (e.employeeName || '').toLowerCase().includes(searchLower);
     const matchesDate = logDateFilter ? e.date === logDateFilter : true;
     return matchesSearch && matchesDate;
   });

@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import {
@@ -11,6 +10,7 @@ import {
 import CreateProjectModal from '@/components/CreateProjectModal';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import { toast } from '@/lib/toast';
+import { staticClient } from '@/lib/staticClient';
 import { useModalDraft } from '@/context/ModalDraftContext';
 import {
   CustomDropdown,
@@ -99,47 +99,23 @@ export function CreateTaskModal({
 
   // Fetch projects from API
   const fetchProjects = useCallback(async () => {
-    try {
-      const res = await fetch('/api/projects');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setProjects(data.data);
-        return data.data;
-      }
-    } catch (err) {
-      console.error('Failed to fetch projects in CreateTaskModal:', err);
-    }
-    return [];
+    const list = staticClient.getProjects();
+    setProjects(list as any);
+    return list;
   }, []);
 
   // Fetch employees from API
   const fetchEmployees = useCallback(async () => {
-    try {
-      const res = await fetch('/api/employees');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setEmployees(data.data);
-        return data.data;
-      }
-    } catch (err) {
-      console.error('Failed to fetch employees in CreateTaskModal:', err);
-    }
-    return [];
+    const list = staticClient.getEmployees();
+    setEmployees(list as any);
+    return list;
   }, []);
 
   // Fetch clients from API
   const fetchClients = useCallback(async () => {
-    try {
-      const res = await fetch('/api/clients');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setClients(data.data);
-        return data.data;
-      }
-    } catch (err) {
-      console.error('Failed to fetch clients in CreateTaskModal:', err);
-    }
-    return [];
+    const list = staticClient.getClients();
+    setClients(list as any);
+    return list;
   }, []);
 
   const getProjectContacts = () => {
@@ -189,8 +165,8 @@ export function CreateTaskModal({
     const options = projectContacts.map((c: any) => {
       const designationText = c.designation ? ` (${c.designation})` : '';
       return {
-        value: c.name,
-        label: `${c.name}${designationText}`,
+        value: `dfuyfjfj`,
+        label: `dfuyfjfj`,
       };
     });
 
@@ -420,28 +396,26 @@ export function CreateTaskModal({
         tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
       };
 
-      const url = editingTask ? `/api/tasks/${editingTask._id}` : '/api/tasks';
-      const method = editingTask ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || `Failed to ${editingTask ? 'update' : 'create'} task`);
+      const newTaskObj = {
+        _id: editingTask ? editingTask._id : 'task-' + Date.now(),
+        ...payload,
+        createdAt: new Date().toISOString()
+      };
+      if (editingTask) {
+        const idx = staticClient.getTasks().findIndex(t => t._id === editingTask._id);
+        if (idx !== -1) staticClient.getTasks()[idx] = newTaskObj as any;
+      } else {
+        staticClient.getTasks().unshift(newTaskObj as any);
       }
 
       window.dispatchEvent(new CustomEvent('worktracker-refresh'));
 
       clearDraft(draftKey);
-      const taskTitle = data.data?.title || formData.title.trim();
+      const taskTitle = formData.title.trim();
       toast.success(editingTask ? `${taskTitle} updated successfully` : `${taskTitle} created successfully`);
 
       if (onSuccess) {
-        onSuccess(data.data);
+        onSuccess(newTaskObj);
       }
 
       onClose();
@@ -535,8 +509,8 @@ export function CreateTaskModal({
                     value={formData.priority}
                     options={[
                       { value: 'Low', label: 'Low', color: '#3b82f6', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-                      { value: 'Medium', label: 'Medium', color: '#f59e0b',  badgeBg: '#fffbeb', badgeColor: '#b45309' },
-                      { value: 'High', label: 'High', color: '#f97316',  badgeBg: '#fff7ed', badgeColor: '#c2410c' },
+                      { value: 'Medium', label: 'Medium', color: '#f59e0b', badgeBg: '#fffbeb', badgeColor: '#b45309' },
+                      { value: 'High', label: 'High', color: '#f97316', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
                       { value: 'Urgent', label: 'Urgent', color: '#ef4444', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
                     ]}
                     onChange={(val) => setFormData({ ...formData, priority: val as any })}
@@ -676,7 +650,7 @@ export function CreateTaskModal({
                 type="button"
                 className="btn btn-secondary"
                 onClick={onClose}
-               
+
               >
                 Cancel
               </button>
@@ -686,8 +660,8 @@ export function CreateTaskModal({
                     ? 'Updating...'
                     : 'Creating...'
                   : editingTask
-                  ? 'Update Task'
-                  : 'Create Task'}
+                    ? 'Update Task'
+                    : 'Create Task'}
               </button>
             </div>
           </form>

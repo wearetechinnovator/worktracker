@@ -3,8 +3,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   GripVertical, Users, UserPlus, UserCheck, Search, X, Check, Plus,
-  ArrowRight, ChevronDown, Loader2
+  ChevronDown, Loader2, ArrowRight
 } from 'lucide-react';
+import { staticClient } from '@/lib/staticClient';
 
 export interface EmployeeItem {
   _id: string;
@@ -149,23 +150,13 @@ export function ProjectAssigneeSelector({
       const currentMemberIds = Array.from(projectMemberIds);
       const updatedMemberIds = Array.from(new Set([...currentMemberIds, emp._id.toString()]));
 
-      const res = await fetch(`/api/projects/${projectId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          members: updatedMemberIds,
-        }),
-      });
-
-      const data = await res.json();
+      const data = await staticClient.updateProject(projectId, { members: updatedMemberIds });
       if (data.success) {
         if (onProjectUpdated) {
           onProjectUpdated(data.data);
         }
         setIsTagDropdownOpen(false);
         setTagSearchQuery('');
-      } else {
-        console.error('Failed to tag employee to project:', data.error);
       }
     } catch (err) {
       console.error('Error tagging employee to project:', err);

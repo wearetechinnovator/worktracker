@@ -11,6 +11,7 @@ import {
   Briefcase, FileText, Loader2, ExternalLink, User, X, Layers
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
+import { staticClient } from '@/lib/staticClient';
 
 interface Employee {
   _id: string;
@@ -114,11 +115,8 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
   const fetchTodayPunchStatus = useCallback(async () => {
     if (!employee) return;
     try {
-      const res = await fetch(`/api/punch?employeeId=${employee._id}`);
-      const data = await res.json();
-      if (data.success) {
-        setTodayAttendance(data.data.attendance);
-      }
+      const punch = staticClient.getPunchStatus();
+      setTodayAttendance(punch.attendance as any);
     } catch (err) {
       console.error('Error fetching today punch status in modal:', err);
     }
@@ -136,22 +134,7 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
     if (!employee) return;
     try {
       setSubmittingOverride(true);
-      const todayStr = new Date().toISOString().split('T')[0];
-      const res = await fetch('/api/punch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employeeId: employee._id,
-          action,
-          localDate: todayStr,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await fetchTodayPunchStatus();
-      } else {
-        alert(data.error || 'Failed to update punch override');
-      }
+      await fetchTodayPunchStatus();
     } catch (err: any) {
       alert(err.message || 'Error updating punch override');
     } finally {
@@ -169,40 +152,17 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
       setLoadingMonth(true);
       setErrorMsg(null);
 
-      // Fetch Attendance records for the month
-      const attRes = await fetch(`/api/attendance?employeeId=${employee._id}&month=${monthFormatted}`);
-      const attData = await attRes.json();
-
-      if (attData.success && attData.data?.attendance) {
-        setAttendanceRecords(attData.data.attendance);
-      } else {
-        setAttendanceRecords([]);
-      }
-
-      // Fetch Work entries count per day for the month
-      const startDate = `${monthFormatted}-01`;
-      const lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
-      const endDate = `${monthFormatted}-${String(lastDay).padStart(2, '0')}`;
-
-      const workRes = await fetch(`/api/work?employeeId=${employee._id}&startDate=${startDate}&endDate=${endDate}`);
-      const workData = await workRes.json();
-
-      if (workData.success && Array.isArray(workData.data)) {
-        const counts: Record<string, number> = {};
-        workData.data.forEach((entry: any) => {
-          counts[entry.date] = (counts[entry.date] || 0) + 1;
-        });
-        setMonthWorkEntries(counts);
-      } else {
-        setMonthWorkEntries({});
-      }
+      const res: any = await staticClient.getAttendance();
+      const recordsList = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      setAttendanceRecords(recordsList);
+      setMonthWorkEntries({});
     } catch (err: any) {
       console.error(err);
       setErrorMsg('Failed to load month attendance data.');
     } finally {
       setLoadingMonth(false);
     }
-  }, [employee, isOpen, monthFormatted, currentYear, currentMonth]);
+  }, [employee, isOpen]);
 
   useEffect(() => {
     fetchMonthData();
@@ -231,39 +191,13 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
   const handleDateClick = async (dateStr: string) => {
     if (!employee) return;
     setSelectedDateForDetails(dateStr);
-    setDailyDetails(null);
-
-    // Fallback attendance record from month data
-    const monthAttRecord = attendanceRecords.find((r) => r.date === dateStr) || null;
-
-    try {
-      setLoadingDaily(true);
-      const res = await fetch(`/api/attendance/daily-details?employeeId=${employee._id}&date=${dateStr}`);
-      const result = await res.json();
-      if (result.success && result.data) {
-        setDailyDetails({
-          attendance: result.data.attendance || monthAttRecord,
-          workEntries: result.data.workEntries || [],
-          taskWorks: result.data.taskWorks || [],
-        });
-      } else {
-        // Fallback to month attendance record if API fails
-        setDailyDetails({
-          attendance: monthAttRecord,
-          workEntries: [],
-          taskWorks: [],
-        });
-      }
-    } catch (err) {
-      console.error('Error fetching daily details:', err);
-      setDailyDetails({
-        attendance: monthAttRecord,
-        workEntries: [],
-        taskWorks: [],
-      });
-    } finally {
-      setLoadingDaily(false);
-    }
+    const recordsArray = Array.isArray(attendanceRecords) ? attendanceRecords : [];
+    const monthAttRecord = recordsArray.find((r) => r.date === dateStr) || null;
+    setDailyDetails({
+      attendance: monthAttRecord,
+      workEntries: staticClient.getWorkEntries() as any,
+      taskWorks: [],
+    });
   };
 
   if (!isOpen || !employee) return null;
@@ -272,15 +206,17 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
   const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay();
   const totalDaysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
+  const safeAttendanceRecords = Array.isArray(attendanceRecords) ? attendanceRecords : [];
+
   const attendanceMap = new Map<string, AttendanceRecord>(
-    attendanceRecords.map((rec) => [rec.date, rec])
+    safeAttendanceRecords.map((rec) => [rec.date, rec])
   );
 
   // Month Statistics
   let totalPresent = 0;
   let totalAbsent = 0;
   let totalOnLeave = 0;
-  attendanceRecords.forEach((rec) => {
+  safeAttendanceRecords.forEach((rec) => {
     if (rec.status === 'Present') totalPresent++;
     if (rec.status === 'Absent') totalAbsent++;
     if (rec.status === 'On Leave') totalOnLeave++;

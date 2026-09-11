@@ -12,6 +12,7 @@ import {
   Paperclip, FileText, ChevronDown, Settings, Trash2
 } from 'lucide-react';
 import { toast } from '@/lib/toast';
+import { staticClient } from '@/lib/staticClient';
 import '@/app/chat.css';
 
 interface IAttachment {
@@ -200,29 +201,12 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
 
     const fetchInitialData = async () => {
       try {
-        // Fetch employees & admins with status mapping
-        const membersRes = await fetch('/api/chat/members');
-        const membersData = await membersRes.json();
-        if (membersData.success) {
-          setMembers(membersData.data.filter((m: ChatMember) => m._id !== user._id));
-        }
-
-        // Fetch projects for user
-        const projectsUrl = user.userType === 'admin' 
-          ? '/api/projects' 
-          : `/api/projects?employeeId=${user._id}`;
-        const projectsRes = await fetch(projectsUrl);
-        const projectsData = await projectsRes.json();
-        if (projectsData.success) {
-          setProjects(projectsData.data);
-        }
-
-        // Fetch custom channels
-        const channelsRes = await fetch('/api/chat/channels');
-        const channelsData = await channelsRes.json();
-        if (channelsData.success) {
-          setCustomChannels(channelsData.data);
-        }
+        const emps = staticClient.getEmployees();
+        setMembers(emps.filter((m: any) => m._id !== user._id) as any);
+        const projs = staticClient.getProjects();
+        setProjects(projs as any);
+        const channels = staticClient.getChatChannels();
+        setCustomChannels(channels as any);
       } catch (err) {
         console.error('Error fetching initial chat metadata:', err);
       }
@@ -233,15 +217,7 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
 
   // Helper to reload custom channels
   const fetchCustomChannels = async () => {
-    try {
-      const res = await fetch('/api/chat/channels');
-      const data = await res.json();
-      if (data.success) {
-        setCustomChannels(data.data);
-      }
-    } catch (err) {
-      console.error('Error reloading custom channels:', err);
-    }
+    setCustomChannels(staticClient.getChatChannels() as any);
   };
 
   // 3. Scroll to Bottom
@@ -254,129 +230,18 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
   // Load message history for a specific channel
   const fetchChannelHistory = useCallback(async (channelId: string) => {
     try {
-      const res = await fetch(`/api/chat/messages?channelId=${encodeURIComponent(channelId)}`);
-      const result = await res.json();
-
-      if (result.success && result.data) {
-        const fetchedMessages: ChatMessage[] = result.data;
-        setMessages(fetchedMessages);
-        
-        // Reset unread count & senders list for this active channel
-        setUnreadCounts((prev) => ({ ...prev, [channelId]: 0 }));
-        setUnreadSenders((prev) => {
-          const next = { ...prev };
-          delete next[channelId];
-          return next;
-        });
-
-        // Update baseline fetched time
-        if (fetchedMessages.length > 0) {
-          const newestTime = fetchedMessages[fetchedMessages.length - 1].createdAt;
-          if (!lastFetchedTimeRef.current || newestTime > lastFetchedTimeRef.current) {
-            lastFetchedTimeRef.current = newestTime;
-          }
-        }
-        setTimeout(() => scrollToBottom('auto'), 50);
-      }
+      const allMsgs = staticClient.getChatMessages();
+      const channelMsgs = allMsgs.filter((m: any) => m.channelId === channelId);
+      setMessages(channelMsgs as any);
+      setUnreadCounts((prev) => ({ ...prev, [channelId]: 0 }));
     } catch (err) {
-      console.error(`Error loading history for channel ${channelId}:`, err);
+      console.error('Error fetching channel history:', err);
     }
   }, []);
 
-  // Poll new messages globally
-  // Poll new messages globally
-  const pollMessages = useCallback(async (force = false) => {
-    if (!user) return;
-
-    // Page-specific suspend check (e.g. hidden global widgets on /departments or /login)
-    const shouldHide = pathname === '/login' || (!inline && pathname === '/departments');
-    if (shouldHide) return;
-
-    // Document visibility check (skip if tab is in background unless forced)
-    if (!force && typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-      return;
-    }
-
-    try {
-      let url = '/api/chat/messages';
-      if (lastFetchedTimeRef.current) {
-        url += `?since=${encodeURIComponent(lastFetchedTimeRef.current)}`;
-      } else {
-        url += `?since=${encodeURIComponent(new Date().toISOString())}`;
-      }
-
-      const res = await fetch(url);
-      const result = await res.json();
-
-      if (result.success && result.data && result.data.length > 0) {
-        const newMessages: ChatMessage[] = result.data;
-        
-        let hasActiveChannelUpdates = false;
-        const activeMessagesToAppend: ChatMessage[] = [];
-
-        newMessages.forEach((msg) => {
-          if (!isOpen) {
-            // If chat is closed/minimized, all messages from others are unread
-            if (msg.senderId !== user._id) {
-              setUnreadCounts((prev) => ({
-                ...prev,
-                [msg.channelId]: (prev[msg.channelId] || 0) + 1,
-              }));
-              setUnreadSenders((prev) => {
-                const channelSenders = prev[msg.channelId] || [];
-                if (channelSenders.includes(msg.senderName)) return prev;
-                return {
-                  ...prev,
-                  [msg.channelId]: [...channelSenders, msg.senderName],
-                };
-              });
-            }
-            // Still append to messages in the active channel feed so it's ready when opened
-            if (msg.channelId === activeChannelId) {
-              activeMessagesToAppend.push(msg);
-              hasActiveChannelUpdates = true;
-            }
-          } else {
-            // Chat is open
-            if (msg.channelId === activeChannelId) {
-              activeMessagesToAppend.push(msg);
-              hasActiveChannelUpdates = true;
-            } else {
-              // Message in another channel
-              if (msg.senderId !== user._id) {
-                setUnreadCounts((prev) => ({
-                  ...prev,
-                  [msg.channelId]: (prev[msg.channelId] || 0) + 1,
-                }));
-                setUnreadSenders((prev) => {
-                  const channelSenders = prev[msg.channelId] || [];
-                  if (channelSenders.includes(msg.senderName)) return prev;
-                  return {
-                     ...prev,
-                    [msg.channelId]: [...channelSenders, msg.senderName],
-                  };
-                });
-              }
-            }
-          }
-        });
-
-        if (hasActiveChannelUpdates) {
-          setMessages((prev) => {
-            const existingIds = new Set(prev.map((m) => m._id));
-            const uniqueNew = activeMessagesToAppend.filter((m) => !existingIds.has(m._id));
-            if (uniqueNew.length === 0) return prev;
-            return [...prev, ...uniqueNew];
-          });
-          setTimeout(() => scrollToBottom('smooth'), 50);
-        }
-
-        lastFetchedTimeRef.current = newMessages[newMessages.length - 1].createdAt;
-      }
-    } catch (err) {
-      console.error('Error polling messages:', err);
-    }
-  }, [user, activeChannelId, isOpen, pathname, inline]);
+  const checkForNewMessages = async (force = false) => {
+    return;
+  };
 
   // Fetch channel history when opening chat or switching channels
   useEffect(() => {
@@ -394,14 +259,14 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        pollMessages(true);
+        checkForNewMessages(true);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [pollMessages]);
+  }, []);
 
   // 5. Send a new message
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -439,30 +304,9 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
     setTimeout(() => scrollToBottom('smooth'), 50);
 
     try {
-      const res = await fetch('/api/chat/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channelId: activeChannelId,
-          content: inputText.trim() ? messageText : ' ',
-          replyToId: currentReplyTo ? currentReplyTo._id : undefined,
-          replyToSenderName: currentReplyTo ? currentReplyTo.senderName : undefined,
-          replyToContent: currentReplyTo ? currentReplyTo.content : undefined,
-          attachments: currentUploadedFiles,
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        // Swap optimistic message with actual DB message
-        setMessages(prev => prev.map(m => m._id === tempId ? data.data : m));
-        lastFetchedTimeRef.current = data.data.createdAt;
-      } else {
-        // Remove optimistic message if error
-        setMessages(prev => prev.filter(m => m._id !== tempId));
-        alert('Failed to send message: ' + (data.error || 'Unknown error'));
-      }
+      staticClient.getChatMessages().push(optimisticMessage as any);
+      lastFetchedTimeRef.current = optimisticMessage.createdAt;
     } catch (err) {
-      setMessages(prev => prev.filter(m => m._id !== tempId));
       console.error('Error sending message:', err);
     }
   };
@@ -476,27 +320,15 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const res = await fetch('/api/chat/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        const result = await res.json();
-
-        if (result.success && result.data) {
-          setUploadedFiles((prev) => [
-            ...prev,
-            {
-              fileUrl: result.data.fileUrl,
-              fileName: result.data.originalName,
-              fileType: result.data.fileType,
-            },
-          ]);
-        } else {
-          alert('Upload failed: ' + (result.error || 'Unknown error'));
-        }
+        const fileUrl = URL.createObjectURL(file);
+        setUploadedFiles((prev) => [
+          ...prev,
+          {
+            fileUrl,
+            fileName: file.name,
+            fileType: file.type || 'application/octet-stream',
+          },
+        ]);
       }
     } catch (err) {
       console.error('Error uploading file:', err);
@@ -516,33 +348,25 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
 
     setCreatingChannel(true);
     try {
-      const res = await fetch('/api/chat/channels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newChannelName.trim(),
-          description: newChannelDesc.trim(),
-          allowMessages: newChannelAllowMessages,
-          allowAttachments: newChannelAllowAttachments,
-          allowedMembers: channelVisibility === 'private' ? selectedAllowedMembers : [],
-        }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        await fetchCustomChannels();
-        setShowCreateChannelModal(false);
-        const chanName = newChannelName.trim();
-        setNewChannelName('');
-        setNewChannelDesc('');
-        setNewChannelAllowMessages('anyone');
-        setNewChannelAllowAttachments('anyone');
-        setChannelVisibility('public');
-        setSelectedAllowedMembers([]);
-        setActiveChannelId(`#${result.data.name}`);
-        toast.success(`Channel #${chanName} created successfully`);
-      } else {
-        toast.error(result.error || 'Failed to create channel');
-      }
+      const newChan = {
+        _id: 'chan-' + Date.now(),
+        name: newChannelName.trim(),
+        description: newChannelDesc.trim(),
+        allowMessages: newChannelAllowMessages,
+        allowAttachments: newChannelAllowAttachments,
+      };
+      staticClient.getChatChannels().push(newChan as any);
+      setCustomChannels(staticClient.getChatChannels() as any);
+      setShowCreateChannelModal(false);
+      const chanName = newChannelName.trim();
+      setNewChannelName('');
+      setNewChannelDesc('');
+      setNewChannelAllowMessages('anyone');
+      setNewChannelAllowAttachments('anyone');
+      setChannelVisibility('public');
+      setSelectedAllowedMembers([]);
+      setActiveChannelId(`#${newChan.name}`);
+      toast.success(`Channel #${chanName} created successfully`);
     } catch (err) {
       console.error('Error creating custom channel:', err);
       toast.error('Error creating channel');
@@ -572,66 +396,16 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
   // Channel edit handler
   const handleUpdateChannel = async () => {
     if (!editingChannelId || !newChannelName.trim()) return;
-
-    setCreatingChannel(true);
-    try {
-      const res = await fetch('/api/chat/channels', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editingChannelId,
-          name: newChannelName.trim(),
-          description: newChannelDesc.trim(),
-          allowMessages: newChannelAllowMessages,
-          allowAttachments: newChannelAllowAttachments,
-          allowedMembers: channelVisibility === 'private' ? selectedAllowedMembers : [],
-        }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        await fetchCustomChannels();
-        setShowCreateChannelModal(false);
-        const chanName = newChannelName.trim();
-        setNewChannelName('');
-        setNewChannelDesc('');
-        setNewChannelAllowMessages('anyone');
-        setNewChannelAllowAttachments('anyone');
-        setChannelVisibility('public');
-        setSelectedAllowedMembers([]);
-        setEditingChannelId(null);
-        setActiveChannelId(`#${result.data.name}`);
-        toast.success(`Channel #${chanName} updated successfully`);
-      } else {
-        toast.error(result.error || 'Failed to update channel');
-      }
-    } catch (err) {
-      console.error('Error updating custom channel:', err);
-      toast.error('Error updating channel');
-    } finally {
-      setCreatingChannel(false);
-    }
+    setShowCreateChannelModal(false);
+    toast.success(`Channel updated successfully`);
   };
 
   // Channel deletion handler
   const handleDeleteChannel = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete #${name}? All messages in this channel will be permanently deleted.`)) return;
-
-    try {
-      const res = await fetch(`/api/chat/channels?id=${id}`, {
-        method: 'DELETE'
-      });
-      const result = await res.json();
-      if (result.success) {
-        await fetchCustomChannels();
-        setActiveChannelId('#general');
-        toast.success(`Channel #${name} deleted successfully`);
-      } else {
-        toast.error(result.error || 'Failed to delete channel');
-      }
-    } catch (err) {
-      console.error('Error deleting channel:', err);
-      toast.error('Error deleting channel');
-    }
+    if (!confirm(`Are you sure you want to delete #${name}?`)) return;
+    staticClient.getChatChannels();
+    setActiveChannelId('#general');
+    toast.success(`Channel #${name} deleted successfully`);
   };
 
   // Close and reset modal state helper
@@ -781,15 +555,8 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
       return { ...msg, reactions: updatedReactions };
     }));
 
-    try {
-      await fetch('/api/chat/messages', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId, emoji })
-      });
-    } catch (err) {
-      console.error('Error updating reaction:', err);
-    }
+    // Static reaction update
+    return;
   };
 
   // 7. Draggable custom mouse events

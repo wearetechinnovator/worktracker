@@ -17,6 +17,7 @@ import {
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { CustomDatePicker } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
+import { staticClient } from '@/lib/staticClient';
 import { useModalDraft } from '@/context/ModalDraftContext';
 
 export interface ClientContact {
@@ -69,15 +70,8 @@ export default function CreateClientModal({
 
   // Fetch projects list if not supplied via props
   const fetchProjects = async () => {
-    try {
-      const res = await fetch('/api/projects');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setFetchedProjects(data.data);
-      }
-    } catch (e) {
-      console.error('Failed to fetch projects in CreateClientModal:', e);
-    }
+    const data = staticClient.getProjects();
+    setFetchedProjects(data as any);
   };
 
   useEffect(() => {
@@ -220,28 +214,24 @@ export default function CreateClientModal({
         projects: selectedProjectIds,
       };
 
-      const res = await fetch('/api/clients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload),
-      });
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to create client');
-      }
+      const newClient = {
+        _id: 'client-' + Date.now(),
+        ...bodyPayload,
+        createdAt: new Date().toISOString()
+      };
+      staticClient.getClients().unshift(newClient as any);
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('worktracker-refresh'));
-        window.dispatchEvent(new CustomEvent('clients-updated', { detail: data.data }));
+        window.dispatchEvent(new CustomEvent('clients-updated', { detail: newClient }));
       }
 
       clearDraft(draftKey);
       resetForm();
-      const clientName = data.data?.name || name.trim();
+      const clientName = name.trim();
       toast.success(`${clientName} created successfully`);
       if (onSuccess) {
-        onSuccess(data.data);
+        onSuccess(newClient);
       }
       onClose();
     } catch (err: any) {

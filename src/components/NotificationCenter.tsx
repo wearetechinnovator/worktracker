@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell, CheckCheck, Clock, CheckCircle2, ClipboardList, ExternalLink, X } from 'lucide-react';
 import { requestNotificationPermission, sendNativeNotification } from '@/lib/notifications';
+import { staticClient } from '@/lib/staticClient';
 
 interface NotificationItem {
   _id: string;
@@ -50,25 +51,9 @@ export default function NotificationCenter() {
   const fetchNotifications = async () => {
     if (!user) return;
     try {
-      const res = await fetch(`/api/notifications?userId=${user._id}`);
-      const result = await res.json();
-      if (result.success) {
-        const list: NotificationItem[] = result.data.notifications;
-        const newUnread = result.data.unreadCount;
-
-        // Check if a brand new unread notification arrived
-        if (list.length > 0) {
-          const newest = list[0];
-          if (lastFetchedIdRef.current && newest._id !== lastFetchedIdRef.current && !newest.read) {
-            // Trigger native OS notification
-            sendNativeNotification(newest.title, newest.message, newest.link || '/tasks');
-          }
-          lastFetchedIdRef.current = newest._id;
-        }
-
-        setNotifications(list);
-        setUnreadCount(newUnread);
-      }
+      const list = staticClient.getNotifications();
+      setNotifications(list as any);
+      setUnreadCount(list.filter(n => !n.read).length);
     } catch (err) {
       console.error('Error fetching notifications:', err);
     }
@@ -109,33 +94,15 @@ export default function NotificationCenter() {
   };
 
   const markAllRead = async () => {
-    try {
-      await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markAllRead: true }),
-      });
-      setUnreadCount(0);
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch (err) {
-      console.error('Error marking all as read:', err);
-    }
+    setUnreadCount(0);
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
   const markSingleRead = async (id: string, link?: string) => {
-    try {
-      await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notificationId: id }),
-      });
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-      setNotifications((prev) => prev.map((n) => (n._id === id ? { ...n, read: true } : n)));
-      if (link) {
-        window.location.href = link;
-      }
-    } catch (err) {
-      console.error('Error marking notification as read:', err);
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+    setNotifications((prev) => prev.map((n) => (n._id === id ? { ...n, read: true } : n)));
+    if (link) {
+      window.location.href = link;
     }
   };
 

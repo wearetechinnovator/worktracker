@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
 import dynamic from 'next/dynamic';
+import { staticClient } from '@/lib/staticClient';
 
 const CKEditorComponent = dynamic(
   () => import('@/components/CKEditorWrapper'),
@@ -123,35 +124,27 @@ export default function MyTasks({ userId }: { userId: string }) {
   const handleAddComment = async (taskId: string) => {
     if (!newCommentText.trim() || !userId) return;
     setSubmittingComment(true);
-    try {
-      const res = await fetch(`/api/tasks/${taskId}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: newCommentText.trim(),
-          userId: userId,
-          newStatus: newCommentStatus || undefined,
-        }),
+    const newComment = {
+      _id: 'comment-' + Date.now(),
+      author: {
+        _id: userId,
+        name: 'Alex Johnson',
+        avatarColor: '#4f46e5',
+        role: 'System Administrator'
+      },
+      content: newCommentText.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    setNewCommentText('');
+    setNewCommentStatus('');
+    if (selectedTaskForDetails && selectedTaskForDetails._id === taskId) {
+      const updatedComments = [...(selectedTaskForDetails.commentsList || []), newComment];
+      setSelectedTaskForDetails({
+        ...selectedTaskForDetails,
+        commentsList: updatedComments,
       });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error);
-
-      setNewCommentText('');
-      setNewCommentStatus('');
-      if (selectedTaskForDetails && selectedTaskForDetails._id === taskId) {
-        setSelectedTaskForDetails({
-          ...selectedTaskForDetails,
-          commentsList: result.data,
-          status: result.taskStatus || selectedTaskForDetails.status,
-        });
-      }
-      loadData();
-    } catch (err: any) {
-      console.error('Error posting comment:', err);
-      alert(err.message || 'Failed to post comment');
-    } finally {
-      setSubmittingComment(false);
     }
+    setSubmittingComment(false);
   };
 
   const handleCopyComment = (commentId: string, content: string) => {
@@ -181,18 +174,7 @@ export default function MyTasks({ userId }: { userId: string }) {
   const openTaskDetailsModal = async (task: Task) => {
     setSelectedTaskForDetails(task);
     setTaskWorkSessions([]);
-    setLoadingSessions(true);
-    try {
-      const res = await fetch(`/api/task-work?taskId=${task._id}`);
-      const data = await res.json();
-      if (data.success) {
-        setTaskWorkSessions(data.data);
-      }
-    } catch (err) {
-      console.error('Error fetching task work sessions:', err);
-    } finally {
-      setLoadingSessions(false);
-    }
+    setLoadingSessions(false);
   };
 
   const closeTaskDetailsModal = () => {
@@ -312,8 +294,7 @@ export default function MyTasks({ userId }: { userId: string }) {
       let completedEntries: any[] = [];
 
       try {
-        const worksRes = await fetch(`/api/task-work?employeeId=${empId}&limit=100`);
-        const worksData = await worksRes.json();
+        const worksData = await staticClient.getTaskWork({ employeeId: empId });
 
         if (worksData.success && Array.isArray(worksData.data)) {
           completedEntries = worksData.data.filter((e: any) => e.status === 'Completed' && (e.date === today || !e.date));
@@ -392,27 +373,9 @@ export default function MyTasks({ userId }: { userId: string }) {
   };
 
   const loadData = useCallback(async () => {
-    try {
-      setTimeout(() => setLoading(true), 0);
-      const [tasksRes, worksRes] = await Promise.all([
-        fetch(`/api/tasks?employeeId=${userId}`),
-        fetch(`/api/task-work?limit=300`),
-      ]);
-
-      const tasksData = await tasksRes.json();
-      const worksData = await worksRes.json();
-
-      if (!tasksData.success) throw new Error(tasksData.error);
-      if (!worksData.success) throw new Error(worksData.error);
-
-      setTasks(tasksData.data);
-      setTaskWorks(worksData.data);
-    } catch (err: unknown) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
+    setTasks(staticClient.getTasks() as any);
+    setTaskWorks([] as any);
+    setLoading(false);
   }, [userId]);
 
   // Live timer tick for active tasks (paused when End Work dialog is open)
@@ -430,94 +393,15 @@ export default function MyTasks({ userId }: { userId: string }) {
   }, [loadData]);
 
   const handleStartWork = async (taskId: string) => {
-    try {
-      setProcessingTaskId(taskId);
-      setError(null);
-      setSuccessMsg(null);
-
-      const localDate = getLocalDateValue(new Date());
-      const localTime = getLocalTimeValue(new Date());
-
-      const res = await fetch('/api/task-work', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId, employeeId: userId, localDate, localTime }),
-      });
-
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error);
-
-      setSuccessMsg('Work started! Timer is running...');
-      setTimeout(() => setSuccessMsg(null), 3000);
-      loadData();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setProcessingTaskId(null);
-    }
+    setSuccessMsg('Work started! Timer is running...');
+    setTimeout(() => setSuccessMsg(null), 3000);
   };
 
   const handleEndWork = async (workId: string) => {
-    console.log('Ending work for:', workId);
-    try {
-      setProcessingTaskId(workId);
-      setError(null);
-      setSuccessMsg(null);
-
-      const hasNotes = workNotes.trim() !== '';
-      const hasLinks = stripHtml(workLinks) !== '';
-      const notes = hasNotes || hasLinks
-        ? `${workNotes}${hasNotes && hasLinks ? '\n\n' : ''}${workLinks}`
-        : undefined;
-
-      console.log('Sending request with notes:', notes);
-
-      const now = frozenEndTime || new Date();
-      const priorPausedMs = (selectedWorkId && pausedDurations[selectedWorkId]) || 0;
-      const effectiveEndTime = new Date(now.getTime() - priorPausedMs);
-      const localTime = getLocalTimeValue(effectiveEndTime);
-
-      const res = await fetch(`/api/task-work/${workId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes, localTime, isFullyCompleted: completionStatus === 'full' }),
-      });
-
-      const result = await res.json();
-      console.log('API Response:', result);
-
-      if (!result.success) throw new Error(result.error);
-
-      setSuccessMsg(result.message);
-      setTimeout(() => setSuccessMsg(null), 4000);
-
-      if (selectedWorkId) {
-        setPausedDurations(prev => {
-          const next = { ...prev };
-          delete next[selectedWorkId];
-          return next;
-        });
-      }
-
-      // Reset dialog
-      setShowEndWorkDialog(false);
-      setSelectedWorkId(null);
-      setFrozenEndTime(null);
-      setPauseStartTime(null);
-      setWorkNotes('');
-      setWorkLinks('');
-
-      loadData();
-
-      if (userId) {
-        generateDailyMailReport(userId, result.data);
-      }
-    } catch (err: unknown) {
-      console.error('Error ending work:', err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setProcessingTaskId(null);
-    }
+    setSuccessMsg('Work session completed!');
+    setTimeout(() => setSuccessMsg(null), 3000);
+    setShowEndWorkDialog(false);
+    setSelectedWorkId(null);
   };
 
   const openEndWorkDialog = (workId: string) => {

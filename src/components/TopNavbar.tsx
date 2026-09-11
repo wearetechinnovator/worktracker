@@ -23,6 +23,7 @@ import NotificationCenter from '@/components/NotificationCenter';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import CreateClientModal from '@/components/CreateClientModal';
+import { staticClient } from '@/lib/staticClient';
 import CreateTaskModal from '@/components/CreateTaskModal';
 import {
   CustomDropdown,
@@ -197,43 +198,18 @@ export default function TopNavbar() {
     const parsedUser = JSON.parse(storedUser);
     setUser(parsedUser);
 
-    try {
-      const meRes = await fetch('/api/auth/me');
-      const meData = await meRes.json();
-      let currentUserObj = parsedUser;
-      if (meData.success && meData.data) {
-        currentUserObj = meData.data;
-        setUser(currentUserObj);
-        localStorage.setItem('worktracker_user', JSON.stringify(currentUserObj));
-      }
-      const admin = currentUserObj.userType === 'admin' || Boolean(currentUserObj.isSystemAdmin);
-      setIsAdmin(admin);
+    const currentUserObj = staticClient.getUser();
+    setUser(currentUserObj);
+    const admin = currentUserObj.userType === 'admin' || Boolean(currentUserObj.isSystemAdmin);
+    setIsAdmin(admin);
 
-      const [empRes, projRes, clientRes] = await Promise.all([
-        fetch('/api/employees'),
-        fetch('/api/projects'),
-        fetch('/api/clients'),
-      ]);
-      const empData = await empRes.json();
-      const projData = await projRes.json();
-      const clientData = await clientRes.json();
+    setEmployees(staticClient.getEmployees());
+    setProjects(staticClient.getProjects());
+    setClientsList(staticClient.getClients());
 
-      if (empData.success) setEmployees(empData.data);
-      if (projData.success) setProjects(projData.data);
-      if (clientData.success) setClientsList(clientData.data);
-
-      // Check punch status for employees
-      if (!admin && parsedUser._id) {
-        const punchRes = await fetch(`/api/punch?employeeId=${parsedUser._id}`);
-        const punchData = await punchRes.json();
-        if (punchData.success) {
-          setIsPunchedIn(punchData.isPunchedIn);
-          setCanPunchOut(punchData.canPunchOut !== false);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load navbar resources:', e);
-    }
+    const punch = staticClient.getPunchStatus();
+    setIsPunchedIn(punch.isPunchedIn);
+    setCanPunchOut(punch.canPunchOut);
   };
 
   useEffect(() => {
