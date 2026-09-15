@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
+import { createSession, sessionCookie } from "@/lib/session";
 
 export async function POST(req: Request) {
     try {
@@ -59,16 +60,25 @@ export async function POST(req: Request) {
                 { status: 401 }
             );
         }
-
-        return NextResponse.json({
+        const { token, expiresAt } = createSession(
+            user._id.toString(),
+            user.user_role === 1 ? "admin" : "employee"
+        );
+        const response = NextResponse.json({
             success: true,
             message: "Login successful",
             data: {
-                id: user._id,
-                full_name: user.full_name,
-                email: user.email,
+                user_role: user.user_role,
             },
         });
+        response.cookies.set({
+            ...sessionCookie.options,
+            name: sessionCookie.name,
+            value: token,
+            expires: expiresAt,
+        });
+        return response;
+
     } catch (error) {
         console.error("Login API Error:", error);
 

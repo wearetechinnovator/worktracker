@@ -51,7 +51,7 @@ export default function OtpPage() {
 
 			// Dashboard components use this client-side session to render navigation.
 			localStorage.setItem('worktracker_user', JSON.stringify(staticClient.getUser()));
-			router.replace("/dashboard");
+			router.push("admin/dashboard");
 
 		} catch (error) {
 			console.error(error);

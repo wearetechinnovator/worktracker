@@ -9,28 +9,23 @@ import Attendance from '@/models/Attendance';
 import { readSession, sessionCookie } from '@/lib/session';
 import { ALL_PERMISSION_KEYS } from '@/lib/permissions';
 import { mockStore } from '@/lib/mockData';
+import User from '@/models/User';
+import { use } from 'react';
 
 export async function currentUser() {
   const token = (await cookies()).get(sessionCookie.name)?.value;
   const session = readSession(token);
   
   // If session is present or in demo mode, return demo user
-  const demoUser = mockStore.user;
-  return {
-    id: demoUser._id,
-    _id: demoUser._id,
-    name: demoUser.name,
-    email: demoUser.email,
-    userType: demoUser.userType,
-    role: demoUser.role,
-    roleId: demoUser.roleId,
-    Project: demoUser.Project,
-    avatarColor: demoUser.avatarColor,
-    workMode: demoUser.workMode,
-    isSystemAdmin: demoUser.isSystemAdmin,
-    permissions: demoUser.permissions,
-    isPunchedIn: demoUser.isPunchedIn ?? true,
-  };
+  if(!session){
+    return null;
+  }
+  const user = await User.findById(session.userId);
+
+  if(!user){
+    return null;
+  }
+  return user;
 }
 
 export async function requireUser() {

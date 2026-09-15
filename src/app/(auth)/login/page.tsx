@@ -14,11 +14,43 @@ export default function LoginPage() {
 	const [password, setPassword] = useState('');
 	const [showPassword, setShowPassword] = useState(false);
 
-	const handleLogin = (e: React.FormEvent) => {
+	const handleLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
-		const demoUser = staticClient.getUser();
-		localStorage.setItem('worktracker_user', JSON.stringify(demoUser));
-		router.push('/dashboard');
+
+		try {
+			const response = await fetch(
+				"/api/auth/login",
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						email,
+						password,
+					}),
+				}
+			);
+
+			const data = await response.json();
+
+			if (!response.ok) {
+				alert(data.message);
+				return;
+			}
+
+			if (data.data?.user_role === 1) {
+				router.push('/admin/dashboard');
+			} else if (data.data?.user_role === 2) {
+				router.push('/user/dashboard');
+			} else {
+				alert('Invalid user role');
+			}
+
+		} catch (error) {
+			console.error(error);
+			alert("Something went wrong");
+		}
 	};
 
 	return (

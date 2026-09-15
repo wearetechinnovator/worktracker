@@ -31,9 +31,8 @@ const userSchema = new Schema(
             default: null,
         },
 
-        group_id: {
-            type: Schema.Types.ObjectId,
-            ref: "group",
+        group: {
+            type: String,
             default: null,
         },
 

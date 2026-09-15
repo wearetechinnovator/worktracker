@@ -49,12 +49,7 @@ export default function RegisterPage() {
 			alert("Something went wrong");
 		}
 	};
-	const handleLogin = (e: React.FormEvent) => {
-		e.preventDefault();
-		const demoUser = staticClient.getUser();
-		localStorage.setItem('worktracker_user', JSON.stringify(demoUser));
-		router.push('/dashboard');
-	};
+	
 
 	return (
 		<div style={{

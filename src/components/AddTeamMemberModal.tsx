@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Loader2, UserPlus, AlertCircle, User, Mail, Lock, Briefcase } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Eye, EyeOff, Loader2, UserPlus, AlertCircle, User, Mail, Lock, Briefcase, UserStar } from 'lucide-react';
 import { CustomDropdown } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
 import { staticClient } from '@/lib/staticClient';
@@ -47,6 +47,7 @@ export default function AddTeamMemberModal({
   const [role, setRole] = useState(mode === 'add' ? '' : employee?.role || '');
   const [roleId, setRoleId] = useState('');
   const [project, setProject] = useState(mode === 'add' ? '' : employee?.Project || '');
+  const [group, setGroup] = useState('');
   const [status, setStatus] = useState(mode === 'add' ? 'Active' : employee?.status || 'Active');
   const [workMode, setWorkMode] = useState(mode === 'add' ? 'Hybrid' : employee?.workMode || 'Hybrid');
   const [avatarColor, setAvatarColor] = useState(employee?.avatarColor || '#3b82f6');
@@ -101,45 +102,62 @@ export default function AddTeamMemberModal({
 
   const draftKey = mode === 'add' ? 'add-employee' : `edit-employee-${employee?._id || 'unknown'}`;
   const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
-
+const initializedModalRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!isOpen) return;
+  if (!isOpen) {
+    initializedModalRef.current = null;
+    return;
+  }
 
-    setModalOpenState(draftKey, true);
+  if (initializedModalRef.current === draftKey) {
+    return;
+  }
 
-    // Check if there is an active draft
-    const draft = getDraft(draftKey);
-    if (draft) {
-      if (draft.name !== undefined) setName(draft.name);
-      if (draft.email !== undefined) setEmail(draft.email);
-      if (draft.password !== undefined) setPassword(draft.password);
-      if (draft.role !== undefined) setRole(draft.role);
-      if (draft.roleId !== undefined) setRoleId(draft.roleId);
-      if (draft.project !== undefined) setProject(draft.project);
-      if (draft.status !== undefined) setStatus(draft.status);
-      if (draft.workMode !== undefined) setWorkMode(draft.workMode);
-      if (draft.avatarColor !== undefined) setAvatarColor(draft.avatarColor);
-      if (draft.userType !== undefined) setUserType(draft.userType);
-      setError(null);
-      return;
-    }
+  initializedModalRef.current = draftKey;
+  setModalOpenState(draftKey, true);
 
-    if (mode === 'edit' && employee) {
-      setName(employee.name);
-      setEmail(employee.email);
-      setPassword(employee.password || 'password123');
-      setRole(employee.role || '');
-      setProject(employee.Project || '');
-      setStatus(employee.status || 'Active');
-      setWorkMode(employee.workMode || 'Hybrid');
-      setAvatarColor(employee.avatarColor || '#3b82f6');
-      setUserType(employee.userType || 'employee');
-      setError(null);
-    } else if (mode === 'add') {
-      resetForm();
-    }
-  }, [employee, isOpen, mode, draftKey, getDraft, setModalOpenState]);
+  const draft = getDraft(draftKey);
 
+  if (draft) {
+    if (draft.name !== undefined) setName(draft.name);
+    if (draft.email !== undefined) setEmail(draft.email);
+    if (draft.password !== undefined) setPassword(draft.password);
+    if (draft.role !== undefined) setRole(draft.role);
+    if (draft.roleId !== undefined) setRoleId(draft.roleId);
+    if (draft.project !== undefined) setProject(draft.project);
+    if (draft.group !== undefined) setGroup(draft.group);
+    if (draft.status !== undefined) setStatus(draft.status);
+    if (draft.workMode !== undefined) setWorkMode(draft.workMode);
+    if (draft.avatarColor !== undefined) setAvatarColor(draft.avatarColor);
+    if (draft.userType !== undefined) setUserType(draft.userType);
+
+    setError(null);
+    return;
+  }
+
+  if (mode === 'edit' && employee) {
+    setName(employee.name);
+    setEmail(employee.email);
+    setPassword(employee.password || 'password123');
+    setRole(employee.role || '');
+    setProject(employee.Project || '');
+    setGroup((employee as Employee & { group?: string }).group || '');
+    setStatus(employee.status || 'Active');
+    setWorkMode(employee.workMode || 'Hybrid');
+    setAvatarColor(employee.avatarColor || '#3b82f6');
+    setUserType(employee.userType || 'employee');
+    setError(null);
+  } else {
+    resetForm();
+  }
+}, [
+  isOpen,
+  draftKey,
+  mode,
+  employee?._id,
+  getDraft,
+  setModalOpenState,
+]);
   if (!isOpen) return null;
 
   // Pure dynamic designation options from database and current selection
@@ -171,6 +189,7 @@ export default function AddTeamMemberModal({
     setRole('');
     setRoleId('');
     setProject('');
+    setGroup('');
     setStatus('Active');
     setWorkMode('Hybrid');
     setAvatarColor('#3b82f6');
@@ -185,6 +204,7 @@ export default function AddTeamMemberModal({
         email.trim() ||
         role.trim() ||
         project.trim() ||
+        group.trim() ||
         (password && password !== 'password123')
       );
     }
@@ -218,6 +238,7 @@ export default function AddTeamMemberModal({
           role,
           roleId,
           project,
+          group,
           status,
           workMode,
           avatarColor,
@@ -232,21 +253,22 @@ export default function AddTeamMemberModal({
     onClose();
   };
 
-  const handleSubmit = async (e: any) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!name.trim() || !email.trim() || (mode === 'add' && !password.trim()) || !role.trim()) {
-      setError('Please fill all required fields');
+    if (
+      !name.trim() ||
+      !email.trim() ||
+      (mode === "add" && !password.trim()) ||
+      !role.trim()
+    ) {
+      setError("Please fill all required fields");
       return;
     }
 
     try {
       setSubmitting(true);
       setError(null);
-
-      if (mode === 'edit' && !employee?._id) {
-        throw new Error('Employee details are unavailable');
-      }
 
       const updateBody: Record<string, string> = {
         name: name.trim(),
@@ -258,33 +280,83 @@ export default function AddTeamMemberModal({
         avatarColor,
         userType,
       };
-      if (password.trim()) updateBody.password = password.trim();
 
-      const newEmp = {
-        _id: mode === 'add' ? 'emp-' + Date.now() : employee?._id,
-        ...updateBody
+      if (password.trim()) {
+        updateBody.password = password.trim();
+      }
+
+      if (mode === "add") {
+        const response = await fetch("/api/users/employees", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: name.trim(),
+            email: email.trim(),
+            password: password.trim(),
+            designation: role.trim(),
+            group: group || null,
+            status,
+            workMode,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to create employee");
+        }
+
+        const newEmployee = data.data;
+
+        window.dispatchEvent(
+          new CustomEvent("employees-updated", {
+            detail: newEmployee,
+          })
+        );
+
+        clearDraft(draftKey);
+        resetForm();
+
+        toast.success(`${name.trim()} added successfully`);
+        onSuccess?.(newEmployee);
+        onClose();
+
+        return;
+      }
+
+      if (!employee?._id) {
+        throw new Error("Employee details are unavailable");
+      }
+
+      const updatedEmployee = {
+        _id: employee._id,
+        ...updateBody,
       };
-      if (mode === 'add') {
-        staticClient.getEmployees().unshift(newEmp as any);
-      } else if (employee) {
-        const idx = staticClient.getEmployees().findIndex(e => e._id === employee._id);
-        if (idx !== -1) staticClient.getEmployees()[idx] = newEmp as any;
+
+      const employeeIndex = staticClient
+        .getEmployees()
+        .findIndex((item) => item._id === employee._id);
+
+      if (employeeIndex !== -1) {
+        staticClient.getEmployees()[employeeIndex] = updatedEmployee as any;
       }
 
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('employees-updated', { detail: newEmp }));
-      }
+      window.dispatchEvent(
+        new CustomEvent("employees-updated", {
+          detail: updatedEmployee,
+        })
+      );
 
       clearDraft(draftKey);
       resetForm();
-      const empName = name.trim();
-      toast.success(mode === 'add' ? `${empName} added successfully` : `${empName} updated successfully`);
-      if (onSuccess) {
-        onSuccess(newEmp);
-      }
+
+      toast.success(`${name.trim()} updated successfully`);
+      onSuccess?.(updatedEmployee);
       onClose();
     } catch (err: any) {
-      setError(err.message || 'An error occurred while creating member.');
+      setError(err.message || "An error occurred while saving member.");
     } finally {
       setSubmitting(false);
     }
@@ -457,12 +529,12 @@ export default function AddTeamMemberModal({
             <CustomDropdown
               label="Default Project"
               placeholder="Select Project"
-              value={project}
+              value={group}
               options={allProjectOptions.map((p) => ({
                 value: p,
                 label: p,
               }))}
-              onChange={(val) => setProject(val)}
+              onChange={(val) => setGroup(val)}
             />
           </div>
 
