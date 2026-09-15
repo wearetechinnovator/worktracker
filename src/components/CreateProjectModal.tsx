@@ -22,8 +22,9 @@ import {
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import CreateClientModal from '@/components/CreateClientModal';
 import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
+import { createProject } from '@/lib/projectApi';
 import { useModalDraft } from '@/context/ModalDraftContext';
+import { staticClient } from '@/lib/staticClient';
 
 export interface CreateProjectModalProps {
   isOpen: boolean;
@@ -227,23 +228,34 @@ export default function CreateProjectModal({
       setSubmitting(true);
       setError(null);
 
-      const bodyPayload: any = {
+      // Backend project payload.
+      // UI uses "description" and "selectedMembers", while the API expects
+      // "short_description" and "project_users".
+      const bodyPayload = {
         name: name.trim(),
-        description: description.trim(),
-        color: selectedColor,
-        members: selectedMembers,
+        short_description: description.trim(),
+        project_users: selectedMembers,
+        client: selectedClientId || null,
+        created_by: undefined,
+        modified_by: undefined,
       };
 
-      if (selectedClientId) {
-        bodyPayload.clientId = selectedClientId;
+      // Use the logged-in user as creator/modifier when available.
+      // The API can ignore these fields if it derives them from auth/session.
+      if (typeof window !== 'undefined') {
+        try {
+          const storedUser = localStorage.getItem('worktracker_user');
+          if (storedUser) {
+            const currentUser = JSON.parse(storedUser);
+            bodyPayload.created_by = currentUser?._id || currentUser?.id;
+            bodyPayload.modified_by = currentUser?._id || currentUser?.id;
+          }
+        } catch {
+          // Do not block project creation if localStorage contains invalid data.
+        }
       }
 
-      const newProj = {
-        _id: 'proj-' + Date.now(),
-        ...bodyPayload,
-        createdAt: new Date().toISOString()
-      };
-      staticClient.getProjects().unshift(newProj as any);
+      const newProj = await createProject(bodyPayload);
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('worktracker-refresh'));

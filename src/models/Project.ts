@@ -1,32 +1,36 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
+import { number } from "motion";
 
-export interface IProject extends Document {
-  name: string;
-  description?: string;
-  color: string;
-  members: mongoose.Types.ObjectId[];
-  clientId?: mongoose.Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
+const projectSchema = new Schema({
+  name: String,
+  short_description: String,
 
-const ProjectSchema = new Schema<IProject>(
-  {
-    name: { type: String, required: true, trim: true },
-    description: { type: String, trim: true },
-    color: { type: String, default: '#3b82f6' },
-    members: [{ type: Schema.Types.ObjectId, ref: 'Employee' }],
-    clientId: { type: Schema.Types.ObjectId, ref: 'Client' },
+  project_users: Array,
+  start_date: {
+    type: Date,
+    default: Date.now()
   },
-  { timestamps: true }
-);
+  end_date: Date,
+  client: String,
 
-ProjectSchema.index({ members: 1, createdAt: -1 });
+  created_by: {
+    type: Schema.Types.ObjectId,
+    ref: "users",
+  },
 
-if (mongoose.models && mongoose.models.Project) {
-  delete (mongoose.models as any).Project;
-}
 
-const Project: Model<IProject> = mongoose.models.Project || mongoose.model<IProject>('Project', ProjectSchema);
+  modified_by: {
+    type: Schema.Types.ObjectId,
+    ref: "users",
+  },
+
+
+  status: Boolean,
+},
+  { timestamps: true, });
+
+const Project =
+  mongoose.models.Project ||
+  mongoose.model("Project", projectSchema);
 
 export default Project;

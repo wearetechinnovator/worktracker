@@ -41,6 +41,12 @@ interface Project {
     address?: string;
     duration?: string;
   } | null;
+  start_date?: string;
+  end_date?: string;
+  created_by?: any;
+  modified_by?: any;
+  isVerify?: boolean;
+  status?: boolean;
 }
 
 interface WorkEntry {
@@ -207,11 +213,66 @@ export default function ProjectsPage() {
       setLoading(true);
       setError(null);
 
-      let loadedProjects = staticClient.getProjects() as any[];
+      const projectResponse = await fetch('/api/projects', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+      });
+
+      const projectResult = await projectResponse.json();
+      if (!projectResponse.ok || projectResult.success === false) {
+        throw new Error(projectResult.message || 'Failed to load projects');
+      }
+
+      const apiProjects = Array.isArray(projectResult.data)
+        ? projectResult.data
+        : Array.isArray(projectResult.projects)
+          ? projectResult.projects
+          : [];
+
+      const loadedProjects: Project[] = apiProjects.map((project: any, index: number) => {
+        const members = Array.isArray(project.project_users)
+          ? project.project_users
+          : Array.isArray(project.members)
+            ? project.members
+            : [];
+
+        const client = project.client && typeof project.client === 'object'
+          ? project.client
+          : null;
+
+        return {
+          _id: String(project._id),
+          name: project.name || 'Untitled Project',
+          description: project.short_description ?? project.description ?? '',
+          color: project.color || colors[index % colors.length],
+          totalMinutes: 0,
+          entryCount: 0,
+          taskCount: project.taskCount || 0,
+          members,
+          clientId: client ? {
+            _id: String(client._id),
+            name: client.name || '',
+            emails: Array.isArray(client.emails) ? client.emails : [],
+            address: client.address,
+            duration: client.duration,
+          } : (typeof project.client === 'string' ? {
+            _id: project.client,
+            name: 'Client',
+            emails: [],
+          } : null),
+          start_date: project.start_date,
+          end_date: project.end_date,
+          created_by: project.created_by,
+          modified_by: project.modified_by,
+          isVerify: project.isVerify,
+          status: project.status,
+        };
+      });
+
       const loadedEmployees = staticClient.getEmployees() as any[];
       const loadedWork = staticClient.getWorkEntries() as any[];
       const loadedClients = staticClient.getClients() as any[];
-      const loadedRoles = staticClient.getRoles() as any[];
 
       setEmployees(loadedEmployees);
       setEntries(loadedWork as any);
@@ -271,26 +332,36 @@ export default function ProjectsPage() {
       setSavingDept(true);
 
       const bodyPayload: any = {
-        name: deptName,
-        description: deptDesc,
-        color: deptColor,
-        members: deptMembers
+        name: deptName.trim(),
+        short_description: deptDesc.trim(),
+        project_users: deptMembers,
+        client: selectedClientId || null,
+        modified_by: user?._id || user?.id || null,
       };
 
+      // If your API supports creating a client from the project endpoint, this
+      // object is forwarded as-is. Otherwise remove this block and create the
+      // client through your clients API first.
       if (selectedClientId === 'new') {
+        bodyPayload.client = null;
         bodyPayload.clientInfo = {
-          name: newClientName,
-          phone: newClientPhone,
-          emails: newClientEmails,
-          address: newClientAddress,
-          duration: newClientDuration
+          name: newClientName.trim(),
+          phone: newClientPhone.trim(),
+          emails: newClientEmails.split(',').map((e: string) => e.trim()).filter(Boolean),
+          address: newClientAddress.trim(),
+          duration: newClientDuration.trim(),
         };
-      } else {
-        bodyPayload.clientId = selectedClientId || null;
       }
 
-      const result = await staticClient.updateProject(selectedProjId, bodyPayload);
-      if (!result.success) throw new Error('Failed to save Project changes');
+      const response = await fetch(`/api/projects?id=${encodeURIComponent(selectedProjId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyPayload),
+      });
+      const result = await response.json();
+      if (!response.ok || result.success === false) {
+        throw new Error(result.message || 'Failed to save Project changes');
+      }
 
       setNewClientName('');
       setNewClientPhone('');
@@ -313,8 +384,14 @@ export default function ProjectsPage() {
     if (!selectedProjId || !confirm(`Are you sure you want to delete ${projName}? All associated logs will be deleted!`)) return;
 
     try {
-      const result = await staticClient.deleteProject(selectedProjId);
-      if (!result.success) throw new Error('Failed to delete Project');
+      const response = await fetch(`/api/projects?id=${encodeURIComponent(selectedProjId)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const result = await response.json();
+      if (!response.ok || result.success === false) {
+        throw new Error(result.message || 'Failed to delete Project');
+      }
 
       setSelectedProjId(null);
       setEditMode(false);
