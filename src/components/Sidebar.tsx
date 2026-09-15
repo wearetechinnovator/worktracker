@@ -14,10 +14,6 @@ import NotificationCenter from '@/components/NotificationCenter';
 import { getClientPunchLocation } from '@/lib/geoClient';
 import { staticClient } from '@/lib/staticClient';
 
-
-
-
-
 export default function Sidebar() {
 	const pathname = usePathname();
 	const [user, setUser] = useState<any>(null);
@@ -67,18 +63,29 @@ export default function Sidebar() {
 	};
 
 	useEffect(() => {
-		// Restore the client session so navigation remains visible on dashboard routes.
-		const storedUser = localStorage.getItem('worktracker_user');
-		if (!storedUser) {
-			setUser(staticClient.getUser());
-			return;
-		}
+		const loadCurrentUser = async () => {
+			try {
+				const response = await fetch("/api/auth/me", {
+					method: "GET",
+					credentials: "include",
+					cache: "no-store",
+				});
 
-		try {
-			setUser(JSON.parse(storedUser));
-		} catch {
-			setUser(staticClient.getUser());
-		}
+				const result = await response.json();
+
+				if (!response.ok || !result.success || !result.user) {
+					setUser(null);
+					return;
+				}
+
+				setUser(result.user);
+			} catch (error) {
+				console.error("Failed to load current user:", error);
+				setUser(null);
+			}
+		};
+
+		loadCurrentUser();
 	}, [pathname]);
 
 	// Check punch status for employees
@@ -90,7 +97,7 @@ export default function Sidebar() {
 			}
 
 			// Admin doesn't need punch check
-			if (user.userType === 'admin') {
+			if (Number(user.user_role) === 1) {
 				setIsPunchedIn(true);
 				setCheckingPunch(false);
 				return;
@@ -102,14 +109,14 @@ export default function Sidebar() {
 			setCheckingPunch(false);
 		};
 
-		if (user && pathname !== '/login') {
+		if (user) {
 			checkPunchStatus();
 		} else {
 			setCheckingPunch(false);
 		}
 
 		const handlePunchStatusChange = () => {
-			if (user && pathname !== '/login') {
+			if (user) {
 				checkPunchStatus();
 			}
 		};
@@ -120,48 +127,9 @@ export default function Sidebar() {
 		};
 	}, [user, pathname]);
 
-	// Check login status & punch in status
-	useEffect(() => {
-		const checkStatus = async () => {
-			const storedUser = localStorage.getItem('worktracker_user');
-			if (!storedUser) return;
-			const parsed = JSON.parse(storedUser);
-			setUser(parsed);
-
-			try {
-				const today = new Date().toISOString().split('T')[0];
-				const attendanceData = await staticClient.getAttendance({ employeeId: parsed._id, date: today });
-				const settingsData = await staticClient.getSettings();
-
-				if (settingsData.success && settingsData.data) {
-					const sData = settingsData.data as any;
-					setShiftTimes({
-						punchOutStartTime: sData.punchOutStartTime,
-						punchOutEndTime: sData.punchOutEndTime,
-					});
-				}
-
-				const records = Array.isArray(attendanceData.data)
-					? attendanceData.data
-					: ((attendanceData.data as any)?.attendance || []);
-
-				if (records.length > 0) {
-					const rec = records.find((r: any) => r.date === today) || records[records.length - 1];
-					const hasPunchedIn = !!rec.checkIn;
-					const hasPunchedOut = !!rec.checkOut;
-					setIsPunchedIn(hasPunchedIn && !hasPunchedOut);
-				}
-			} catch (err) {
-				console.error(err);
-			}
-		};
-
-		checkStatus();
-	}, []);
-
 	// Validate if current employee can punch out based on shift settings
 	useEffect(() => {
-		if (!user || user.userType === 'admin' || adminAllowedOut) {
+		if (!user || Number(user.user_role) === 1 || adminAllowedOut) {
 			setCanPunchOut(true);
 			return;
 		}
@@ -196,9 +164,28 @@ export default function Sidebar() {
 		return () => clearInterval(interval);
 	}, [user, shiftTimes]);
 
-	const handleLogout = () => {
-		localStorage.removeItem('worktracker_user');
-		window.location.assign('/login');
+	const handleLogout = async () => {
+		try {
+			const response = await fetch('/api/auth/logout', {
+				method: 'POST',
+				credentials: 'include',
+			});
+
+			const result = await response.json();
+
+			if (!response.ok || !result.success) {
+				console.error('Logout failed:', result.message);
+				return;
+			}
+
+			// Remove old client-side user data if it still exists
+			localStorage.removeItem('worktracker_user');
+
+			// Redirect only after server session is cleared
+			window.location.assign('/login');
+		} catch (error) {
+			console.error('Logout error:', error);
+		}
 	};
 
 	const openPunchOutModal = async () => {
@@ -209,9 +196,31 @@ export default function Sidebar() {
 	};
 
 	const confirmPunchOut = async () => {
-		staticClient.togglePunch();
-		localStorage.removeItem('worktracker_user');
-		window.location.assign('/login');
+		try {
+			setIsPunchingOut(true);
+
+			staticClient.togglePunch();
+
+			const response = await fetch('/api/auth/logout', {
+				method: 'POST',
+				credentials: 'include',
+			});
+
+			const result = await response.json();
+
+			if (!response.ok || !result.success) {
+				console.error('Logout failed:', result.message);
+				return;
+			}
+
+			localStorage.removeItem('worktracker_user');
+
+			window.location.assign('/login');
+		} catch (error) {
+			console.error('Punch out / logout error:', error);
+		} finally {
+			setIsPunchingOut(false);
+		}
 	};
 
 	const toggleGroup = (groupKey: string) => {
@@ -220,22 +229,38 @@ export default function Sidebar() {
 
 	const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+	const userRole = Number(user?.user_role);
+	const isAdmin = userRole === 1;
+	const basePath = isAdmin ? '/admin' : '/user';
+	const canAccessFeatures = isAdmin || isPunchedIn;
+
+
 	useEffect(() => {
 		setIsMobileOpen(false);
 	}, [pathname]);
 
 	useEffect(() => {
-		if (['/project', '/tasks', '/task-history'].includes(pathname)) {
+		if (
+			pathname.startsWith(`${basePath}/project`) ||
+			pathname.startsWith(`${basePath}/tasks`) ||
+			pathname.startsWith(`${basePath}/task-history`)
+		) {
 			setOpenGroups((prev) => ({ ...prev, work: true }));
-		} else if (['/punch', '/attendance', '/punch-in-out'].includes(pathname)) {
+		} else if (
+			pathname.startsWith(`${basePath}/punch`) ||
+			pathname.startsWith(`${basePath}/attendance`) ||
+			pathname.startsWith(`${basePath}/punch-in-out`)
+		) {
 			setOpenGroups((prev) => ({ ...prev, time: true }));
-		} else if (['/employees', '/departments', '/roles', '/clients'].includes(pathname)) {
+		} else if (
+			pathname.startsWith(`${basePath}/employees`) ||
+			pathname.startsWith(`${basePath}/departments`) ||
+			pathname.startsWith(`${basePath}/roles`) ||
+			pathname.startsWith(`${basePath}/clients`)
+		) {
 			setOpenGroups((prev) => ({ ...prev, org: true }));
 		}
-	}, [pathname]);
-
-	const isAdmin = user?.userType === 'admin';
-	const canAccessFeatures = isAdmin || isPunchedIn;
+	}, [pathname, basePath]);
 
 	if (!user || pathname === '/login') return null;
 
@@ -358,8 +383,8 @@ export default function Sidebar() {
 							{/* 1. DASHBOARD */}
 							{canAccessFeatures ? (
 								<Link
-									href="/dashboard"
-									className={`sidebar-link ${pathname === '/dashboard' || pathname === '/' ? 'active' : ''}`}
+									href={`${basePath}/dashboard`}
+									className={`sidebar-link ${pathname === `${basePath}/dashboard` ? 'active' : ''}`}
 									onMouseEnter={(e) => handleItemMouseEnter('Dashboard', e)}
 									onMouseLeave={handleItemMouseLeave}
 								>
@@ -381,7 +406,7 @@ export default function Sidebar() {
 							{/* 2. WORK & PROJECTS SUBMENU */}
 							<div className="sidebar-group">
 								<div
-									className={`sidebar-group-header ${['/project', '/tasks', '/task-history'].includes(pathname) ? 'active-group' : ''}`}
+									className={`sidebar-group-header ${pathname.startsWith(`${basePath}/project`) || pathname.startsWith(`${basePath}/tasks`) || pathname.startsWith(`${basePath}/task-history`) ? 'active-group' : ''}`}
 									onClick={() => toggleGroup('work')}
 								>
 									<div className="sidebar-group-title">
@@ -403,8 +428,8 @@ export default function Sidebar() {
 									<div className="sidebar-submenu">
 										{canAccessFeatures ? (
 											<Link
-												href="/project"
-												className={`sidebar-link ${pathname === '/project' ? 'active' : ''}`}
+												href={`${basePath}/project`}
+												className={`sidebar-link ${pathname === `${basePath}/project` ? 'active' : ''}`}
 												onMouseEnter={(e) => handleItemMouseEnter('Projects', e)}
 												onMouseLeave={handleItemMouseLeave}
 											>
@@ -424,8 +449,8 @@ export default function Sidebar() {
 										)}
 
 										<Link
-											href="/tasks"
-											className={`sidebar-link ${pathname === '/tasks' ? 'active' : ''}`}
+											href={`${basePath}/tasks`}
+											className={`sidebar-link ${pathname === `${basePath}/tasks` ? 'active' : ''}`}
 											onMouseEnter={(e) => handleItemMouseEnter(isAdmin ? 'Tasks' : 'My Tasks', e)}
 											onMouseLeave={handleItemMouseLeave}
 										>
@@ -434,8 +459,8 @@ export default function Sidebar() {
 										</Link>
 
 										<Link
-											href="/task-history"
-											className={`sidebar-link ${pathname === '/task-history' ? 'active' : ''}`}
+											href={`${basePath}/task-history`}
+											className={`sidebar-link ${pathname === `${basePath}/task-history` ? 'active' : ''}`}
 											onMouseEnter={(e) => handleItemMouseEnter(isAdmin ? 'Task History' : 'My Work History', e)}
 											onMouseLeave={handleItemMouseLeave}
 										>
@@ -449,7 +474,7 @@ export default function Sidebar() {
 							{/* 3. TIME & ATTENDANCE SUBMENU */}
 							<div className="sidebar-group">
 								<div
-									className={`sidebar-group-header ${['/punch', '/attendance', '/punch-in-out'].includes(pathname) ? 'active-group' : ''}`}
+									className={`sidebar-group-header ${pathname.startsWith(`${basePath}/punch`) || pathname.startsWith(`${basePath}/attendance`) || pathname.startsWith(`${basePath}/punch-in-out`) ? 'active-group' : ''}`}
 									onClick={() => toggleGroup('time')}
 								>
 									<div className="sidebar-group-title">
@@ -470,8 +495,8 @@ export default function Sidebar() {
 								{(openGroups.time || isCollapsed) && (
 									<div className="sidebar-submenu">
 										<Link
-											href="/punch"
-											className={`sidebar-link ${pathname === '/punch' ? 'active' : ''}`}
+											href={`${basePath}/punch`}
+											className={`sidebar-link ${pathname === `${basePath}/punch` ? 'active' : ''}`}
 											onMouseEnter={(e) => handleItemMouseEnter('Punch In/Out', e)}
 											onMouseLeave={handleItemMouseLeave}
 										>
@@ -480,8 +505,8 @@ export default function Sidebar() {
 										</Link>
 
 										<Link
-											href="/attendance"
-											className={`sidebar-link ${pathname === '/attendance' ? 'active' : ''}`}
+											href={`${basePath}/attendance`}
+											className={`sidebar-link ${pathname === `${basePath}/attendance` ? 'active' : ''}`}
 											onMouseEnter={(e) => handleItemMouseEnter(isAdmin ? 'Punch Logs' : 'Attendance', e)}
 											onMouseLeave={handleItemMouseLeave}
 										>
@@ -496,7 +521,7 @@ export default function Sidebar() {
 							{(isAdmin || canAccessFeatures) && (
 								<div className="sidebar-group">
 									<div
-										className={`sidebar-group-header ${['/employees', '/departments', '/roles', '/clients'].includes(pathname) ? 'active-group' : ''}`}
+										className={`sidebar-group-header ${pathname.startsWith(`${basePath}/employees`) || pathname.startsWith(`${basePath}/departments`) || pathname.startsWith(`${basePath}/roles`) || pathname.startsWith(`${basePath}/clients`) ? 'active-group' : ''}`}
 										onClick={() => toggleGroup('org')}
 									>
 										<div className="sidebar-group-title">
@@ -518,8 +543,8 @@ export default function Sidebar() {
 										<div className="sidebar-submenu">
 											{isAdmin && (
 												<Link
-													href="/employees"
-													className={`sidebar-link ${pathname === '/employees' ? 'active' : ''}`}
+													href={`${basePath}/employees`}
+													className={`sidebar-link ${pathname === `${basePath}/employees` ? 'active' : ''}`}
 													onMouseEnter={(e) => handleItemMouseEnter('Employee', e)}
 													onMouseLeave={handleItemMouseLeave}
 												>
@@ -529,8 +554,8 @@ export default function Sidebar() {
 											)}
 
 											<Link
-												href="/departments"
-												className={`sidebar-link ${pathname === '/departments' ? 'active' : ''}`}
+												href={`${basePath}/departments`}
+												className={`sidebar-link ${pathname === `${basePath}/departments` ? 'active' : ''}`}
 												onMouseEnter={(e) => handleItemMouseEnter('Departments', e)}
 												onMouseLeave={handleItemMouseLeave}
 											>
@@ -541,8 +566,8 @@ export default function Sidebar() {
 											{isAdmin && (
 												<>
 													<Link
-														href="/roles"
-														className={`sidebar-link ${pathname === '/roles' ? 'active' : ''}`}
+														href={`${basePath}/roles`}
+														className={`sidebar-link ${pathname === `${basePath}/roles` ? 'active' : ''}`}
 														onMouseEnter={(e) => handleItemMouseEnter('Roles', e)}
 														onMouseLeave={handleItemMouseLeave}
 													>
@@ -551,8 +576,8 @@ export default function Sidebar() {
 													</Link>
 
 													<Link
-														href="/clients"
-														className={`sidebar-link ${pathname === '/clients' ? 'active' : ''}`}
+														href={`${basePath}/clients`}
+														className={`sidebar-link ${pathname === `${basePath}/clients` ? 'active' : ''}`}
 														onMouseEnter={(e) => handleItemMouseEnter('Clients', e)}
 														onMouseLeave={handleItemMouseLeave}
 													>
@@ -568,8 +593,8 @@ export default function Sidebar() {
 
 							{/* 5. PERSONAL WORKSPACE */}
 							<Link
-								href="/keep-notes"
-								className={`sidebar-link ${pathname === '/keep-notes' ? 'active' : ''}`}
+								href={`${basePath}/keep-notes`}
+								className={`sidebar-link ${pathname === `${basePath}/keep-notes` ? 'active' : ''}`}
 								onMouseEnter={(e) => handleItemMouseEnter('Keep Notes', e)}
 								onMouseLeave={handleItemMouseLeave}
 							>
@@ -580,8 +605,8 @@ export default function Sidebar() {
 							{/* 6. SYSTEM SETTINGS (Admin Only) */}
 							{isAdmin && (
 								<Link
-									href="/settings"
-									className={`sidebar-link ${pathname === '/settings' ? 'active' : ''}`}
+									href={`${basePath}/settings`}
+									className={`sidebar-link ${pathname === `${basePath}/settings` ? 'active' : ''}`}
 									onMouseEnter={(e) => handleItemMouseEnter('Settings', e)}
 									onMouseLeave={handleItemMouseLeave}
 								>

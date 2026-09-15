@@ -3,6 +3,13 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
 import Otp from "@/models/otp";
+import Session from "@/models/Session";
+
+import {
+    createSessionId,
+    getSessionExpiry,
+    sessionCookie,
+} from "@/lib/session";
 
 export async function POST(req: Request) {
     try {
@@ -20,9 +27,7 @@ export async function POST(req: Request) {
             );
         }
 
-        const normalizedEmail = email
-            .toLowerCase()
-            .trim();
+        const normalizedEmail = email.toLowerCase().trim();
 
         const getOtp = await Otp.findOne({
             email: normalizedEmail,
@@ -39,6 +44,10 @@ export async function POST(req: Request) {
         }
 
         if (getOtp.expires_at < new Date()) {
+            await Otp.deleteOne({
+                _id: getOtp._id,
+            });
+
             return NextResponse.json(
                 {
                     success: false,
@@ -58,6 +67,7 @@ export async function POST(req: Request) {
             );
         }
 
+        // Verify user
         const user = await User.findOneAndUpdate(
             {
                 email: normalizedEmail,
@@ -84,15 +94,44 @@ export async function POST(req: Request) {
             );
         }
 
-        // OTP delete after successful verification
+        // Delete OTP after successful verification
         await Otp.deleteOne({
             _id: getOtp._id,
         });
 
-        return NextResponse.json({
+        // ------------------------------------
+        // CREATE SESSION
+        // ------------------------------------
+
+        const sessionId = createSessionId();
+        const expiresAt = getSessionExpiry();
+
+        await Session.create({
+            sessionId,
+            userId: user._id,
+            expiresAt,
+        });
+
+        // ------------------------------------
+        // RESPONSE + COOKIE
+        // ------------------------------------
+
+        const response = NextResponse.json({
             success: true,
             message: "OTP verified successfully",
+            data: {
+                user_role: user.user_role,
+            },
         });
+
+        response.cookies.set({
+            ...sessionCookie.options,
+            name: sessionCookie.name,
+            value: sessionId,
+            expires: expiresAt,
+        });
+
+        return response;
 
     } catch (error) {
         console.error("Verify OTP Error:", error);

@@ -1,16 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 
-import connectDB from "@/lib/dbConnect";
+import dbConnect from "@/lib/dbConnect";
 import Project from "@/models/Project";
+import { currentUser } from "@/lib/auth";
 
-// =========================
-// CREATE PROJECT
-// POST /api/projects
-// =========================
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    await connectDB();
+    await dbConnect();
+
+    const user = await currentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Authentication required",
+        },
+        { status: 401 }
+      );
+    }
 
     const body = await req.json();
 
@@ -21,39 +30,39 @@ export async function POST(req: NextRequest) {
       start_date,
       end_date,
       client,
-      created_by,
       status,
     } = body;
 
-    // Basic validation
-    if (!name || !created_by) {
+    if (!name?.trim()) {
       return NextResponse.json(
         {
           success: false,
-          message: "Project name and created_by are required",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(created_by)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid created_by",
+          message: "Project name is required",
         },
         { status: 400 }
       );
     }
 
     const project = await Project.create({
-      name,
-      short_description,
-      project_users: project_users || [],
-      start_date,
-      end_date,
-      client,
-      created_by,
+      name: name.trim(),
+      short_description: short_description?.trim() || "",
+      project_users: Array.isArray(project_users)
+        ? project_users.filter((id: string) =>
+            mongoose.Types.ObjectId.isValid(id)
+          )
+        : [],
+      start_date: start_date || undefined,
+      end_date: end_date || null,
+      client:
+        client && mongoose.Types.ObjectId.isValid(client)
+          ? client
+          : null,
+
+      // IMPORTANT:
+      // Never trust created_by from frontend
+      created_by: user._id,
+
+      modified_by: null,
       status: status ?? true,
     });
 
@@ -66,7 +75,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("CREATE PROJECT ERROR:", error);
+    console.error("Create Project API Error:", error);
 
     return NextResponse.json(
       {
@@ -78,64 +87,59 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// =========================
-// FETCH PROJECTS
-// GET /api/projects
-// GET /api/projects?id=PROJECT_ID
-// =========================
-export async function GET(req: NextRequest) {
+
+export async function GET() {
   try {
-    await connectDB();
+    await dbConnect();
 
     const projects = await Project.find()
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     return NextResponse.json({
       success: true,
-      count: projects.length,
       data: projects,
     });
-
   } catch (error) {
-    console.error("FETCH PROJECT ERROR:", error);
+    console.error("GET PROJECTS ERROR:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error
-          ? error.message
-          : "Failed to fetch projects",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to load projects",
       },
       { status: 500 }
     );
   }
 }
-// =========================
-// UPDATE PROJECT
-// PATCH /api/projects?id=PROJECT_ID
-// =========================
-export async function PATCH(req: NextRequest) {
+
+export async function PATCH(req: Request) {
   try {
-    await connectDB();
+    await dbConnect();
+
+    const user = await currentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Authentication required",
+        },
+        { status: 401 }
+      );
+    }
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
 
-    if (!id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         {
           success: false,
-          message: "Project ID is required",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid project ID",
+          message: "Valid project id is required",
         },
         { status: 400 }
       );
@@ -143,64 +147,58 @@ export async function PATCH(req: NextRequest) {
 
     const body = await req.json();
 
-    const {
-      name,
-      short_description,
-      project_users,
-      start_date,
-      end_date,
-      client,
-      modified_by,
-      status,
-      isVerify,
-    } = body;
+    const updateData: Record<string, any> = {};
 
-    if (modified_by && !mongoose.Types.ObjectId.isValid(modified_by)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid modified_by",
-        },
-        { status: 400 }
-      );
+    if (body.name !== undefined) {
+      updateData.name = body.name.trim();
     }
 
-    const updatedProject = await Project.findByIdAndUpdate(
+    if (body.short_description !== undefined) {
+      updateData.short_description =
+        body.short_description?.trim() || "";
+    }
+
+    if (body.project_users !== undefined) {
+      updateData.project_users = Array.isArray(body.project_users)
+        ? body.project_users.filter((memberId: string) =>
+            mongoose.Types.ObjectId.isValid(memberId)
+          )
+        : [];
+    }
+
+    if (body.start_date !== undefined) {
+      updateData.start_date = body.start_date;
+    }
+
+    if (body.end_date !== undefined) {
+      updateData.end_date = body.end_date;
+    }
+
+    if (body.client !== undefined) {
+      updateData.client =
+        body.client &&
+        mongoose.Types.ObjectId.isValid(body.client)
+          ? body.client
+          : null;
+    }
+
+    if (body.status !== undefined) {
+      updateData.status = body.status;
+    }
+
+    // Never trust modified_by from frontend
+    updateData.modified_by = user._id;
+
+    const project = await Project.findByIdAndUpdate(
       id,
-      {
-        ...(name !== undefined && { name }),
-        ...(short_description !== undefined && {
-          short_description,
-        }),
-        ...(project_users !== undefined && {
-          project_users,
-        }),
-        ...(start_date !== undefined && {
-          start_date,
-        }),
-        ...(end_date !== undefined && {
-          end_date,
-        }),
-        ...(client !== undefined && {
-          client,
-        }),
-        ...(modified_by !== undefined && {
-          modified_by,
-        }),
-        ...(status !== undefined && {
-          status,
-        }),
-        ...(isVerify !== undefined && {
-          isVerify,
-        }),
-      },
+      updateData,
       {
         new: true,
         runValidators: true,
       }
     );
 
-    if (!updatedProject) {
+    if (!project) {
       return NextResponse.json(
         {
           success: false,
@@ -213,7 +211,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Project updated successfully",
-      data: updatedProject,
+      data: project,
     });
   } catch (error) {
     console.error("UPDATE PROJECT ERROR:", error);
@@ -221,39 +219,40 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to update project",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to update project",
       },
       { status: 500 }
     );
   }
 }
 
-// =========================
-// DELETE PROJECT
-// DELETE /api/projects?id=PROJECT_ID
-// =========================
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: Request) {
   try {
-    await connectDB();
+    await dbConnect();
+
+    const user = await currentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Authentication required",
+        },
+        { status: 401 }
+      );
+    }
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
 
-    if (!id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         {
           success: false,
-          message: "Project ID is required",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid project ID",
+          message: "Valid project id is required",
         },
         { status: 400 }
       );
@@ -274,10 +273,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Project deleted successfully",
-      data: deletedProject,
     });
   } catch (error) {
-    console.error("DELETE PROJECT ERROR:", error);
+    console.error("Delete Project API Error:", error);
 
     return NextResponse.json(
       {

@@ -31,7 +31,7 @@ export interface CreateProjectModalProps {
   onClose: () => void;
   onSuccess?: (newProject?: any) => void;
   clientsList?: any[];
-  employeesList?: any[];
+  employeesList?: any[]; // kept for compatibility; API data is authoritative
   hideClientField?: boolean;
 }
 
@@ -72,24 +72,96 @@ export default function CreateProjectModal({
   const draftKey = 'create-project';
   const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
 
-  // Load clients and employees if not provided or when modal opens
+  // Load employees once when the modal opens.
+  // Do not depend on context callbacks here: some context providers recreate
+  // those functions on render, which can otherwise cause an API request loop.
   useEffect(() => {
     if (!isOpen) return;
+
+    let cancelled = false;
 
     setError(null);
     setModalOpenState(draftKey, true);
 
+    // Clients are still read from the existing client data source.
     setFetchedClients(staticClient.getClients() as any);
-    setFetchedEmployees(staticClient.getEmployees() as any);
+
+    const loadEmployees = async () => {
+      try {
+        const employeeResponse = await fetch('/api/users/employees', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        const employeeResult = await employeeResponse.json();
+
+        if (!employeeResponse.ok || !employeeResult.success) {
+          throw new Error(
+            employeeResult.message || 'Failed to load employees'
+          );
+        }
+
+        if (cancelled) return;
+
+        const loadedEmployees = Array.isArray(employeeResult.data)
+          ? employeeResult.data.map((emp: any) => ({
+              ...emp,
+              _id: String(emp._id),
+              name:
+                emp.name ||
+                emp.full_name ||
+                'Unknown User',
+              role:
+                emp.role ||
+                emp.designation ||
+                'Employee',
+              avatarColor:
+                emp.avatarColor ||
+                '#3b82f6',
+            }))
+          : [];
+
+        setFetchedEmployees(loadedEmployees);
+      } catch (employeeError: any) {
+        if (cancelled) return;
+
+        console.error(
+          'Failed to load admin employees:',
+          employeeError
+        );
+
+        setFetchedEmployees([]);
+        setError(
+          employeeError.message ||
+          'Failed to load employees'
+        );
+      }
+    };
+
+    loadEmployees();
 
     const draft = getDraft(draftKey);
+
     if (draft) {
-      if (draft.name !== undefined) setName(draft.name);
-      if (draft.description !== undefined) setDescription(draft.description);
-      if (draft.selectedClientId !== undefined) setSelectedClientId(draft.selectedClientId);
-      if (draft.selectedMembers !== undefined) setSelectedMembers(draft.selectedMembers);
+      if (draft.name !== undefined) {
+        setName(draft.name);
+      }
+      if (draft.description !== undefined) {
+        setDescription(draft.description);
+      }
+      if (draft.selectedClientId !== undefined) {
+        setSelectedClientId(draft.selectedClientId);
+      }
+      if (draft.selectedMembers !== undefined) {
+        setSelectedMembers(draft.selectedMembers);
+      }
     }
-  }, [isOpen, draftKey, getDraft, setModalOpenState]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   // Handle outside click for custom client dropdown
   useEffect(() => {
@@ -132,16 +204,14 @@ export default function CreateProjectModal({
   }, [clientsProp, fetchedClients]);
 
   const employees = useMemo(() => {
-    const list = [...fetchedEmployees];
-    if (employeesProp && Array.isArray(employeesProp)) {
-      employeesProp.forEach((emp: any) => {
-        if (emp && emp._id && !list.some((item: any) => item._id === emp._id)) {
-          list.push(emp);
-        }
-      });
-    }
-    return list;
-  }, [employeesProp, fetchedEmployees]);
+    return fetchedEmployees.map((emp: any) => ({
+      ...emp,
+      _id: String(emp._id),
+      name: emp.name || emp.full_name || 'Unknown User',
+      role: emp.role || emp.designation || 'Employee',
+      avatarColor: emp.avatarColor || '#3b82f6',
+    }));
+  }, [fetchedEmployees]);
 
   const filteredClients = useMemo(() => {
     if (!clientSearch.trim()) return clients;

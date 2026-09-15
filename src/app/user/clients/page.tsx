@@ -9,65 +9,56 @@ import CreateProjectModal from '@/components/CreateProjectModal';
 import { CustomDatePicker } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
 import { staticClient } from '@/lib/staticClient';
-import type { ClientData } from '../../types/ClientData';
-import type { ProjectOption } from '../../types/ProjectOption';
+import {
+  getClients,
+  deleteClient,
+  updateClient,
+  createClient,
+} from "@/lib/clientApi";
+
 import './style.css';
 
-const DEFAULT_INLINE_CLIENTS = [
-  {
-    _id: 'client-1',
-    name: 'Acme Financials Corp',
-    phone: '+1 (555) 234-5678',
-    emails: ['contact@acmefin.com', 'support@acmefin.com'],
-    address: '100 Wall Street, Floor 24, New York, NY 10005',
-    duration: '12 Months',
-    contacts: [
-      { name: 'Robert Vance', email: 'robert@acmefin.com', phone: '+1 555-0192', designation: 'Chief Financial Officer' },
-      { name: 'Pam Beesly', email: 'pam@acmefin.com', phone: '+1 555-0193', designation: 'Operations Manager' }
-    ],
-    projects: [
-      { _id: 'proj-1', name: 'AI WorkTracker Pro', color: '#4f46e5' },
-      { _id: 'proj-2', name: 'Mobile Banking App', color: '#ec4899' }
-    ],
-    status: 'Active',
-    createdAt: '2026-01-15T10:00:00.000Z'
-  },
-  {
-    _id: 'client-2',
-    name: 'Nexus Tech Global',
-    phone: '+1 (555) 987-6543',
-    emails: ['hello@nexustech.io'],
-    address: '500 Innovation Way, San Francisco, CA 94105',
-    duration: '24 Months',
-    contacts: [
-      { name: 'David Wallace', email: 'david@nexustech.io', phone: '+1 555-0821', designation: 'VP of Technology' }
-    ],
-    projects: [
-      { _id: 'proj-3', name: 'Enterprise CRM Redesign', color: '#10b981' }
-    ],
-    status: 'Active',
-    createdAt: '2026-02-01T09:30:00.000Z'
-  }
-];
+type ClientContact = {
+  name: string;
+  email: string;
+  phone: string;
+  designation: string;
+  label?: string;
+};
 
-const DEFAULT_INLINE_PROJECTS = [
-  { _id: 'proj-1', name: 'AI WorkTracker Pro', color: '#4f46e5' },
-  { _id: 'proj-2', name: 'Mobile Banking App', color: '#ec4899' },
-  { _id: 'proj-3', name: 'Enterprise CRM Redesign', color: '#10b981' }
-];
+type ClientProject = {
+  _id: string;
+  name: string;
+  color?: string;
+};
 
-const DEFAULT_DEMO_USER = {
-  _id: 'emp-1',
-  name: 'Alex Johnson',
-  email: 'alex@techinnovator.com',
-  userType: 'admin'
+type ClientData = {
+  _id: string;
+  id?: string;
+  name: string;
+  phone: string;
+  emails: string[];
+  address: string;
+  duration?: string;
+  contractStartDate?: string;
+  contractEndDate?: string;
+  contacts: ClientContact[];
+  projects: ClientProject[] | string[];
+  status: string | number;
+  createdAt?: string;
+};
+type ProjectOption = {
+  _id: string;
+  name: string;
+  color?: string;
 };
 
 export default function ClientsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
-  const [clients, setClients] = useState<ClientData[]>(DEFAULT_INLINE_CLIENTS as any);
-  const [projectsOptions, setProjectsOptions] = useState<ProjectOption[]>(DEFAULT_INLINE_PROJECTS as any);
+  const [user, setUser] = useState<any>([]);
+  const [clients, setClients] = useState<ClientData[]>([]);
+  const [projectsOptions, setProjectsOptions] = useState<ProjectOption[]>([]);
+  
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -100,20 +91,64 @@ export default function ClientsPage() {
   }, [router]);
 
   const fetchData = useCallback(async () => {
-    if (!user) return;
-    try {
-      setLoading(true);
-      const clientsData = staticClient.getClients();
-      const projectsData = staticClient.getProjects();
+  if (!user) return;
 
-      setClients(clientsData as any);
-      setProjectsOptions(projectsData as any);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+  try {
+    setLoading(true);
+
+    const [clientsData, projectsData] =
+      await Promise.all([
+        getClients(),
+        Promise.resolve(staticClient.getProjects()),
+      ]);
+
+    const normalizedClients = clientsData.map(
+      (client: any) => ({
+        ...client,
+
+        // UI currently expects _id
+        _id: client.id,
+
+        // DB field -> UI field
+        emails: Array.isArray(client.email)
+          ? client.email
+          : [],
+
+        contacts: Array.isArray(
+          client.contact_members
+        )
+          ? client.contact_members
+          : [],
+
+        // Primary phone is stored inside
+        // contact_members because DB schema
+        // has no separate phone field.
+        phone:
+          client.contact_members?.find(
+            (contact: any) =>
+              contact.label === "Primary"
+          )?.phone ||
+          client.contact_members?.find(
+            (contact: any) => contact.phone
+          )?.phone ||
+          "",
+      })
+    );
+
+    setClients(normalizedClients);
+    setProjectsOptions(projectsData as any);
+  } catch (err) {
+    console.error("CLIENT FETCH ERROR:", err);
+
+    toast.error(
+      err instanceof Error
+        ? err.message
+        : "Failed to load clients"
+    );
+  } finally {
+    setLoading(false);
+  }
+}, [user]);
 
   useEffect(() => {
     if (user) {
@@ -191,81 +226,122 @@ export default function ClientsPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) {
-      setError('Please fill all required fields');
-      // alert('Please fill all required fields');
-      return;
+ const handleSubmit = async (
+  e: React.FormEvent
+) => {
+  e.preventDefault();
+
+  if (!name.trim()) {
+    setError("Please fill all required fields");
+    return;
+  }
+
+  try {
+    setSubmitting(true);
+    setError(null);
+
+    const emails = emailsStr
+      .split(",")
+      .map((email) => email.trim())
+      .filter(Boolean);
+
+    const validContacts = contacts.filter(
+      (contact) =>
+        contact.name.trim() ||
+        contact.email.trim() ||
+        contact.phone.trim() ||
+        contact.designation.trim() ||
+        contact.label?.trim()
+    );
+
+   const payload = {
+  name: name.trim(),
+  phone: phone.trim(),
+  emails,
+  address: address.trim(),
+  contacts: validContacts,
+  projects: selectedProjectIds,
+  duration: duration.trim(),
+  contract_start_date: contractStartDate || null,
+  contract_end_date: contractEndDate || null,
+  status: 1,
+};
+
+    let savedClient;
+
+    if (editingClient) {
+      savedClient = await updateClient(
+        editingClient._id,
+        payload
+      );
+
+      toast.success(
+        `${name.trim()} updated successfully`
+      );
+    } else {
+      savedClient = await createClient(payload);
+
+      toast.success(
+        `${name.trim()} created successfully`
+      );
     }
 
-    try {
-      setSubmitting(true);
-      setError(null);
+    await fetchData();
 
-      const payload = {
-        name,
-        phone: phone.trim() || undefined,
-        emails: emailsStr.split(',').map(email => email.trim()).filter(Boolean),
-        address,
-        duration,
-        contractStartDate: contractStartDate.trim() || undefined,
-        contractEndDate: contractEndDate.trim() || undefined,
-        contacts: contacts.filter(c => c.name.trim() || c.email.trim() || c.phone.trim() || c.designation.trim() || c.label?.trim()),
-        ...(editingClient
-          ? { projectIds: selectedProjectIds }
-          : { projectId: selectedProjectIds[0] || undefined }
-        )
-      };
+    setShowModal(false);
+    setEditingClient(null);
 
-      const newClientObj = {
-        _id: editingClient ? editingClient._id : `client-${Date.now()}`,
-        name,
-        phone: phone.trim() || undefined,
-        emails: emailsStr.split(',').map(email => email.trim()).filter(Boolean),
-        address,
-        duration,
-        contractStartDate: contractStartDate.trim() || undefined,
-        contractEndDate: contractEndDate.trim() || undefined,
-        contacts: contacts.filter(c => c.name.trim() || c.email.trim() || c.phone.trim() || c.designation.trim() || c.label?.trim()),
-        projects: selectedProjectIds,
-        status: 'Active',
-        createdAt: editingClient ? editingClient.createdAt : new Date().toISOString()
-      };
+    setName("");
+    setPhone("");
+    setEmailsStr("");
+    setAddress("");
+    setDuration("");
+    setContractStartDate("");
+    setContractEndDate("");
+    setContacts([]);
+    setSelectedProjectIds([]);
+  } catch (err: any) {
+    console.error("Save client error:", err);
 
-      if (editingClient) {
-        setClients(prev => prev.map(c => c._id === editingClient._id ? (newClientObj as any) : c));
-      } else {
-        setClients(prev => [newClientObj as any, ...prev]);
-      }
-
-      setShowModal(false);
-      const clientName = name.trim();
-      toast.success(editingClient ? `${clientName} updated successfully` : `${clientName} created successfully`);
-    } catch (err: any) {
-      setError(err.message || String(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
+    setError(
+      err?.message ||
+        "Failed to save client"
+    );
+  } finally {
+    setSubmitting(false);
+  }
+};
   const handleDelete = async (clientId: string) => {
-    const client = clients.find(c => c._id === clientId);
-    const clientName = client?.name || 'Client';
-    if (!confirm(`Are you sure you want to delete ${clientName}? All associated project tags will be cleared.`)) return;
+  const client = clients.find(
+    (c) => c._id === clientId
+  );
 
-    try {
-      const result = await staticClient.deleteClient(clientId);
-      if (!result.success) {
-        throw new Error('Failed to delete client');
-      }
-      toast.success(`${clientName} deleted successfully`);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete client');
-    }
-  };
+  const clientName = client?.name || "Client";
 
+  if (
+    !confirm(
+      `Are you sure you want to delete ${clientName}?`
+    )
+  ) {
+    return;
+  }
+
+  try {
+    await deleteClient(clientId);
+
+    toast.success(
+      `${clientName} deleted successfully`
+    );
+
+    await fetchData();
+  } catch (err: any) {
+    console.error("Delete client error:", err);
+
+    toast.error(
+      err?.message || "Failed to delete client"
+    );
+  }
+};
   const handleProjectToggle = (projectId: string) => {
     setSelectedProjectIds(prev => {
       if (editingClient) {

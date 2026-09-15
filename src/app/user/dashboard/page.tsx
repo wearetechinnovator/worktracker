@@ -50,20 +50,7 @@ import type { DashboardStats } from '../../../types/DashboardStats';
 
 
 
-const DEFAULT_DEMO_USER = {
-	_id: 'emp-admin-101',
-	id: 'emp-admin-101',
-	name: 'Alex Johnson',
-	email: 'alex.johnson@techinnovator.com',
-	role: 'System Administrator',
-	userType: 'admin',
-	Project: 'AI WorkTracker Pro',
-	avatarColor: '#4f46e5',
-	workMode: 'Hybrid',
-	isSystemAdmin: true,
-	permissions: ['dashboard:view', 'projects:read', 'tasks:read', 'employees:read', 'roles:read', 'clients:read'],
-	isPunchedIn: true,
-};
+
 
 const DEFAULT_INLINE_EMPLOYEES = [
 	{ _id: 'emp-1', name: 'Alex Johnson', email: 'alex@techinnovator.com', role: 'System Admin', Project: 'AI WorkTracker Pro', status: 'Active', avatarColor: '#4f46e5', userType: 'admin', totalMinutes: 1420 },
@@ -82,7 +69,7 @@ const DEFAULT_INLINE_PROJECTS = [
 
 export default function Dashboard() {
 	const router = useRouter();
-	const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
+	const [user, setUser] = useState<any>([]);
 
 	// Data State initialized directly with inline data
 	const [employees, setEmployees] = useState<Employee[]>(DEFAULT_INLINE_EMPLOYEES as any);
@@ -528,7 +515,7 @@ export default function Dashboard() {
 			{/* KPI Section Header with 3-Dot Settings Button */}
 			<div className="dashboard-section-header">
 				<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-					<h2 className="dashboard-section-title">User Dashboard</h2>
+					<h2 className="dashboard-section-title">Dashboard</h2>
 				</div>
 
 				{/* 3-Dot Settings Menu Trigger */}

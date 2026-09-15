@@ -15,13 +15,19 @@ import { staticClient } from '@/lib/staticClient';
 
 interface Employee {
   _id: string;
-  name: string;
-  email: string;
-  role: string;
-  Project: string;
-  avatarColor: string;
-  status?: string;
+  name?: string;
+  full_name?: string;
+  email?: string;
+  role?: string;
+  designation?: string;
+  Project?: string;
+  group?: string;
+  avatarColor?: string;
+  profile_picture?: string | null;
+  status?: string | boolean;
   userType?: string;
+  user_role?: number;
+  workMode?: string;
 }
 
 interface AttendanceRecord {
@@ -202,6 +208,29 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
 
   if (!isOpen || !employee) return null;
 
+  // Normalize both the old static employee shape and the new DB employee shape.
+  // This prevents runtime errors when fields such as `name` are not present.
+  const employeeName = String(
+    employee.full_name ?? employee.name ?? 'Employee'
+  ).trim() || 'Employee';
+
+  const employeeInitials =
+    employeeName
+      .split(/\\s+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0))
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'E';
+
+  const employeeDesignation = String(
+    employee.designation ?? employee.role ?? ''
+  ).trim();
+
+  const employeeProject = String(
+    employee.Project ?? ''
+  ).trim();
+
   // Calendar Math
   const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay();
   const totalDaysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -232,13 +261,26 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
         {/* Modal Header */}
         <div className="modal-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div className="avatar" style={{ backgroundColor: employee.avatarColor, width: '42px', height: '42px', fontSize: '1.1rem', fontWeight: 800 }}>
-              {employee.name.split(' ').map((n) => n[0]).join('')}
+            <div
+              className="avatar"
+              style={{
+                backgroundColor: employee.avatarColor ?? '#3b82f6',
+                width: '42px',
+                height: '42px',
+                fontSize: '1.1rem',
+                fontWeight: 800,
+              }}
+            >
+              {employeeInitials}
             </div>
             <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>{employee.name}</h2>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+                {employeeName}
+              </h2>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
-                {employee.role} &bull; <span className="tag-badge">{employee.Project}</span>
+                {employeeDesignation || 'Employee'}{' '}
+                &bull;{' '}
+                <span className="tag-badge">{employeeProject || 'No Project'}</span>
               </p>
             </div>
           </div>

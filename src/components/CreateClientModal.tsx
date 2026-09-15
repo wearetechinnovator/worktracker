@@ -19,6 +19,7 @@ import { CustomDatePicker } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
 import { staticClient } from '@/lib/staticClient';
 import { useModalDraft } from '@/context/ModalDraftContext';
+import { createClient } from '@/lib/clientApi';
 
 export interface ClientContact {
   name: string;
@@ -181,66 +182,80 @@ export default function CreateClientModal({
     );
   };
 
-  const handleSubmit = async (e:any) => {
-    e.preventDefault();
-    
-    if (!name.trim()) {
-      setError('Please fill all required fields');
-      return;
-    }
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    try {
-      setSubmitting(true);
-      setError(null);
+  if (!name.trim()) {
+    setError("Please fill all required fields");
+    return;
+  }
 
-      const parsedEmails = emailsStr
-        .split(',')
-        .map((em) => em.trim())
-        .filter(Boolean);
+  try {
+    setSubmitting(true);
+    setError(null);
 
-      const validContacts = contacts.filter(
-        (c) => (c.name || '').trim() || (c.email || '').trim() || (c.phone || '').trim() || (c.designation || '').trim() || (c.label || '').trim()
+    const parsedEmails = emailsStr
+      .split(",")
+      .map((email) => email.trim())
+      .filter(Boolean);
+
+    const validContacts = contacts.filter(
+      (contact) =>
+        (contact.name || "").trim() ||
+        (contact.email || "").trim() ||
+        (contact.phone || "").trim() ||
+        (contact.designation || "").trim() ||
+        (contact.label || "").trim()
+    );
+
+    const payload = {
+      name: name.trim(),
+      phone: phone.trim(),
+      emails: parsedEmails,
+      address: address.trim(),
+      contacts: validContacts,
+      status: 1,
+    };
+
+    const newClient = await createClient(payload);
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("worktracker-refresh")
       );
 
-      const bodyPayload = {
-        name: name.trim(),
-        phone: phone.trim(),
-        emails: parsedEmails,
-        address: address.trim(),
-        duration: duration.trim(),
-        contractStartDate: contractStartDate.trim() || undefined,
-        contractEndDate: contractEndDate.trim() || undefined,
-        contacts: validContacts,
-        projects: selectedProjectIds,
-      };
-
-      const newClient = {
-        _id: 'client-' + Date.now(),
-        ...bodyPayload,
-        createdAt: new Date().toISOString()
-      };
-      staticClient.getClients().unshift(newClient as any);
-
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('worktracker-refresh'));
-        window.dispatchEvent(new CustomEvent('clients-updated', { detail: newClient }));
-      }
-
-      clearDraft(draftKey);
-      resetForm();
-      const clientName = name.trim();
-      toast.success(`${clientName} created successfully`);
-      if (onSuccess) {
-        onSuccess(newClient);
-      }
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'Error occurred while creating client.');
-    } finally {
-      setSubmitting(false);
+      window.dispatchEvent(
+        new CustomEvent("clients-updated", {
+          detail: newClient,
+        })
+      );
     }
-  };
 
+    clearDraft(draftKey);
+    resetForm();
+
+    const clientName = name.trim();
+
+    toast.success(
+      `${clientName} created successfully`
+    );
+
+    if (onSuccess) {
+      onSuccess(newClient);
+    }
+
+    onClose();
+  } catch (err: any) {
+    console.error("Create client error:", err);
+
+    setError(
+      err?.message ||
+        "Error occurred while creating client."
+    );
+  } finally {
+    setSubmitting(false);
+  }
+};
   return (
     <>
       <div

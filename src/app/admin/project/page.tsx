@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Folder, FolderPlus, Plus, Search, Edit3, Trash2, Clock,
   AlertCircle, Users, Briefcase, Mail, FileBarChart, Lightbulb, HelpCircle, Sparkles, GripVertical
@@ -67,39 +66,15 @@ interface WorkEntry {
   createdAt: string;
 }
 
-const DEFAULT_DEMO_USER = {
-  _id: 'emp-1',
-  id: 'emp-1',
-  name: 'Alex Johnson',
-  email: 'alex@techinnovator.com',
-  userType: 'admin',
-  role: 'System Administrator'
-};
-
-const DEFAULT_INLINE_PROJECTS: Project[] = [
-  { _id: 'proj-1', name: 'AI WorkTracker Pro', description: 'Next-gen workforce management platform with AI insights.', color: '#4f46e5', members: ['emp-1', 'emp-5'], entryCount: 12, totalMinutes: 4800 },
-  { _id: 'proj-2', name: 'Mobile Banking App', description: 'Fintech mobile application with biometric login.', color: '#ec4899', members: ['emp-2'], entryCount: 8, totalMinutes: 2400 },
-  { _id: 'proj-3', name: 'Enterprise CRM Redesign', description: 'Complete UI overhaul for corporate CRM clients.', color: '#10b981', members: ['emp-3'], entryCount: 6, totalMinutes: 1800 },
-  { _id: 'proj-4', name: 'Cloud Analytics Dashboard', description: 'Real-time telemetry and reporting system.', color: '#f59e0b', members: ['emp-4'], entryCount: 4, totalMinutes: 1200 },
-];
-
-const DEFAULT_INLINE_EMPLOYEES: Employee[] = [
-  { _id: 'emp-1', name: 'Alex Johnson', email: 'alex@techinnovator.com', role: 'System Admin', Project: 'AI WorkTracker Pro', status: 'Active', avatarColor: '#4f46e5', userType: 'admin', totalMinutes: 1420 },
-  { _id: 'emp-2', name: 'Sarah Connor', email: 'sarah@techinnovator.com', role: 'Project Manager', Project: 'Mobile Banking App', status: 'Active', avatarColor: '#ec4899', userType: 'employee', totalMinutes: 1180 },
-  { _id: 'emp-3', name: 'Michael Scott', email: 'michael@techinnovator.com', role: 'Senior Developer', Project: 'Enterprise CRM', status: 'Active', avatarColor: '#10b981', userType: 'employee', totalMinutes: 960 },
-  { _id: 'emp-4', name: 'Dwight Schrute', email: 'dwight@techinnovator.com', role: 'UI/UX Designer', Project: 'Cloud Analytics', status: 'Active', avatarColor: '#f59e0b', userType: 'employee', totalMinutes: 840 },
-];
-
 export default function ProjectsPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
+  const [user, setUser] = useState<any>(null);
 
   // Shared Data State
-  const [employees, setEmployees] = useState<Employee[]>(DEFAULT_INLINE_EMPLOYEES);
-  const [projects, setProjects] = useState<Project[]>(DEFAULT_INLINE_PROJECTS);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [entries, setEntries] = useState<WorkEntry[]>([]);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
-  const [isRoleAdmin, setIsRoleAdmin] = useState(true);
+  const [isRoleAdmin, setIsRoleAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -192,18 +167,52 @@ export default function ProjectsPage() {
 
   const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#475569'];
 
-  // Check login session on mount
+  // Load the authenticated user from the DB-backed session cookie.
   useEffect(() => {
-    const storedUser = localStorage.getItem('worktracker_user');
-    if (!storedUser) {
-      router.push('/login');
-    } else {
-      const parsed = JSON.parse(storedUser);
-      setUser(parsed);
-      const todayStr = new Date().toISOString().split('T')[0];
-      setWorkDate(todayStr);
-    }
-  }, [router]);
+    let mounted = true;
+
+    const loadCurrentUser = async () => {
+      try {
+        const response = await fetch('/api/auth/me', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success || !result.user) {
+          return;
+        }
+
+        if (!mounted) return;
+
+        const currentUser = {
+          ...result.user,
+          name: result.user.full_name ?? result.user.name ?? 'User',
+          role: result.user.designation ?? result.user.role ?? '',
+          userType:
+            Number(result.user.user_role) === 1
+              ? 'admin'
+              : 'employee',
+        };
+
+        setUser(currentUser);
+        setIsRoleAdmin(Number(result.user.user_role) === 1);
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        setWorkDate(todayStr);
+      } catch (error) {
+        console.error('Failed to load current user:', error);
+      }
+    };
+
+    loadCurrentUser();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Fetch Core Data
   const fetchData = useCallback(async () => {
@@ -213,15 +222,19 @@ export default function ProjectsPage() {
       setLoading(true);
       setError(null);
 
+      // Projects come from the authenticated API.
       const projectResponse = await fetch('/api/projects', {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         cache: 'no-store',
       });
 
       const projectResult = await projectResponse.json();
+
       if (!projectResponse.ok || projectResult.success === false) {
-        throw new Error(projectResult.message || 'Failed to load projects');
+        throw new Error(
+          projectResult.message || 'Failed to load projects'
+        );
       }
 
       const apiProjects = Array.isArray(projectResult.data)
@@ -230,47 +243,140 @@ export default function ProjectsPage() {
           ? projectResult.projects
           : [];
 
-      const loadedProjects: Project[] = apiProjects.map((project: any, index: number) => {
-        const members = Array.isArray(project.project_users)
-          ? project.project_users
-          : Array.isArray(project.members)
-            ? project.members
-            : [];
-
-        const client = project.client && typeof project.client === 'object'
-          ? project.client
-          : null;
-
-        return {
-          _id: String(project._id),
-          name: project.name || 'Untitled Project',
-          description: project.short_description ?? project.description ?? '',
-          color: project.color || colors[index % colors.length],
-          totalMinutes: 0,
-          entryCount: 0,
-          taskCount: project.taskCount || 0,
-          members,
-          clientId: client ? {
-            _id: String(client._id),
-            name: client.name || '',
-            emails: Array.isArray(client.emails) ? client.emails : [],
-            address: client.address,
-            duration: client.duration,
-          } : (typeof project.client === 'string' ? {
-            _id: project.client,
-            name: 'Client',
-            emails: [],
-          } : null),
-          start_date: project.start_date,
-          end_date: project.end_date,
-          created_by: project.created_by,
-          modified_by: project.modified_by,
-          isVerify: project.isVerify,
-          status: project.status,
-        };
+      // Employees MUST come from the database-backed API.
+      // The API scopes them to the currently logged-in admin.
+      const employeeResponse = await fetch('/api/users/employees', {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
       });
 
-      const loadedEmployees = staticClient.getEmployees() as any[];
+      const employeeResult = await employeeResponse.json();
+
+      if (!employeeResponse.ok || !employeeResult.success) {
+        throw new Error(
+          employeeResult.message || 'Failed to load employees'
+        );
+      }
+
+      const loadedEmployees: Employee[] = Array.isArray(employeeResult.data)
+        ? employeeResult.data.map((employee: any) => ({
+            ...employee,
+            _id: String(employee._id),
+            name: employee.name || employee.full_name || 'User',
+            role: employee.role || employee.designation || 'Employee',
+            userType:
+              Number(employee.user_role) === 1
+                ? 'admin'
+                : 'employee',
+            avatarColor: employee.avatarColor || '#3b82f6',
+            totalMinutes: Number(employee.totalMinutes) || 0,
+          }))
+        : [];
+
+      // Convert project_users IDs into actual employee objects.
+      const employeeMap = new Map<string, Employee>(
+        loadedEmployees.map((employee) => [
+          String(employee._id),
+          employee,
+        ])
+      );
+
+      const loadedProjects: Project[] = apiProjects.map(
+        (project: any, index: number) => {
+          const rawMembers = Array.isArray(project.project_users)
+            ? project.project_users
+            : Array.isArray(project.members)
+              ? project.members
+              : [];
+
+          const members = rawMembers
+            .map((member: any) => {
+              const id =
+                typeof member === 'object'
+                  ? String(member?._id ?? member?.id ?? '')
+                  : String(member ?? '');
+
+              if (!id) return null;
+
+              // If the API already returned a populated employee object,
+              // normalize and use it.
+              if (
+                member &&
+                typeof member === 'object' &&
+                (member.full_name || member.name)
+              ) {
+                return {
+                  ...member,
+                  _id: id,
+                  name:
+                    member.full_name ||
+                    member.name ||
+                    'User',
+                  role:
+                    member.designation ||
+                    member.role ||
+                    'Employee',
+                  avatarColor:
+                    member.avatarColor ||
+                    '#3b82f6',
+                };
+              }
+
+              // Normal case: project_users contains only an employee ID.
+              return employeeMap.get(id) ?? null;
+            })
+            .filter(Boolean);
+
+          const client =
+            project.client &&
+            typeof project.client === 'object'
+              ? {
+                  _id: String(project.client._id),
+                  name: project.client.name || '',
+                  emails: Array.isArray(project.client.emails)
+                    ? project.client.emails
+                    : [],
+                  address: project.client.address,
+                  duration: project.client.duration,
+                }
+              : null;
+
+          return {
+            _id: String(project._id),
+            name: project.name || 'Untitled Project',
+            description:
+              project.short_description ??
+              project.description ??
+              '',
+            color:
+              project.color ||
+              colors[index % colors.length],
+            totalMinutes: 0,
+            entryCount: 0,
+            taskCount: Number(project.taskCount) || 0,
+            members,
+            clientId:
+              client ||
+              (project.client
+                ? {
+                    _id: String(project.client),
+                    name: '',
+                    emails: [],
+                  }
+                : null),
+            start_date: project.start_date,
+            end_date: project.end_date,
+            created_by: project.created_by,
+            modified_by: project.modified_by,
+            isVerify: project.isVerify,
+            status: project.status,
+          };
+        }
+      );
+
+      // Existing work-log/client UI still uses staticClient.
+      // It is NOT used for employees or project member ownership.
       const loadedWork = staticClient.getWorkEntries() as any[];
       const loadedClients = staticClient.getClients() as any[];
 
@@ -279,38 +385,63 @@ export default function ProjectsPage() {
       setClientsList(loadedClients as any);
 
       if (typeof window !== 'undefined') {
-        const savedOrder = localStorage.getItem('worktracker_project_order');
+        const savedOrder = localStorage.getItem(
+          'worktracker_project_order'
+        );
+
         if (savedOrder) {
           try {
             const orderIds: string[] = JSON.parse(savedOrder);
-            const posMap = new Map(orderIds.map((id, idx) => [id, idx]));
-            loadedProjects.sort((a: any, b: any) => {
-              const posA = posMap.has(a._id) ? posMap.get(a._id)! : 999;
-              const posB = posMap.has(b._id) ? posMap.get(b._id)! : 999;
+            const posMap = new Map(
+              orderIds.map((id, idx) => [id, idx])
+            );
+
+            loadedProjects.sort((a: Project, b: Project) => {
+              const posA = posMap.has(a._id)
+                ? posMap.get(a._id)!
+                : 999;
+              const posB = posMap.has(b._id)
+                ? posMap.get(b._id)!
+                : 999;
+
               return posA - posB;
             });
           } catch (e) {
-            console.error('Error parsing saved project order:', e);
+            console.error(
+              'Error parsing saved project order:',
+              e
+            );
           }
         }
       }
+
       setProjects(loadedProjects);
 
-      if (loadedProjects.length > 0 && !workProjId) {
-        setWorkProjId(loadedProjects[0]._id);
+      // Functional setters prevent these state updates from changing
+      // fetchData's dependencies and causing another API fetch cycle.
+      if (loadedProjects.length > 0) {
+        setWorkProjId((current) =>
+          current || loadedProjects[0]._id
+        );
       }
-      if (user.userType === 'employee') {
-        setWorkEmpId(user._id);
-      } else if (loadedEmployees.length > 0 && !workEmpId) {
-        setWorkEmpId(loadedEmployees[0]._id);
+
+      if (Number(user?.user_role) === 2) {
+        setWorkEmpId(String(user._id));
+      } else if (loadedEmployees.length > 0) {
+        setWorkEmpId((current) =>
+          current || loadedEmployees[0]._id
+        );
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Error occurred while loading Project data.');
+      setError(
+        err.message ||
+        'Error occurred while loading Project data.'
+      );
     } finally {
       setLoading(false);
     }
-  }, [user, workProjId, workEmpId]);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -405,7 +536,7 @@ export default function ProjectsPage() {
   // --- Work Log Actions ---
   const handleAddWorkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const finalEmpId = user.userType === 'employee' ? user._id : workEmpId;
+    const finalEmpId = Number(user?.user_role) === 2 ? user._id : workEmpId;
     if (!workProjId || !finalEmpId || !workTitle.trim() || !workDate || !workStart || !workEnd) {
       alert('Please fill all required fields');
       return;
@@ -500,7 +631,7 @@ export default function ProjectsPage() {
     return matchesSearch && matchesDate;
   });
 
-  const isAdmin = user?.userType === 'admin' || isRoleAdmin;
+  const isAdmin = Number(user?.user_role) === 1;
   const canCreateProject = isAdmin || userPermissions.includes('projects:create');
 
   if (loading && projects.length === 0 && !error) {
@@ -512,10 +643,10 @@ export default function ProjectsPage() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div className="project-heading">
-            <h1>Projects</h1>
-          </div>
-          
-        <div style={{ display: 'flex',}}>
+          <h1>Projects</h1>
+        </div>
+
+        <div style={{ display: 'flex', }}>
           {canCreateProject && (
             <button className="btn btn-primary" onClick={() => {
               setDeptName('');
@@ -1040,7 +1171,7 @@ export default function ProjectsPage() {
                     {/* Left: Logs */}
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <h3 className="card-title" style={{ fontWeight:'400', fontSize: '0.85rem' }}>Work Logs ({filteredProjEntries.length})</h3>
+                        <h3 className="card-title" style={{ fontWeight: '400', fontSize: '0.85rem' }}>Work Logs ({filteredProjEntries.length})</h3>
 
                         <div style={{ display: 'flex', gap: '6px' }}>
                           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -1074,7 +1205,7 @@ export default function ProjectsPage() {
                             <div key={log._id} className="card work-entry-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-tertiary)', padding: '8px 12px' }}>
                               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flex: 1 }}>
                                 <div className="avatar" style={{ backgroundColor: log.employeeAvatarColor, width: '24px', height: '24px', fontSize: '0.65rem', flexShrink: 0 }}>
-                                  {log.employeeName.split(' ').map(n => n[0]).join('')}
+                                  {String(log.employeeName || 'User').split(/\s+/).filter(Boolean).map(n => n[0]).join('')}
                                 </div>
                                 <div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem' }}>
@@ -1116,11 +1247,24 @@ export default function ProjectsPage() {
 
                     {/* Right: Members */}
                     <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
-                      <h3 className="card-title" style={{fontWeight:'400', fontSize: '0.85rem', marginBottom: '8px' }}>Staff Assigned</h3>
+                      <h3 className="card-title" style={{ fontWeight: '400', fontSize: '0.85rem', marginBottom: '8px' }}>Staff Assigned</h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto' }}>
-                        {activeProject.members.map((m: any) => {
-                          const presence: 'working' | 'idle' | 'offline' = m.presenceState || 'offline';
-                          let dotColor = '#94a3b8'; // Grey for offline
+                        {activeProject.members.map((m: any, index: number) => {
+                          const memberId =
+                            typeof m === 'string'
+                              ? m
+                              : m?._id ?? m?.id;
+
+                          const memberKey = memberId
+                            ? String(memberId)
+                            : `project-member-${index}`;
+
+                          const presence: 'working' | 'idle' | 'offline' =
+                            typeof m === 'object'
+                              ? m?.presenceState || 'offline'
+                              : 'offline';
+
+                          let dotColor = '#94a3b8';
                           let statusLabel = 'Offline';
                           let badgeBg = 'rgba(148, 163, 184, 0.12)';
                           let badgeColor = '#64748b';
@@ -1140,9 +1284,21 @@ export default function ProjectsPage() {
                             dotGlow = '0 0 4px rgba(245, 158, 11, 0.6)';
                           }
 
-                          const initials = m.name ? m.name.split(' ').map((n: string) => n[0]).join('') : 'U';
+                          const memberName =
+                            typeof m === 'object'
+                              ? m?.full_name ?? m?.name ?? 'User'
+                              : 'User';
+
+                          const initials = memberName
+                            .split(/\s+/)
+                            .filter(Boolean)
+                            .map((n: string) => n[0])
+                            .join('');
+
+
+
                           return (
-                            <div key={m._id} className="list-row" style={{ padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                            <div key={memberKey} className="list-row" style={{ padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                               <div className="avatar-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                                 <div style={{ position: 'relative', flexShrink: 0 }}>
                                   <div className="avatar" style={{ backgroundColor: m.avatarColor || '#3b82f6', width: '26px', height: '26px', fontSize: '0.68rem', fontWeight: 700 }}>
@@ -1163,8 +1319,8 @@ export default function ProjectsPage() {
                                   />
                                 </div>
                                 <div style={{ overflow: 'hidden' }}>
-                                  <div style={{ fontWeight: 700, fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
-                                  <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.role}</div>
+                                  <div style={{ fontWeight: 700, fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{memberName}</div>
+                                  <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.designation ?? m.role ?? ''}</div>
                                 </div>
                               </div>
                               <span
@@ -1284,7 +1440,6 @@ export default function ProjectsPage() {
         isOpen={isAddDeptOpen}
         onClose={() => setIsAddDeptOpen(false)}
         clientsList={clientsList}
-        employeesList={employees}
         onSuccess={() => fetchData()}
       />
 
@@ -1325,7 +1480,7 @@ export default function ProjectsPage() {
                       <option key={emp._id} value={emp._id}>{emp.name} ({emp.role})</option>
                     ))
                   ) : (
-                    <option value={user?._id}>{user?.name} ({user?.role})</option>
+                    <option value={user?._id}>{user?.name ?? user?.full_name ?? 'User'} ({user?.role ?? user?.designation ?? ''})</option>
                   )}
                 </select>
               </div>
@@ -1440,7 +1595,7 @@ export default function ProjectsPage() {
                       <option key={emp._id} value={emp._id}>{emp.name} ({emp.role})</option>
                     ))
                   ) : (
-                    <option value={user?._id}>{user?.name} ({user?.role})</option>
+                    <option value={user?._id}>{user?.name ?? user?.full_name ?? 'User'} ({user?.role ?? user?.designation ?? ''})</option>
                   )}
                 </select>
               </div>

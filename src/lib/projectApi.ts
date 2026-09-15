@@ -5,17 +5,15 @@ export interface ProjectPayload {
   client?: string | null;
   start_date?: string | null;
   end_date?: string | null;
-  created_by?: string | null;
-  modified_by?: string | null;
   isVerify?: boolean;
   status?: boolean;
-  clientInfo?: {
-    name: string;
-    phone?: string;
-    emails?: string[];
-    address?: string;
-    duration?: string;
-  };
+  // clientInfo?: {
+  //   name: string;
+  //   phone?: string;
+  //   emails?: string[];
+  //   address?: string;
+  //   duration?: string;
+  // };
 }
 
 export async function getProjects() {

@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Eye, EyeOff, Loader2, UserPlus, AlertCircle, User, Mail, Lock, Briefcase, UserStar } from 'lucide-react';
 import { CustomDropdown } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
 import { useModalDraft } from '@/context/ModalDraftContext';
 import type { Employee } from '@/types/Employee2';
 
@@ -52,8 +51,14 @@ export default function AddTeamMemberModal({
   const [workMode, setWorkMode] = useState(mode === 'add' ? 'Hybrid' : employee?.workMode || 'Hybrid');
   const [avatarColor, setAvatarColor] = useState(employee?.avatarColor || '#3b82f6');
   const [userType, setUserType] = useState<'admin' | 'employee'>(employee?.userType || 'employee');
+  type Designation = {
+    _id: string;
+    name: string;
+    short_desc?: string;
+  };
 
-  const [fetchedDesignations, setFetchedDesignations] = useState<string[]>([]);
+  const [fetchedDesignations, setFetchedDesignations] =
+    useState<Designation[]>([]);
   const [fetchedProjects, setFetchedProjects] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,104 +71,252 @@ export default function AddTeamMemberModal({
 
   const handleCreateNewRole = async () => {
     const trimmed = newRoleName.trim();
+
     if (!trimmed) {
       setRoleAddError('Please enter a designation name');
       return;
     }
+
     try {
       setAddingRole(true);
       setRoleAddError(null);
 
-      const designationName = trimmed;
-      setFetchedDesignations((prev) => Array.from(new Set([designationName, ...prev])));
-      setRole(designationName);
+      const response = await fetch('/api/designations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: trimmed,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || 'Failed to create designation'
+        );
+      }
+
+      const newDesignation: Designation = {
+        _id: String(result.data._id),
+        name: result.data.name,
+        short_desc: result.data.short_desc || '',
+      };
+
+      setFetchedDesignations((prev) => [
+        newDesignation,
+        ...prev.filter(
+          (item) =>
+            item._id !== newDesignation._id &&
+            item.name.toLowerCase() !== newDesignation.name.toLowerCase()
+        ),
+      ]);
+
+      // Automatically select the newly-created designation.
+      setRole(newDesignation.name);
       setNewRoleName('');
       setIsAddRoleModalOpen(false);
-      toast.success(`Designation "${designationName}" added successfully`);
+
+      toast.success(
+        `Designation "${newDesignation.name}" added successfully`
+      );
     } catch (err: any) {
-      setRoleAddError(err.message || 'Error adding designation');
+      setRoleAddError(
+        err.message || 'Error adding designation'
+      );
     } finally {
       setAddingRole(false);
     }
   };
 
-  // Fetch designations and projects dynamically when opened
+  // Fetch database-backed designations when the modal opens.
   useEffect(() => {
     if (!isOpen) return;
 
-    setFetchedDesignations(staticClient.getDesignations());
-    const roles = staticClient.getRoles();
-    const empRole = roles.find((item: any) => item.name.toLowerCase() === 'employee');
-    if (empRole) setRoleId(empRole._id);
+    let cancelled = false;
 
-    const projs = staticClient.getProjects().map((p: any) => p.name).filter(Boolean);
-    setFetchedProjects(projs);
+    const loadDesignations = async () => {
+      try {
+        const response = await fetch('/api/designations', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.message || 'Failed to load designations'
+          );
+        }
+
+        if (cancelled) return;
+
+        const designations: Designation[] = Array.isArray(result.data)
+          ? result.data
+              .filter((item: any) => item?._id && item?.name)
+              .map((item: any) => ({
+                _id: String(item._id),
+                name: String(item.name),
+                short_desc: String(item.short_desc || ''),
+              }))
+          : [];
+
+        setFetchedDesignations(designations);
+      } catch (error) {
+        if (!cancelled) {
+          console.error(
+            'Failed to load designations:',
+            error
+          );
+          setFetchedDesignations([]);
+        }
+      }
+    };
+
+    loadDesignations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  // Projects are also loaded from the API.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    const loadProjects = async () => {
+      try {
+        const response = await fetch('/api/projects', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.message || 'Failed to load projects'
+          );
+        }
+
+        if (cancelled) return;
+
+        const projectNames = Array.isArray(result.data)
+          ? result.data
+              .map((project: any) => project?.name)
+              .filter(Boolean)
+          : [];
+
+        setFetchedProjects(projectNames);
+      } catch (error) {
+        if (!cancelled) {
+          console.error(
+            'Failed to load projects:',
+            error
+          );
+          setFetchedProjects([]);
+        }
+      }
+    };
+
+    loadProjects();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   const draftKey = mode === 'add' ? 'add-employee' : `edit-employee-${employee?._id || 'unknown'}`;
   const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
-const initializedModalRef = useRef<string | null>(null);
+  const initializedModalRef = useRef<string | null>(null);
   useEffect(() => {
-  if (!isOpen) {
-    initializedModalRef.current = null;
-    return;
-  }
+    if (!isOpen) {
+      initializedModalRef.current = null;
+      return;
+    }
 
-  if (initializedModalRef.current === draftKey) {
-    return;
-  }
+    if (initializedModalRef.current === draftKey) {
+      return;
+    }
 
-  initializedModalRef.current = draftKey;
-  setModalOpenState(draftKey, true);
+    initializedModalRef.current = draftKey;
+    setModalOpenState(draftKey, true);
 
-  const draft = getDraft(draftKey);
+    const draft = getDraft(draftKey);
 
-  if (draft) {
-    if (draft.name !== undefined) setName(draft.name);
-    if (draft.email !== undefined) setEmail(draft.email);
-    if (draft.password !== undefined) setPassword(draft.password);
-    if (draft.role !== undefined) setRole(draft.role);
-    if (draft.roleId !== undefined) setRoleId(draft.roleId);
-    if (draft.project !== undefined) setProject(draft.project);
-    if (draft.group !== undefined) setGroup(draft.group);
-    if (draft.status !== undefined) setStatus(draft.status);
-    if (draft.workMode !== undefined) setWorkMode(draft.workMode);
-    if (draft.avatarColor !== undefined) setAvatarColor(draft.avatarColor);
-    if (draft.userType !== undefined) setUserType(draft.userType);
+    if (draft) {
+      if (draft.name !== undefined) setName(draft.name);
+      if (draft.email !== undefined) setEmail(draft.email);
+      if (draft.password !== undefined) setPassword(draft.password);
+      if (draft.role !== undefined) setRole(draft.role);
+      if (draft.roleId !== undefined) setRoleId(draft.roleId);
+      if (draft.project !== undefined) setProject(draft.project);
+      if (draft.group !== undefined) setGroup(draft.group);
+      if (draft.status !== undefined) setStatus(draft.status);
+      if (draft.workMode !== undefined) setWorkMode(draft.workMode);
+      if (draft.avatarColor !== undefined) setAvatarColor(draft.avatarColor);
+      if (draft.userType !== undefined) setUserType(draft.userType);
 
-    setError(null);
-    return;
-  }
+      setError(null);
+      return;
+    }
 
-  if (mode === 'edit' && employee) {
-    setName(employee.name);
-    setEmail(employee.email);
-    setPassword(employee.password || 'password123');
-    setRole(employee.role || '');
-    setProject(employee.Project || '');
-    setGroup((employee as Employee & { group?: string }).group || '');
-    setStatus(employee.status || 'Active');
-    setWorkMode(employee.workMode || 'Hybrid');
-    setAvatarColor(employee.avatarColor || '#3b82f6');
-    setUserType(employee.userType || 'employee');
-    setError(null);
-  } else {
-    resetForm();
-  }
-}, [
-  isOpen,
-  draftKey,
-  mode,
-  employee?._id,
-  getDraft,
-  setModalOpenState,
-]);
+    if (mode === 'edit' && employee) {
+      const emp = employee as Employee & {
+        full_name?: string;
+        designation?: string;
+        group?: string;
+        profile_picture?: string | null;
+        status?: string | boolean;
+        workMode?: string;
+        avatarColor?: string;
+        userType?: 'admin' | 'employee';
+        Project?: string;
+        password?: string;
+      };
+
+      setName(String(emp.full_name ?? emp.name ?? ''));
+      setEmail(String(emp.email ?? ''));
+      setPassword(String(emp.password ?? 'password123'));
+      setRole(String(emp.designation ?? emp.role ?? ''));
+      setProject(String(emp.Project ?? ''));
+      setGroup(String(emp.group ?? ''));
+      setStatus(
+        typeof emp.status === 'boolean'
+          ? (emp.status ? 'Active' : 'Inactive')
+          : String(emp.status ?? 'Active')
+      );
+      setWorkMode(String(emp.workMode ?? 'Hybrid'));
+      setAvatarColor(String(emp.avatarColor ?? '#3b82f6'));
+      setUserType(emp.userType === 'admin' ? 'admin' : 'employee');
+      setError(null);
+    } else {
+      resetForm();
+    }
+  }, [
+    isOpen,
+    draftKey,
+    mode,
+    employee?._id,
+    getDraft,
+    setModalOpenState,
+  ]);
   if (!isOpen) return null;
 
-  // Pure dynamic designation options from database and current selection
+  // Convert database designation objects into CustomDropdown options.
   const allRoleSuggestions = Array.from(
     new Set([
-      ...fetchedDesignations,
+      ...fetchedDesignations.map(
+        (designation) => designation.name
+      ),
       ...(role ? [role] : []),
     ])
   ).filter(Boolean);
@@ -324,37 +477,57 @@ const initializedModalRef = useRef<string | null>(null);
         onClose();
 
         return;
+      } else {
+        if (!employee?._id) {
+          throw new Error("Employee details are unavailable");
+        }
+
+        const payload: Record<string, unknown> = {
+          full_name: name.trim(),
+          email: email.trim().toLowerCase(),
+          designation: role.trim(),
+          group: group.trim() || null,
+          status: status === "Active",
+          workMode,
+        };
+
+        // Password only update if user entered a new one
+        if (password.trim()) {
+          payload.password = password.trim();
+        }
+
+        const response = await fetch(
+          `/api/users/employees?id=${encodeURIComponent(employee._id)}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+            body: JSON.stringify(payload),
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(
+            data.message || "Failed to update employee"
+          );
+        }
+
+        toast.success(
+          `${data.data?.full_name || name.trim()} updated successfully`
+        );
+
+        clearDraft(draftKey);
+        resetForm();
+
+        onSuccess?.(data.data);
+        onClose();
       }
 
-      if (!employee?._id) {
-        throw new Error("Employee details are unavailable");
-      }
 
-      const updatedEmployee = {
-        _id: employee._id,
-        ...updateBody,
-      };
-
-      const employeeIndex = staticClient
-        .getEmployees()
-        .findIndex((item) => item._id === employee._id);
-
-      if (employeeIndex !== -1) {
-        staticClient.getEmployees()[employeeIndex] = updatedEmployee as any;
-      }
-
-      window.dispatchEvent(
-        new CustomEvent("employees-updated", {
-          detail: updatedEmployee,
-        })
-      );
-
-      clearDraft(draftKey);
-      resetForm();
-
-      toast.success(`${name.trim()} updated successfully`);
-      onSuccess?.(updatedEmployee);
-      onClose();
     } catch (err: any) {
       setError(err.message || "An error occurred while saving member.");
     } finally {
@@ -393,7 +566,7 @@ const initializedModalRef = useRef<string | null>(null);
         {/* Modal Header */}
         <div className="modal-header">
           <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-            {mode === 'add' ? 'Add New Employee' : 'Edit Employee Details'}
+            {mode === 'add' ? 'Add New Employee' : `Edit ${name} Details`}
           </h3>
           <button className="modal-close" onClick={handleClose}>&times;</button>
         </div>
@@ -433,7 +606,7 @@ const initializedModalRef = useRef<string | null>(null);
 
                 className="custom-input-control"
                 placeholder="Full Name"
-                value={name}
+                value={name ?? ''}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
@@ -453,7 +626,7 @@ const initializedModalRef = useRef<string | null>(null);
 
                 className="custom-input-control"
                 placeholder="example@mail.com"
-                value={email}
+                value={email ?? ''}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
@@ -473,7 +646,7 @@ const initializedModalRef = useRef<string | null>(null);
                   type={showPassword ? 'text' : 'password'}
                   className="custom-input-control"
                   style={{ paddingRight: '34px' }}
-                  value={password}
+                  value={password ?? ''}
                   onChange={(e) => setPassword(e.target.value)}
                 />
                 <button
@@ -501,8 +674,8 @@ const initializedModalRef = useRef<string | null>(null);
             </div>
 
             <CustomDropdown
-              label="Access Type / Role *"
-              placeholder="Select Access Type"
+              label="Role *"
+              placeholder="Select Role"
               value="employee"
               options={[{ value: 'employee', label: 'Employee' }]}
               onChange={() => { }}
@@ -512,24 +685,28 @@ const initializedModalRef = useRef<string | null>(null);
           {/* Row 2: Job Title / Role & Default Project */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'start' }}>
             <CustomDropdown
-              label="Job Title / Designation *"
-              placeholder="Select Job Title / Role"
-              value={role}
-              options={allRoleSuggestions.map((r) => ({
-                value: r,
-                label: r,
+              label="Designation *"
+              placeholder="Select Designation"
+              value={role ?? ''}
+              options={allRoleSuggestions.map((designation) => ({
+                value: designation,
+                label: designation,
               }))}
               onChange={(val) => setRole(val)}
               actionButton={{
                 label: 'Add',
-                onClick: () => setIsAddRoleModalOpen(true),
+                onClick: () => {
+                  setNewRoleName('');
+                  setRoleAddError(null);
+                  setIsAddRoleModalOpen(true);
+                },
               }}
             />
 
             <CustomDropdown
               label="Default Project"
               placeholder="Select Project"
-              value={group}
+              value={group ?? ''}
               options={allProjectOptions.map((p) => ({
                 value: p,
                 label: p,
@@ -543,7 +720,7 @@ const initializedModalRef = useRef<string | null>(null);
             <CustomDropdown
               label="Initial Status"
               placeholder="Select Status"
-              value={status}
+              value={status ?? 'Active'}
               options={[
                 { value: 'Active', label: 'Active', badgeText: '•', badgeBg: '#ecfdf5', badgeColor: '#047857' },
                 { value: 'Inactive', label: 'Inactive', badgeText: '•', badgeBg: '#f1f5f9', badgeColor: '#475569' },
@@ -555,7 +732,7 @@ const initializedModalRef = useRef<string | null>(null);
             <CustomDropdown
               label="Work Mode"
               placeholder="Select Work Mode"
-              value={workMode}
+              value={workMode ?? 'Hybrid'}
               options={[
                 { value: 'Hybrid', label: 'Hybrid', badgeText: '•', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
                 { value: 'Remote', label: 'Remote', badgeText: '•', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
@@ -639,7 +816,7 @@ const initializedModalRef = useRef<string | null>(null);
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                Add New Job Title / Designation
+                Add New Designation
               </h4>
               <button
                 type="button"
@@ -680,7 +857,7 @@ const initializedModalRef = useRef<string | null>(null);
 
             <div>
               <label className="form-label" style={{ fontWeight: 700, fontSize: '0.78rem', marginBottom: '6px', display: 'block' }}>
-                Job Title / Role Name <span style={{ color: '#ef4444' }}>*</span>
+                Designation Name <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <div className="custom-input-group">
                 <span className="custom-input-addon">
@@ -690,7 +867,7 @@ const initializedModalRef = useRef<string | null>(null);
                   type="text"
                   className="custom-input-control"
                   placeholder="e.g. Senior Product Designer"
-                  value={newRoleName}
+                  value={newRoleName ?? ''}
                   onChange={(e) => setNewRoleName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {

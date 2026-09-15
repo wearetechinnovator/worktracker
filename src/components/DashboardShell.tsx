@@ -1,8 +1,7 @@
 import Sidebar from "@/components/Sidebar";
 import TopNavbar from "@/components/TopNavbar";
 
-
-export default function DashboardLayout({
+export default function DashboardShell({
   children,
 }: {
   children: React.ReactNode;

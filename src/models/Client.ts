@@ -1,50 +1,121 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
 
-export interface IClientContact {
-  name: string;
-  email?: string;
-  phone?: string;
-  designation?: string;
-  label?: string;
-}
-
-export interface IClient extends Document {
-  name: string;
-  phone?: string;
-  emails: string[];
-  address?: string;
-  duration?: string;
-  contractStartDate?: string;
-  contractEndDate?: string;
-  contacts?: IClientContact[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const ClientSchema = new Schema<IClient>(
+const contactMemberSchema = new Schema(
   {
-    name: { type: String, required: true, trim: true },
-    phone: { type: String, trim: true },
-    emails: [{ type: String, trim: true, lowercase: true }],
-    address: { type: String, trim: true },
-    duration: { type: String, trim: true },
-    contractStartDate: { type: String, trim: true },
-    contractEndDate: { type: String, trim: true },
-    contacts: [{
-      name: { type: String, trim: true },
-      email: { type: String, trim: true, lowercase: true },
-      phone: { type: String, trim: true },
-      designation: { type: String, trim: true },
-      label: { type: String, trim: true },
-    }],
+    name: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    email: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    phone: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    designation: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    label: {
+      type: String,
+      default: "",
+      trim: true,
+    },
   },
-  { timestamps: true }
+  { _id: false }
 );
 
-if (mongoose.models && mongoose.models.Client) {
-  delete (mongoose.models as any).Client;
-}
+const clientSchema = new Schema(
+  {
+    id: {
+      type: String,
+      default: null,
+    },
 
-const Client: Model<IClient> = mongoose.models.Client || mongoose.model<IClient>('Client', ClientSchema);
+    qd_id: {
+      type: Schema.Types.ObjectId,
+      default: null,
+    },
+    projects: {
+      type: [String],
+      default: [],
+    },
+
+    duration: {
+      type: String,
+      default: "",
+    },
+
+    contract_start_date: {
+      type: Date,
+      default: null,
+    },
+
+    contract_end_date: {
+      type: Date,
+      default: null,
+    },
+
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    email: {
+      type: [String],
+      default: [],
+    },
+
+    address: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    contact_members: {
+      type: [contactMemberSchema],
+      default: [],
+    },
+
+    created_by: {
+      type: Number,
+      default: null,
+    },
+
+    created_on: {
+      type: Date,
+      default: Date.now,
+    },
+
+    modified_by: {
+      type: Number,
+      default: null,
+    },
+
+    modified_on: {
+      type: Date,
+      default: null,
+    },
+
+    status: {
+      type: Number,
+      default: 1,
+    },
+  },
+  {
+    timestamps: false,
+  }
+);
+
+const Client =
+  mongoose.models.Client ||
+  mongoose.model("Client", clientSchema);
 
 export default Client;

@@ -188,30 +188,58 @@ export default function TopNavbar() {
   }, []);
 
   // Fetch current user and shared resources
-  const loadUserAndResources = async () => {
-    const storedUser = localStorage.getItem('worktracker_user');
-    if (!storedUser) {
+ const loadUserAndResources = async () => {
+  try {
+    // ============================================
+    // GET CURRENT LOGGED-IN USER FROM SESSION
+    // ============================================
+    const response = await fetch("/api/auth/me", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success || !result.user) {
       setUser(null);
       setIsAdmin(false);
       return;
     }
-    const parsedUser = JSON.parse(storedUser);
-    setUser(parsedUser);
 
-    const currentUserObj = staticClient.getUser();
-    setUser(currentUserObj);
-    const admin = currentUserObj.userType === 'admin' || Boolean(currentUserObj.isSystemAdmin);
-    setIsAdmin(admin);
+    const currentUser = result.user;
 
+    // Set actual logged-in user
+    setUser(currentUser);
+
+    // user_role:
+    // 1 = admin
+    // 2 = employee
+    const userRole = Number(currentUser.user_role);
+
+    setIsAdmin(userRole === 1);
+
+    // ============================================
+    // SHARED RESOURCES
+    // ============================================
     setEmployees(staticClient.getEmployees());
     setProjects(staticClient.getProjects());
     setClientsList(staticClient.getClients());
 
+    // ============================================
+    // PUNCH STATUS
+    // ============================================
     const punch = staticClient.getPunchStatus();
+
     setIsPunchedIn(punch.isPunchedIn);
     setCanPunchOut(punch.canPunchOut);
-  };
+  } catch (error) {
+    console.error("Failed to load current user:", error);
 
+    setUser(null);
+    setIsAdmin(false);
+  }
+};
   useEffect(() => {
     loadUserAndResources();
     const handleRefresh = () => {
@@ -232,11 +260,6 @@ export default function TopNavbar() {
       window.removeEventListener('app-restore-modal', handleRestoreModal as EventListener);
     };
   }, [pathname]);
-
-
-
-
-
 
 
   // Don't render topbar on login page or when user is not logged in

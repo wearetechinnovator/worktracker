@@ -1,14 +1,47 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
 
-export interface IDesignation extends Document {
-  name: string;
-  createdAt: Date;
-}
+const designationSchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      unique: true,
+    },
 
-const DesignationSchema: Schema = new Schema({
-  name: { type: String, required: true, unique: true, trim: true },
-  createdAt: { type: Date, default: Date.now },
-});
+    short_desc: {
+      type: String,
+      default: "",
+      trim: true,
+    },
 
-export default mongoose.models.Designation ||
-  mongoose.model<IDesignation>('Designation', DesignationSchema);
+    created_by: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    modified_by: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    status: {
+      type: Number,
+      default: 1,
+    },
+  },
+  {
+    timestamps: {
+      createdAt: "created_on",
+      updatedAt: "modified_on",
+    },
+  }
+);
+
+const Designation =
+  mongoose.models.Designation ||
+  mongoose.model("Designation", designationSchema);
+
+export default Designation;
