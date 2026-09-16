@@ -604,7 +604,7 @@ export default function Sidebar() {
 															<span>Roles</span>
 														</Link>
 													</AnimateIcon>
-													<AnimateIcon animateOnHover>
+													<AnimateIcon animateOnHover delay={500}>
 
 														<Link
 															href={`${basePath}/clients`}
