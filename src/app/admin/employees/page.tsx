@@ -9,18 +9,14 @@ import {
 
 import {
   UserPlus,
-  Mail,
-  Edit3,
-  Trash2,
   AlertCircle,
-  Clock,
-  Briefcase,
 } from 'lucide-react';
 
 import { formatMinutesToDuration } from '@/lib/time';
 import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import PageShimmer from '@/components/PageShimmer';
+import EmployeeCard from '@/components/EmployeeCard';
 import { toast } from '@/lib/toast';
 
 type Employee = {
@@ -103,7 +99,7 @@ export default function EmployeesPage() {
       ) {
         throw new Error(
           result.message ||
-            'Authentication required'
+          'Authentication required'
         );
       }
 
@@ -129,36 +125,36 @@ export default function EmployeesPage() {
    */
 
   const fetchEmployees = useCallback(async () => {
-  try {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const response = await fetch(
-      "/api/users/employees",
-      {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      }
-    );
-
-    const result = await response.json();
-
-    if (!response.ok || !result.success) {
-      throw new Error(
-        result.message || "Failed to load employees"
+      const response = await fetch(
+        "/api/users/employees",
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }
       );
-    }
 
-    setEmployees(result.data || []);
-  } catch (error: any) {
-    console.error("Failed to fetch employees:", error);
-    setError(
-      error.message || "Failed to load employees"
-    );
-  } finally {
-    setLoading(false);
-  }
-}, []);
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || "Failed to load employees"
+        );
+      }
+
+      setEmployees(result.data || []);
+    } catch (error: any) {
+      console.error("Failed to fetch employees:", error);
+      setError(
+        error.message || "Failed to load employees"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   /*
    * =========================================================
@@ -233,21 +229,6 @@ export default function EmployeesPage() {
     }
   }, [employees]);
 
-  /*
-   * =========================================================
-   * EMPLOYEES
-   *
-   * API already returns:
-   * user_role: 2
-   * current user excluded
-   *
-   * So DO NOT filter using:
-   * emp.role
-   * emp.userType
-   * emp.name
-   * =========================================================
-   */
-
   const filteredEmployees = useMemo(() => {
     return employees;
   }, [employees]);
@@ -263,7 +244,7 @@ export default function EmployeesPage() {
       1,
       Math.ceil(
         filteredEmployees.length /
-          ITEMS_PER_PAGE
+        ITEMS_PER_PAGE
       )
     );
 
@@ -280,9 +261,9 @@ export default function EmployeesPage() {
   const paginatedEmployees =
     filteredEmployees.slice(
       (currentPage - 1) *
-        ITEMS_PER_PAGE,
+      ITEMS_PER_PAGE,
       currentPage *
-        ITEMS_PER_PAGE
+      ITEMS_PER_PAGE
     );
 
   /*
@@ -321,58 +302,58 @@ export default function EmployeesPage() {
    * is ready.
    * =========================================================
    */
-const handleDelete = async (empId: string) => {
-  const emp = employees.find(
-    (e) => String(e._id) === String(empId)
-  );
-
-  const empName =
-    (emp as any)?.full_name ||
-    (emp as any)?.name ||
-    "Employee";
-
-  if (
-    !confirm(
-      `Are you sure you want to delete ${empName}? This action is irreversible.`
-    )
-  ) {
-    return;
-  }
-
-  try {
-    const response = await fetch(
-      `/api/users/employees?id=${encodeURIComponent(empId)}`,
-      {
-        method: "DELETE",
-        credentials: "include",
-      }
+  const handleDelete = async (empId: string) => {
+    const emp = employees.find(
+      (e) => String(e._id) === String(empId)
     );
 
-    const data = await response.json();
+    const empName =
+      (emp as any)?.full_name ||
+      (emp as any)?.name ||
+      "Employee";
 
-    if (!response.ok || !data.success) {
-      throw new Error(
-        data.message || "Failed to delete employee"
-      );
+    if (
+      !confirm(
+        `Are you sure you want to delete ${empName}? This action is irreversible.`
+      )
+    ) {
+      return;
     }
 
-    setEmployees((prev) =>
-      prev.filter(
-        (e) => String(e._id) !== String(empId)
-      )
-    );
+    try {
+      const response = await fetch(
+        `/api/users/employees?id=${encodeURIComponent(empId)}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
 
-    toast.success(
-      `${empName} deleted successfully`
-    );
-  } catch (error: any) {
-    console.error("Delete employee error:", error);
+      const data = await response.json();
 
-    toast.error(
-      error.message || "Failed to delete employee"
-    );
-  }
-};
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Failed to delete employee"
+        );
+      }
+
+      setEmployees((prev) =>
+        prev.filter(
+          (e) => String(e._id) !== String(empId)
+        )
+      );
+
+      toast.success(
+        `${empName} deleted successfully`
+      );
+    } catch (error: any) {
+      console.error("Delete employee error:", error);
+
+      toast.error(
+        error.message || "Failed to delete employee"
+      );
+    }
+  };
   /*
    * =========================================================
    * PUNCH OVERRIDE
@@ -466,8 +447,8 @@ const handleDelete = async (empId: string) => {
             {totalItems === 0
               ? 0
               : (page - 1) *
-                  itemsPerPage +
-                1}
+              itemsPerPage +
+              1}
             -
             {Math.min(
               totalItems,
@@ -512,7 +493,7 @@ const handleDelete = async (empId: string) => {
             if (
               pageNumber === 1 ||
               pageNumber ===
-                totalPages ||
+              totalPages ||
               Math.abs(
                 pageNumber - page
               ) <= 1
@@ -545,7 +526,7 @@ const handleDelete = async (empId: string) => {
             if (
               pageNumber === 2 ||
               pageNumber ===
-                totalPages - 1
+              totalPages - 1
             ) {
               return (
                 <span
@@ -689,473 +670,32 @@ const handleDelete = async (empId: string) => {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns:
-            'repeat(auto-fill, minmax(260px, 1fr))',
-          gap: '12px',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+          gap: '14px',
         }}
       >
-        {filteredEmployees.length ===
-        0 ? (
+        {filteredEmployees.length === 0 ? (
           <p
             style={{
-              color:
-                'var(--text-muted)',
+              color: 'var(--text-muted)',
               textAlign: 'center',
               padding: '32px',
               gridColumn: '1 / -1',
             }}
           >
-            No registered employees
-            found. Click Add Employee
-            to create one.
+            No registered employees found. Click Add Employee to create one.
           </p>
         ) : (
-          paginatedEmployees.map(
-            (employee) => {
-              const employeeName =
-                employee.full_name ||
-                'Employee';
-
-              const initials =
-                employeeName
-                  .split(' ')
-                  .filter(Boolean)
-                  .map(
-                    (part) =>
-                      part[0]
-                  )
-                  .join('')
-                  .slice(0, 2)
-                  .toUpperCase();
-
-              const today =
-                new Date()
-                  .toISOString()
-                  .split('T')[0];
-
-              const allowPunchIn =
-                employee
-                  .todayAttendance
-                  ?.allowPunchInDate ===
-                today;
-
-              const allowPunchOut =
-                employee
-                  .todayAttendance
-                  ?.allowPunchOutDate ===
-                today;
-
-              const isActive =
-                employee.status !==
-                false;
-
-              return (
-                <div
-                  key={employee._id}
-                  className="card"
-                  onClick={() =>
-                    openEmployeeDetails(
-                      employee
-                    )
-                  }
-                  style={{
-                    display: 'flex',
-                    flexDirection:
-                      'column',
-                    justifyContent:
-                      'space-between',
-                    gap: '12px',
-                    cursor:
-                      'pointer',
-                  }}
-                >
-                  <div>
-                    {/* Avatar + Status */}
-                    <div
-                      style={{
-                        display:
-                          'flex',
-                        justifyContent:
-                          'space-between',
-                        alignItems:
-                          'flex-start',
-                      }}
-                    >
-                      <div
-                        className="avatar"
-                        style={{
-                          width: '36px',
-                          height: '36px',
-                          fontSize:
-                            '0.95rem',
-                          overflow:
-                            'hidden',
-                          display:
-                            'flex',
-                          alignItems:
-                            'center',
-                          justifyContent:
-                            'center',
-                        }}
-                      >
-                        {employee.profile_picture ? (
-                          <img
-                            src={
-                              employee.profile_picture
-                            }
-                            alt={
-                              employeeName
-                            }
-                            style={{
-                              width:
-                                '100%',
-                              height:
-                                '100%',
-                              objectFit:
-                                'cover',
-                            }}
-                          />
-                        ) : (
-                          initials
-                        )}
-                      </div>
-
-                      <span
-                        className={`badge-status ${
-                          isActive
-                            ? 'active'
-                            : 'inactive'
-                        }`}
-                      >
-                        {isActive
-                          ? 'Active'
-                          : 'Inactive'}
-                      </span>
-                    </div>
-
-                    {/* Employee Information */}
-                    <div
-                      style={{
-                        marginTop:
-                          '10px',
-                      }}
-                    >
-                      <div
-                        style={{
-                          display:
-                            'flex',
-                          alignItems:
-                            'center',
-                          gap: '4px',
-                          flexWrap:
-                            'wrap',
-                        }}
-                      >
-                        <h3
-                          style={{
-                            fontSize:
-                              '0.85rem',
-                            fontWeight:
-                              800,
-                          }}
-                        >
-                          {
-                            employeeName
-                          }
-                        </h3>
-
-                        <div
-                          style={{
-                            display:
-                              'flex',
-                            gap: '4px',
-                            marginTop:
-                              '2px',
-                            flexWrap:
-                              'wrap',
-                          }}
-                        >
-                          <span
-                            className="tag-badge"
-                            style={{
-                              fontSize:
-                                '0.50rem',
-                            }}
-                          >
-                            Employee
-                          </span>
-
-                          {employee.group && (
-                            <span
-                              className="tag-badge"
-                              style={{
-                                fontSize:
-                                  '0.50rem',
-                              }}
-                            >
-                              {
-                                employee.group
-                              }
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Designation */}
-                      <p
-                        style={{
-                          color:
-                            'var(--text-secondary)',
-                          fontSize:
-                            '0.75rem',
-                          display:
-                            'flex',
-                          alignItems:
-                            'center',
-                          gap: '6px',
-                          marginTop:
-                            '6px',
-                        }}
-                      >
-                        <Briefcase
-                          size={12}
-                          style={{
-                            color:
-                              'var(--text-muted)',
-                          }}
-                        />
-
-                        {employee.designation ||
-                          'Employee'}
-                      </p>
-
-                      {/* Email */}
-                      <p
-                        style={{
-                          color:
-                            'var(--text-muted)',
-                          fontSize:
-                            '0.72rem',
-                          display:
-                            'flex',
-                          alignItems:
-                            'center',
-                          gap: '6px',
-                          marginTop:
-                            '4px',
-                        }}
-                      >
-                        <Mail
-                          size={12}
-                        />
-
-                        {employee.email}
-                      </p>
-
-                      {/* Punch Override */}
-                      <div
-                        style={{
-                          display:
-                            'flex',
-                          gap: '6px',
-                          marginTop:
-                            '12px',
-                        }}
-                        onClick={(event) =>
-                          event.stopPropagation()
-                        }
-                      >
-                        <button
-                          type="button"
-                          className="btn"
-                          style={{
-                            fontSize:
-                              '0.65rem',
-                            padding:
-                              '4px 8px',
-                            fontWeight:
-                              700,
-                            background:
-                              allowPunchIn
-                                ? '#dcfce7'
-                                : '#15803d',
-                            color:
-                              allowPunchIn
-                                ? '#15803d'
-                                : '#dcfce7',
-                            border:
-                              '1px solid ' +
-                              (allowPunchIn
-                                ? '#86efac'
-                                : 'var(--border-color)'),
-                          }}
-                          onClick={() =>
-                            handleTogglePunchOverride(
-                              employee._id,
-                              'allowPunchIn'
-                            )
-                          }
-                        >
-                          {allowPunchIn
-                            ? '✓ In Allowed'
-                            : 'Allow In'}
-                        </button>
-
-                        <button
-                          type="button"
-                          className="btn"
-                          style={{
-                            fontSize:
-                              '0.65rem',
-                            padding:
-                              '4px 8px',
-                            fontWeight:
-                              700,
-                            background:
-                              allowPunchOut
-                                ? '#fee2e2'
-                                : '#b91c1c',
-                            color:
-                              allowPunchOut
-                                ? '#b91c1c'
-                                : '#fee2e2',
-                            border:
-                              '1px solid ' +
-                              (allowPunchOut
-                                ? '#fca5a5'
-                                : 'var(--border-color)'),
-                          }}
-                          onClick={() =>
-                            handleTogglePunchOverride(
-                              employee._id,
-                              'allowPunchOut'
-                            )
-                          }
-                        >
-                          {allowPunchOut
-                            ? '✓ Out Allowed'
-                            : 'Allow Out'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Footer */}
-                  <div
-                    style={{
-                      borderTop:
-                        '1px solid var(--border-color)',
-                      paddingTop:
-                        '10px',
-                      display:
-                        'flex',
-                      justifyContent:
-                        'space-between',
-                      alignItems:
-                        'center',
-                    }}
-                  >
-                    <div>
-                      <span
-                        style={{
-                          fontSize:
-                            '0.65rem',
-                          color:
-                            'var(--text-muted)',
-                          fontWeight:
-                            700,
-                          textTransform:
-                            'uppercase',
-                          display:
-                            'block',
-                        }}
-                      >
-                        TOTAL TIME
-                      </span>
-
-                      <span
-                        style={{
-                          fontWeight:
-                            800,
-                          color:
-                            'var(--accent-primary)',
-                          fontSize:
-                            '0.95rem',
-                          display:
-                            'flex',
-                          alignItems:
-                            'center',
-                          gap: '4px',
-                          marginTop:
-                            '2px',
-                        }}
-                      >
-                        <Clock
-                          size={12}
-                        />
-
-                        {formatMinutesToDuration(
-                          employee.totalMinutes ??
-                            0
-                        )}
-                      </span>
-                    </div>
-
-                    {/* Actions */}
-                    <div
-                      style={{
-                        display:
-                          'flex',
-                        gap: '4px',
-                      }}
-                      className="no-print"
-                      onClick={(event) =>
-                        event.stopPropagation()
-                      }
-                    >
-                      <button
-                        type="button"
-                        className="action-btn"
-                        title="Edit Employee"
-                        onClick={() =>
-                          openEditModal(
-                            employee
-                          )
-                        }
-                        style={{
-                          backgroundColor:
-                            '#cdfe9c',
-                        }}
-                      >
-                        <Edit3
-                          size={12}
-                        />
-                      </button>
-
-                      <button
-                        type="button"
-                        className="action-btn btn-delete-item"
-                        title="Delete Employee"
-                        onClick={() =>
-                          handleDelete(
-                            employee._id
-                          )
-                        }
-                        style={{
-                          backgroundColor:
-                            '#f38686',
-                        }}
-                      >
-                        <Trash2
-                          size={12}
-                        />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-          )
+          paginatedEmployees.map((employee) => (
+            <EmployeeCard
+              key={employee._id}
+              employee={employee}
+              onOpenDetails={openEmployeeDetails}
+              onEdit={openEditModal}
+              onDelete={handleDelete}
+              onTogglePunchOverride={handleTogglePunchOverride}
+            />
+          ))
         )}
 
         {/* Pagination */}

@@ -19,16 +19,6 @@ export interface AddTeamMemberModalProps {
 
 
 
-const DEFAULT_PROJECTS = [
-  'Design',
-  'Development',
-  'Marketing',
-  'Human Resource',
-  'Management',
-  'Sales',
-  'Support',
-  'Finance',
-];
 
 export default function AddTeamMemberModal({
   isOpen,
@@ -57,9 +47,22 @@ export default function AddTeamMemberModal({
     short_desc?: string;
   };
 
+const [roles, setRoles] = useState<
+  {
+    _id: string;
+    name: string;
+    short_desc?: string;
+    status: number;
+  }[]
+>([]);
   const [fetchedDesignations, setFetchedDesignations] =
     useState<Designation[]>([]);
-  const [fetchedProjects, setFetchedProjects] = useState<string[]>([]);
+  type ProjectOption = {
+    _id: string;
+    name: string;
+  };
+
+  const [fetchedProjects, setFetchedProjects] = useState<ProjectOption[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -158,12 +161,12 @@ export default function AddTeamMemberModal({
 
         const designations: Designation[] = Array.isArray(result.data)
           ? result.data
-              .filter((item: any) => item?._id && item?.name)
-              .map((item: any) => ({
-                _id: String(item._id),
-                name: String(item.name),
-                short_desc: String(item.short_desc || ''),
-              }))
+            .filter((item: any) => item?._id && item?.name)
+            .map((item: any) => ({
+              _id: String(item._id),
+              name: String(item.name),
+              short_desc: String(item.short_desc || ''),
+            }))
           : [];
 
         setFetchedDesignations(designations);
@@ -199,7 +202,20 @@ export default function AddTeamMemberModal({
           cache: 'no-store',
         });
 
-        const result = await response.json();
+        const text = await response.text();
+
+        let result: any;
+        try {
+          result = JSON.parse(text);
+        } catch {
+          console.error(
+            'GET /api/projects returned non-JSON response:',
+            text.slice(0, 500)
+          );
+          throw new Error(
+            `Failed to load projects (HTTP ${response.status})`
+          );
+        }
 
         if (!response.ok || !result.success) {
           throw new Error(
@@ -209,13 +225,35 @@ export default function AddTeamMemberModal({
 
         if (cancelled) return;
 
-        const projectNames = Array.isArray(result.data)
+        const projectData = Array.isArray(result.data)
           ? result.data
-              .map((project: any) => project?.name)
-              .filter(Boolean)
-          : [];
+          : Array.isArray(result.data?.projects)
+            ? result.data.projects
+            : [];
 
-        setFetchedProjects(projectNames);
+        const projects: ProjectOption[] = projectData
+          .map((item: any) => {
+            const id = item?._id ?? item?.id ?? item?.project_id;
+            const name =
+              item?.name ??
+              item?.project_name ??
+              item?.title;
+
+            if (!id || !name) return null;
+
+            return {
+              _id: String(id),
+              name: String(name),
+            };
+          })
+          .filter(Boolean) as ProjectOption[];
+
+        setFetchedProjects(projects);
+
+        console.log(
+          'Loaded backend projects for employee form:',
+          projects
+        );
       } catch (error) {
         if (!cancelled) {
           console.error(
@@ -281,12 +319,15 @@ export default function AddTeamMemberModal({
         userType?: 'admin' | 'employee';
         Project?: string;
         password?: string;
+        role_id?: string;
+        roleId?: string;
       };
 
       setName(String(emp.full_name ?? emp.name ?? ''));
       setEmail(String(emp.email ?? ''));
       setPassword(String(emp.password ?? 'password123'));
       setRole(String(emp.designation ?? emp.role ?? ''));
+      setRoleId(String(emp.role_id ?? emp.roleId ?? ''));
       setProject(String(emp.Project ?? ''));
       setGroup(String(emp.group ?? ''));
       setStatus(
@@ -309,6 +350,109 @@ export default function AddTeamMemberModal({
     getDraft,
     setModalOpenState,
   ]);
+
+  // Load active roles from the backend whenever the employee modal opens.
+  // This hook MUST stay above the `if (!isOpen) return null` so the hook
+  // order never changes between renders.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    const loadRoles = async () => {
+      try {
+        const response = await fetch('/api/roles', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        const text = await response.text();
+
+        let result: any;
+        try {
+          result = JSON.parse(text);
+        } catch {
+          console.error(
+            'GET /api/roles returned non-JSON response:',
+            text.slice(0, 500)
+          );
+          throw new Error(
+            `Failed to load roles (HTTP ${response.status})`
+          );
+        }
+
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.message || 'Failed to load roles'
+          );
+        }
+
+        if (cancelled) return;
+
+        const loadedRoles = Array.isArray(result.data)
+          ? result.data
+              .filter(
+                (item: any) =>
+                  item?._id &&
+                  item?.name &&
+                  Number(item?.status) === 1
+              )
+              .map((item: any) => ({
+                _id: String(item._id),
+                name: String(item.name),
+                short_desc: String(item.short_desc || ''),
+                status: Number(item.status),
+              }))
+          : [];
+
+        setRoles(loadedRoles);
+
+        // When editing an employee, preserve the saved role_id.
+        // For older employees without role_id, match by role name.
+        if (mode === 'edit') {
+          const existingRoleId = String(
+            (employee as any)?.role_id ??
+            (employee as any)?.roleId ??
+            ''
+          );
+
+          if (existingRoleId) {
+            setRoleId(existingRoleId);
+          } else {
+            const existingRoleName = String(
+              (employee as any)?.designation ??
+              (employee as any)?.role ??
+              ''
+            ).trim();
+
+            if (existingRoleName) {
+              const matchedRole = loadedRoles.find(
+                (item: any) =>
+                  item.name.toLowerCase() ===
+                  existingRoleName.toLowerCase()
+              );
+
+              if (matchedRole) {
+                setRoleId(matchedRole._id);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load roles:', error);
+          setRoles([]);
+        }
+      }
+    };
+
+    loadRoles();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, mode, employee?._id]);
   if (!isOpen) return null;
 
   // Convert database designation objects into CustomDropdown options.
@@ -321,17 +465,35 @@ export default function AddTeamMemberModal({
     ])
   ).filter(Boolean);
 
-  // Combine project options
-  const projectNamesFromProp = Array.isArray(projectsList)
-    ? projectsList.map((p) => (typeof p === 'string' ? p : p.name))
+  // Projects come from the backend. Props are only used as an optional
+  // fallback/extra source when a parent explicitly provides project data.
+  const projectOptionsFromProp: ProjectOption[] = Array.isArray(projectsList)
+    ? projectsList
+        .map((p, index) => {
+          if (typeof p === 'string') {
+            return {
+              _id: `prop-project-${index}-${p}`,
+              name: p,
+            };
+          }
+
+          if (!p?._id || !p?.name) return null;
+
+          return {
+            _id: String(p._id),
+            name: String(p.name),
+          };
+        })
+        .filter(Boolean) as ProjectOption[]
     : [];
 
   const allProjectOptions = Array.from(
-    new Set([
-      ...DEFAULT_PROJECTS,
-      ...projectNamesFromProp,
-      ...fetchedProjects,
-    ])
+    new Map(
+      [...fetchedProjects, ...projectOptionsFromProp].map((project) => [
+        project.name.toLowerCase(),
+        project,
+      ])
+    ).values()
   );
 
   const resetForm = () => {
@@ -366,6 +528,7 @@ export default function AddTeamMemberModal({
         name !== employee.name ||
         email !== employee.email ||
         role !== (employee.role || '') ||
+        roleId !== String((employee as any)?.role_id ?? (employee as any)?.roleId ?? '') ||
         project !== (employee.Project || '') ||
         status !== (employee.status || 'Active') ||
         workMode !== (employee.workMode || 'Hybrid')
@@ -449,6 +612,7 @@ export default function AddTeamMemberModal({
             email: email.trim(),
             password: password.trim(),
             designation: role.trim(),
+            role_id: roleId || null,
             group: group || null,
             status,
             workMode,
@@ -486,6 +650,7 @@ export default function AddTeamMemberModal({
           full_name: name.trim(),
           email: email.trim().toLowerCase(),
           designation: role.trim(),
+          role_id: roleId || null,
           group: group.trim() || null,
           status: status === "Active",
           workMode,
@@ -676,9 +841,24 @@ export default function AddTeamMemberModal({
             <CustomDropdown
               label="Role *"
               placeholder="Select Role"
-              value="employee"
-              options={[{ value: 'employee', label: 'Employee' }]}
-              onChange={() => { }}
+              value={roleId}
+              options={roles
+                .filter((role) => role.status === 1)
+                .map((role) => ({
+                  value: role._id,
+                  label: role.name,
+                }))}
+              onChange={(value) => {
+                setRoleId(value);
+
+                const selectedRole = roles.find(
+                  (item) => item._id === value
+                );
+
+                if (selectedRole) {
+                  setRole(selectedRole.name);
+                }
+              }}
             />
           </div>
 
@@ -705,13 +885,17 @@ export default function AddTeamMemberModal({
 
             <CustomDropdown
               label="Default Project"
-              placeholder="Select Project"
-              value={group ?? ''}
+              placeholder={
+                fetchedProjects.length === 0
+                  ? "No projects found"
+                  : "Select Project"
+              }
+              value={project ?? ''}
               options={allProjectOptions.map((p) => ({
-                value: p,
-                label: p,
+                value: p.name,
+                label: p.name,
               }))}
-              onChange={(val) => setGroup(val)}
+              onChange={(val) => setProject(val)}
             />
           </div>
 

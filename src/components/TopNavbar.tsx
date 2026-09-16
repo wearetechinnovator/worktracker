@@ -220,11 +220,75 @@ export default function TopNavbar() {
     setIsAdmin(userRole === 1);
 
     // ============================================
-    // SHARED RESOURCES
+    // SHARED RESOURCES - LOAD FROM BACKEND
     // ============================================
-    setEmployees(staticClient.getEmployees());
-    setProjects(staticClient.getProjects());
-    setClientsList(staticClient.getClients());
+    const [employeesResponse, projectsResponse, clientsResponse] =
+      await Promise.all([
+        fetch("/api/users/employees", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }),
+        fetch("/api/projects", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }),
+        fetch("/api/clients", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }),
+      ]);
+
+    const [employeesResult, projectsResult, clientsResult] =
+      await Promise.all([
+        employeesResponse.json(),
+        projectsResponse.json(),
+        clientsResponse.json(),
+      ]);
+
+    if (employeesResponse.ok && employeesResult.success) {
+      setEmployees(
+        Array.isArray(employeesResult.data) ? employeesResult.data : []
+      );
+    } else {
+      setEmployees([]);
+    }
+
+    if (projectsResponse.ok && projectsResult.success) {
+      const normalizedProjects = (
+        Array.isArray(projectsResult.data) ? projectsResult.data : []
+      )
+        .map((project: any) => ({
+          _id: String(
+            project?._id ??
+            project?.id ??
+            project?.project_id ??
+            ""
+          ),
+          name: String(
+            project?.name ??
+            project?.project_name ??
+            project?.title ??
+            ""
+          ),
+          color: project?.color || "#3b82f6",
+        }))
+        .filter((project: any) => project._id && project.name);
+
+      setProjects(normalizedProjects);
+    } else {
+      setProjects([]);
+    }
+
+    if (clientsResponse.ok && clientsResult.success) {
+      setClientsList(
+        Array.isArray(clientsResult.data) ? clientsResult.data : []
+      );
+    } else {
+      setClientsList([]);
+    }
 
     // ============================================
     // PUNCH STATUS
@@ -878,6 +942,7 @@ export default function TopNavbar() {
       <CreateClientModal
         isOpen={isClientModalOpen}
         onClose={() => setIsClientModalOpen(false)}
+        projectsOptions={projects}
         onSuccess={async () => {
           await loadUserAndResources();
           window.dispatchEvent(new CustomEvent('worktracker-refresh'));

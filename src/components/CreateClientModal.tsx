@@ -17,9 +17,9 @@ import {
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { CustomDatePicker } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
 import { useModalDraft } from '@/context/ModalDraftContext';
 import { createClient } from '@/lib/clientApi';
+import { sanitizeNumericInput } from '@/lib/inputValidation';
 
 export interface ClientContact {
   name: string;
@@ -47,7 +47,7 @@ export default function CreateClientModal({
   isOpen,
   onClose,
   onSuccess,
-  projectsOptions: externalProjects,
+  projectsOptions: externalProjects = [],
   hideProjectField = false,
 }: CreateClientModalProps) {
   const [name, setName] = useState('');
@@ -60,7 +60,6 @@ export default function CreateClientModal({
   const [contacts, setContacts] = useState<ClientContact[]>([]);
   const [editingLabelIndex, setEditingLabelIndex] = useState<number | null>(null);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
-  const [fetchedProjects, setFetchedProjects] = useState<ProjectOption[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,16 +68,9 @@ export default function CreateClientModal({
   const draftKey = 'create-client';
   const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
 
-  // Fetch projects list if not supplied via props
-  const fetchProjects = async () => {
-    const data = staticClient.getProjects();
-    setFetchedProjects(data as any);
-  };
-
   useEffect(() => {
     if (isOpen) {
       setError(null);
-      fetchProjects();
       setModalOpenState(draftKey, true);
 
       const draft = getDraft(draftKey);
@@ -98,7 +90,7 @@ export default function CreateClientModal({
 
   if (!isOpen) return null;
 
-  const availableProjects = externalProjects || fetchedProjects;
+  const availableProjects = externalProjects;
 
   const resetForm = () => {
     setName('');
@@ -177,8 +169,12 @@ export default function CreateClientModal({
   };
 
   const handleProjectToggle = (projId: string) => {
+    const id = String(projId);
+
     setSelectedProjectIds((prev) =>
-      prev.includes(projId) ? prev.filter((id) => id !== projId) : [...prev, projId]
+      prev.includes(id)
+        ? prev.filter((projectId) => projectId !== id)
+        : [...prev, id]
     );
   };
 
@@ -214,6 +210,10 @@ export default function CreateClientModal({
       emails: parsedEmails,
       address: address.trim(),
       contacts: validContacts,
+      projects: selectedProjectIds,
+      duration: duration.trim(),
+      contract_start_date: contractStartDate || null,
+      contract_end_date: contractEndDate || null,
       status: 1,
     };
 
@@ -387,7 +387,7 @@ export default function CreateClientModal({
                     className="custom-input-control"
                     placeholder="e.g. +1 (555) 234-5678"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(sanitizeNumericInput(e.target.value))}
                   />
                 </div>
               </div>
@@ -695,7 +695,7 @@ export default function CreateClientModal({
                           style={{ height: '32px', fontSize: '0.75rem' }}
                           placeholder="Phone Number"
                           value={contact.phone}
-                          onChange={(e) => handleContactChange(idx, 'phone', e.target.value)}
+                          onChange={(e) => handleContactChange(idx, 'phone', sanitizeNumericInput(e.target.value))}
                         />
                       </div>
                     </div>
@@ -758,7 +758,7 @@ export default function CreateClientModal({
                     }}
                   >
                     {availableProjects.map((proj) => {
-                      const isChecked = selectedProjectIds.includes(proj._id);
+                      const isChecked = selectedProjectIds.includes(String(proj._id));
                       return (
                         <label
                           key={proj._id}
@@ -845,8 +845,7 @@ export default function CreateClientModal({
         onClose={() => setIsProjectModalOpen(false)}
         hideClientField={true}
         onSuccess={(newProj) => {
-          fetchProjects();
-          if (newProj?._id) {
+              if (newProj?._id) {
             setSelectedProjectIds((prev) => Array.from(new Set([...prev, newProj._id])));
           }
           setIsProjectModalOpen(false);

@@ -7,19 +7,17 @@ import CreateClientModal from '@/components/CreateClientModal';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { CustomDatePicker } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
 import {
   getClients,
   deleteClient,
   updateClient,
   createClient,
 } from "@/lib/clientApi";
+import { sanitizeNumericInput } from '@/lib/inputValidation';
 
 import './style.css';
 import { ClientData } from '@/types/ClientData';
 import { ProjectOption } from '@/types/ProjectOption';
-
-
 
 
 export default function ClientsPage() {
@@ -93,11 +91,31 @@ export default function ClientsPage() {
     try {
       setLoading(true);
 
-      const [clientsData, projectsData] =
+      const [clientsData, projectResponse] =
         await Promise.all([
           getClients(),
-          Promise.resolve(staticClient.getProjects()),
+          fetch("/api/projects", {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store",
+          }),
         ]);
+
+      const projectResult = await projectResponse.json();
+
+      if (!projectResponse.ok || projectResult.success === false) {
+        throw new Error(
+          projectResult.message || "Failed to load projects"
+        );
+      }
+
+      const projectsData = Array.isArray(projectResult.data)
+        ? projectResult.data
+        : Array.isArray(projectResult.data?.projects)
+          ? projectResult.data.projects
+          : Array.isArray(projectResult.projects)
+            ? projectResult.projects
+            : [];
 
       const normalizedClients = clientsData.map(
         (client: any) => ({
@@ -133,7 +151,35 @@ export default function ClientsPage() {
       );
 
       setClients(normalizedClients);
-      setProjectsOptions(projectsData as any);
+
+      const normalizedProjects: ProjectOption[] = projectsData
+        .map((project: any) => {
+          const id =
+            project?._id ??
+            project?.id ??
+            project?.project_id;
+
+          const name =
+            project?.name ??
+            project?.project_name ??
+            project?.title;
+
+          if (!id || !name) return null;
+
+          return {
+            _id: String(id),
+            name: String(name),
+            color: project?.color || "#3b82f6",
+          };
+        })
+        .filter(Boolean) as ProjectOption[];
+
+      console.log(
+        "ClientsPage: projects loaded from /api/projects:",
+        normalizedProjects
+      );
+
+      setProjectsOptions(normalizedProjects);
     } catch (err) {
       console.error("CLIENT FETCH ERROR:", err);
 
@@ -199,7 +245,13 @@ export default function ClientsPage() {
         }))
         : []
     );
-    setSelectedProjectIds((client.projects || []).map((p: any) => typeof p === 'object' ? p._id : p));
+    setSelectedProjectIds(
+      (client.projects || [])
+        .map((p: any) =>
+          String(typeof p === 'object' ? p?._id ?? p?.id ?? '' : p)
+        )
+        .filter(Boolean)
+    );
     setError(null);
     setShowModal(true);
   };
@@ -360,6 +412,7 @@ export default function ClientsPage() {
   if (loading && clients.length === 0) {
     return <PageShimmer variant="dashboard" />;
   }
+
 
   return (
     <div style={{ display: 'grid', gap: '14px', paddingBottom: '30px' }}>
@@ -822,7 +875,7 @@ export default function ClientsPage() {
                       className="form-control"
                       placeholder="e.g. +1 (555) 234-5678"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => setPhone(sanitizeNumericInput(e.target.value))}
 
                     />
                   </div>
@@ -1067,7 +1120,7 @@ export default function ClientsPage() {
                                 style={{ height: '32px', fontSize: '0.75rem' }}
                                 placeholder="Phone Number"
                                 value={contact.phone}
-                                onChange={(e) => handleContactChange(idx, 'phone', e.target.value)}
+                                onChange={(e) => handleContactChange(idx, 'phone', sanitizeNumericInput(e.target.value))}
                               />
                             </div>
                           </div>

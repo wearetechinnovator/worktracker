@@ -357,7 +357,7 @@ export default function CreateProjectModal({
       <div
         className="modal-overlay"
         style={{
-          zIndex: 20000,
+          zIndex: 20600,
           backgroundColor: 'rgba(15, 23, 42, 0.65)',
           backdropFilter: 'blur(6px)',
           display: 'flex',

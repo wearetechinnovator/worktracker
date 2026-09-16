@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, ArrowLeft } from 'lucide-react';
+import { sanitizeNumericInput } from '@/lib/inputValidation';
 
 
 export default function OtpPage() {
@@ -54,7 +55,7 @@ export default function OtpPage() {
     }
 };
 	const handleChange = (index: number, value: string) => {
-		const digit = value.replace(/\D/g, '').slice(-1);
+		const digit = sanitizeNumericInput(value).slice(-1);
 
 		const newOtp = [...otp];
 		newOtp[index] = digit;
@@ -77,10 +78,9 @@ export default function OtpPage() {
 	const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
 		e.preventDefault();
 
-		const pasted = e.clipboardData
-			.getData('text')
-			.replace(/\D/g, '')
-			.slice(0, 6);
+		const pasted = sanitizeNumericInput(
+			e.clipboardData.getData('text')
+		).slice(0, 6);
 
 		if (!pasted) return;
 

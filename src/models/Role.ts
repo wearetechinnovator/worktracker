@@ -1,26 +1,42 @@
-const mongoose = require('mongoose');
+import mongoose, { Schema } from "mongoose";
 
-const roleSchema = new mongoose.Schema({
-    name: String,
-    short_description: String,
-
-    created_by:{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'users',
-        default: null
+const roleSchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
     },
-    modified_by:{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'users',
-        default: null
+
+    short_desc: {
+      type: String,
+      default: "",
+      trim: true,
     },
-    status: Boolean
 
-}, {timestamps: true})
+    created_by: {
+      type: Number,
+      default: null,
+    },
 
+    modified_by: {
+      type: Number,
+      default: null,
+    },
+
+    status: {
+      type: Number,
+      default: 1,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
 
 const Role =
-    mongoose.models.Role ||
-    mongoose.model("Role", roleSchema);
+  mongoose.models.Role ||
+  mongoose.model("Role", roleSchema);
 
 export default Role;

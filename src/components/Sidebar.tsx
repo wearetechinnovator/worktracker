@@ -8,11 +8,25 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-	LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, ChevronLeft, ChevronDown, LogOut, Clock, Settings, CheckSquare, History, Briefcase, FileText, Mail, Copy, Loader2, Menu, X
+	LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, ChevronLeft, ChevronDown, LogOut, Clock, Settings, CheckSquare, History, Briefcase, FileText, Mail, Copy, Loader2, Menu, X,
+	ClipboardCheck
 } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
 import { getClientPunchLocation } from '@/lib/geoClient';
 import { staticClient } from '@/lib/staticClient';
+import { AnimateIcon } from './animate-ui/icons/icon';
+import { LayoutDashboardIcon } from './animate-ui/icons/layout-dashboard';
+import { ClipboardCheckIcon } from './animate-ui/icons/clipboard-check';
+import { ClockIcon } from './animate-ui/icons/clock';
+import { ClipboardList } from './animate-ui/icons/clipboard-list';
+import { LogIn } from './animate-ui/icons/log-in';
+import { LogOutIcon } from './animate-ui/icons/log-out';
+import { UsersRound } from './animate-ui/icons/users-round';
+import { UserRound } from './animate-ui/icons/user-round';
+import { Blocks } from './animate-ui/icons/blocks';
+import { List } from './animate-ui/icons/list';
+import { Fingerprint } from './animate-ui/icons/fingerprint';
+import { SettingsIcon } from './animate-ui/icons/settings';
 
 export default function Sidebar() {
 	const pathname = usePathname();
@@ -382,15 +396,17 @@ export default function Sidebar() {
 
 							{/* 1. DASHBOARD */}
 							{canAccessFeatures ? (
-								<Link
-									href={`${basePath}/dashboard`}
-									className={`sidebar-link ${pathname === `${basePath}/dashboard` ? 'active' : ''}`}
-									onMouseEnter={(e) => handleItemMouseEnter('Dashboard', e)}
-									onMouseLeave={handleItemMouseLeave}
-								>
-									<LayoutDashboard size={17} />
-									<span>Dashboard</span>
-								</Link>
+								<AnimateIcon animateOnHover="default-loop" delay={500}>
+									<Link
+										href={`${basePath}/dashboard`}
+										className={`sidebar-link ${pathname === `${basePath}/dashboard` ? 'active' : ''}`}
+										onMouseEnter={(e) => handleItemMouseEnter('Dashboard', e)}
+										onMouseLeave={handleItemMouseLeave}
+									>
+										<LayoutDashboardIcon size={17} />
+										<span>Dashboard</span>
+									</Link>
+								</AnimateIcon>
 							) : (
 								<div
 									className="sidebar-link"
@@ -447,72 +463,79 @@ export default function Sidebar() {
 												<span>Project</span>
 											</div>
 										)}
-
-										<Link
-											href={`${basePath}/tasks`}
-											className={`sidebar-link ${pathname === `${basePath}/tasks` ? 'active' : ''}`}
-											onMouseEnter={(e) => handleItemMouseEnter(isAdmin ? 'Tasks' : 'My Tasks', e)}
-											onMouseLeave={handleItemMouseLeave}
-										>
-											<CheckSquare size={15} />
-											<span>{isAdmin ? 'Tasks' : 'My Tasks'}</span>
-										</Link>
-
-										<Link
-											href={`${basePath}/task-history`}
-											className={`sidebar-link ${pathname === `${basePath}/task-history` ? 'active' : ''}`}
-											onMouseEnter={(e) => handleItemMouseEnter(isAdmin ? 'Task History' : 'My Work History', e)}
-											onMouseLeave={handleItemMouseLeave}
-										>
-											<History size={15} />
-											<span>{isAdmin ? 'Task History' : 'My Work History'}</span>
-										</Link>
+										<AnimateIcon animateOnHover="default-loop" delay={500}>
+											<Link
+												href={`${basePath}/tasks`}
+												className={`sidebar-link ${pathname === `${basePath}/tasks` ? 'active' : ''}`}
+												onMouseEnter={(e) => handleItemMouseEnter(isAdmin ? 'Tasks' : 'My Tasks', e)}
+												onMouseLeave={handleItemMouseLeave}
+											>
+												<ClipboardCheckIcon />
+												<span>{isAdmin ? 'Tasks' : 'My Tasks'}</span>
+											</Link>
+										</AnimateIcon>
+										<AnimateIcon animateOnHover="default-loop" delay={500}>
+											<Link
+												href={`${basePath}/task-history`}
+												className={`sidebar-link ${pathname === `${basePath}/task-history` ? 'active' : ''}`}
+												onMouseEnter={(e) => handleItemMouseEnter(isAdmin ? 'Task History' : 'My Work History', e)}
+												onMouseLeave={handleItemMouseLeave}
+											>
+												<ClockIcon />
+												<span>{isAdmin ? 'Task History' : 'My Work History'}</span>
+											</Link>
+										</AnimateIcon>
 									</div>
 								)}
 							</div>
 
 							{/* 3. TIME & ATTENDANCE SUBMENU */}
 							<div className="sidebar-group">
-								<div
-									className={`sidebar-group-header ${pathname.startsWith(`${basePath}/punch`) || pathname.startsWith(`${basePath}/attendance`) || pathname.startsWith(`${basePath}/punch-in-out`) ? 'active-group' : ''}`}
-									onClick={() => toggleGroup('time')}
-								>
-									<div className="sidebar-group-title">
-										<Clock size={17} />
-										<span>Time & Attendance</span>
+								<AnimateIcon animateOnHover="default-loop" delay={500}>
+									<div
+										className={`sidebar-group-header ${pathname.startsWith(`${basePath}/punch`) || pathname.startsWith(`${basePath}/attendance`) || pathname.startsWith(`${basePath}/punch-in-out`) ? 'active-group' : ''}`}
+										onClick={() => toggleGroup('time')}
+									>
+										<div className="sidebar-group-title">
+											<LogIn />
+											<span>Time & Attendance</span>
+										</div>
+										<ChevronDown
+											size={14}
+											className="chevron-icon"
+											style={{
+												transform: openGroups.time ? 'rotate(180deg)' : 'rotate(0deg)',
+												transition: 'transform 0.2s ease',
+												color: 'var(--text-muted)',
+											}}
+										/>
 									</div>
-									<ChevronDown
-										size={14}
-										className="chevron-icon"
-										style={{
-											transform: openGroups.time ? 'rotate(180deg)' : 'rotate(0deg)',
-											transition: 'transform 0.2s ease',
-											color: 'var(--text-muted)',
-										}}
-									/>
-								</div>
+								</AnimateIcon>
 
 								{(openGroups.time || isCollapsed) && (
 									<div className="sidebar-submenu">
-										<Link
-											href={`${basePath}/punch`}
-											className={`sidebar-link ${pathname === `${basePath}/punch` ? 'active' : ''}`}
-											onMouseEnter={(e) => handleItemMouseEnter('Punch In/Out', e)}
-											onMouseLeave={handleItemMouseLeave}
-										>
-											<Clock size={15} />
-											<span>Punch In/Out</span>
-										</Link>
-
-										<Link
-											href={`${basePath}/attendance`}
-											className={`sidebar-link ${pathname === `${basePath}/attendance` ? 'active' : ''}`}
-											onMouseEnter={(e) => handleItemMouseEnter(isAdmin ? 'Punch Logs' : 'Attendance', e)}
-											onMouseLeave={handleItemMouseLeave}
-										>
-											<Calendar size={15} />
-											<span>{isAdmin ? 'Punch Logs' : 'Attendance'}</span>
-										</Link>
+										<AnimateIcon animateOnHover="default-loop" delay={500}>
+											<Link
+												href={`${basePath}/punch`}
+												className={`sidebar-link ${pathname === `${basePath}/punch` ? 'active' : ''}`}
+												onMouseEnter={(e) => handleItemMouseEnter('Punch In/Out', e)}
+												onMouseLeave={handleItemMouseLeave}
+											>
+												<LogOutIcon />
+												<span>Punch In/Out</span>
+											</Link>
+										</AnimateIcon>
+										<AnimateIcon animateOnHover delay={500}>
+											<Link
+												href={`${basePath}/attendance`}
+												className={`sidebar-link ${pathname === `${basePath}/attendance` ? 'active' : ''}`}
+												onMouseEnter={(e) => handleItemMouseEnter(isAdmin ? 'Punch Logs' : 'Attendance', e)}
+												onMouseLeave={handleItemMouseLeave}
+											>
+												<ClipboardList />
+												<span>{isAdmin ? 'Punch Logs' : 'Attendance'}</span>
+											</Link>
+										</AnimateIcon>
 									</div>
 								)}
 							</div>
@@ -520,70 +543,83 @@ export default function Sidebar() {
 							{/* 4. ORGANISATION / TEAM SUBMENU (Admin & Allowed Staff) */}
 							{(isAdmin || canAccessFeatures) && (
 								<div className="sidebar-group">
-									<div
-										className={`sidebar-group-header ${pathname.startsWith(`${basePath}/employees`) || pathname.startsWith(`${basePath}/departments`) || pathname.startsWith(`${basePath}/roles`) || pathname.startsWith(`${basePath}/clients`) ? 'active-group' : ''}`}
-										onClick={() => toggleGroup('org')}
-									>
-										<div className="sidebar-group-title">
-											<Users size={17} />
-											<span>Organisation</span>
+									<AnimateIcon animateOnHover="appear" delay={400}>
+										<div
+											className={`sidebar-group-header ${pathname.startsWith(`${basePath}/employees`) || pathname.startsWith(`${basePath}/departments`) || pathname.startsWith(`${basePath}/roles`) || pathname.startsWith(`${basePath}/clients`) ? 'active-group' : ''}`}
+											onClick={() => toggleGroup('org')}
+										>
+											<div className="sidebar-group-title">
+												<UsersRound />
+												<span>Organisation</span>
+											</div>
+											<ChevronDown
+												size={14}
+												className="chevron-icon"
+												style={{
+													transform: openGroups.org ? 'rotate(180deg)' : 'rotate(0deg)',
+													transition: 'transform 0.2s ease',
+													color: 'var(--text-muted)',
+												}}
+											/>
 										</div>
-										<ChevronDown
-											size={14}
-											className="chevron-icon"
-											style={{
-												transform: openGroups.org ? 'rotate(180deg)' : 'rotate(0deg)',
-												transition: 'transform 0.2s ease',
-												color: 'var(--text-muted)',
-											}}
-										/>
-									</div>
+									</AnimateIcon>
 
 									{(openGroups.org || isCollapsed) && (
 										<div className="sidebar-submenu">
 											{isAdmin && (
+												<AnimateIcon animateOnHover delay={500}>
+													<Link
+														href={`${basePath}/employees`}
+														className={`sidebar-link ${pathname === `${basePath}/employees` ? 'active' : ''}`}
+														onMouseEnter={(e) => handleItemMouseEnter('Employee', e)}
+														onMouseLeave={handleItemMouseLeave}
+													>
+														<UserRound />
+														<span>Employees</span>
+													</Link>
+												</AnimateIcon>
+											)}
+											<AnimateIcon animateOnHover="default-loop" delay={500}>
 												<Link
-													href={`${basePath}/employees`}
-													className={`sidebar-link ${pathname === `${basePath}/employees` ? 'active' : ''}`}
-													onMouseEnter={(e) => handleItemMouseEnter('Employee', e)}
+													href={`${basePath}/departments`}
+													className={`sidebar-link ${pathname === `${basePath}/departments` ? 'active' : ''}`}
+													onMouseEnter={(e) => handleItemMouseEnter('Departments', e)}
 													onMouseLeave={handleItemMouseLeave}
 												>
-													<Users size={15} />
-													<span>Employees</span>
+													<Blocks />
+													<span>Departments</span>
 												</Link>
-											)}
-
-											<Link
-												href={`${basePath}/departments`}
-												className={`sidebar-link ${pathname === `${basePath}/departments` ? 'active' : ''}`}
-												onMouseEnter={(e) => handleItemMouseEnter('Departments', e)}
-												onMouseLeave={handleItemMouseLeave}
-											>
-												<Folder size={15} />
-												<span>Departments</span>
-											</Link>
+											</AnimateIcon>
 
 											{isAdmin && (
 												<>
-													<Link
-														href={`${basePath}/roles`}
-														className={`sidebar-link ${pathname === `${basePath}/roles` ? 'active' : ''}`}
-														onMouseEnter={(e) => handleItemMouseEnter('Roles', e)}
-														onMouseLeave={handleItemMouseLeave}
-													>
-														<Briefcase size={15} />
-														<span>Roles</span>
-													</Link>
+													<AnimateIcon animateOnHover="path-loop" delay={500}>
+														<Link
+															href={`${basePath}/roles`}
+															className={`sidebar-link ${pathname === `${basePath}/roles` ? 'active' : ''}`}
+															onMouseEnter={(e) => handleItemMouseEnter('Roles', e)}
+															onMouseLeave={handleItemMouseLeave}
+														>
+															<Fingerprint />
+															<span>Roles</span>
+														</Link>
+													</AnimateIcon>
+													<AnimateIcon animateOnHover>
 
-													<Link
-														href={`${basePath}/clients`}
-														className={`sidebar-link ${pathname === `${basePath}/clients` ? 'active' : ''}`}
-														onMouseEnter={(e) => handleItemMouseEnter('Clients', e)}
-														onMouseLeave={handleItemMouseLeave}
-													>
-														<Briefcase size={15} />
-														<span>Clients</span>
-													</Link>
+														<Link
+															href={`${basePath}/clients`}
+															className={`sidebar-link ${pathname === `${basePath}/clients` ? 'active' : ''}`}
+															onMouseEnter={(e) => handleItemMouseEnter('Clients', e)}
+															onMouseLeave={handleItemMouseLeave}
+														>
+															<UsersRound />
+
+															<span>Clients</span>
+														</Link>
+													</AnimateIcon>
+
+
+
 												</>
 											)}
 										</div>
@@ -604,15 +640,18 @@ export default function Sidebar() {
 
 							{/* 6. SYSTEM SETTINGS (Admin Only) */}
 							{isAdmin && (
-								<Link
-									href={`${basePath}/settings`}
-									className={`sidebar-link ${pathname === `${basePath}/settings` ? 'active' : ''}`}
-									onMouseEnter={(e) => handleItemMouseEnter('Settings', e)}
-									onMouseLeave={handleItemMouseLeave}
-								>
-									<Settings size={17} />
-									<span>Settings</span>
-								</Link>
+								<AnimateIcon animateOnHover>
+
+									<Link
+										href={`${basePath}/settings`}
+										className={`sidebar-link ${pathname === `${basePath}/settings` ? 'active' : ''}`}
+										onMouseEnter={(e) => handleItemMouseEnter('Settings', e)}
+										onMouseLeave={handleItemMouseLeave}
+									>
+										<SettingsIcon />
+										<span>Settings</span>
+									</Link>
+								</AnimateIcon>
 							)}
 
 						</nav>
@@ -807,7 +846,7 @@ export default function Sidebar() {
 							position: 'fixed',
 							left: '74px',
 							top: `${hoveredTooltip.top}px`,
-							transform: 'translateY(-50%)',
+							// transform: 'translateY(-50%)',
 							background: '#0f172a',
 							color: '#ffffff',
 							padding: '5px 11px',
@@ -827,7 +866,7 @@ export default function Sidebar() {
 								position: 'absolute',
 								left: '-5px',
 								top: '50%',
-								transform: 'translateY(-50%)',
+								// transform: 'translateY(-50%)',
 								width: 0,
 								height: 0,
 								borderTop: '5px solid transparent',

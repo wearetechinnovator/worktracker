@@ -15,6 +15,7 @@ import {
   updateClient,
   createClient,
 } from "@/lib/clientApi";
+import { sanitizeNumericInput } from '@/lib/inputValidation';
 
 import './style.css';
 
@@ -822,7 +823,7 @@ export default function ClientsPage() {
                     className="form-control"
                     placeholder="e.g. +1 (555) 234-5678"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(sanitizeNumericInput(e.target.value))}
                     
                   />
                 </div>
@@ -1067,7 +1068,7 @@ export default function ClientsPage() {
                               style={{ height: '32px', fontSize: '0.75rem' }}
                               placeholder="Phone Number"
                               value={contact.phone}
-                              onChange={(e) => handleContactChange(idx, 'phone', e.target.value)}
+                              onChange={(e) => handleContactChange(idx, 'phone', sanitizeNumericInput(e.target.value))}
                             />
                           </div>
                         </div>
