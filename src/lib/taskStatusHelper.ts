@@ -3,13 +3,13 @@ import Task from '@/models/Task';
 import TaskWork from '@/models/TaskWork';
 
 /**
- * Re-evaluates and synchronizes a parent task's overall status based on:
- * 1. Active work sessions: If any assignee is currently working ('In Progress'), status is 'In Progress'.
+ * Re-evaluates and synchronizes a parent task's overall task_status based on:
+ * 1. Active work sessions: If any assignee is currently working ('In Progress'), task_status is 'In Progress'.
  * 2. Multi-assignee completion state:
  *    - If task has assigned employees:
  *      - ALL assigned employees must have completed at least one work session AND their most recent session must be marked as fully completed (`isFullyCompleted === true`).
- *      - If at least one assignee has worked (partially or fully) but not ALL assignees are fully completed, overall status is 'Partially Completed'.
- *      - If no assignees have logged work yet, status reverts to 'To Do'.
+ *      - If at least one assignee has worked (partially or fully) but not ALL assignees are fully completed, overall task_status is 'Partially Completed'.
+ *      - If no assignees have logged work yet, task_status reverts to 'To Do'.
  *    - If task has no assigned employees:
  *      - Evaluates the most recent completed work session on the task.
  */
@@ -21,18 +21,18 @@ export async function syncTaskStatus(taskId: string | mongoose.Types.ObjectId) {
     // Fetch all work sessions for this task sorted by most recent first
     const allTaskWorks = await TaskWork.find({ taskId: parentTask._id }).sort({ createdAt: -1 });
 
-    // 1. If any employee is currently working on this task, overall status is 'In Progress'
+    // 1. If any employee is currently working on this task, overall task_status is 'In Progress'
     const hasActiveSession = allTaskWorks.some(tw => tw.status === 'In Progress');
     if (hasActiveSession) {
-      if (parentTask.status !== 'In Progress') {
-        parentTask.status = 'In Progress';
+      if (parentTask.task_status !== 'In Progress') {
+        parentTask.task_status = 'In Progress';
         await parentTask.save();
       }
       return parentTask;
     }
 
     // 2. Multi-assignee completion resolution
-    const assignedEmployees = (parentTask.assignedTo || []).map((emp: any) =>
+    const assignedEmployees = ((parentTask.assign_to && parentTask.assign_to.length > 0) ? parentTask.assign_to : parentTask.assignedTo || []).map((emp: any) =>
       (emp?._id || emp)?.toString()
     ).filter(Boolean);
 
@@ -42,10 +42,10 @@ export async function syncTaskStatus(taskId: string | mongoose.Types.ObjectId) {
       // No assigned employees specified
       if (completedSessions.length > 0) {
         const latestSession = completedSessions[0];
-        parentTask.status = latestSession.isFullyCompleted ? 'Completed' : 'Partially Completed';
+        parentTask.task_status = latestSession.isFullyCompleted ? 'Completed' : 'Partially Completed';
       } else {
-        if (parentTask.status === 'In Progress' || parentTask.status === 'Partially Completed' || parentTask.status === 'Completed') {
-          parentTask.status = 'To Do';
+        if (parentTask.task_status === 'In Progress' || parentTask.task_status === 'Partially Completed' || parentTask.task_status === 'Completed') {
+          parentTask.task_status = 'To Do';
         }
       }
     } else {
@@ -74,12 +74,12 @@ export async function syncTaskStatus(taskId: string | mongoose.Types.ObjectId) {
       }
 
       if (allAssigneesCompleted && anyWorkDone) {
-        parentTask.status = 'Completed';
+        parentTask.task_status = 'Completed';
       } else if (anyWorkDone) {
-        parentTask.status = 'Partially Completed';
+        parentTask.task_status = 'Partially Completed';
       } else {
-        if (parentTask.status === 'In Progress' || parentTask.status === 'Partially Completed' || parentTask.status === 'Completed') {
-          parentTask.status = 'To Do';
+        if (parentTask.task_status === 'In Progress' || parentTask.task_status === 'Partially Completed' || parentTask.task_status === 'Completed') {
+          parentTask.task_status = 'To Do';
         }
       }
     }

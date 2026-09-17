@@ -274,6 +274,9 @@ export default function TopNavbar() {
             ""
           ),
           color: project?.color || "#3b82f6",
+          project_users: Array.isArray(project?.project_users)
+            ? project.project_users
+            : [],
         }))
         .filter((project: any) => project._id && project.name);
 

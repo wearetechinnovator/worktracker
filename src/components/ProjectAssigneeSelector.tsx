@@ -5,7 +5,6 @@ import {
   GripVertical, Users, UserPlus, UserCheck, Search, X, Check, Plus,
   ChevronDown, Loader2, ArrowRight
 } from 'lucide-react';
-import { staticClient } from '@/lib/staticClient';
 
 export interface EmployeeItem {
   _id: string;
@@ -22,6 +21,7 @@ export interface ProjectItem {
   name: string;
   color?: string;
   members?: any[];
+  project_users?: any[];
   clientId?: any;
 }
 
@@ -77,25 +77,12 @@ export function ProjectAssigneeSelector({
     const set = new Set<string>();
     if (!selectedProject) return set;
 
-    // Check project.members
-    if (Array.isArray(selectedProject.members)) {
-      selectedProject.members.forEach((m: any) => {
+    if (Array.isArray(selectedProject.project_users)) {
+      selectedProject.project_users.forEach((m: any) => {
         const id = m?._id?.toString() || m?.toString();
         if (id) set.add(id);
       });
     }
-
-    // Also check allEmployees with matching Project field
-    allEmployees.forEach((emp) => {
-      if (
-        emp.Project &&
-        (emp.Project === selectedProject.name ||
-          emp.Project === selectedProject._id ||
-          emp.Project.toString() === selectedProject._id.toString())
-      ) {
-        set.add(emp._id.toString());
-      }
-    });
 
     return set;
   }, [selectedProject, allEmployees]);
@@ -150,14 +137,20 @@ export function ProjectAssigneeSelector({
       const currentMemberIds = Array.from(projectMemberIds);
       const updatedMemberIds = Array.from(new Set([...currentMemberIds, emp._id.toString()]));
 
-      const data = await staticClient.updateProject(projectId, { members: updatedMemberIds });
-      if (data.success) {
-        if (onProjectUpdated) {
-          onProjectUpdated(data.data);
-        }
-        setIsTagDropdownOpen(false);
-        setTagSearchQuery('');
+      const response = await fetch(`/api/projects?id=${encodeURIComponent(projectId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_users: updatedMemberIds }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success || !data.data?._id) {
+        throw new Error(data.message || 'Failed to tag employee to project');
       }
+
+      onProjectUpdated?.(data.data);
+      setIsTagDropdownOpen(false);
+      setTagSearchQuery('');
     } catch (err) {
       console.error('Error tagging employee to project:', err);
     } finally {

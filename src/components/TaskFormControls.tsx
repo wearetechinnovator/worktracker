@@ -335,9 +335,9 @@ export function CustomMultiSelectDropdown({
 
   const displayText = disabledMessage
     ? disabledMessage
-    : selectedLabels.length > 0
-    ? selectedLabels.join(', ')
-    : placeholder;
+    : selectedLabels.length > 1
+    ? `${selectedLabels[0]} +${selectedLabels.length - 1} more`
+    : selectedLabels[0] || placeholder;
 
   return (
     <div style={{ position: 'relative', width: '100%', ...style }} ref={containerRef}>
@@ -373,7 +373,7 @@ export function CustomMultiSelectDropdown({
           opacity: disabledMessage ? 0.7 : 1,
         }}
       >
-        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: selectedLabels.length > 0 ? 600 : 400 }}>
+        <span style={{ minWidth: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: selectedLabels.length > 0 ? 600 : 400 }}>
           {displayText}
         </span>
         <ChevronDown

@@ -643,7 +643,7 @@ export default function ProjectsPage() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div className="project-heading">
-          <h1>Projects</h1>
+          <h1 className='text-xl! font-bold'>Projects</h1>
         </div>
 
         <div style={{ display: 'flex', }}>

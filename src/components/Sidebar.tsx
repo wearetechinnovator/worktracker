@@ -543,7 +543,7 @@ export default function Sidebar() {
 							{/* 4. ORGANISATION / TEAM SUBMENU (Admin & Allowed Staff) */}
 							{(isAdmin || canAccessFeatures) && (
 								<div className="sidebar-group">
-									<AnimateIcon animateOnHover="appear" delay={400}>
+									<AnimateIcon animateOnHover="appear" >
 										<div
 											className={`sidebar-group-header ${pathname.startsWith(`${basePath}/employees`) || pathname.startsWith(`${basePath}/departments`) || pathname.startsWith(`${basePath}/roles`) || pathname.startsWith(`${basePath}/clients`) ? 'active-group' : ''}`}
 											onClick={() => toggleGroup('org')}

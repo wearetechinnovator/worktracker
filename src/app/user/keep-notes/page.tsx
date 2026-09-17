@@ -1,0 +1,656 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { AlertCircle, Edit3, FileText, Loader2, Pin, PinOff, Plus, Trash2, X, StickyNote } from 'lucide-react';
+import PageShimmer from '@/components/PageShimmer';
+import type {KeepNote} from '../../types/KeepNote';
+import { toast } from '@/lib/toast';
+import { useModalDraft } from '@/context/ModalDraftContext';
+import { staticClient } from '@/lib/staticClient';
+
+const NOTE_COLORS = [
+  { name: 'Yellow', value: '#fef9c3', border: '#fde047', accent: '#ca8a04' },
+  { name: 'Blue', value: '#e0f2fe', border: '#7dd3fc', accent: '#0284c7' },
+  { name: 'Green', value: '#dcfce7', border: '#86efac', accent: '#16a34a' },
+  { name: 'Pink', value: '#fce7f3', border: '#f472b6', accent: '#db2777' },
+  { name: 'Purple', value: '#f3e8ff', border: '#c084fc', accent: '#9333ea' },
+  { name: 'Orange', value: '#ffedd5', border: '#fdba74', accent: '#ea580c' },
+  { name: 'White', value: '#ffffff', border: '#e2e8f0', accent: '#475569' },
+];
+
+const DEFAULT_INLINE_NOTES: KeepNote[] = [
+  {
+    _id: 'note-1',
+    userId: 'emp-1',
+    title: 'Sprint Planning Key Takeaways',
+    content: '1. Finalize UI dark mode color palette.\n2. Add instant search filter to clients table.\n3. Conduct load testing on static routes.',
+    color: '#1e293b',
+    isPinned: true,
+    createdAt: '2026-09-05T10:00:00.000Z',
+    updatedAt: '2026-09-05T10:00:00.000Z'
+  },
+  {
+    _id: 'note-2',
+    userId: 'emp-1',
+    title: 'Client Meeting Checklist',
+    content: 'Verify contract renewal dates for Acme Financials and review active team members assigned to Mobile Banking App.',
+    color: '#064e3b',
+    isPinned: false,
+    createdAt: '2026-09-06T14:30:00.000Z',
+    updatedAt: '2026-09-06T14:30:00.000Z'
+  }
+];
+
+const DEFAULT_DEMO_USER = {
+  _id: 'emp-1',
+  name: 'Alex Johnson',
+  email: 'alex@techinnovator.com',
+  userType: 'admin'
+};
+
+export default function KeepNotesPage() {
+  const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
+  const [notes, setNotes] = useState<KeepNote[]>(DEFAULT_INLINE_NOTES);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    content: '',
+    color: NOTE_COLORS[0].value,
+    isPinned: false,
+  });
+
+  useEffect(() => {
+    const demoUser = staticClient.getUser();
+    setUser(demoUser);
+    setNotes(staticClient.getKeepNotes() as any);
+    setLoading(false);
+  }, []);
+
+  const fetchNotes = useCallback(async () => {
+    setNotes(staticClient.getKeepNotes() as any);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      fetchNotes();
+    }
+  }, [user, fetchNotes]);
+
+  const pinnedNotes = useMemo(() => notes.filter((n) => n.isPinned), [notes]);
+  const unpinnedNotes = useMemo(() => notes.filter((n) => !n.isPinned), [notes]);
+
+  const draftKey = editingNoteId ? `edit-note-${editingNoteId}` : 'create-note';
+  const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
+
+  useEffect(() => {
+    const handleRestore = (e: CustomEvent) => {
+      const { type, data } = e.detail || {};
+      if (type === 'keep-note' && data) {
+        setEditingNoteId(data.editingNoteId || null);
+        setFormData({
+          title: data.title || '',
+          content: data.content || '',
+          color: data.color || NOTE_COLORS[0].value,
+          isPinned: Boolean(data.isPinned),
+        });
+        const activeKey = data.editingNoteId ? `edit-note-${data.editingNoteId}` : 'create-note';
+        setModalOpenState(activeKey, true);
+        setIsModalOpen(true);
+      }
+    };
+    window.addEventListener('app-restore-modal', handleRestore as EventListener);
+    return () => {
+      window.removeEventListener('app-restore-modal', handleRestore as EventListener);
+    };
+  }, [setModalOpenState]);
+
+  const openModal = (note?: KeepNote) => {
+    if (note) {
+      setEditingNoteId(note._id);
+      const noteDraftKey = `edit-note-${note._id}`;
+      setModalOpenState(noteDraftKey, true);
+      const draft = getDraft(noteDraftKey);
+      if (draft) {
+        setFormData({
+          title: draft.title || note.title,
+          content: draft.content || note.content,
+          color: draft.color || note.color || NOTE_COLORS[0].value,
+          isPinned: draft.isPinned !== undefined ? draft.isPinned : note.isPinned,
+        });
+      } else {
+        setFormData({
+          title: note.title,
+          content: note.content,
+          color: note.color || NOTE_COLORS[0].value,
+          isPinned: note.isPinned,
+        });
+      }
+    } else {
+      setEditingNoteId(null);
+      setModalOpenState('create-note', true);
+      const draft = getDraft('create-note');
+      if (draft) {
+        setFormData({
+          title: draft.title || '',
+          content: draft.content || '',
+          color: draft.color || NOTE_COLORS[0].value,
+          isPinned: Boolean(draft.isPinned),
+        });
+      } else {
+        setFormData({
+          title: '',
+          content: '',
+          color: NOTE_COLORS[0].value,
+          isPinned: false,
+        });
+      }
+    }
+    setIsModalOpen(true);
+  };
+
+  const isFormDirty = () => {
+    return Boolean(formData.title.trim() || formData.content.trim());
+  };
+
+  const closeModal = () => {
+    if (isFormDirty()) {
+      saveDraft(draftKey, {
+        type: 'keep-note',
+        title: formData.title.trim() ? `Note: ${formData.title.trim()}` : (editingNoteId ? 'Edit Note' : 'New Note'),
+        subtitle: formData.content.slice(0, 30) || 'Draft saved',
+        data: {
+          ...formData,
+          editingNoteId,
+        },
+      });
+    } else {
+      clearDraft(draftKey);
+    }
+    setIsModalOpen(false);
+    setEditingNoteId(null);
+    setError(null);
+  };
+
+  const handleSaveNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.title.trim() || !formData.content.trim()) {
+      setError('Please fill all required fields');
+      return;
+    }
+
+    const noteTitle = formData.title.trim();
+
+    if (editingNoteId) {
+      setNotes(prev => prev.map(n => n._id === editingNoteId ? { ...n, ...formData } : n));
+    } else {
+      const newNote = { _id: 'note-' + Date.now(), ...formData, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      setNotes(prev => [newNote as any, ...prev]);
+    }
+    clearDraft(draftKey);
+    setIsModalOpen(false);
+    setEditingNoteId(null);
+    toast.success(editingNoteId ? `Note "${noteTitle}" updated` : `Note "${noteTitle}" created`);
+    setSubmitting(false);
+  };
+
+  const handleDelete = async (noteId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const note = notes.find(n => n._id === noteId);
+    const noteTitle = note?.title || 'Note';
+    if (!confirm(`Delete sticky note "${noteTitle}"?`)) return;
+    setNotes(prev => prev.filter(n => n._id !== noteId));
+    toast.success(`Note "${noteTitle}" deleted`);
+  };
+
+  const handleTogglePin = async (note: KeepNote, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setNotes(prev => prev.map(n => n._id === note._id ? { ...n, isPinned: !n.isPinned } : n));
+  };
+
+  if (loading && notes.length === 0) {
+    return <PageShimmer variant="dashboard" />;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <h1 className="hero-title" style={{ margin: 0, fontSize: '1.45rem', fontWeight: 850 }}>Keep Notes</h1>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => openModal()}
+          className="btn btn-primary"
+          style={{
+            padding: '9px 18px',
+            fontSize: '0.84rem',
+            fontWeight: 750,
+            borderRadius: '8px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+            cursor: 'pointer',
+          }}
+        >
+          <Plus size={16} />
+          <span>New Note</span>
+        </button>
+      </div>
+
+      {error && (
+        <div className="card" style={{ borderLeft: '4px solid #ef4444', display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 16px' }}>
+          <AlertCircle size={16} style={{ color: '#ef4444' }} />
+          <p style={{ margin: 0, fontWeight: 600, fontSize: '0.82rem' }}>{error}</p>
+        </div>
+      )}
+
+      {notes.length === 0 ? (
+        <div
+          className="card"
+          style={{
+            textAlign: 'center',
+            padding: '50px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            background: '#ffffff',
+            border: '2px dashed #e2e8f0',
+            borderRadius: '12px',
+          }}
+        >
+          <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <FileText size={24} />
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>No sticky notes yet</h3>
+            <p style={{ color: '#64748b', fontSize: '0.82rem', marginTop: '4px', margin: 0 }}>
+              Click <strong>+ New Note</strong> above to open a floating window card note.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => openModal()}
+            style={{ marginTop: '8px', padding: '8px 16px', fontSize: '0.8rem', fontWeight: 700 }}
+          >
+            <Plus size={14} />
+            <span>Create First Note</span>
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {pinnedNotes.length > 0 && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px', fontSize: '0.75rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <Pin size={13} style={{ color: '#2563eb' }} />
+                <span>Pinned ({pinnedNotes.length})</span>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                  gap: '16px',
+                }}
+              >
+                {pinnedNotes.map((note) => (
+                  <StickyNoteCard
+                    key={note._id}
+                    note={note}
+                    onEdit={() => openModal(note)}
+                    onDelete={(e) => handleDelete(note._id, e)}
+                    onTogglePin={(e) => handleTogglePin(note, e)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {unpinnedNotes.length > 0 && (
+            <div>
+              {pinnedNotes.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px', fontSize: '0.75rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <span>Others ({unpinnedNotes.length})</span>
+                </div>
+              )}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                  gap: '16px',
+                }}
+              >
+                {unpinnedNotes.map((note) => (
+                  <StickyNoteCard
+                    key={note._id}
+                    note={note}
+                    onEdit={() => openModal(note)}
+                    onDelete={(e) => handleDelete(note._id, e)}
+                    onTogglePin={(e) => handleTogglePin(note, e)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isModalOpen && (
+        <div className="modal-overlay" onClick={closeModal} style={{ zIndex: 1200, background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(3px)' }}>
+          <div
+            className="modal-container"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '520px',
+              width: '95%',
+              padding: 0,
+              overflow: 'hidden',
+              borderRadius: '12px',
+              border: '1px solid #cbd5e1',
+              boxShadow: '0 20px 40px -10px rgba(0,0,0,0.25)',
+              backgroundColor: formData.color || '#ffffff',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 14px',
+                background: 'rgba(255, 255, 255, 0.65)',
+                borderBottom: '1px solid rgba(0,0,0,0.08)',
+                userSelect: 'none',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <StickyNote size={15} style={{ color: '#2563eb' }} />
+                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
+                  {editingNoteId ? 'Edit Sticky Note' : 'New Sticky Note'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: '4px',
+                    width: '24px',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#64748b',
+                  }}
+                  title="Close"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveNote} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {error && (
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    borderRadius: 'var(--border-radius-sm)',
+                    color: '#dc2626',
+                    fontSize: '0.78rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                  <span>{error}</span>
+                </div>
+              )}
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Note Title..."
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                style={{
+                  fontSize: '1rem',
+                  fontWeight: 800,
+                  border: 'none',
+                  background: 'transparent',
+                  padding: '4px 0',
+                  boxShadow: 'none',
+                  outline: 'none',
+                  color: '#0f172a',
+                }}
+                autoFocus={!editingNoteId}
+                required
+              />
+
+              <textarea
+                className="form-control"
+                placeholder="Take a note..."
+                value={formData.content}
+                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                rows={6}
+                style={{
+                  fontSize: '0.84rem',
+                  lineHeight: 1.5,
+                  border: 'none',
+                  background: 'transparent',
+                  padding: '4px 0',
+                  boxShadow: 'none',
+                  outline: 'none',
+                  resize: 'vertical',
+                  color: '#1e293b',
+                }}
+                required
+              />
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', paddingTop: '12px', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {NOTE_COLORS.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, color: c.value })}
+                      title={c.name}
+                      style={{
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        backgroundColor: c.value,
+                        border: formData.color === c.value ? `2px solid ${c.accent}` : '1px solid rgba(0,0,0,0.15)',
+                        cursor: 'pointer',
+                        transform: formData.color === c.value ? 'scale(1.15)' : 'scale(1)',
+                        transition: 'transform 0.15s ease',
+                      }}
+                    />
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, isPinned: !formData.isPinned })}
+                    style={{
+                      background: formData.isPinned ? '#eff6ff' : 'transparent',
+                      border: formData.isPinned ? '1px solid #93c5fd' : '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      padding: '5px 10px',
+                      fontSize: '0.75rem',
+                      fontWeight: 650,
+                      color: formData.isPinned ? '#2563eb' : '#64748b',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {formData.isPinned ? <Pin size={13} /> : <PinOff size={13} />}
+                    <span>{formData.isPinned ? 'Pinned' : 'Pin'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      padding: '5px 12px',
+                      fontSize: '0.78rem',
+                      fontWeight: 650,
+                      color: '#475569',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={submitting}
+                    style={{ padding: '5px 14px', fontSize: '0.78rem', fontWeight: 700 }}
+                  >
+                    {submitting ? <Loader2 size={13} className="spin" /> : (editingNoteId ? 'Save Changes' : 'Save Note')}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StickyNoteCard({
+  note,
+  onEdit,
+  onDelete,
+  onTogglePin,
+}: {
+  note: KeepNote;
+  onEdit: () => void;
+  onDelete: (e: React.MouseEvent) => void;
+  onTogglePin: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <article
+      onClick={onEdit}
+      style={{
+        backgroundColor: note.color || '#fef9c3',
+        border: note.isPinned ? '1px solid #60a5fa' : '1px solid rgba(0,0,0,0.1)',
+        borderRadius: '10px',
+        padding: '14px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        minHeight: '160px',
+        boxShadow: note.isPinned
+          ? '0 4px 14px rgba(37, 99, 235, 0.12)'
+          : '0 2px 6px rgba(0, 0, 0, 0.04)',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+        position: 'relative',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-2px)';
+        e.currentTarget.style.boxShadow = '0 6px 18px rgba(0, 0, 0, 0.08)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = note.isPinned
+          ? '0 4px 14px rgba(37, 99, 235, 0.12)'
+          : '0 2px 6px rgba(0, 0, 0, 0.04)';
+      }}
+    >
+      <div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
+          <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.3 }}>
+            {note.title}
+          </h3>
+          {note.isPinned && (
+            <span title="Pinned Note" style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <Pin size={14} style={{ color: '#2563eb', flexShrink: 0 }} />
+            </span>
+          )}
+        </div>
+
+        <p
+          style={{
+            margin: 0,
+            color: '#334155',
+            fontSize: '0.8rem',
+            lineHeight: 1.45,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}
+        >
+          {note.content}
+        </p>
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginTop: '12px',
+          paddingTop: '8px',
+          borderTop: '1px solid rgba(0,0,0,0.06)',
+        }}
+      >
+        <span style={{ fontSize: '0.67rem', color: '#64748b', fontWeight: 550 }}>
+          {new Date(note.updatedAt || note.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+        </span>
+
+        <div style={{ display: 'flex', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="action-btn"
+            title={note.isPinned ? 'Unpin' : 'Pin'}
+            onClick={onTogglePin}
+            style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#475569', borderRadius: '4px' }}
+          >
+            {note.isPinned ? <PinOff size={13} /> : <Pin size={13} />}
+          </button>
+          <button
+            type="button"
+            className="action-btn"
+            title="Edit Note"
+            onClick={onEdit}
+            style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#475569', borderRadius: '4px' }}
+          >
+            <Edit3 size={13} />
+          </button>
+          <button
+            type="button"
+            className="action-btn btn-delete-item"
+            title="Delete Note"
+            onClick={onDelete}
+            style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', borderRadius: '4px' }}
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}

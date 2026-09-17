@@ -31,6 +31,8 @@ export interface ProjectOption {
   _id: string;
   name: string;
   color?: string;
+  members?: any[];
+  project_users?: any[];
   clientId?: any;
 }
 
@@ -99,23 +101,60 @@ export function CreateTaskModal({
 
   // Fetch projects from API
   const fetchProjects = useCallback(async () => {
-    const list = staticClient.getProjects();
-    setProjects(list as any);
-    return list;
+    try {
+      const response = await fetch('/api/projects', { credentials: 'include', cache: 'no-store' });
+      const result = await response.json();
+      if (response.ok && result.success && Array.isArray(result.data)) {
+        const list = result.data.map((project: any) => ({
+          ...project,
+          _id: String(project._id),
+          name: project.name || project.project_name || project.title || '',
+          project_users: Array.isArray(project.project_users) ? project.project_users : [],
+        }));
+        setProjects(list);
+        return list;
+      }
+    } catch {
+    }
+
+    const fallback = staticClient.getProjects();
+    setProjects(fallback as any);
+    return fallback;
   }, []);
 
   // Fetch employees from API
   const fetchEmployees = useCallback(async () => {
-    const list = staticClient.getEmployees();
-    setEmployees(list as any);
-    return list;
+    try {
+      const response = await fetch('/api/users/employees', { credentials: 'include', cache: 'no-store' });
+      const result = await response.json();
+      if (response.ok && result.success && Array.isArray(result.data)) {
+        setEmployees(result.data);
+        return result.data;
+      }
+    } catch {
+    }
+
+    const fallback = staticClient.getEmployees();
+    setEmployees(fallback as any);
+    return fallback;
   }, []);
 
   // Fetch clients from API
   const fetchClients = useCallback(async () => {
-    const list = staticClient.getClients();
-    setClients(list as any);
-    return list;
+    try {
+      const response = await fetch('/api/clients', { credentials: 'include', cache: 'no-store' });
+      const result = await response.json();
+      if (response.ok && result.success && Array.isArray(result.data)) {
+        setClients(result.data);
+        return result.data;
+      }
+    } catch {
+      // Use the local client list when the API is temporarily unavailable.
+    }
+
+    const fallback = staticClient.getClients();
+    setClients(fallback as any);
+    return fallback;
   }, []);
 
   const getProjectContacts = () => {
@@ -127,11 +166,16 @@ export function CreateTaskModal({
         (p: any) => p._id === formData.projectId || p._id?.toString() === formData.projectId?.toString()
       );
 
-      const targetClientId = selectedProj?.clientId?._id || selectedProj?.clientId;
+      const targetClientId = selectedProj?.client?._id || selectedProj?.clientId?._id || selectedProj?.client || selectedProj?.clientId;
 
-      if (selectedProj && selectedProj.clientId && typeof selectedProj.clientId === 'object' && Array.isArray((selectedProj.clientId as any).contacts) && (selectedProj.clientId as any).contacts.length > 0) {
-        matchedContacts = (selectedProj.clientId as any).contacts;
-        clientName = (selectedProj.clientId as any).name || '';
+      const projectClient = selectedProj?.client || selectedProj?.clientId;
+      const embeddedContacts = projectClient && typeof projectClient === 'object'
+        ? (projectClient.contact_members || projectClient.contacts)
+        : [];
+
+      if (Array.isArray(embeddedContacts) && embeddedContacts.length > 0) {
+        matchedContacts = embeddedContacts;
+        clientName = projectClient.name || '';
       } else if (clients && clients.length > 0) {
         const clientForProject = clients.find((c: any) => {
           const cId = c._id?.toString();
@@ -139,8 +183,8 @@ export function CreateTaskModal({
           if (tId && cId === tId) return true;
           return Array.isArray(c.projects) && c.projects.some((p: any) => (p._id || p)?.toString() === formData.projectId?.toString());
         });
-        if (clientForProject && Array.isArray(clientForProject.contacts)) {
-          matchedContacts = clientForProject.contacts;
+        if (clientForProject) {
+          matchedContacts = clientForProject.contact_members || clientForProject.contacts || [];
           clientName = clientForProject.name || '';
         }
       }
@@ -162,11 +206,12 @@ export function CreateTaskModal({
       return { options: [], disabledMessage: 'No contact persons for this project' };
     }
 
-    const options = projectContacts.map((c: any) => {
+    const options = projectContacts.map((c: any, index: number) => {
+      const contactId = c._id || c.id || c.email || `contact-${index}`;
       const designationText = c.designation ? ` (${c.designation})` : '';
       return {
-        value: `dfuyfjfj`,
-        label: `dfuyfjfj`,
+        value: String(contactId),
+        label: `${c.name}${designationText}`,
       };
     });
 
@@ -186,13 +231,17 @@ export function CreateTaskModal({
   }, [employeesList]);
 
   const lastInitializedRef = useRef<string | null>(null);
+  const resourcesLoadedRef = useRef<string | null>(null);
 
   // Setup modal data whenever modal opens or editingTask changes
   useEffect(() => {
     if (!isOpen) {
       lastInitializedRef.current = null;
+      resourcesLoadedRef.current = null;
       return;
     }
+
+    const sessionKey = editingTask ? String(editingTask._id || JSON.stringify(editingTask)) : 'new_task';
 
     let activeUser = propUser;
     if (!activeUser) {
@@ -212,20 +261,18 @@ export function CreateTaskModal({
       });
     }
 
-    if (!projectsOptions || projectsOptions.length === 0) {
-      fetchProjects();
-    }
-
-    fetchClients();
-
     const adminFlag = activeUser?.userType === 'admin';
-    if (adminFlag && (!employeesList || employeesList.length === 0)) {
-      fetchEmployees();
+    if (resourcesLoadedRef.current !== sessionKey) {
+      resourcesLoadedRef.current = sessionKey;
+      fetchProjects();
+      fetchClients();
+      if (adminFlag) {
+        fetchEmployees();
+      }
     }
 
     setModalOpenState(draftKey, true);
 
-    const sessionKey = editingTask ? String(editingTask._id || JSON.stringify(editingTask)) : 'new_task';
     if (lastInitializedRef.current !== sessionKey) {
       lastInitializedRef.current = sessionKey;
 
@@ -240,12 +287,12 @@ export function CreateTaskModal({
         setFormData({
           title: editingTask.title || '',
           description: editingTask.description || '',
-          projectId: editingTask.projectId?._id || editingTask.projectId || '',
-          assignedTo: Array.isArray(editingTask.assignedTo)
-            ? editingTask.assignedTo.map((e: any) => (typeof e === 'object' && e !== null ? e._id : e))
+          projectId: editingTask.projectId?._id || editingTask.project_id?._id || editingTask.projectId || editingTask.project_id || '',
+          assignedTo: Array.isArray(editingTask.assignedTo || editingTask.assign_to)
+            ? (editingTask.assignedTo || editingTask.assign_to).map((e: any) => (typeof e === 'object' && e !== null ? e._id : e))
             : [],
           priority: editingTask.priority || 'Medium',
-          status: editingTask.status || 'To Do',
+          status: editingTask.task_status || (typeof editingTask.status === 'string' ? editingTask.status : 'To Do'),
           dueDate: editingTask.dueDate || '',
           dueTime: editingTask.dueTime || '',
           url: editingTask.url || '',
@@ -377,35 +424,63 @@ export function CreateTaskModal({
       const safeAssignedTo = isAdmin ? formData.assignedTo : (userId ? [userId] : []);
 
       const payload = {
-        ...formData,
+        title: formData.title.trim(),
+        description: formData.description || '',
+        project_id: formData.projectId || undefined,
+        assign_to: safeAssignedTo,
+        created_by: userId,
+        priority: formData.priority,
+        task_status: formData.status,
+        files: formData.files,
+        urls: formData.urls,
+        comments: formData.comments ? [{ comment: formData.comments, user_id: userId, datetime: new Date().toISOString() }] : [],
+        completion_date: formData.dueDate || undefined,
+        completion_time: formData.dueTime || undefined,
+        status: 1,
+
+        // Backward compatibility properties
+        projectId: formData.projectId || undefined,
         assignedTo: safeAssignedTo,
         createdBy: userId,
-        userId: userId,
-        userEmail: currentUser?.email,
-        email: currentUser?.email,
-        projectId: formData.projectId || undefined,
-        Project: currentUser?.Project || undefined,
         dueDate: formData.dueDate || undefined,
         dueTime: formData.dueTime || undefined,
         url: formData.urls[0] || formData.url || undefined,
-        urls: formData.urls,
-        comments: formData.comments || undefined,
-        contactPerson: formData.contactPersons.join(', ') || undefined,
-        contactPersons: formData.contactPersons,
-        files: formData.files,
-        tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
+        tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : []
       };
 
-      const newTaskObj = {
-        _id: editingTask ? editingTask._id : 'task-' + Date.now(),
-        ...payload,
-        createdAt: new Date().toISOString()
-      };
+      let savedTask: any = null;
+
+      try {
+        const url = editingTask ? `/api/tasks/${editingTask._id}` : '/api/tasks';
+        const method = editingTask ? 'PATCH' : 'POST';
+
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const json = await res.json();
+        if (json.success && json.data) {
+          savedTask = json.data;
+        }
+      } catch (apiErr) {
+        console.warn('Task API call failed, persisting in local store:', apiErr);
+      }
+
+      if (!savedTask) {
+        savedTask = {
+          _id: editingTask ? editingTask._id : 'task-' + Date.now(),
+          ...payload,
+          createdAt: new Date().toISOString()
+        };
+      }
+
       if (editingTask) {
         const idx = staticClient.getTasks().findIndex(t => t._id === editingTask._id);
-        if (idx !== -1) staticClient.getTasks()[idx] = newTaskObj as any;
+        if (idx !== -1) staticClient.getTasks()[idx] = savedTask;
       } else {
-        staticClient.getTasks().unshift(newTaskObj as any);
+        staticClient.getTasks().unshift(savedTask);
       }
 
       window.dispatchEvent(new CustomEvent('worktracker-refresh'));
@@ -415,7 +490,7 @@ export function CreateTaskModal({
       toast.success(editingTask ? `${taskTitle} updated successfully` : `${taskTitle} created successfully`);
 
       if (onSuccess) {
-        onSuccess(newTaskObj);
+        onSuccess(savedTask);
       }
 
       onClose();
@@ -557,6 +632,8 @@ export function CreateTaskModal({
                     setFormData((prev) => ({ ...prev, assignedTo: newAssignedTo }))
                   }
                   onProjectUpdated={(updatedProject) => {
+                    if (!updatedProject?._id) return;
+
                     setProjects((prev) =>
                       prev.map((p) =>
                         p._id === updatedProject._id || p._id?.toString() === updatedProject._id?.toString()
@@ -564,7 +641,6 @@ export function CreateTaskModal({
                           : p
                       )
                     );
-                    fetchProjects();
                   }}
                   onAddNewEmployeeClick={() => setIsEmployeeModalOpen(true)}
                 />

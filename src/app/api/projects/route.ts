@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 
 import dbConnect from "@/lib/dbConnect";
 import Project from "@/models/Project";
+import User from "@/models/User";
 import { currentUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -43,14 +44,18 @@ export async function POST(req: Request) {
       );
     }
 
+    const validProjectUserIds = Array.isArray(project_users)
+      ? await User.find({
+          _id: { $in: project_users.filter((id: string) => mongoose.Types.ObjectId.isValid(id)) },
+          user_role: 2,
+          created_by: user._id,
+        }).distinct("_id")
+      : [];
+
     const project = await Project.create({
       name: name.trim(),
       short_description: short_description?.trim() || "",
-      project_users: Array.isArray(project_users)
-        ? project_users.filter((id: string) =>
-            mongoose.Types.ObjectId.isValid(id)
-          )
-        : [],
+      project_users: validProjectUserIds,
       start_date: start_date || undefined,
       end_date: end_date || null,
       client:
@@ -92,7 +97,16 @@ export async function GET() {
   try {
     await dbConnect();
 
-    const projects = await Project.find()
+    const user = await currentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const projects = await Project.find({ created_by: user._id })
       .sort({ createdAt: -1 })
       .lean();
 
@@ -161,8 +175,8 @@ export async function PATCH(req: Request) {
     if (body.project_users !== undefined) {
       updateData.project_users = Array.isArray(body.project_users)
         ? body.project_users.filter((memberId: string) =>
-            mongoose.Types.ObjectId.isValid(memberId)
-          )
+          mongoose.Types.ObjectId.isValid(memberId)
+        )
         : [];
     }
 
@@ -177,7 +191,7 @@ export async function PATCH(req: Request) {
     if (body.client !== undefined) {
       updateData.client =
         body.client &&
-        mongoose.Types.ObjectId.isValid(body.client)
+          mongoose.Types.ObjectId.isValid(body.client)
           ? body.client
           : null;
     }
@@ -189,8 +203,20 @@ export async function PATCH(req: Request) {
     // Never trust modified_by from frontend
     updateData.modified_by = user._id;
 
-    const project = await Project.findByIdAndUpdate(
-      id,
+    const validProjectUserIds = Array.isArray(body.project_users)
+      ? await User.find({
+          _id: { $in: body.project_users.filter((memberId: string) => mongoose.Types.ObjectId.isValid(memberId)) },
+          user_role: 2,
+          created_by: user._id,
+        }).distinct("_id")
+      : undefined;
+
+    if (validProjectUserIds !== undefined) {
+      updateData.project_users = validProjectUserIds;
+    }
+
+    const project = await Project.findOneAndUpdate(
+      { _id: id, created_by: user._id },
       updateData,
       {
         new: true,

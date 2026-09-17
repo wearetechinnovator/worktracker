@@ -1,81 +1,205 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
 
-export interface ITask extends Document {
-  title: string;
-  description?: string;
-  projectId?: mongoose.Types.ObjectId;
-  Project?: string;
-  assignedTo: mongoose.Types.ObjectId[]; // Array of employee IDs
-  createdBy: mongoose.Types.ObjectId; // Admin/Manager who created it
-  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  status: 'To Do' | 'In Progress' | 'Partially Completed' | 'Review' | 'Completed';
-  dueDate?: string; // YYYY-MM-DD
-  dueTime?: string; // HH:MM
-  url?: string;
-  urls?: string[];
-  comments?: string;
-  commentsList?: Array<{
-    _id?: mongoose.Types.ObjectId;
-    author: mongoose.Types.ObjectId;
-    content: string;
-    createdAt: Date;
-  }>;
-  contactPerson?: string;
-  contactPersons?: string[];
-  files?: Array<{ name: string; url: string; size?: number; type?: string }>;
-  tags?: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
+/* =========================================================
+   COMMENT SCHEMA
+   ========================================================= */
 
-const TaskSchema = new Schema<ITask>(
+const taskCommentSchema = new Schema(
   {
-    title: { type: String, required: true, trim: true },
-    description: { type: String, trim: true },
-    projectId: { type: Schema.Types.ObjectId, ref: 'Project' },
-    Project: { type: String, trim: true },
-    assignedTo: [{ type: Schema.Types.ObjectId, ref: 'Employee' }],
-    createdBy: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
-    priority: { 
-      type: String, 
-      enum: ['Low', 'Medium', 'High', 'Urgent'], 
-      default: 'Medium',
-      required: true 
+    comment: {
+      type: String,
+      default: "",
+      trim: true,
     },
-    status: { 
-      type: String, 
-      enum: ['To Do', 'In Progress', 'Partially Completed', 'Review', 'Completed'], 
-      default: 'To Do',
-      required: true 
+
+    user_id: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
-    dueDate: { type: String },
-    dueTime: { type: String },
-    url: { type: String, trim: true },
-    urls: [{ type: String }],
-    comments: { type: String, trim: true },
-    commentsList: [{
-      author: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
-      content: { type: String, required: true, trim: true },
-      createdAt: { type: Date, default: Date.now },
-    }],
-    contactPerson: { type: String, trim: true },
-    contactPersons: [{ type: String, trim: true }],
-    files: [{
-      name: { type: String },
-      url: { type: String },
-      size: { type: Number },
-      type: { type: String }
-    }],
-    tags: [{ type: String }],
+
+    datetime: {
+      type: Date,
+      default: Date.now,
+    },
   },
-  { timestamps: true }
+  {
+    _id: true,
+  }
 );
 
-TaskSchema.index({ assignedTo: 1, createdAt: -1 });
-TaskSchema.index({ createdBy: 1, createdAt: -1 });
-TaskSchema.index({ projectId: 1, status: 1, createdAt: -1 });
-TaskSchema.index({ Project: 1, status: 1, createdAt: -1 });
+/* =========================================================
+   TASK SCHEMA
+   ========================================================= */
 
-const Task: Model<ITask> = mongoose.models.Task || mongoose.model<ITask>('Task', TaskSchema);
+const taskSchema = new Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    /* -------------------------
+       PROJECT
+       ------------------------- */
+
+    project_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Project",
+      default: null,
+    },
+
+    /* -------------------------
+       ASSIGNED EMPLOYEES
+       ------------------------- */
+
+    assign_to: {
+      type: [
+        {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+      default: [],
+    },
+
+    /* -------------------------
+       CREATOR
+       ------------------------- */
+
+    created_by: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    /* -------------------------
+       PRIORITY
+       ------------------------- */
+
+    priority: {
+      type: String,
+      enum: [
+        "Low",
+        "Medium",
+        "High",
+        "Urgent",
+      ],
+      default: "Medium",
+    },
+
+    /* -------------------------
+       TASK STATUS
+       ------------------------- */
+
+    task_status: {
+      type: String,
+      enum: [
+        "To Do",
+        "In Progress",
+        "Partially Completed",
+        "Review",
+        "Completed",
+      ],
+      default: "To Do",
+    },
+
+    /* -------------------------
+       FILES
+       ------------------------- */
+
+    files: {
+      type: [
+        {
+          type: Schema.Types.Mixed,
+        },
+      ],
+      default: [],
+    },
+
+    /* -------------------------
+       URLS
+       ------------------------- */
+
+    urls: {
+      type: [
+        {
+          type: Schema.Types.Mixed,
+        },
+      ],
+      default: [],
+    },
+
+    /* -------------------------
+       COMMENTS
+       ------------------------- */
+
+    comments: {
+      type: [taskCommentSchema],
+      default: [],
+    },
+
+    /* -------------------------
+       COMPLETION
+       ------------------------- */
+
+    completion_date: {
+      type: Date,
+      default: null,
+    },
+
+    completion_time: {
+      type: String,
+      default: null,
+    },
+
+    /* -------------------------
+       CREATED
+       ------------------------- */
+
+    created_on: {
+      type: Date,
+      default: Date.now,
+    },
+
+    /* -------------------------
+       MODIFIED
+       ------------------------- */
+
+    modified_by: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    modified_on: {
+      type: Date,
+      default: null,
+    },
+
+    /* -------------------------
+       STATUS
+       ------------------------- */
+
+    status: {
+      type: Number,
+      default: 0,
+    },
+  },
+  {
+    timestamps: true,
+
+  }
+);
+
+const Task =
+  mongoose.models.Task ||
+  mongoose.model("Task", taskSchema);
 
 export default Task;

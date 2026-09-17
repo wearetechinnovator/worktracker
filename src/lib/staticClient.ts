@@ -28,6 +28,20 @@ export const staticClient = {
     return mockStore.tasks;
   },
 
+  async fetchTasksApi() {
+    try {
+      const res = await fetch('/api/tasks');
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        mockStore.tasks = json.data;
+        return json.data;
+      }
+    } catch (err) {
+      console.error('Error fetching tasks from API:', err);
+    }
+    return mockStore.tasks;
+  },
+
   getClients() {
     return mockStore.clients;
   },
@@ -98,20 +112,54 @@ export const staticClient = {
   },
 
   async addTaskComment(taskId: string, commentData: any) {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          comment: commentData.content || commentData.comment,
+          user_id: commentData.userId || commentData.user_id,
+          newStatus: commentData.newStatus
+        })
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        const idx = mockStore.tasks.findIndex(t => t._id === taskId);
+        if (idx !== -1) mockStore.tasks[idx] = json.data;
+        return { success: true, data: json.data };
+      }
+    } catch (err) {
+      console.error('API Comment failed, falling back to memory:', err);
+    }
+
     const task = mockStore.tasks.find(t => t._id === taskId) as any;
     if (task) {
       if (!task.comments) task.comments = [];
       task.comments.push({
         _id: 'comment-' + Date.now(),
-        content: commentData.content,
-        userId: commentData.userId,
-        createdAt: new Date().toISOString()
+        comment: commentData.content || commentData.comment,
+        content: commentData.content || commentData.comment,
+        user_id: commentData.userId || commentData.user_id,
+        datetime: new Date().toISOString()
       });
     }
     return { success: true, data: task };
   },
 
   async deleteTask(taskId: string) {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'DELETE'
+      });
+      const json = await res.json();
+      if (json.success) {
+        mockStore.tasks = mockStore.tasks.filter(t => t._id !== taskId);
+        return { success: true, message: json.message || 'Task deleted successfully' };
+      }
+    } catch (err) {
+      console.error('API Delete failed, falling back to memory:', err);
+    }
+
     mockStore.tasks = mockStore.tasks.filter(t => t._id !== taskId);
     return { success: true, message: 'Task deleted successfully' };
   },
@@ -195,4 +243,3 @@ export const staticClient = {
     return { success: true, message: 'Work log deleted' };
   }
 };
-

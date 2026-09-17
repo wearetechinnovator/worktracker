@@ -373,7 +373,13 @@ export default function MyTasks({ userId }: { userId: string }) {
   };
 
   const loadData = useCallback(async () => {
-    setTasks(staticClient.getTasks() as any);
+    try {
+      const apiTasks = await staticClient.fetchTasksApi();
+      setTasks((apiTasks || staticClient.getTasks()) as any);
+    } catch (e) {
+      console.error(e);
+      setTasks(staticClient.getTasks() as any);
+    }
     setTaskWorks([] as any);
     setLoading(false);
   }, [userId]);
