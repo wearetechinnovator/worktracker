@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { sanitizeNumericInput } from '@/lib/inputValidation';
-
+import { Button } from '@/components/ui/button';
 
 export default function OtpPage() {
 	const router = useRouter();
@@ -13,47 +13,74 @@ export default function OtpPage() {
 	const email = searchParams.get("email") || "";
 
 	const [otp, setOtp] = useState(['', '', '', '', '', '']);
+	const [submitting, setSubmitting] = useState(false);
+	const [resending, setResending] = useState(false);
 	const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
 	const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
+		e.preventDefault();
+		if (submitting) return;
 
-    const code = otp.join("");
+		const code = otp.join("");
 
-    if (code.length !== 6) {
-        alert("Enter 6 digit OTP");
-        return;
-    }
+		if (code.length !== 6) {
+			alert("Enter 6 digit OTP");
+			return;
+		}
 
-    try {
-        const response = await fetch("/api/otp/verify", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            credentials: "include",
-            body: JSON.stringify({
-                email,
-                otp: code,
-            }),
-        });
+		setSubmitting(true);
+		try {
+			const response = await fetch("/api/otp/verify", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				credentials: "include",
+				body: JSON.stringify({
+					email,
+					otp: code,
+				}),
+			});
 
-        const data = await response.json();
+			const data = await response.json();
 
-        if (!response.ok || !data.success) {
-            alert(data.message || "OTP verification failed");
-            return;
-        }
+			if (!response.ok || !data.success) {
+				alert(data.message || "OTP verification failed");
+				return;
+			}
 
-        // OTP verification API now creates the DB session
-        // and sets the worktracker_session cookie.
-        router.push("/admin/dashboard");
-        router.refresh();
+			// OTP verification API now creates the DB session
+			// and sets the worktracker_session cookie.
+			router.push("/admin/dashboard");
+			router.refresh();
 
-    } catch (error) {
-        console.error(error);
-        alert("Something went wrong");
-    }
-};
+		} catch (error) {
+			console.error(error);
+			alert("Something went wrong");
+		} finally {
+			setSubmitting(false);
+		}
+	};
+
+	const handleResend = async () => {
+		if (resending) return;
+		setResending(true);
+		try {
+			// Trigger OTP resend API call
+			const response = await fetch("/api/users/register", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ email }),
+			});
+			const data = await response.json();
+			if (data.message) alert(data.message);
+		} catch (err) {
+			console.error(err);
+		} finally {
+			setResending(false);
+		}
+	};
+
 	const handleChange = (index: number, value: string) => {
 		const digit = sanitizeNumericInput(value).slice(-1);
 
@@ -96,11 +123,10 @@ export default function OtpPage() {
 		inputRefs.current[nextIndex]?.focus();
 	};
 
-
-
 	const isComplete = otp.every(Boolean);
 
-	return (<div
+	return (
+		<div
 			style={{
 				display: 'flex',
 				alignItems: 'center',
@@ -238,21 +264,21 @@ export default function OtpPage() {
 						))}
 					</div>
 
-					<button
+					<Button
 						type="submit"
+						loading={submitting}
 						className="btn btn-primary"
-						disabled={!isComplete}
+						disabled={!isComplete || submitting}
 						style={{
 							padding: '8px 16px',
 							fontSize: '0.85rem',
 							width: '100%',
 							height: '38px',
 							opacity: isComplete ? 1 : 0.55,
-							cursor: isComplete ? 'pointer' : 'not-allowed',
 						}}
 					>
 						Verify OTP
-					</button>
+					</Button>
 
 					{/* Resend */}
 					<div
@@ -263,8 +289,11 @@ export default function OtpPage() {
 						}}
 					>
 						Didn't receive the code?{' '}
-						<button
+						<Button
 							type="button"
+							variant="link"
+							loading={resending}
+							onClick={handleResend}
 							style={{
 								border: 0,
 								background: 'transparent',
@@ -272,10 +301,11 @@ export default function OtpPage() {
 								fontWeight: 700,
 								cursor: 'pointer',
 								padding: 0,
+								height: 'auto',
 							}}
 						>
 							Resend OTP
-						</button>
+						</Button>
 					</div>
 
 					{/* Back */}

@@ -8,12 +8,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-	LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, ChevronLeft, ChevronDown, LogOut, Clock, Settings, CheckSquare, History, Briefcase, FileText, Mail, Copy, Loader2, Menu, X,
+	LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, ChevronLeft, ChevronDown, LogOut, Clock, Settings, CheckSquare, History, Briefcase, FileText, Mail, Copy, Loader2, Menu, X, Activity,
 	ClipboardCheck
 } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
-import { getClientPunchLocation } from '@/lib/geoClient';
-import { staticClient } from '@/lib/staticClient';
+import { punchService } from '@/lib/punchService';
 import { AnimateIcon } from './animate-ui/icons/icon';
 import { LayoutDashboardIcon } from './animate-ui/icons/layout-dashboard';
 import { ClipboardCheckIcon } from './animate-ui/icons/clipboard-check';
@@ -117,7 +116,7 @@ export default function Sidebar() {
 				return;
 			}
 
-			const punch = staticClient.getPunchStatus();
+			const punch = punchService.getPunchStatus();
 			setIsPunchedIn(punch.isPunchedIn);
 			setCanPunchOut(punch.canPunchOut);
 			setCheckingPunch(false);
@@ -202,18 +201,35 @@ export default function Sidebar() {
 		}
 	};
 
-	const openPunchOutModal = async () => {
-		const today = new Date().toISOString().split('T')[0];
-		const reportText = `Daily Work Summary (${today})\n\nShift punch out report completed.`;
-		setMailReportContent(reportText);
-		setShowPunchOutModal(true);
-	};
+	// const openPunchOutModal = async () => {
+	// 	const today = new Date().toISOString().split('T')[0];
+	// 	const reportText = `Daily Work Summary (${today})\n\nShift punch out report completed.`;
+	// 	setMailReportContent(reportText);
+	// 	setShowPunchOutModal(true);
+	// };
 
 	const confirmPunchOut = async () => {
 		try {
 			setIsPunchingOut(true);
 
-			staticClient.togglePunch();
+			try {
+				await punchService.punchOut({ reason: mailReportContent });
+			} catch (punchErr: any) {
+				if (punchErr?.requiresRequest) {
+					const reason = window.prompt(
+						'Punch Out time window is closed.\n\nPlease enter a reason for requesting punch out:'
+					);
+					if (reason?.trim()) {
+						await punchService.requestPunch('punchOut', reason.trim());
+						alert('Punch Out request sent to admin successfully.');
+					} else {
+						setIsPunchingOut(false);
+						return;
+					}
+				} else {
+					console.error('Punch out error in sidebar:', punchErr);
+				}
+			}
 
 			const response = await fetch('/api/auth/logout', {
 				method: 'POST',
@@ -307,7 +323,7 @@ export default function Sidebar() {
 
 				{user && (
 					<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-						<div className="avatar" style={{ backgroundColor: user.avatarColor || '#3b82f6', width: '28px', height: '28px', fontSize: '0.72rem', fontWeight: 700 }}>
+						<div className="avatar" style={{ width: '28px', height: '28px', fontSize: '0.72rem', fontWeight: 700 }}>
 							{user.name?.split(' ').map((n: string) => n[0]).join('') || 'U'}
 						</div>
 					</div>
@@ -329,11 +345,11 @@ export default function Sidebar() {
 						<div className="sidebar-header" style={{ marginBottom: isCollapsed ? '10px' : '14px' }}>
 							<div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: isCollapsed ? '6px' : '8px' }}>
 								{!isCollapsed ? (
-									<Link href="/" className="sidebar-brand" style={{ margin: 0 }}>
+									<Link href={`${basePath}/dashboard`} className="sidebar-brand" style={{ margin: 0 }}>
 										<span style={{ fontWeight: 800 }}>Quanto Track</span>
 									</Link>
 								) : (
-									<Link href="/" className="sidebar-brand" style={{ fontSize: '1.1rem', fontWeight: 900, textAlign: 'center', margin: 0, color: 'var(--accent-primary)' }} title="Quanto Track">
+									<Link href={`${basePath}/dashboard`} className="sidebar-brand" style={{ fontSize: '1.1rem', fontWeight: 900, textAlign: 'center', margin: 0, color: 'var(--accent-primary)' }} title="Quanto Track">
 										QT
 									</Link>
 								)}
@@ -345,7 +361,7 @@ export default function Sidebar() {
 										border: 'none',
 										color: 'var(--text-muted)',
 										cursor: 'pointer',
-										padding: '5px',
+										padding: '10px',
 										display: 'flex',
 										alignItems: 'center',
 										justifyContent: 'center',
@@ -380,7 +396,7 @@ export default function Sidebar() {
 									display: 'flex',
 									alignItems: 'center',
 									gap: '8px',
-									fontWeight: 600
+									// fontWeight: 600
 								}}>
 									<Clock size={16} />
 									{!isCollapsed && <span style={{ fontSize: '0.8rem' }}>{isPunchedIn ? 'Punched In' : 'Not Punched'}</span>}
@@ -654,6 +670,21 @@ export default function Sidebar() {
 								</AnimateIcon>
 							)}
 
+							{/* 7. ACTIVITY LOGS (Admin Only) */}
+							{isAdmin && (
+								<AnimateIcon animateOnHover>
+									<Link
+										href={`${basePath}/log`}
+										className={`sidebar-link ${pathname === `${basePath}/log` ? 'active' : ''}`}
+										onMouseEnter={(e) => handleItemMouseEnter('Activity Logs', e)}
+										onMouseLeave={handleItemMouseLeave}
+									>
+										<Activity size={17} />
+										<span>Activity Logs</span>
+									</Link>
+								</AnimateIcon>
+							)}
+
 						</nav>
 					</div>
 
@@ -671,7 +702,7 @@ export default function Sidebar() {
 							}}
 						>
 							<div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: isCollapsed ? '8px' : '12px', padding: '0 4px', justifyContent: isCollapsed ? 'center' : 'flex-start' }}>
-								<div className="avatar" style={{ backgroundColor: user.avatarColor || '#3b82f6', width: isCollapsed ? '32px' : '28px', height: isCollapsed ? '32px' : '28px', fontSize: '0.75rem', flexShrink: 0 }} title={user.name}>
+								<div className="avatar" style={{ width: isCollapsed ? '32px' : '28px', height: isCollapsed ? '32px' : '28px', fontSize: '0.75rem', flexShrink: 0 }} title={user.name}>
 									{user.name?.split(' ').map((n: string) => n[0]).join('') || 'U'}
 								</div>
 								{!isCollapsed && (
@@ -681,29 +712,8 @@ export default function Sidebar() {
 									</div>
 								)}
 							</div>
-							{!isAdmin && isPunchedIn && (
-								<button
-									onClick={canPunchOut ? openPunchOutModal : undefined}
-									className="btn btn-punchout"
-									disabled={!canPunchOut}
-									style={{
-										width: '100%',
-										padding: isCollapsed ? '10px 8px' : '10px 12px',
-										fontSize: isCollapsed ? '0' : '0.8rem',
-										fontWeight: 700,
-										marginBottom: isCollapsed ? '6px' : '10px',
-										display: 'flex',
-										alignItems: 'center',
-										justifyContent: 'center',
-										gap: isCollapsed ? '0' : '6px',
-									}}
-									title={canPunchOut ? 'Punch Out Now' : 'Punch out is currently restricted outside shift hours'}
-								>
-									<Clock size={18} />
-									{!isCollapsed && <span>Punch Out</span>}
-								</button>
-							)}
-							{(isAdmin || !isPunchedIn) && (
+
+							{(isAdmin) && (
 								<button
 									onClick={handleLogout}
 									className="btn btn-danger"
@@ -852,7 +862,7 @@ export default function Sidebar() {
 							padding: '5px 11px',
 							borderRadius: '6px',
 							fontSize: '0.73rem',
-							fontWeight: 700,
+							// fontWeight: 700,
 							whiteSpace: 'nowrap',
 							boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
 							zIndex: 999999,

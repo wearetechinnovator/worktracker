@@ -10,7 +10,7 @@ import JSZip from 'jszip';
 import {
   CheckSquare, Plus, AlertCircle, CheckCircle2,
   Calendar, Users, Folder, Filter, X, Edit, Trash2,
-  Play, StopCircle, Loader2, Mail, Copy, Clock,
+  Play, StopCircle, PauseCircle, Loader2, Mail, Copy, Clock,
   Paperclip, Link as LinkIcon, MessageSquare,
   FileText, ExternalLink, Activity, UserCheck, Tag, Check, User,
   Eye, Download, Archive, Search, RotateCcw
@@ -28,7 +28,7 @@ import {
 } from '@/components/TaskFormControls';
 import dynamic from 'next/dynamic';
 import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
+import { taskApi } from '@/lib/taskApi';
 import TaskDetailsModal from '@/components/TaskDetailsModal';
 
 const CKEditorComponent = dynamic(
@@ -38,6 +38,7 @@ const CKEditorComponent = dynamic(
 
 interface Task {
   _id: string;
+  task_id?: string;
   title: string;
   description?: string;
   projectId?: {
@@ -104,6 +105,7 @@ interface UserProfile {
   name?: string;
   email?: string;
   userType?: string;
+  user_role?: number;
   Project?: string;
 }
 
@@ -114,7 +116,7 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const isAdmin = user?.userType === 'admin';
+  const isAdmin = Number(user?.user_role) === 1 || user?.userType === 'admin';
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -122,6 +124,7 @@ export default function TasksPage() {
   // Task Work Tracking States
   const [taskWorks, setTaskWorks] = useState<any[]>([]);
   const [processingTaskId, setProcessingTaskId] = useState<string | null>(null);
+  const [processingWorkAction, setProcessingWorkAction] = useState<string | null>(null);
   const [showEndWorkDialog, setShowEndWorkDialog] = useState(false);
   const [frozenEndTime, setFrozenEndTime] = useState<Date | null>(null);
   const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null);
@@ -155,7 +158,7 @@ export default function TasksPage() {
     if (!newCommentText.trim() || !user) return;
     setSubmittingComment(true);
     try {
-      const result = await staticClient.addTaskComment(taskId, {
+      const result = await taskApi.addTaskComment(taskId, {
         content: newCommentText.trim(),
         userId: user._id || user.id,
         newStatus: newCommentStatus || undefined,
@@ -343,25 +346,59 @@ export default function TasksPage() {
 
   // Authenticate user
   useEffect(() => {
-    const storedUser = localStorage.getItem('worktracker_user');
-    if (storedUser) {
+    const loadCurrentUser = async () => {
       try {
-        const parsed = JSON.parse(storedUser);
-        setUser(parsed);
-      } catch (e) {
-        console.error(e);
+        const response = await fetch('/api/auth/me', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success || !result.user) {
+          setUser(null);
+          return;
+        }
+
+        const currentUser = {
+          ...result.user,
+          user_role: Number(result.user.user_role),
+          userType:
+            Number(result.user.user_role) === 1
+              ? 'admin'
+              : 'employee',
+        };
+
+        setUser(currentUser);
+      } catch (error) {
+        console.error('Failed to load current user:', error);
+        setUser(null);
       }
-    }
+    };
+
+    loadCurrentUser();
   }, []);
 
-  // Load data in parallel
+  // Load tasks + projects + employees + persisted task-work from MongoDB
   const loadAllData = useCallback(async () => {
     try {
-      const apiTasks = await staticClient.fetchTasksApi();
-      const allTasks = apiTasks || staticClient.getTasks();
-      const allProjects = staticClient.getProjects();
-      const allWorks = staticClient.getWorkEntries();
-      const allEmployees = staticClient.getEmployees();
+      const [apiTasks, projRes, empRes, workResult] = await Promise.all([
+        taskApi.fetchTasksApi(),
+        fetch('/api/projects', { credentials: 'include', cache: 'no-store' }),
+        fetch('/api/users/employees', { credentials: 'include', cache: 'no-store' }),
+        taskApi.getTaskWork(),
+      ]);
+      const projData = await projRes.json();
+      const empData = await empRes.json();
+
+      const allTasks = Array.isArray(apiTasks) ? apiTasks : [];
+      const allProjects = (projRes.ok && projData.success && Array.isArray(projData.data)) ? projData.data : [];
+      const allEmployees = (empRes.ok && empData.success && Array.isArray(empData.data)) ? empData.data : [];
+      const allWorks =
+        workResult?.success && Array.isArray(workResult.data)
+          ? workResult.data
+          : [];
 
       const normalizedTasks = (allTasks as any[]).map((task) => ({
         ...task,
@@ -373,7 +410,7 @@ export default function TasksPage() {
       setTaskWorks(allWorks as any);
       setEmployees(allEmployees as any);
     } catch (err: any) {
-      console.error(err);
+      console.error('Failed to load task data:', err);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
@@ -409,6 +446,21 @@ export default function TasksPage() {
     return `${hours}:${minutes}:${seconds}`;
   };
 
+  const getWorkDate = (value: unknown) => {
+    if (value instanceof Date) return value;
+
+    const text = String(value || '');
+    const date = new Date(text);
+    if (!Number.isNaN(date.getTime())) return date;
+
+    const timeMatch = text.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (!timeMatch) return null;
+
+    const fallback = new Date();
+    fallback.setHours(Number(timeMatch[1]), Number(timeMatch[2]), Number(timeMatch[3] || 0), 0);
+    return fallback;
+  };
+
   const stripHtml = (html: string) => {
     if (typeof document === 'undefined') return html.replace(/<[^>]*>/g, '');
     const tmp = document.createElement('DIV');
@@ -422,7 +474,7 @@ export default function TasksPage() {
       let completedEntries: any[] = [];
 
       try {
-        const worksData = await staticClient.getTaskWork({ employeeId: empId });
+        const worksData = await taskApi.getTaskWork({ employeeId: empId });
 
         if (worksData.success && Array.isArray(worksData.data)) {
           completedEntries = worksData.data.filter((e: any) => e.status === 'Completed' && (e.date === today || !e.date));
@@ -495,16 +547,98 @@ export default function TasksPage() {
       const localDate = getLocalDateValue(new Date());
       const localTime = getLocalTimeValue(new Date());
 
-      const result = await staticClient.startTaskWork({ taskId, employeeId: user._id, localDate, localTime });
-      if (!result.success) throw new Error('Failed to start work');
+      const result = await taskApi.startTaskWork({
+        taskId,
+        employeeId: user._id || user.id,
+        localDate,
+        localTime,
+      });
+
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to start work');
+      }
 
       setSuccessMsg('Work started successfully!');
       setTimeout(() => setSuccessMsg(null), 3000);
-      loadAllData();
+
+      // Re-hydrate from MongoDB so the Start button immediately
+      // becomes the active timer and survives page refresh.
+      await loadAllData();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setProcessingTaskId(null);
+    }
+  };
+
+  const handlePauseWork = async (workId: string, taskId: string) => {
+    if (!user || isAdmin) return;
+
+    try {
+      setProcessingWorkAction(`pause:${workId}`);
+      setError(null);
+      setSuccessMsg(null);
+
+      const response = await fetch('/api/task-work', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'pause',
+          workId,
+          taskId,
+          userId: user._id || user.id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Failed to pause work');
+      }
+
+      setSuccessMsg('Work paused successfully!');
+      setTimeout(() => setSuccessMsg(null), 3000);
+      await loadAllData();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setProcessingWorkAction(null);
+    }
+  };
+
+  const handleResumeWork = async (taskId: string) => {
+    if (!user || isAdmin) return;
+
+    try {
+      setProcessingWorkAction(`resume:${taskId}`);
+      setError(null);
+      setSuccessMsg(null);
+
+      const response = await fetch('/api/task-work', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'resume',
+          taskId,
+          userId: user._id || user.id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Failed to resume work');
+      }
+
+      setSuccessMsg('Work resumed successfully!');
+      setTimeout(() => setSuccessMsg(null), 3000);
+      await loadAllData();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setProcessingWorkAction(null);
     }
   };
 
@@ -525,7 +659,7 @@ export default function TasksPage() {
       const effectiveEndTime = new Date(now.getTime() - priorPausedMs);
       const localTime = getLocalTimeValue(effectiveEndTime);
 
-      const result = await staticClient.endTaskWork(workId, { notes, localTime, isFullyCompleted: completionStatus === 'full' });
+      const result = await taskApi.endTaskWork(workId, { notes, localTime, isFullyCompleted: completionStatus === 'full' });
       if (!result.success) throw new Error('Failed to end work');
 
       setSuccessMsg(result.message);
@@ -545,7 +679,7 @@ export default function TasksPage() {
       setPauseStartTime(null);
       setWorkNotes('');
       setWorkLinks('');
-      loadAllData();
+      await loadAllData();
 
       const empId = user?._id || user?.id;
       if (empId) {
@@ -585,23 +719,79 @@ export default function TasksPage() {
     setCurrentTime(new Date());
   };
 
+  const getTaskWorkId = (work: any) =>
+    String(work?.taskId?._id || work?.taskId || '');
+
+  const getTaskWorkEmployeeId = (work: any) =>
+    String(work?.employeeId?._id || work?.employeeId || '');
+
+  const getCurrentUserId = () =>
+    String(user?._id || user?.id || '');
+
   const getActiveWork = (taskId: string) => {
-    return taskWorks.find(w => (w.taskId?._id === taskId || w.taskId === taskId) && w.status === 'In Progress' && (w.employeeId?._id === user?._id || w.employeeId === user?._id));
+    const taskIdStr = String(taskId);
+    const userIdStr = getCurrentUserId();
+
+    return taskWorks.find(
+      (work) =>
+        getTaskWorkId(work) === taskIdStr &&
+        work.status === 'In Progress' &&
+        getTaskWorkEmployeeId(work) === userIdStr
+    );
+  };
+
+  const getPausedWork = (taskId: string) => {
+    const taskIdStr = String(taskId);
+    const userIdStr = getCurrentUserId();
+
+    return taskWorks.find(
+      (work) =>
+        getTaskWorkId(work) === taskIdStr &&
+        work.status === 'Paused' &&
+        getTaskWorkEmployeeId(work) === userIdStr
+    );
   };
 
   const getActiveWorkersForTask = (taskId: string) => {
-    return taskWorks.filter(w => (w.taskId?._id === taskId || w.taskId === taskId) && w.status === 'In Progress');
+    const taskIdStr = String(taskId);
+
+    return taskWorks.filter(
+      (work) =>
+        getTaskWorkId(work) === taskIdStr &&
+        work.status === 'In Progress'
+    );
   };
 
   const getTaskProgress = (taskId: string) => {
-    const sessions = taskWorks.filter(w => (w.taskId?._id === taskId || w.taskId === taskId) && w.status === 'Completed');
-    const totalMins = sessions.reduce((sum, s) => sum + (s.totalMinutes || 0), 0);
-    const hours = Math.floor(totalMins / 60);
-    const mins = totalMins % 60;
+    const taskIdStr = String(taskId);
+
+    const sessions = taskWorks.filter(
+      (work) =>
+        getTaskWorkId(work) === taskIdStr &&
+        work.status === 'Completed'
+    );
+
+    const totalMins = sessions.reduce(
+      (sum, session) => sum + Number(session.totalMinutes || 0),
+      0
+    );
+
+    const activeWorkers = getActiveWorkersForTask(taskId);
+
+    const formatMinutes = (minutes: number) => {
+      const safeMinutes = Math.max(0, Math.floor(minutes));
+      const hours = Math.floor(safeMinutes / 60);
+      const mins = safeMinutes % 60;
+
+      if (hours > 0) return `${hours}h ${mins}m`;
+      return `${mins}m`;
+    };
+
     return {
       totalMinutes: totalMins,
-      timeText: totalMins > 0 ? (hours > 0 ? `${hours}h ${mins}m` : `${mins}m`) : null,
+      timeText: totalMins > 0 ? formatMinutes(totalMins) : null,
       sessionCount: sessions.length,
+      activeCount: activeWorkers.length,
     };
   };
 
@@ -610,10 +800,11 @@ export default function TasksPage() {
     const currentUserId = (user._id || user.id)?.toString();
     const todayStr = getLocalDateValue(new Date());
     return taskWorks.some(
-      w => ((w.taskId?._id || w.taskId)?.toString() === taskId.toString()) &&
-        w.status === 'Completed' &&
-        w.date === todayStr &&
-        ((w.employeeId?._id || w.employeeId)?.toString() === currentUserId)
+      (work) =>
+        getTaskWorkId(work) === String(taskId) &&
+        work.status === 'Completed' &&
+        String(work.date || '') === todayStr &&
+        getTaskWorkEmployeeId(work) === currentUserId
     );
   };
 
@@ -622,11 +813,19 @@ export default function TasksPage() {
     const currentUserId = (user._id || user.id)?.toString();
     if (!currentUserId) return false;
 
-    const mySessions = taskWorks.filter(
-      w => ((w.taskId?._id || w.taskId)?.toString() === taskId.toString()) &&
-        w.status === 'Completed' &&
-        ((w.employeeId?._id || w.employeeId)?.toString() === currentUserId)
-    );
+    const mySessions = taskWorks
+      .filter(
+        (work) =>
+          getTaskWorkId(work) === String(taskId) &&
+          work.status === 'Completed' &&
+          getTaskWorkEmployeeId(work) === currentUserId
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt || b.createdAt || 0).getTime() -
+          new Date(a.updatedAt || a.createdAt || 0).getTime()
+      );
+
     if (mySessions.length === 0) return false;
     return Boolean(mySessions[0]?.isFullyCompleted);
   };
@@ -636,7 +835,7 @@ export default function TasksPage() {
     setTaskWorkSessions([]);
     setLoadingSessions(true);
     try {
-      const data = await staticClient.getTaskWork({ taskId: task._id });
+      const data = await taskApi.getTaskWork({ taskId: task._id });
       if (data.success) {
         setTaskWorkSessions(data.data);
       }
@@ -664,8 +863,8 @@ export default function TasksPage() {
     if (!confirm(`Are you sure you want to delete "${taskTitle}"?`)) return;
 
     try {
-      const result = await staticClient.deleteTask(taskId);
-      if (!result.success) throw new Error('Failed to delete task');
+      const result = await taskApi.deleteTask(taskId);
+      if (!result.success) throw new Error(result.message || 'Failed to delete task');
 
       toast.success(`${taskTitle} deleted successfully`);
       loadTasks();
@@ -783,30 +982,30 @@ export default function TasksPage() {
   const getStatusBadgeStyles = (status: string) => {
     switch (status) {
       case 'Completed':
-        return { background: '#ecfdf5', color: '#047857', border: '1px solid #10b98130' };
+        return { color: '#047857' };
       case 'In Progress':
-        return { background: '#eff6ff', color: '#1d4ed8', border: '1px solid #3b82f630' };
+        return { color: '#1d4ed8' };
       case 'Partially Completed':
-        return { background: '#fff7ed', color: '#c2410c', border: '1px solid #f9731630' };
+        return { color: '#c2410c' };
       case 'Review':
-        return { background: '#f5f3ff', color: '#6d28d9', border: '1px solid #8b5cf630' };
+        return { color: '#6d28d9' };
       case 'To Do':
       default:
-        return { background: '#f3f4f6', color: '#374151', border: '1px solid #9ca3af30' };
+        return { color: '#374151' };
     }
   };
 
   const getPriorityBadgeStyles = (priority: string) => {
     switch (priority) {
       case 'Urgent':
-        return { background: '#fef2f2', color: '#b91c1c', border: '1px solid #ef444430' };
+        return { color: '#b91c1c', };
       case 'High':
-        return { background: '#fff7ed', color: '#c2410c', border: '1px solid #f9731630' };
+        return { color: '#c2410c', };
       case 'Medium':
-        return { background: '#fffbeb', color: '#b45309', border: '1px solid #f59e0b30' };
+        return { color: '#b45309', };
       case 'Low':
       default:
-        return { background: '#f0fdf4', color: '#15803d', border: '1px solid #22c55e30' };
+        return { color: '#15803d' };
     }
   };
 
@@ -901,188 +1100,13 @@ export default function TasksPage() {
         <div className="card" style={{ borderLeft: '4px solid #10b981', marginBottom: '20px', background: '#ecfdf5' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <CheckCircle2 style={{ color: '#10b981' }} />
-            <p style={{ color: '#065f46', fontWeight: 700 }}>{successMsg}</p>
+            <p style={{ color: '#065f46', fontWeight: 400 }}>{successMsg}</p>
           </div>
         </div>
       )}
 
       {/* Search & Filters Panel */}
-      <div className="card" style={{ marginBottom: '20px', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        {/* Top Bar: Search input + Reset Button + Count */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
-          {/* Search Box */}
-          <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
-            <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Search by title, description, project, links..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                paddingLeft: '36px',
-                paddingRight: searchQuery ? '32px' : '12px',
-                fontSize: '0.85rem',
-                width: '100%',
-                height: '38px'
-              }}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '2px',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-                title="Clear search"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={resetAllFilters}
-                className="btn btn-secondary"
-                style={{
-                  padding: '6px 14px',
-                  fontSize: '0.8rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontWeight: 650,
-                  color: '#ef4444',
-                  borderColor: '#ef444430',
-                  background: '#fef2f2'
-                }}
-              >
-                <RotateCcw size={13} />
-                <span>Reset Filters</span>
-              </button>
-            )}
-
-            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 650, whiteSpace: 'nowrap' }}>
-              Showing <strong style={{ color: 'var(--text-primary)' }}>{filteredTasks.length}</strong> of <strong>{tasks.length}</strong> tasks
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Bar: Dropdown Filters Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', alignItems: 'center' }}>
-          {/* Status Filter */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Status
-            </label>
-            <select
-              className="form-control"
-              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-            >
-              <option value="">Active Tasks (Default)</option>
-              <option value="all">All Tasks (Inc. Completed)</option>
-              <option value="To Do">To Do</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Partially Completed">Partially Completed</option>
-              <option value="Review">Review</option>
-              <option value="Completed">Completed Only</option>
-            </select>
-          </div>
-
-          {/* Priority Filter */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Priority
-            </label>
-            <select
-              className="form-control"
-              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
-              value={filterPriority}
-              onChange={(e) => setFilterPriority(e.target.value)}
-            >
-              <option value="">All Priorities</option>
-              <option value="Urgent">🔴 Urgent</option>
-              <option value="High">🟠 High</option>
-              <option value="Medium">🟡 Medium</option>
-              <option value="Low">🟢 Low</option>
-            </select>
-          </div>
-
-          {/* Project Filter */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Project
-            </label>
-            <select
-              className="form-control"
-              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
-              value={filterProject}
-              onChange={(e) => setFilterProject(e.target.value)}
-            >
-              <option value="">All Projects</option>
-              {projects.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Assignee Filter */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Assigned To
-            </label>
-            <select
-              className="form-control"
-              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
-              value={filterAssignee}
-              onChange={(e) => setFilterAssignee(e.target.value)}
-            >
-              <option value="">All Assignees</option>
-              {employees.map((e) => (
-                <option key={e._id} value={e._id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Due Date Filter */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Due Date
-            </label>
-            <select
-              className="form-control"
-              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
-              value={filterDateRange}
-              onChange={(e) => setFilterDateRange(e.target.value)}
-            >
-              <option value="">All Dates</option>
-              <option value="overdue">⚠️ Overdue</option>
-              <option value="today">📅 Due Today</option>
-              <option value="this_week">📆 Due This Week</option>
-              <option value="has_date">With Due Date</option>
-              <option value="no_date">No Due Date</option>
-            </select>
-          </div>
-        </div>
-      </div>
 
       {/* Tasks Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -1090,6 +1114,7 @@ export default function TasksPage() {
           <table className="data-table" style={{ margin: 0, width: '100%' }}>
             <thead>
               <tr>
+                <th style={{ width: '105px' }}>Task ID</th>
                 <th>Task Title & Description</th>
                 <th style={{ width: '120px' }}>Project</th>
                 <th style={{ width: '125px' }}>Status</th>
@@ -1106,10 +1131,10 @@ export default function TasksPage() {
             <tbody>
               {filteredTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-secondary)' }}>
+                  <td colSpan={10} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-secondary)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                       <CheckSquare size={40} style={{ color: 'var(--text-muted)' }} />
-                      <div style={{ fontWeight: 700, fontSize: '1rem' }}>No tasks found</div>
+                      <div style={{ fontWeight: 400, fontSize: '1rem' }}>No tasks found</div>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
                         {tasks.length === 0 ? 'Create your first task to get started' : 'Try adjusting your filters'}
                       </p>
@@ -1146,10 +1171,19 @@ export default function TasksPage() {
                         background: isSomeoneWorking ? 'rgba(16, 185, 129, 0.04)' : undefined,
                       }}
                     >
+                      <td style={{ whiteSpace: 'nowrap', verticalAlign: 'middle', }}>
+                        {task.task_id ? (
+                          <span style={{ fontWeight: 400, fontSize: '0.76rem' }}>
+                            {task.task_id}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
                       <td>
                         <div
                           className="task-title-link"
-                          style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-primary)' }}
+                          style={{ fontWeight: 400, fontSize: '0.9rem', color: 'var(--text-primary)' }}
                           title="Click to view task details & work logs"
                         >
                           {task.title}
@@ -1160,19 +1194,11 @@ export default function TasksPage() {
                             dangerouslySetInnerHTML={{ __html: task.description }}
                           />
                         )}
-                        {(task.comments || task.commentsList?.length) && (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '4px' }}>
-                            <MessageSquare size={11} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-                            <span style={{ maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {task.comments || task.commentsList?.[0]?.content}
-                            </span>
-                          </div>
-                        )}
                       </td>
                       <td>
                         {task.projectId ? (
-                          <span className="tag-badge" style={{ backgroundColor: `${task.projectId.color}15`, color: task.projectId.color, borderColor: `${task.projectId.color}30`, display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
-                            <Folder size={10} style={{ color: task.projectId.color }} />
+                          <span className="tag-badge" style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                            <Folder size={12} style={{ color: task.projectId.color }} />
                             {task.projectId.name}
                           </span>
                         ) : task.Project ? (
@@ -1191,9 +1217,9 @@ export default function TasksPage() {
                           </span>
                           {isSomeoneWorking && (
                             <span className="tag-badge" style={{
-                              background: '#ecfdf5',
-                              color: '#047857',
-                              borderColor: '#10b98140',
+                              // background: '#ecfdf5',
+                              // color: '#047857',
+                              // borderColor: '#10b98140',
                               fontSize: '0.66rem',
                               fontWeight: 750,
                               display: 'inline-flex',
@@ -1209,7 +1235,7 @@ export default function TasksPage() {
                         </div>
                       </td>
                       <td>
-                        <span className="tag-badge" style={{ ...getPriorityBadgeStyles(task.priority), fontWeight: 700, fontSize: '0.72rem' }}>
+                        <span className="tag-badge" style={{ ...getPriorityBadgeStyles(task.priority), fontWeight: 400, fontSize: '0.72rem' }}>
                           {task.priority}
                         </span>
                       </td>
@@ -1219,7 +1245,7 @@ export default function TasksPage() {
                             <div
                               className="avatar"
                               style={{
-                                backgroundColor: task.createdBy.avatarColor || '#7f56d9',
+                                
                                 width: '24px',
                                 height: '24px',
                                 fontSize: '0.62rem',
@@ -1242,9 +1268,22 @@ export default function TasksPage() {
                         {task.assignedTo && task.assignedTo.length > 0 ? (
                           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px' }}>
                             {task.assignedTo.map((emp: any, eIdx: number) => {
-                              const empIdStr = emp._id || emp.id;
-                              const isWorkerActive = activeWorkers.some(w => w.employeeId?._id === empIdStr || w.employeeId === empIdStr);
-                              const empSessions = taskWorks.filter(w => (w.taskId?._id === task._id || w.taskId === task._id) && w.status === 'Completed' && (w.employeeId?._id === empIdStr || w.employeeId === empIdStr));
+                              const empIdStr = String(emp._id || emp.id || '');
+                              const isWorkerActive = activeWorkers.some(
+                                (work) => getTaskWorkEmployeeId(work) === empIdStr
+                              );
+                              const empSessions = taskWorks
+                                .filter(
+                                  (work) =>
+                                    getTaskWorkId(work) === String(task._id) &&
+                                    work.status === 'Completed' &&
+                                    getTaskWorkEmployeeId(work) === empIdStr
+                                )
+                                .sort(
+                                  (a, b) =>
+                                    new Date(b.updatedAt || b.createdAt || 0).getTime() -
+                                    new Date(a.updatedAt || a.createdAt || 0).getTime()
+                                );
                               const latestSession = empSessions[0];
                               const isEmpDone = latestSession?.isFullyCompleted;
                               const isEmpPartial = latestSession && !latestSession.isFullyCompleted;
@@ -1262,18 +1301,18 @@ export default function TasksPage() {
                                   key={empIdStr || eIdx}
                                   className="avatar"
                                   style={{
-                                    backgroundColor: emp.avatarColor || '#3b82f6',
+                                    
                                     width: '24px',
                                     height: '24px',
                                     fontSize: '0.62rem',
                                     color: '#ffffff',
-                                    border: isWorkerActive
-                                      ? '2px solid #10b981'
-                                      : isEmpDone
-                                        ? '2px solid #047857'
-                                        : isEmpPartial
-                                          ? '2px solid #f97316'
-                                          : '2px solid var(--bg-primary)',
+                                    // border: isWorkerActive
+                                    //   ? '2px solid #10b981'
+                                    //   : isEmpDone
+                                    //     ? '2px solid #047857'
+                                    //     : isEmpPartial
+                                    //       ? '2px solid #f97316'
+                                    //       : '2px solid var(--bg-primary)',
                                     boxShadow: isWorkerActive ? '0 0 6px #10b98180' : undefined,
                                     marginLeft: eIdx > 0 && !isWorkerActive ? '-6px' : '0',
                                     flexShrink: 0
@@ -1312,8 +1351,42 @@ export default function TasksPage() {
                               {progress.sessionCount} session{progress.sessionCount !== 1 ? 's' : ''}
                             </span>
                           </div>
+                        ) : progress.activeCount > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span
+                              className="tag-badge"
+                              style={{
+                                // background: '#ecfdf5',
+                                // color: '#047857',
+                                // borderColor: '#10b98140',
+                                // fontSize: '0.7rem',
+                                fontWeight: 750,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                width: 'fit-content'
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: '6px',
+                                  height: '6px',
+                                  borderRadius: '50%',
+                                  background: '#10b981',
+                                  display: 'inline-block'
+                                }}
+                                className="animate-pulse"
+                              />
+                              Working Now
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                              {progress.activeCount} worker{progress.activeCount !== 1 ? 's' : ''}
+                            </span>
+                          </div>
                         ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>No time logged</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                            -
+                          </span>
                         )}
                       </td>
                       <td style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
@@ -1340,14 +1413,19 @@ export default function TasksPage() {
                                     if (activeWork) {
                                       const timerStr = (() => {
                                         if (!activeWork.startTime) return '00:00:00';
-                                        const parts = activeWork.startTime.split(':');
-                                        if (parts.length < 3) return '00:00:00';
-                                        const [hours, minutes, seconds] = parts.map(Number);
-                                        const start = new Date(currentTime);
-                                        start.setHours(hours, minutes, seconds, 0);
+                                        const start = getWorkDate(activeWork.startTime);
+                                        if (!start) return '00:00:00';
 
-                                        const totalPaused = pausedDurations[activeWork._id] || 0;
-                                        let elapsed = Math.floor((currentTime.getTime() - start.getTime() - totalPaused) / 1000);
+                                        const persistedPausedMs =
+                                          Number(activeWork.totalPausedMinutes || 0) * 60 * 1000;
+                                        const localPausedMs =
+                                          pausedDurations[activeWork._id] || 0;
+                                        const totalPaused =
+                                          persistedPausedMs + localPausedMs;
+
+                                        let elapsed = Math.floor(
+                                          (currentTime.getTime() - start.getTime() - totalPaused) / 1000
+                                        );
                                         if (elapsed < 0) {
                                           elapsed += 24 * 60 * 60;
                                         }
@@ -1379,6 +1457,29 @@ export default function TasksPage() {
                                             {timerStr}
                                           </div>
                                           <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handlePauseWork(activeWork._id, task._id);
+                                            }}
+                                            disabled={processingWorkAction === `pause:${activeWork._id}`}
+                                            className="btn btn-secondary"
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '4px',
+                                              padding: '7px 10px',
+                                              fontSize: '0.72rem'
+                                            }}
+                                            title="Pause Work"
+                                          >
+                                            {processingWorkAction === `pause:${activeWork._id}` ? (
+                                              <Loader2 className="animate-spin" size={12} />
+                                            ) : (
+                                              <PauseCircle size={12} />
+                                            )}
+                                            {/* <span>Pause</span> */}
+                                          </button>
+                                          <button
                                             onClick={(e) => { e.stopPropagation(); openEndWorkDialog(activeWork._id); }}
                                             disabled={processingTaskId === activeWork._id}
                                             className="btn btn-danger"
@@ -1386,17 +1487,85 @@ export default function TasksPage() {
                                               display: 'inline-flex',
                                               alignItems: 'center',
                                               gap: '4px',
-                                              padding: '5px 10px',
+                                              padding: '6px 10px',
                                               fontSize: '0.72rem'
                                             }}
-                                            title="End Work Session"
+                                            title="Complete Work Session"
                                           >
                                             <StopCircle size={12} />
-                                            <span>End Work</span>
+                                            {/* <span>Complete</span> */}
                                           </button>
                                         </div>
                                       );
                                     } else {
+                                      const pausedWork = getPausedWork(task._id);
+
+                                      if (pausedWork) {
+                                        return (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span
+                                              className="tag-badge"
+                                              style={{
+                                                background: '#fff7ed',
+                                                color: '#c2410c',
+                                                fontSize: '0.72rem',
+                                                padding: '4px 8px',
+                                                fontWeight: 750,
+                                                border: '1px solid #f9731630',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                              }}
+                                            >
+                                              <PauseCircle size={12} />
+                                              Paused
+                                            </span>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleResumeWork(task._id);
+                                              }}
+                                              disabled={processingWorkAction === `resume:${task._id}`}
+                                              className="btn btn-primary"
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                padding: '5px 10px',
+                                                fontSize: '0.72rem'
+                                              }}
+                                              title="Resume Work"
+                                            >
+                                              {processingWorkAction === `resume:${task._id}` ? (
+                                                <Loader2 className="animate-spin" size={12} />
+                                              ) : (
+                                                <Play size={12} />
+                                              )}
+                                              <span>Resume</span>
+                                            </button>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                openEndWorkDialog(pausedWork._id);
+                                              }}
+                                              disabled={processingTaskId === pausedWork._id}
+                                              className="btn btn-danger"
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                padding: '10px 10px',
+                                                fontSize: '0.72rem'
+                                              }}
+                                              title="Complete Work"
+                                            >
+                                              <StopCircle size={12} />
+                                              {/* <span>Complete</span> */}
+                                            </button>
+                                          </div>
+                                        );
+                                      }
+
                                       if (isTaskFullyCompletedByMe(task._id)) {
                                         return (
                                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1449,7 +1618,7 @@ export default function TasksPage() {
                                                 color: '#065f46',
                                                 fontSize: '0.68rem',
                                                 padding: '2px 6px',
-                                                fontWeight: 700,
+                                                fontWeight: 400,
                                                 border: '1px solid #10b98130',
                                               }}
                                             >
@@ -1464,7 +1633,7 @@ export default function TasksPage() {
                                               display: 'inline-flex',
                                               alignItems: 'center',
                                               gap: '4px',
-                                              padding: '5px 10px',
+                                              padding: '10px 10px',
                                               fontSize: '0.72rem'
                                             }}
                                           >
@@ -1473,7 +1642,7 @@ export default function TasksPage() {
                                             ) : (
                                               <Play size={12} />
                                             )}
-                                            <span>Start Work</span>
+                                            {/* <span>Start Work</span> */}
                                           </button>
                                         </div>
                                       );
@@ -1586,7 +1755,7 @@ export default function TasksPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 400, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <StopCircle size={22} style={{ color: '#ef4444' }} />
                 End Work Session
               </h3>
@@ -1716,7 +1885,10 @@ export default function TasksPage() {
           isCopiedAllUrls={isCopiedAllUrls}
           isDownloadingZip={isDownloadingZip}
           onClose={closeTaskDetailsModal}
-          onEdit={() => openEditModal(selectedTaskForDetails)}
+          onEdit={() => {
+            closeTaskDetailsModal();
+            openEditModal(selectedTaskForDetails);
+          }}
           onDelete={() => handleDelete(selectedTaskForDetails._id)}
           onAddComment={() => handleAddComment(selectedTaskForDetails._id)}
           onCommentChange={setNewCommentText}
@@ -1772,7 +1944,7 @@ export default function TasksPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 400, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Mail size={20} style={{ color: 'var(--accent-primary)' }} />
                 Generated Daily Work Mail
               </h3>

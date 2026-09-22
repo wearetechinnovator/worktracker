@@ -238,7 +238,7 @@ export function ProjectAssigneeSelector({
             title="Create a new employee profile"
           >
             <Plus size={13} />
-            <span>create new employee</span>
+            <span>Add New Employee</span>
           </button>
         )}
       </div>
@@ -451,6 +451,7 @@ export function ProjectAssigneeSelector({
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
                               <div
+                                className="avatar"
                                 style={{
                                   width: '20px',
                                   height: '20px',

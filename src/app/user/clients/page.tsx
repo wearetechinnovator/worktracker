@@ -8,7 +8,6 @@ import CreateClientModal from '@/components/CreateClientModal';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { CustomDatePicker } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
 import {
   getClients,
   deleteClient,
@@ -97,18 +96,31 @@ export default function ClientsPage() {
   try {
     setLoading(true);
 
-    const [clientsData, projectsData] =
+    const [clientsRes, projectRes] =
       await Promise.all([
         getClients(),
-        Promise.resolve(staticClient.getProjects()),
+        fetch('/api/projects', { credentials: 'include', cache: 'no-store' }),
       ]);
+
+    const projectJson = await projectRes.json();
+    const projectsData = projectRes.ok && projectJson.success && Array.isArray(projectJson.data)
+      ? projectJson.data
+      : [];
+
+    const clientsData = clientsRes.success && Array.isArray(clientsRes.data)
+      ? clientsRes.data
+      : [];
+
+    if (!clientsRes.success && clientsRes.message) {
+      toast.error(clientsRes.message);
+    }
 
     const normalizedClients = clientsData.map(
       (client: any) => ({
         ...client,
 
         // UI currently expects _id
-        _id: client.id,
+        _id: String(client.id ?? client._id),
 
         // DB field -> UI field
         emails: Array.isArray(client.email)
@@ -125,6 +137,7 @@ export default function ClientsPage() {
         // contact_members because DB schema
         // has no separate phone field.
         phone:
+          client.phone ||
           client.contact_members?.find(
             (contact: any) =>
               contact.label === "Primary"
@@ -133,6 +146,17 @@ export default function ClientsPage() {
             (contact: any) => contact.phone
           )?.phone ||
           "",
+
+        contractStartDate:
+          client.contractStartDate ||
+          (client.contract_start_date
+            ? String(client.contract_start_date).split('T')[0]
+            : ''),
+        contractEndDate:
+          client.contractEndDate ||
+          (client.contract_end_date
+            ? String(client.contract_end_date).split('T')[0]
+            : ''),
       })
     );
 
@@ -232,19 +256,34 @@ export default function ClientsPage() {
 ) => {
   e.preventDefault();
 
+  const emails = emailsStr
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
+
   if (!name.trim()) {
-    setError("Please fill all required fields");
+    setError("Client name is required");
+    return;
+  }
+
+  if (!phone.trim()) {
+    setError("Primary phone number is required");
+    return;
+  }
+
+  if (!/^\d{10,20}$/.test(phone.trim())) {
+    setError("Phone number must contain only numbers and be 10-20 digits long");
+    return;
+  }
+
+  if (emails.length === 0) {
+    setError("At least one valid email address is required");
     return;
   }
 
   try {
     setSubmitting(true);
     setError(null);
-
-    const emails = emailsStr
-      .split(",")
-      .map((email) => email.trim())
-      .filter(Boolean);
 
     const validContacts = contacts.filter(
       (contact) =>
@@ -268,19 +307,35 @@ export default function ClientsPage() {
   status: 1,
 };
 
-    let savedClient;
+    let res;
 
     if (editingClient) {
-      savedClient = await updateClient(
+      res = await updateClient(
         editingClient._id,
         payload
       );
+
+      if (!res.success) {
+        const errMsg = res.message || "Failed to update client";
+        setError(errMsg);
+        toast.error(errMsg);
+        setSubmitting(false);
+        return;
+      }
 
       toast.success(
         `${name.trim()} updated successfully`
       );
     } else {
-      savedClient = await createClient(payload);
+      res = await createClient(payload);
+
+      if (!res.success) {
+        const errMsg = res.message || "Failed to create client";
+        setError(errMsg);
+        toast.error(errMsg);
+        setSubmitting(false);
+        return;
+      }
 
       toast.success(
         `${name.trim()} created successfully`
@@ -304,10 +359,12 @@ export default function ClientsPage() {
   } catch (err: any) {
     console.error("Save client error:", err);
 
-    setError(
+    const errorMessage =
       err?.message ||
-        "Failed to save client"
-    );
+      "Failed to save client";
+
+    setError(errorMessage);
+    toast.error(errorMessage);
   } finally {
     setSubmitting(false);
   }
@@ -328,7 +385,12 @@ export default function ClientsPage() {
   }
 
   try {
-    await deleteClient(clientId);
+    const res = await deleteClient(clientId);
+
+    if (!res.success) {
+      toast.error(res.message || "Failed to delete client");
+      return;
+    }
 
     toast.success(
       `${clientName} deleted successfully`
@@ -336,8 +398,6 @@ export default function ClientsPage() {
 
     await fetchData();
   } catch (err: any) {
-    console.error("Delete client error:", err);
-
     toast.error(
       err?.message || "Failed to delete client"
     );
@@ -406,7 +466,60 @@ export default function ClientsPage() {
         </label>
       </section>
 
-      <section className="client-grid">
+      <section className="card" style={{ overflowX: 'auto' }}>
+        {clients.length === 0 ? (
+          <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            No clients found.
+          </div>
+        ) : filteredClients.length === 0 ? (
+          <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            No clients match the current search query.
+          </div>
+        ) : (
+          <table style={{ width: '100%', minWidth: '900px', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
+                {['CLIENT', 'PHONE', 'EMAIL', 'ADDRESS', 'CONTRACT', 'PROJECTS', 'CONTACTS', ...(isAdmin ? ['ACTIONS'] : [])].map((heading) => (
+                  <th key={heading} style={{ padding: '12px 14px', fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredClients.map((client) => (
+                <tr key={client._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <td style={{ padding: '14px', fontWeight: 750, color: 'var(--text-primary)' }}>{client.name}</td>
+                  <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>
+                    {client.phone ? <a href={`tel:${client.phone}`} style={{ color: 'var(--accent-primary)', textDecoration: 'none' }}>{client.phone}</a> : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                  </td>
+                  <td style={{ padding: '14px', minWidth: '190px' }}>
+                    {client.emails?.length ? client.emails.join(', ') : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                  </td>
+                  <td style={{ padding: '14px', maxWidth: '220px' }}>{client.address || <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
+                  <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>
+                    {client.duration || client.contractStartDate || client.contractEndDate ? (
+                      <span>{client.duration || '-'}{(client.contractStartDate || client.contractEndDate) && <><br /><small style={{ color: 'var(--text-muted)' }}>{client.contractStartDate || 'Start'} - {client.contractEndDate || 'Ongoing'}</small></>}</span>
+                    ) : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                  </td>
+                  <td style={{ padding: '14px', maxWidth: '180px' }}>
+                    {client.projects?.length ? client.projects.map((project: any) => typeof project === 'object' ? project.name : String(project)).join(', ') : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                  </td>
+                  <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>{client.contacts?.length || 0}</td>
+                  {isAdmin && (
+                    <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>
+                      <button className="btn btn-icon" onClick={() => openEditModal(client)} title="Edit Client details"><Edit3 size={13} /></button>
+                      <button className="btn btn-icon btn-danger-text" onClick={() => handleDelete(client._id)} title="Delete Client"><Trash2 size={13} /></button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="client-grid" style={{ display: 'none' }}>
         {clients.length === 0 ? (
           <div className="card" style={{ 
             gridColumn: '1 / -1',
@@ -817,11 +930,14 @@ export default function ClientsPage() {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Primary Phone Number</label>
+                  <label className="form-label">Primary Phone Number *</label>
                   <input
                     type="tel"
                     className="form-control"
-                    placeholder="e.g. +1 (555) 234-5678"
+                    placeholder="Enter 10-20 digit phone number"
+                    inputMode="numeric"
+                    minLength={10}
+                    maxLength={20}
                     value={phone}
                     onChange={(e) => setPhone(sanitizeNumericInput(e.target.value))}
                     
@@ -830,7 +946,7 @@ export default function ClientsPage() {
               </div>
 
               <div className="form-group" style={{ marginBottom: '10px' }}>
-                <label className="form-label">General Emails (comma-separated)</label>
+                <label className="form-label">General Emails (comma-separated) *</label>
                 <input
                   type="text"
                   className="form-control"

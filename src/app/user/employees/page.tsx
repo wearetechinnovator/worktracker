@@ -10,9 +10,9 @@ import { formatMinutesToDuration } from '@/lib/time';
 import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import PageShimmer from '@/components/PageShimmer';
-import type { Employee } from '../../types/Employee2';
+import type { Employee } from '@/types/Employee2';
 import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
+
 
 
 export default function EmployeesPage() {
@@ -30,17 +30,30 @@ export default function EmployeesPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
-  useEffect(() => {
-    const demoUser = staticClient.getUser();
-    setUser(demoUser);
-    setEmployees(staticClient.getEmployees() as any);
-    setLoading(false);
+  const fetchEmployees = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/users/employees', { cache: 'no-store' });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setEmployees(json.data);
+      } else {
+        setEmployees([]);
+      }
+    } catch {
+      setEmployees([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const fetchEmployees = useCallback(async () => {
-    setEmployees(staticClient.getEmployees() as any);
-    setLoading(false);
-  }, []);
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(j => { if (j.success && j.user) setUser(j.user); })
+      .catch(() => {});
+    fetchEmployees();
+  }, [fetchEmployees]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && employees.length > 0) {
@@ -183,7 +196,7 @@ export default function EmployeesPage() {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div className="avatar" style={{ backgroundColor: emp.avatarColor, width: '36px', height: '36px', fontSize: '0.95rem' }}>
-                      {emp.name.split(' ').map(n => n[0]).join('')}
+                      {(emp.name || '').split(' ').map((n: string) => n[0]).join('')}
                     </div>
                     <span className={`badge-status ${statusClass}`}>
                       {emp.status}

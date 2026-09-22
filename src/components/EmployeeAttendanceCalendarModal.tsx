@@ -11,7 +11,7 @@ import {
   Briefcase, FileText, Loader2, ExternalLink, User, X, Layers
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
-import { staticClient } from '@/lib/staticClient';
+import { punchService } from '@/lib/punchService';
 
 interface Employee {
   _id: string;
@@ -121,7 +121,7 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
   const fetchTodayPunchStatus = useCallback(async () => {
     if (!employee) return;
     try {
-      const punch = staticClient.getPunchStatus();
+      const punch = punchService.getPunchStatus();
       setTodayAttendance(punch.attendance as any);
     } catch (err) {
       console.error('Error fetching today punch status in modal:', err);
@@ -158,8 +158,7 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
       setLoadingMonth(true);
       setErrorMsg(null);
 
-      const res: any = await staticClient.getAttendance();
-      const recordsList = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      const recordsList: any[] = [];
       setAttendanceRecords(recordsList);
       setMonthWorkEntries({});
     } catch (err: any) {
@@ -201,7 +200,7 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
     const monthAttRecord = recordsArray.find((r) => r.date === dateStr) || null;
     setDailyDetails({
       attendance: monthAttRecord,
-      workEntries: staticClient.getWorkEntries() as any,
+      workEntries: [],
       taskWorks: [],
     });
   };

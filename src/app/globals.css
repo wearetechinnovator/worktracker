@@ -385,7 +385,7 @@ textarea {
   .sidebar {
     position: fixed !important;
     top: 0 !important;
-    left: -280px !important;
+    /* left: -280px !important; */
     width: 260px !important;
     height: 100vh !important;
     z-index: 1200 !important;
@@ -554,7 +554,10 @@ textarea {
   width: 220px;
   background: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
-  padding: 20px 16px;
+  /* padding: 20px 16px; */
+  padding-left: 10px;
+  padding-top: 10px;
+
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -629,21 +632,21 @@ textarea {
 
 /* Collapsed Active Pill Highlight */
 .sidebar.collapsed .sidebar-link.active {
-  background: #eff6ff;
+  /* background: #eff6ff;
   color: #2563eb;
   box-shadow: none;
-  border: 1px solid #bfdbfe;
+  border: 1px solid #bfdbfe; */
 }
 
 .sidebar.collapsed .sidebar-link:hover {
-  background: var(--bg-tertiary);
-  color: var(--accent-primary);
+  /* background: var(--bg-tertiary);
+  color: var(--accent-primary); */
   /* transform: none; */
 }
 
 .sidebar-toggle-btn:hover {
-  background-color: var(--bg-tertiary) !important;
-  color: var(--accent-primary) !important;
+  /* background-color: var(--bg-tertiary) !important;
+  color: var(--accent-primary) !important; */
   /* transform: scale(1.1); */
 }
 
@@ -675,20 +678,20 @@ textarea {
   border-radius: var(--border-radius-sm);
   color: var(--text-secondary);
   font-size: 0.8rem;
-  font-weight: 650;
+  /* font-weight: 650; */
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
   user-select: none;
 }
 
 .sidebar-group-header:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
+  /* background: var(--bg-tertiary);
+  color: var(--text-primary); */
 }
 
 .sidebar-group-header.active-group {
   color: var(--accent-primary);
-  font-weight: 750;
+  /* font-weight: 750; */
 }
 
 .sidebar-group-title {
@@ -793,7 +796,7 @@ textarea {
 
 .sidebar-brand {
   font-size: 1.05rem;
-  font-weight: 800;
+  /* font-weight: 800; */
   color: var(--text-primary);
   display: flex;
   align-items: center;
@@ -818,7 +821,7 @@ textarea {
 
 .sidebar-menu-title {
   font-size: 0.65rem;
-  font-weight: 700;
+  font-weight: 400;
   text-transform: uppercase;
   color: var(--text-muted);
   letter-spacing: 0.08em;
@@ -844,7 +847,7 @@ textarea {
   padding: 10px 12px;
   border-radius: var(--border-radius-sm);
   color: var(--text-secondary);
-  font-weight: 600;
+  /* font-weight: 400; */
   font-size: 0.85rem;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
@@ -877,7 +880,7 @@ textarea {
 .card {
   background: var(--bg-secondary);
   border-radius: var(--border-radius-md);
-  padding: 14px 18px;
+  padding: 3px 18px;
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-color);
   transition: var(--transition-smooth);
@@ -944,7 +947,7 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-weight: 600;
+  /* font-weight: 600; */
   padding: 5px 10px;
   border-radius: var(--border-radius-sm);
   cursor: pointer;
@@ -988,10 +991,34 @@ textarea {
   font-size: 0.7rem;
 }
 
+.btn:disabled,
+.btn.is-loading {
+  opacity: 0.7;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Status Badges */
 .badge-status {
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 400;
   padding: 2px 6px;
   border-radius: 8px;
   display: inline-flex;
@@ -1185,14 +1212,28 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
+  background-image: url('/user-circles-set.png') !important;
+  background-size: cover;
+  background-position: center;
   color: white;
   font-weight: 750;
   font-size: 0.75rem;
   text-transform: uppercase;
 }
 
+.avatar:not(:has(img)) {
+  color: transparent !important;
+}
+
+.client-avatar {
+  background-image: url('/user-circles-set.png') !important;
+  background-size: cover;
+  background-position: center;
+  color: transparent !important;
+}
+
 .avatar-title {
-  font-weight: 700;
+  font-weight: 400;
   font-size: 0.85rem;
 }
 
@@ -1214,8 +1255,9 @@ textarea {
 }
 
 .tag-badge {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  /* background: var(--bg-tertiary);
+  border: 1px solid var(--border-color); */
+
   padding: 3px 4px;
   font-size: 0.72rem;
   font-weight: 600;
@@ -1244,7 +1286,7 @@ textarea {
 .data-table th {
   text-align: left;
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 400;
   text-transform: uppercase;
   color: var(--text-muted);
   letter-spacing: 0.06em;
@@ -1255,7 +1297,7 @@ textarea {
 }
 
 .data-table td {
-  padding: 12px 16px;
+  padding: 7px 19px;
   border-bottom: 1px solid var(--border-color);
   font-size: 0.82rem;
   vertical-align: middle;
@@ -1346,7 +1388,7 @@ textarea {
 .form-label {
   display: block;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 400;
   color: var(--text-secondary);
   margin-bottom: 3px;
 }
@@ -1514,8 +1556,8 @@ textarea.form-control {
 }
 
 .stat-value {
-  font-size: 1.15rem;
-  font-weight: 800;
+  font-size: 12px;
+  /* font-weight: 800; */
 }
 
 .stat-label {
@@ -1601,7 +1643,7 @@ textarea.form-control {
 
 .kpi-card-title {
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 400;
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -1649,7 +1691,7 @@ textarea.form-control {
   justify-content: space-between;
   font-size: 0.71rem;
   color: #64748b;
-  font-weight: 550;
+  font-weight: 400;
 }
 
 .dashboard-kpi-card:hover .kpi-icon-badge {

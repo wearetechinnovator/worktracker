@@ -15,6 +15,7 @@ import {
   Check,
 } from 'lucide-react';
 import CreateProjectModal from '@/components/CreateProjectModal';
+import { Button } from '@/components/ui/button';
 import { CustomDatePicker } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
 import { useModalDraft } from '@/context/ModalDraftContext';
@@ -179,21 +180,36 @@ export default function CreateClientModal({
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  if (!name.trim()) {
-    setError("Please fill all required fields");
-    return;
-  }
-
-  try {
-    setSubmitting(true);
-    setError(null);
+    e.preventDefault();
 
     const parsedEmails = emailsStr
       .split(",")
       .map((email) => email.trim())
       .filter(Boolean);
+
+    if (!name.trim()) {
+      setError("Client name is required");
+      return;
+    }
+
+    if (!phone.trim()) {
+      setError("Primary phone number is required");
+      return;
+    }
+
+    if (!/^\d{10,20}$/.test(phone.trim())) {
+      setError("Phone number must contain only numbers and be 10-20 digits long");
+      return;
+    }
+
+    if (parsedEmails.length === 0) {
+      setError("At least one valid email address is required");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError(null);
 
     const validContacts = contacts.filter(
       (contact) =>
@@ -217,7 +233,17 @@ export default function CreateClientModal({
       status: 1,
     };
 
-    const newClient = await createClient(payload);
+    const res = await createClient(payload);
+
+    if (!res.success) {
+      const errMsg = res.message || "Failed to create client";
+      setError(errMsg);
+      toast.error(errMsg);
+      setSubmitting(false);
+      return;
+    }
+
+    const newClient = res.data;
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(
@@ -246,12 +272,12 @@ export default function CreateClientModal({
 
     onClose();
   } catch (err: any) {
-    console.error("Create client error:", err);
-
-    setError(
+    const errorMessage =
       err?.message ||
-        "Error occurred while creating client."
-    );
+      "Error occurred while creating client.";
+
+    setError(errorMessage);
+    toast.error(errorMessage);
   } finally {
     setSubmitting(false);
   }
@@ -261,7 +287,7 @@ export default function CreateClientModal({
       <div
         className="modal-overlay"
         style={{
-          zIndex: 20500,
+          zIndex: 20700,
           backgroundColor: 'rgba(15, 23, 42, 0.65)',
           backdropFilter: 'blur(6px)',
           display: 'flex',
@@ -376,7 +402,7 @@ export default function CreateClientModal({
                   className="form-label"
                   style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}
                 >
-                  Primary Phone Number
+                  Primary Phone Number <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <div className="custom-input-group">
                   <span className="custom-input-addon">
@@ -385,7 +411,10 @@ export default function CreateClientModal({
                   <input
                     type="tel"
                     className="custom-input-control"
-                    placeholder="e.g. +1 (555) 234-5678"
+                    placeholder="Enter 10-20 digit phone number"
+                    inputMode="numeric"
+                    minLength={10}
+                    maxLength={20}
                     value={phone}
                     onChange={(e) => setPhone(sanitizeNumericInput(e.target.value))}
                   />
@@ -399,7 +428,7 @@ export default function CreateClientModal({
                 className="form-label"
                 style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}
               >
-                General Emails (comma-separated)
+                General Emails (comma-separated) <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <div className="custom-input-group">
                 <span className="custom-input-addon">
@@ -815,25 +844,13 @@ export default function CreateClientModal({
               >
                 Cancel
               </button>
-              <button
+              <Button
                 type="submit"
+                loading={submitting}
                 className="btn btn-primary"
-                // disabled={submitting}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
               >
-                {submitting ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>Creating...</span>
-                  </>
-                ) : (
-                  <span>Create Client</span>
-                )}
-              </button>
+                Create Client
+              </Button>
             </div>
           </form>
         </div>

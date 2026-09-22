@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Eye, EyeOff, Loader2, UserPlus, AlertCircle, User, Mail, Lock, Briefcase, UserStar } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { CustomDropdown } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
 import { useModalDraft } from '@/context/ModalDraftContext';
@@ -33,7 +34,7 @@ export default function AddTeamMemberModal({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState(mode === 'add' ? 'password123' : '');
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState(mode === 'add' ? '' : employee?.role || '');
+  const [designation, setDesignation] = useState(mode === 'add' ? '' : employee?.role || '');
   const [roleId, setRoleId] = useState('');
   const [project, setProject] = useState(mode === 'add' ? '' : employee?.Project || '');
   const [group, setGroup] = useState('');
@@ -119,7 +120,7 @@ const [roles, setRoles] = useState<
       ]);
 
       // Automatically select the newly-created designation.
-      setRole(newDesignation.name);
+      setDesignation(newDesignation.name);
       setNewRoleName('');
       setIsAddRoleModalOpen(false);
 
@@ -294,7 +295,8 @@ const [roles, setRoles] = useState<
       if (draft.name !== undefined) setName(draft.name);
       if (draft.email !== undefined) setEmail(draft.email);
       if (draft.password !== undefined) setPassword(draft.password);
-      if (draft.role !== undefined) setRole(draft.role);
+      if (draft.designation !== undefined) setDesignation(draft.designation);
+      else if (draft.role !== undefined) setDesignation(draft.role);
       if (draft.roleId !== undefined) setRoleId(draft.roleId);
       if (draft.project !== undefined) setProject(draft.project);
       if (draft.group !== undefined) setGroup(draft.group);
@@ -326,7 +328,7 @@ const [roles, setRoles] = useState<
       setName(String(emp.full_name ?? emp.name ?? ''));
       setEmail(String(emp.email ?? ''));
       setPassword(String(emp.password ?? 'password123'));
-      setRole(String(emp.designation ?? emp.role ?? ''));
+      setDesignation(String(emp.designation ?? emp.role ?? ''));
       setRoleId(String(emp.role_id ?? emp.roleId ?? ''));
       setProject(String(emp.Project ?? ''));
       setGroup(String(emp.group ?? ''));
@@ -461,7 +463,7 @@ const [roles, setRoles] = useState<
       ...fetchedDesignations.map(
         (designation) => designation.name
       ),
-      ...(role ? [role] : []),
+      ...(designation ? [designation] : []),
     ])
   ).filter(Boolean);
 
@@ -501,7 +503,7 @@ const [roles, setRoles] = useState<
     setEmail('');
     setPassword(mode === 'add' ? 'password123' : '');
     setShowPassword(false);
-    setRole('');
+    setDesignation('');
     setRoleId('');
     setProject('');
     setGroup('');
@@ -517,7 +519,7 @@ const [roles, setRoles] = useState<
       return Boolean(
         name.trim() ||
         email.trim() ||
-        role.trim() ||
+        designation.trim() ||
         project.trim() ||
         group.trim() ||
         (password && password !== 'password123')
@@ -527,7 +529,7 @@ const [roles, setRoles] = useState<
       return (
         name !== employee.name ||
         email !== employee.email ||
-        role !== (employee.role || '') ||
+        designation !== ((employee as Employee & { designation?: string }).designation || employee.role || '') ||
         roleId !== String((employee as any)?.role_id ?? (employee as any)?.roleId ?? '') ||
         project !== (employee.Project || '') ||
         status !== (employee.status || 'Active') ||
@@ -546,12 +548,12 @@ const [roles, setRoles] = useState<
       saveDraft(draftKey, {
         type: 'employee',
         title: displayTitle,
-        subtitle: email.trim() || role.trim() || 'Draft saved',
+        subtitle: email.trim() || designation.trim() || 'Draft saved',
         data: {
           name,
           email,
           password,
-          role,
+          designation,
           roleId,
           project,
           group,
@@ -576,7 +578,7 @@ const [roles, setRoles] = useState<
       !name.trim() ||
       !email.trim() ||
       (mode === "add" && !password.trim()) ||
-      !role.trim()
+      !designation.trim()
     ) {
       setError("Please fill all required fields");
       return;
@@ -589,7 +591,7 @@ const [roles, setRoles] = useState<
       const updateBody: Record<string, string> = {
         name: name.trim(),
         email: email.trim(),
-        role: role.trim(),
+        role: designation.trim(),
         Project: project.trim(),
         status,
         workMode,
@@ -611,7 +613,7 @@ const [roles, setRoles] = useState<
             name: name.trim(),
             email: email.trim(),
             password: password.trim(),
-            designation: role.trim(),
+            designation: designation.trim(),
             role_id: roleId || null,
             group: group || null,
             status,
@@ -649,7 +651,7 @@ const [roles, setRoles] = useState<
         const payload: Record<string, unknown> = {
           full_name: name.trim(),
           email: email.trim().toLowerCase(),
-          designation: role.trim(),
+          designation: designation.trim(),
           role_id: roleId || null,
           group: group.trim() || null,
           status: status === "Active",
@@ -856,7 +858,6 @@ const [roles, setRoles] = useState<
                 );
 
                 if (selectedRole) {
-                  setRole(selectedRole.name);
                 }
               }}
             />
@@ -867,12 +868,12 @@ const [roles, setRoles] = useState<
             <CustomDropdown
               label="Designation *"
               placeholder="Select Designation"
-              value={role ?? ''}
+              value={designation ?? ''}
               options={allRoleSuggestions.map((designation) => ({
                 value: designation,
                 label: designation,
               }))}
-              onChange={(val) => setRole(val)}
+              onChange={(val) => setDesignation(val)}
               actionButton={{
                 label: 'Add',
                 onClick: () => {
@@ -943,25 +944,13 @@ const [roles, setRoles] = useState<
             >
               Cancel
             </button>
-            <button
+            <Button
               type="submit"
+              loading={submitting}
               className="btn btn-primary"
-              // disabled={submitting || !name.trim() || !email.trim()}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
             >
-              {submitting ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>{mode === 'add' ? 'Creating...' : 'Saving...'}</span>
-                </>
-              ) : (
-                <span>{mode === 'add' ? 'Create Member' : 'Save Changes'}</span>
-              )}
-            </button>
+              {mode === 'add' ? 'Create Member' : 'Save Changes'}
+            </Button>
           </div>
         </form>
       </div>
@@ -973,8 +962,7 @@ const [roles, setRoles] = useState<
             position: 'fixed',
             inset: 0,
             zIndex: 22000,
-            backgroundColor: 'rgba(15, 23, 42, 0.7)',
-            backdropFilter: 'blur(4px)',
+            background: 'rgba(0, 0, 0, 0.5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1034,7 +1022,7 @@ const [roles, setRoles] = useState<
                   gap: '6px',
                 }}
               >
-                <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                <AlertCircle size={14} />
                 <span>{roleAddError}</span>
               </div>
             )}
@@ -1077,22 +1065,15 @@ const [roles, setRoles] = useState<
               >
                 Cancel
               </button>
-              <button
+              <Button
                 type="button"
+                loading={addingRole}
                 className="btn btn-primary"
                 onClick={handleCreateNewRole}
                 disabled={addingRole || !newRoleName.trim()}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
-                {addingRole ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>Adding...</span>
-                  </>
-                ) : (
-                  <span>Add Designation</span>
-                )}
-              </button>
+                Add Designation
+              </Button>
             </div>
           </div>
         </div>

@@ -1,63 +1,120 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Settings as SettingsIcon, Clock, Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import PageShimmer from '@/components/PageShimmer';
-import type { SettingsData } from '../../types/SettingsData';
-import { CustomTimePicker } from '@/components/TaskFormControls';
-import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
-import './style.css';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Clock,
+  Save,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  Hash,
+  MapPin,
+  Globe,
+  Monitor,
+  Fingerprint,
+  ShieldCheck,
+  X,
+} from "lucide-react";
+
+import PageShimmer from "@/components/PageShimmer";
+import type { SettingsData } from "@/types/SettingsData";
+import { CustomTimePicker } from "@/components/TaskFormControls";
+
+import "./style.css";
+
+/* =========================================================
+   TOGGLE FIELDS
+========================================================= */
+
+type ToggleField =
+  | "punchInGeoRequired"
+  | "punchInIpRequired"
+  | "punchInBrowserRequired"
+  | "punchInSystemIdRequired"
+  | "punchOutGeoRequired"
+  | "punchOutIpRequired"
+  | "punchOutBrowserRequired"
+  | "punchOutSystemIdRequired";
+
+/* =========================================================
+   DEFAULT SETTINGS
+========================================================= */
+
+const defaultSettings: SettingsData = {
+  punchInStartTime: "",
+  punchInEndTime: "",
+
+  punchInGeoRequired: false,
+  punchInIpRequired: false,
+  punchInBrowserRequired: false,
+  punchInSystemIdRequired: false,
+
+  punchOutStartTime: "",
+  punchOutEndTime: "",
+
+  punchOutGeoRequired: false,
+  punchOutIpRequired: false,
+  punchOutBrowserRequired: false,
+  punchOutSystemIdRequired: false,
+
+  taskIdPrefix: "QT",
+  nextTaskNumber: 1,
+};
+
+/* =========================================================
+   COMPONENT
+========================================================= */
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
 
-  const [settings, setSettings] = useState<SettingsData>({
-    punchInStartTime: '09:00',
-    punchInEndTime: '10:00',
-    punchOutStartTime: '17:00',
-    punchOutEndTime: '19:00',
-  });
+  /* =======================================================
+     STATE
+  ======================================================= */
+
+  const [settings, setSettings] =
+    useState<SettingsData>(defaultSettings);
 
   const [loading, setLoading] = useState(true);
+
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    const checkAccess = async () => {
-      const storedUser = localStorage.getItem('worktracker_user');
-      if (!storedUser) {
-        router.push('/login');
-        return;
-      }
+  const [error, setError] =
+    useState<string | null>(null);
 
-      let currentUser = JSON.parse(storedUser);
+  const [successMsg, setSuccessMsg] =
+    useState<string | null>(null);
 
-      try {
-        const currentUser = staticClient.getUser();
-        setUser(currentUser);
-      } catch (err) {
-        console.error(err);
-      }
+  /* =======================================================
+     TOAST STATE
+  ======================================================= */
 
-      const hasAccess =
-        currentUser.userType === 'admin' ||
-        currentUser.isSystemAdmin ||
-        (currentUser.permissions || []).includes('settings:manage');
+  const [toastMessage, setToastMessage] =
+    useState("");
 
-      if (!hasAccess) {
-        router.push('/dashboard');
-        return;
-      }
+  const [toastType, setToastType] =
+    useState<"success" | "error">("success");
 
-      setUser(currentUser);
-    };
+  /* =======================================================
+     SHOW TOAST
+  ======================================================= */
 
-    checkAccess();
-  }, [router]);
+  const showToast = (
+    message: string,
+    type: "success" | "error" = "success"
+  ) => {
+    setToastMessage(message);
+    setToastType(type);
+
+    setTimeout(() => {
+      setToastMessage("");
+    }, 2500);
+  };
+
+  /* =======================================================
+     LOAD SETTINGS
+  ======================================================= */
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -65,28 +122,400 @@ export default function SettingsPage() {
         setLoading(true);
         setError(null);
 
-        const result = await staticClient.getSettings();
-        if (result.success && result.data) {
+        const response = await fetch(
+          "/api/settings",
+          {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store",
+          }
+        );
+
+        const result = await response.json();
+
+        /* -----------------------------------------------
+           NOT LOGGED IN
+        ------------------------------------------------ */
+
+        if (response.status === 401) {
+          router.replace("/login");
+          return;
+        }
+
+        /* -----------------------------------------------
+           NOT ADMIN
+        ------------------------------------------------ */
+
+        if (response.status === 403) {
+          router.replace("/admin/dashboard");
+          return;
+        }
+
+        /* -----------------------------------------------
+           API ERROR
+        ------------------------------------------------ */
+
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.message ||
+              "Failed to load settings"
+          );
+        }
+
+        /* -----------------------------------------------
+           SET SETTINGS
+        ------------------------------------------------ */
+
+        if (result.data) {
           setSettings({
-            punchInStartTime: result.data.punchInStartTime,
-            punchInEndTime: result.data.punchInEndTime,
-            punchOutStartTime: result.data.punchOutStartTime,
-            punchOutEndTime: result.data.punchOutEndTime,
+            punchInStartTime:
+              result.data.punchInStartTime ?? "",
+
+            punchInEndTime:
+              result.data.punchInEndTime ?? "",
+
+            punchInGeoRequired:
+              Boolean(
+                result.data.punchInGeoRequired
+              ),
+
+            punchInIpRequired:
+              Boolean(
+                result.data.punchInIpRequired
+              ),
+
+            punchInBrowserRequired:
+              Boolean(
+                result.data.punchInBrowserRequired
+              ),
+
+            punchInSystemIdRequired:
+              Boolean(
+                result.data.punchInSystemIdRequired
+              ),
+
+            punchOutStartTime:
+              result.data.punchOutStartTime ?? "",
+
+            punchOutEndTime:
+              result.data.punchOutEndTime ?? "",
+
+            punchOutGeoRequired:
+              Boolean(
+                result.data.punchOutGeoRequired
+              ),
+
+            punchOutIpRequired:
+              Boolean(
+                result.data.punchOutIpRequired
+              ),
+
+            punchOutBrowserRequired:
+              Boolean(
+                result.data.punchOutBrowserRequired
+              ),
+
+            punchOutSystemIdRequired:
+              Boolean(
+                result.data.punchOutSystemIdRequired
+              ),
+
+            taskIdPrefix:
+              result.data.taskIdPrefix || "QT",
+
+            nextTaskNumber:
+              Number(
+                result.data.nextTaskNumber || 1
+              ),
           });
         }
       } catch (err: any) {
-        setError(err.message || 'Error loading settings');
+        console.error(
+          "Settings load error:",
+          err
+        );
+
+        const message =
+          err?.message ||
+          "Error loading settings";
+
+        setError(message);
+
+        showToast(message, "error");
       } finally {
         setLoading(false);
       }
     };
 
-    if (user) {
-      loadSettings();
-    }
-  }, [user]);
+    loadSettings();
+  }, [router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /* =======================================================
+     HANDLE NORMAL INPUT
+  ======================================================= */
+
+  const handleChange = (
+    field: keyof SettingsData,
+    value: any
+  ) => {
+    setSettings((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  /* =======================================================
+     HANDLE TOGGLE
+  ======================================================= */
+
+  const handleToggle = async (
+    field: ToggleField
+  ) => {
+    const previousValue =
+      Boolean(settings[field]);
+
+    const newValue = !previousValue;
+
+    /* -----------------------------------------------
+       OPTIMISTIC UI
+    ------------------------------------------------ */
+
+    setSettings((prev) => ({
+      ...prev,
+      [field]: newValue,
+    }));
+
+    try {
+      setError(null);
+
+      /* ---------------------------------------------
+         UPDATE DATABASE
+      ---------------------------------------------- */
+
+      const response = await fetch(
+        "/api/settings",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            [field]: newValue,
+          }),
+        }
+      );
+
+      const result =
+        await response.json();
+
+      /* ---------------------------------------------
+         AUTH
+      ---------------------------------------------- */
+
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
+
+      /* ---------------------------------------------
+         PERMISSION
+      ---------------------------------------------- */
+
+      if (response.status === 403) {
+        throw new Error(
+          result.message ||
+            "Only admins can manage settings"
+        );
+      }
+
+      /* ---------------------------------------------
+         API ERROR
+      ---------------------------------------------- */
+
+      if (
+        !response.ok ||
+        !result.success
+      ) {
+        throw new Error(
+          result.message ||
+            "Failed to update setting"
+        );
+      }
+
+      /* ---------------------------------------------
+         SYNC WITH SERVER
+      ---------------------------------------------- */
+
+      if (result.data) {
+        setSettings((prev) => ({
+          ...prev,
+
+          punchInStartTime:
+            result.data
+              .punchInStartTime ??
+            prev.punchInStartTime,
+
+          punchInEndTime:
+            result.data
+              .punchInEndTime ??
+            prev.punchInEndTime,
+
+          punchInGeoRequired:
+            Boolean(
+              result.data
+                .punchInGeoRequired
+            ),
+
+          punchInIpRequired:
+            Boolean(
+              result.data
+                .punchInIpRequired
+            ),
+
+          punchInBrowserRequired:
+            Boolean(
+              result.data
+                .punchInBrowserRequired
+            ),
+
+          punchInSystemIdRequired:
+            Boolean(
+              result.data
+                .punchInSystemIdRequired
+            ),
+
+          punchOutStartTime:
+            result.data
+              .punchOutStartTime ??
+            prev.punchOutStartTime,
+
+          punchOutEndTime:
+            result.data
+              .punchOutEndTime ??
+            prev.punchOutEndTime,
+
+          punchOutGeoRequired:
+            Boolean(
+              result.data
+                .punchOutGeoRequired
+            ),
+
+          punchOutIpRequired:
+            Boolean(
+              result.data
+                .punchOutIpRequired
+            ),
+
+          punchOutBrowserRequired:
+            Boolean(
+              result.data
+                .punchOutBrowserRequired
+            ),
+
+          punchOutSystemIdRequired:
+            Boolean(
+              result.data
+                .punchOutSystemIdRequired
+            ),
+
+          taskIdPrefix:
+            result.data.taskIdPrefix ||
+            prev.taskIdPrefix,
+
+          nextTaskNumber:
+            Number(
+              result.data
+                .nextTaskNumber ||
+                prev.nextTaskNumber
+            ),
+        }));
+      }
+
+      /* ---------------------------------------------
+         SETTING NAME
+      ---------------------------------------------- */
+
+      const settingNames: Record<
+        ToggleField,
+        string
+      > = {
+        punchInGeoRequired:
+          "Punch In Location",
+
+        punchInIpRequired:
+          "Punch In IP Address",
+
+        punchInBrowserRequired:
+          "Punch In Browser",
+
+        punchInSystemIdRequired:
+          "Punch In System ID",
+
+        punchOutGeoRequired:
+          "Punch Out Location",
+
+        punchOutIpRequired:
+          "Punch Out IP Address",
+
+        punchOutBrowserRequired:
+          "Punch Out Browser",
+
+        punchOutSystemIdRequired:
+          "Punch Out System ID",
+      };
+
+      const settingName =
+        settingNames[field];
+
+      /* ---------------------------------------------
+         SUCCESS TOAST
+      ---------------------------------------------- */
+
+      showToast(
+        `${settingName} ${
+          newValue
+            ? "enabled"
+            : "disabled"
+        }`,
+        "success"
+      );
+    } catch (err: any) {
+      console.error(
+        "Toggle update error:",
+        err
+      );
+
+      /* ---------------------------------------------
+         ROLLBACK UI
+      ---------------------------------------------- */
+
+      setSettings((prev) => ({
+        ...prev,
+        [field]: previousValue,
+      }));
+
+      const message =
+        err?.message ||
+        "Failed to update setting";
+
+      setError(message);
+
+      showToast(
+        message,
+        "error"
+      );
+    }
+  };
+
+  /* =======================================================
+     SAVE NORMAL SETTINGS
+  ======================================================= */
+
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
     try {
@@ -94,153 +523,811 @@ export default function SettingsPage() {
       setError(null);
       setSuccessMsg(null);
 
-      toast.success('Settings updated successfully');
-      setSuccessMsg('Shift timings updated successfully!');
-      setTimeout(() => setSuccessMsg(null), 4000);
+      const response = await fetch(
+        "/api/settings",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify(settings),
+        }
+      );
+
+      const result =
+        await response.json();
+
+      /* ---------------------------------------------
+         AUTH
+      ---------------------------------------------- */
+
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
+
+      /* ---------------------------------------------
+         PERMISSION
+      ---------------------------------------------- */
+
+      if (response.status === 403) {
+        showToast(
+          result.message ||
+            "Only admins can manage settings",
+          "error"
+        );
+
+        return;
+      }
+
+      /* ---------------------------------------------
+         API ERROR
+      ---------------------------------------------- */
+
+      if (
+        !response.ok ||
+        !result.success
+      ) {
+        throw new Error(
+          result.message ||
+            "Failed to update settings"
+        );
+      }
+
+      /* ---------------------------------------------
+         SYNC
+      ---------------------------------------------- */
+
+      if (result.data) {
+        setSettings({
+          punchInStartTime:
+            result.data
+              .punchInStartTime ?? "",
+
+          punchInEndTime:
+            result.data
+              .punchInEndTime ?? "",
+
+          punchInGeoRequired:
+            Boolean(
+              result.data
+                .punchInGeoRequired
+            ),
+
+          punchInIpRequired:
+            Boolean(
+              result.data
+                .punchInIpRequired
+            ),
+
+          punchInBrowserRequired:
+            Boolean(
+              result.data
+                .punchInBrowserRequired
+            ),
+
+          punchInSystemIdRequired:
+            Boolean(
+              result.data
+                .punchInSystemIdRequired
+            ),
+
+          punchOutStartTime:
+            result.data
+              .punchOutStartTime ?? "",
+
+          punchOutEndTime:
+            result.data
+              .punchOutEndTime ?? "",
+
+          punchOutGeoRequired:
+            Boolean(
+              result.data
+                .punchOutGeoRequired
+            ),
+
+          punchOutIpRequired:
+            Boolean(
+              result.data
+                .punchOutIpRequired
+            ),
+
+          punchOutBrowserRequired:
+            Boolean(
+              result.data
+                .punchOutBrowserRequired
+            ),
+
+          punchOutSystemIdRequired:
+            Boolean(
+              result.data
+                .punchOutSystemIdRequired
+            ),
+
+          taskIdPrefix:
+            result.data
+              .taskIdPrefix || "QT",
+
+          nextTaskNumber:
+            Number(
+              result.data
+                .nextTaskNumber || 1
+            ),
+        });
+      }
+
+      /* ---------------------------------------------
+         SUCCESS
+      ---------------------------------------------- */
+
+      showToast(
+        result.message ||
+          "Settings updated successfully",
+        "success"
+      );
+
+      setSuccessMsg(
+        "Settings updated successfully!"
+      );
+
+      setTimeout(() => {
+        setSuccessMsg(null);
+      }, 4000);
     } catch (err: any) {
-      const msg = err.message || 'Error saving settings';
-      setError(msg);
-      toast.error(msg);
+      console.error(
+        "Settings save error:",
+        err
+      );
+
+      const message =
+        err?.message ||
+        "Error saving settings";
+
+      setError(message);
+
+      showToast(
+        message,
+        "error"
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  const handleChange = (field: keyof SettingsData, value: string) => {
-    setSettings((prev) => ({ ...prev, [field]: value }));
-  };
+  /* =======================================================
+     LOADING
+  ======================================================= */
 
   if (loading) {
-    return <PageShimmer variant="settings" />;
+    return (
+      <PageShimmer variant="settings" />
+    );
   }
 
+  /* =======================================================
+     SWITCH COMPONENT
+  ======================================================= */
+
+  const SettingSwitch = ({
+    field,
+    title,
+    description,
+    icon,
+  }: {
+    field: ToggleField;
+    title: string;
+    description: string;
+    icon: React.ReactNode;
+  }) => {
+    const enabled =
+      Boolean(settings[field]);
+
+    return (
+      <div className="settings-switch-row">
+        <div className="settings-switch-info">
+          <div className="settings-switch-icon">
+            {icon}
+          </div>
+
+          <div>
+            <div className="settings-switch-title">
+              {title}
+            </div>
+
+            <div className="settings-switch-description">
+              {description}
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          className={`settings-switch ${
+            enabled
+              ? "active"
+              : ""
+          }`}
+          onClick={() =>
+            handleToggle(field)
+          }
+          disabled={saving}
+        >
+          <span className="settings-switch-thumb" />
+        </button>
+      </div>
+    );
+  };
+
+  /* =======================================================
+     PAGE
+  ======================================================= */
+
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+    <div
+      style={{
+        maxWidth: "1000px",
+        margin: "0 auto",
+        paddingBottom: "40px",
+      }}
+    >
+      {/* =================================================
+          CUSTOM TOAST
+      ================================================= */}
+
+      {toastMessage && (
+        <div
+          className={`settings-toast ${
+            toastType === "success"
+              ? "settings-toast-success"
+              : "settings-toast-error"
+          }`}
+        >
+          <div className="settings-toast-icon">
+            {toastType === "success" ? (
+              <CheckCircle2 size={18} />
+            ) : (
+              <AlertCircle size={18} />
+            )}
+          </div>
+
+          <span className="settings-toast-message">
+            {toastMessage}
+          </span>
+
+          <button
+            type="button"
+            className="settings-toast-close"
+            onClick={() =>
+              setToastMessage("")
+            }
+            aria-label="Close notification"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* =================================================
+          ERROR
+      ================================================= */}
+
       {error && (
-        <div className="alert alert-error" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+        <div
+          className="alert alert-error"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            marginBottom: "16px",
+          }}
+        >
           <AlertCircle size={20} />
+
           <span>{error}</span>
         </div>
       )}
 
+      {/* =================================================
+          SUCCESS
+      ================================================= */}
+
       {successMsg && (
-        <div className="alert alert-success">
+        <div
+          className="alert alert-success"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            marginBottom: "16px",
+          }}
+        >
           <CheckCircle2 size={20} />
-          <span>{successMsg}</span>
+
+          <span>
+            {successMsg}
+          </span>
         </div>
       )}
 
       <form onSubmit={handleSubmit}>
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <h3 className="card-title" style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Clock size={20} style={{ color: 'var(--accent-primary)' }} />
+        {/* =================================================
+            PUNCH IN TIMING
+        ================================================= */}
+
+        <div
+          className="card"
+          style={{
+            marginBottom: "24px",
+          }}
+        >
+          <h3
+            className="card-title"
+            style={{
+              marginBottom: "24px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <Clock
+              size={20}
+              style={{
+                color:
+                  "var(--accent-primary)",
+              }}
+            />
+
             Punch In Timing Window
           </h3>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
-            <div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(2, minmax(0, 1fr))",
+              gap: "20px",
+            }}
+          >
+            <CustomTimePicker
+              label="Start Time"
+              value={
+                settings.punchInStartTime ||
+                ""
+              }
+              onChange={(value) =>
+                handleChange(
+                  "punchInStartTime",
+                  value
+                )
+              }
+              align="right"
+            />
 
-              <CustomTimePicker
-                label="Start Time"
-                value={settings.punchInStartTime}
-                onChange={(value) => handleChange('punchInStartTime', value)}
-                align="right"
-              />
-              {/* <label className="form-label">Start Time</label> */}
-              {/* <input
-                type="time"
-                className="form-control"
-                value={settings.punchInStartTime}
-                onChange={(e) => handleChange('punchInStartTime', e.target.value)}
-                required
-              /> */}
-            </div>
-            <div>
-
-              <CustomTimePicker
-                label="End Time"
-                 value={settings.punchInEndTime}
-                onChange={(value) => handleChange('punchInEndTime', value)}
-                align="right"
-              />
-              {/* <label className="form-label">End Time</label>
-              <input
-                type="time"
-                className="form-control"
-                value={settings.punchInEndTime}
-                onChange={(e) => handleChange('punchInEndTime', e.target.value)}
-                required
-              /> */}
-            </div>
+            <CustomTimePicker
+              label="End Time"
+              value={
+                settings.punchInEndTime ||
+                ""
+              }
+              onChange={(value) =>
+                handleChange(
+                  "punchInEndTime",
+                  value
+                )
+              }
+              align="right"
+            />
           </div>
         </div>
 
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <h3 className="card-title" style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Clock size={20} style={{ color: 'var(--accent-primary)' }} />
+        {/* =================================================
+            PUNCH IN REQUIREMENTS
+        ================================================= */}
+
+        <div
+          className="card"
+          style={{
+            marginBottom: "24px",
+          }}
+        >
+          <h3
+            className="card-title"
+            style={{
+              marginBottom: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <ShieldCheck
+              size={20}
+              style={{
+                color:
+                  "var(--accent-primary)",
+              }}
+            />
+
+            Punch In Requirements
+          </h3>
+
+          <p
+            style={{
+              color:
+                "var(--text-secondary)",
+              fontSize: "0.85rem",
+              marginBottom: "20px",
+            }}
+          >
+            Choose what information
+            employees must provide when
+            punching in.
+          </p>
+
+          <div className="settings-switch-list">
+            <SettingSwitch
+              field="punchInGeoRequired"
+              title="Location Required"
+              description="Employee must provide their location when punching in."
+              icon={
+                <MapPin size={18} />
+              }
+            />
+
+            <SettingSwitch
+              field="punchInIpRequired"
+              title="IP Address Required"
+              description="Employee's IP address must be recorded."
+              icon={
+                <Globe size={18} />
+              }
+            />
+
+            <SettingSwitch
+              field="punchInBrowserRequired"
+              title="Browser Required"
+              description="Employee's browser information must be recorded."
+              icon={
+                <Monitor size={18} />
+              }
+            />
+
+            <SettingSwitch
+              field="punchInSystemIdRequired"
+              title="System ID Required"
+              description="Employee's device/system identifier must be provided."
+              icon={
+                <Fingerprint
+                  size={18}
+                />
+              }
+            />
+          </div>
+        </div>
+
+        {/* =================================================
+            PUNCH OUT TIMING
+        ================================================= */}
+
+        <div
+          className="card"
+          style={{
+            marginBottom: "24px",
+          }}
+        >
+          <h3
+            className="card-title"
+            style={{
+              marginBottom: "24px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <Clock
+              size={20}
+              style={{
+                color:
+                  "var(--accent-primary)",
+              }}
+            />
+
             Punch Out Timing Window
           </h3>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(2, minmax(0, 1fr))",
+              gap: "20px",
+            }}
+          >
+            <CustomTimePicker
+              label="Start Time"
+              value={
+                settings.punchOutStartTime ||
+                ""
+              }
+              onChange={(value) =>
+                handleChange(
+                  "punchOutStartTime",
+                  value
+                )
+              }
+              align="right"
+            />
+
+            <CustomTimePicker
+              label="End Time"
+              value={
+                settings.punchOutEndTime ||
+                ""
+              }
+              onChange={(value) =>
+                handleChange(
+                  "punchOutEndTime",
+                  value
+                )
+              }
+              align="right"
+            />
+          </div>
+        </div>
+
+        {/* =================================================
+            PUNCH OUT REQUIREMENTS
+        ================================================= */}
+
+        <div
+          className="card"
+          style={{
+            marginBottom: "24px",
+          }}
+        >
+          <h3
+            className="card-title"
+            style={{
+              marginBottom: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <ShieldCheck
+              size={20}
+              style={{
+                color:
+                  "var(--accent-primary)",
+              }}
+            />
+
+            Punch Out Requirements
+          </h3>
+
+          <p
+            style={{
+              color:
+                "var(--text-secondary)",
+              fontSize: "0.85rem",
+              marginBottom: "20px",
+            }}
+          >
+            Choose what information
+            employees must provide when
+            punching out.
+          </p>
+
+          <div className="settings-switch-list">
+            <SettingSwitch
+              field="punchOutGeoRequired"
+              title="Location Required"
+              description="Employee must provide their location when punching out."
+              icon={
+                <MapPin size={18} />
+              }
+            />
+
+            <SettingSwitch
+              field="punchOutIpRequired"
+              title="IP Address Required"
+              description="Employee's IP address must be recorded."
+              icon={
+                <Globe size={18} />
+              }
+            />
+
+            <SettingSwitch
+              field="punchOutBrowserRequired"
+              title="Browser Required"
+              description="Employee's browser information must be recorded."
+              icon={
+                <Monitor size={18} />
+              }
+            />
+
+            <SettingSwitch
+              field="punchOutSystemIdRequired"
+              title="System ID Required"
+              description="Employee's device/system identifier must be provided."
+              icon={
+                <Fingerprint
+                  size={18}
+                />
+              }
+            />
+          </div>
+        </div>
+
+        {/* =================================================
+            TASK ID
+        ================================================= */}
+
+        <div
+          className="card"
+          style={{
+            marginBottom: "24px",
+          }}
+        >
+          <h3
+            className="card-title"
+            style={{
+              marginBottom: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <Hash
+              size={20}
+              style={{
+                color:
+                  "var(--accent-primary)",
+              }}
+            />
+
+            Task ID Format
+          </h3>
+
+          <p
+            style={{
+              color:
+                "var(--text-secondary)",
+              fontSize: "0.8rem",
+              margin: "0 0 18px",
+            }}
+          >
+            New tasks will use this
+            prefix and counter. Example:{" "}
+            <strong>
+              {settings.taskIdPrefix ||
+                "QT"}
+              -
+              {settings.nextTaskNumber}
+            </strong>
+          </p>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(2, minmax(0, 1fr))",
+              gap: "20px",
+            }}
+          >
             <div>
-              <CustomTimePicker
-                label="Start Time"
-                value={settings.punchOutStartTime}
-                onChange={(value) => handleChange('punchOutStartTime', value)}
-                align="right"
-              />
-              {/* <label className="form-label">Start Time</label>
+              <label
+                className="form-label"
+                htmlFor="task-id-prefix"
+              >
+                Task ID Prefix
+              </label>
+
               <input
-                type="time"
+                id="task-id-prefix"
                 className="form-control"
-                value={settings.punchOutStartTime}
-                onChange={(e) => handleChange('punchOutStartTime', e.target.value)}
+                value={
+                  settings.taskIdPrefix ||
+                  ""
+                }
+                maxLength={12}
+                onChange={(e) =>
+                  handleChange(
+                    "taskIdPrefix",
+                    e.target.value.toUpperCase()
+                  )
+                }
+                placeholder="QT"
                 required
-              /> */}
+              />
             </div>
+
             <div>
-              <CustomTimePicker
-                label="End Time"
-                value={settings.punchOutEndTime}
-                onChange={(value) => handleChange('punchOutEndTime', value)}
-                align="right"
-              />
-              {/* <label className="form-label">End Time</label>
+              <label
+                className="form-label"
+                htmlFor="next-task-number"
+              >
+                Next Task Number
+              </label>
+
               <input
-                type="time"
+                id="next-task-number"
                 className="form-control"
-                value={settings.punchOutEndTime}
-                onChange={(e) => handleChange('punchOutEndTime', e.target.value)}
+                type="number"
+                min={1}
+                step={1}
+                value={
+                  settings.nextTaskNumber
+                }
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    nextTaskNumber:
+                      Number(
+                        e.target.value
+                      ),
+                  }))
+                }
                 required
-              /> */}
+              />
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+        {/* =================================================
+            ACTIONS
+        ================================================= */}
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent:
+              "flex-end",
+            gap: "12px",
+          }}
+        >
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => router.push('/')}
+            onClick={() =>
+              router.push(
+                "/admin/dashboard"
+              )
+            }
             disabled={saving}
           >
             Cancel
           </button>
+
           <button
             type="submit"
             className="btn btn-primary"
-            style={{ gap: '8px' }}
+            style={{
+              gap: "8px",
+            }}
             disabled={saving}
           >
             {saving ? (
               <>
-                <Loader2 className="animate-spin" size={14} />
-                <span>Saving...</span>
+                <Loader2
+                  className="animate-spin"
+                  size={14}
+                />
+
+                <span>
+                  Saving...
+                </span>
               </>
             ) : (
               <>
                 <Save size={14} />
-                <span>Save Settings</span>
+
+                <span>
+                  Save Settings
+                </span>
               </>
             )}
           </button>

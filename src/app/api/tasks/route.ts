@@ -3,7 +3,22 @@ import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
 import Task from '@/models/Task';
 import User from '@/models/User';
+import Settings from '@/models/Settings';
 import { currentUser } from '@/lib/auth';
+import { createInitialTaskLogs } from '@/lib/taskLog';
+
+function toTimeDate(value: unknown) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+
+  const text = String(value);
+  if (/^\d{2}:\d{2}(:\d{2})?$/.test(text)) {
+    return new Date(`1970-01-01T${text.length === 5 ? `${text}:00` : text}`);
+  }
+
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 // GET /api/tasks - Get all tasks with populated project and user references
 export async function GET(req: Request) {
@@ -57,53 +72,53 @@ export async function GET(req: Request) {
     const formattedTasks = tasks.map((task: any) => {
       const assignedArr = Array.isArray(task.assign_to)
         ? task.assign_to.map((u: any) =>
-            typeof u === 'object' && u !== null
-              ? {
-                  _id: u._id,
-                  name: u.full_name || u.name || 'User',
-                  email: u.email || '',
-                  avatarColor: u.avatarColor || '#4f46e5'
-                }
-              : u
-          )
+          typeof u === 'object' && u !== null
+            ? {
+              _id: u._id,
+              name: u.full_name || u.name || 'User',
+              email: u.email || '',
+              avatarColor: u.avatarColor || '#4f46e5'
+            }
+            : u
+        )
         : [];
 
       const createdObj =
         typeof task.created_by === 'object' && task.created_by !== null
           ? {
-              _id: task.created_by._id,
-              name: task.created_by.full_name || task.created_by.name || 'Admin',
-              email: task.created_by.email || ''
-            }
+            _id: task.created_by._id,
+            name: task.created_by.full_name || task.created_by.name || 'Admin',
+            email: task.created_by.email || ''
+          }
           : task.created_by;
 
       const projectObj =
         typeof task.project_id === 'object' && task.project_id !== null
           ? {
-              _id: task.project_id._id,
-              name: task.project_id.name,
-              color: task.project_id.color || '#3b82f6'
-            }
+            _id: task.project_id._id,
+            name: task.project_id.name,
+            color: task.project_id.color || '#3b82f6'
+          }
           : undefined;
 
       const formattedComments = Array.isArray(task.comments)
         ? task.comments.map((c: any) => ({
-            _id: c._id,
-            comment: c.comment,
-            user_id: c.user_id,
-            datetime: c.datetime,
-            // legacy mapping
-            author:
-              typeof c.user_id === 'object' && c.user_id !== null
-                ? {
-                    _id: c.user_id._id,
-                    name: c.user_id.full_name || c.user_id.name || 'User',
-                    email: c.user_id.email
-                  }
-                : { _id: c.user_id, name: 'User' },
-            content: c.comment,
-            createdAt: c.datetime
-          }))
+          _id: c._id,
+          comment: c.comment,
+          user_id: c.user_id,
+          datetime: c.datetime,
+          // legacy mapping
+          author:
+            typeof c.user_id === 'object' && c.user_id !== null
+              ? {
+                _id: c.user_id._id,
+                name: c.user_id.full_name || c.user_id.name || 'User',
+                email: c.user_id.email
+              }
+              : { _id: c.user_id, name: 'User' },
+          content: c.comment,
+          createdAt: c.datetime
+        }))
         : [];
 
       return {
@@ -167,8 +182,6 @@ export async function POST(req: Request) {
       projectId,
       assign_to,
       assignedTo,
-      created_by,
-      createdBy,
       priority,
       task_status,
       status: reqStatus,
@@ -179,7 +192,9 @@ export async function POST(req: Request) {
       completion_date,
       dueDate,
       completion_time,
-      dueTime
+      dueTime,
+      task_assign_date,
+      task_delay_reason
     } = body;
 
     if (!title || !title.trim()) {
@@ -196,15 +211,15 @@ export async function POST(req: Request) {
     const rawAssigned = assign_to || assignedTo || [];
     const requestedAssignedIds = Array.isArray(rawAssigned)
       ? rawAssigned
-          .map((id: any) => (typeof id === 'object' && id !== null ? id._id : id))
-          .filter((id: any) => typeof id === 'string' && mongoose.Types.ObjectId.isValid(id))
+        .map((id: any) => (typeof id === 'object' && id !== null ? id._id : id))
+        .filter((id: any) => typeof id === 'string' && mongoose.Types.ObjectId.isValid(id))
       : [];
     const validAssignedTo = Number(user.user_role) === 1
       ? await User.find({
-          _id: { $in: requestedAssignedIds },
-          user_role: 2,
-          created_by: user._id,
-        }).distinct('_id')
+        _id: { $in: requestedAssignedIds },
+        user_role: 2,
+        created_by: user._id,
+      }).distinct('_id')
       : [user._id];
 
     const finalCreatedBy = user._id;
@@ -215,7 +230,18 @@ export async function POST(req: Request) {
 
     const formattedFiles = Array.isArray(files) ? files : [];
 
+    // Allocate the human-readable task number atomically so concurrent creates
+    // cannot receive the same ID.
+    const taskSettings = await Settings.findOneAndUpdate(
+      {},
+      { $inc: { nextTaskNumber: 1 } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+    const taskNumber = Math.max(1, Number(taskSettings.nextTaskNumber || 2) - 1);
+    const taskId = `${String(taskSettings.taskIdPrefix || 'QT').toUpperCase()}-${taskNumber}`;
+
     const taskData: Record<string, any> = {
+      task_id: taskId,
       title: title.trim(),
       description: description || '',
       project_id: finalProjectId && mongoose.Types.ObjectId.isValid(finalProjectId) ? finalProjectId : null,
@@ -227,12 +253,16 @@ export async function POST(req: Request) {
       urls: formattedUrls,
       comments: Array.isArray(comments) ? comments : [],
       completion_date: completion_date || dueDate ? new Date(completion_date || dueDate) : null,
-      completion_time: completion_time || dueTime || null,
+      completion_time: toTimeDate(completion_time || dueTime),
       created_on: new Date(),
-      status: 1
+      status: 1,
+      task_assign_date,
+      task_delay_reason
     };
+    console.log(body)
 
     const task = await Task.create(taskData);
+    await createInitialTaskLogs(task);
 
     const populatedTask = await Task.findById(task._id)
       .populate('project_id', 'name color')

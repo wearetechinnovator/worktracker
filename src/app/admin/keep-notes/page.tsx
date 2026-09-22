@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Edit3, FileText, Loader2, Pin, PinOff, Plus, Trash2, X, StickyNote } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
-import type {KeepNote} from '../../types/KeepNote';
+import type { KeepNote } from '@/types/KeepNote';
 import { toast } from '@/lib/toast';
 import { useModalDraft } from '@/context/ModalDraftContext';
-import { staticClient } from '@/lib/staticClient';
+
 
 const NOTE_COLORS = [
   { name: 'Yellow', value: '#fef9c3', border: '#fde047', accent: '#ca8a04' },
@@ -19,28 +19,7 @@ const NOTE_COLORS = [
   { name: 'White', value: '#ffffff', border: '#e2e8f0', accent: '#475569' },
 ];
 
-const DEFAULT_INLINE_NOTES: KeepNote[] = [
-  {
-    _id: 'note-1',
-    userId: 'emp-1',
-    title: 'Sprint Planning Key Takeaways',
-    content: '1. Finalize UI dark mode color palette.\n2. Add instant search filter to clients table.\n3. Conduct load testing on static routes.',
-    color: '#1e293b',
-    isPinned: true,
-    createdAt: '2026-09-05T10:00:00.000Z',
-    updatedAt: '2026-09-05T10:00:00.000Z'
-  },
-  {
-    _id: 'note-2',
-    userId: 'emp-1',
-    title: 'Client Meeting Checklist',
-    content: 'Verify contract renewal dates for Acme Financials and review active team members assigned to Mobile Banking App.',
-    color: '#064e3b',
-    isPinned: false,
-    createdAt: '2026-09-06T14:30:00.000Z',
-    updatedAt: '2026-09-06T14:30:00.000Z'
-  }
-];
+const DEFAULT_INLINE_NOTES: KeepNote[] = [];
 
 const DEFAULT_DEMO_USER = {
   _id: 'emp-1',
@@ -67,14 +46,16 @@ export default function KeepNotesPage() {
   });
 
   useEffect(() => {
-    const demoUser = staticClient.getUser();
-    setUser(demoUser);
-    setNotes(staticClient.getKeepNotes() as any);
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && json.user) setUser(json.user);
+      })
+      .catch(() => {});
     setLoading(false);
   }, []);
 
   const fetchNotes = useCallback(async () => {
-    setNotes(staticClient.getKeepNotes() as any);
     setLoading(false);
   }, []);
 

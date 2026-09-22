@@ -489,7 +489,7 @@ export default function RolesPage() {
           <button
             onClick={() => setShowCreateModal(true)}
             className="btn btn-primary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px'}}
           >
             <Plus size={16} />
             <span>Create Custom Role</span>
@@ -881,7 +881,7 @@ export default function RolesPage() {
         <div className="modal-backdrop" onClick={() => setShowCreateModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--border-color)' }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>Create Custom Role</h3>
+              <h3 style={{ margin: 0, fontSize: '1.1rem'}}>Create Custom Role</h3>
               <button onClick={() => setShowCreateModal(false)} className="btn" style={{ padding: '4px', background: 'none' }}>
                 <X size={16} />
               </button>

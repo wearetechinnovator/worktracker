@@ -29,7 +29,7 @@
 
 .dashboard-main-title {
   font-size: 1.6rem;
-  font-weight: 800;
+  font-weight: 400;
   letter-spacing: -0.02em;
   color: var(--text-primary);
   margin: 0;
@@ -57,7 +57,7 @@
 
 .dashboard-section-title {
   font-size: 1.05rem;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--text-primary);
   margin: 0;
 }
@@ -110,7 +110,7 @@
   border-radius: var(--border-radius-sm);
   cursor: pointer;
   font-size: 0.81rem;
-  font-weight: 550;
+  font-weight: 400;
   color: var(--text-primary);
   width: 100%;
   text-align: left;
@@ -165,7 +165,7 @@
 
 .kpi-title-label {
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -173,7 +173,7 @@
 
 .kpi-main-value {
   font-size: 1.8rem;
-  font-weight: 800;
+  font-weight: 400;
   color: var(--text-primary);
   line-height: 1.1;
   margin-bottom: 12px;
@@ -209,7 +209,7 @@
 }
 
 .kpi-row-value {
-  font-weight: 700;
+  font-weight: 400;
   color: var(--text-primary);
 }
 
@@ -244,7 +244,7 @@
 
 .analytics-title {
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 400;
   color: var(--text-primary);
   margin: 0;
 }
@@ -256,7 +256,7 @@
   gap: 14px;
   margin-bottom: 12px;
   font-size: 0.73rem;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .trend-legend-pill {
@@ -292,7 +292,7 @@
   text-align: left;
   padding: 10px 12px;
   color: var(--text-muted);
-  font-weight: 600;
+  font-weight: 400;
   border-bottom: 1px solid var(--border-color);
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -339,7 +339,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  font-weight: 400;
   font-size: 0.75rem;
   flex-shrink: 0;
 }
@@ -364,7 +364,7 @@
   padding: 3px 8px;
   border-radius: 12px;
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 400;
   display: inline-flex;
   align-items: center;
   gap: 4px;

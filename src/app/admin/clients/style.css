@@ -228,3 +228,15 @@
     border-radius: 50%;
     display: inline-block;
 }
+/* Add this to your existing style.css (imported by the Clients page).
+   Everything else in the redesign reuses classes/tokens you already have
+   (.btn, .card, .form-control, .summary-*, .search-box, var(--*) tokens),
+   this is the only new rule needed. */
+
+.clients-table-row {
+  transition: background-color 0.12s ease;
+}
+
+.clients-table-row:hover {
+  background-color: var(--bg-tertiary);
+}

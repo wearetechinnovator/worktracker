@@ -3,19 +3,22 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, Eye, EyeOff, User, ExternalLink } from 'lucide-react';
-import { staticClient } from '@/lib/staticClient';
+import { Button } from '@/components/ui/button';
 import { AnimateIcon } from '@/components/animate-ui/icons/icon';
 
 export default function RegisterPage() {
 	const router = useRouter();
 	const [email, setEmail] = useState('');
 	const [fullname, setFullname] = useState('');
-
 	const [password, setPassword] = useState('');
 	const [showPassword, setShowPassword] = useState(false);
+	const [submitting, setSubmitting] = useState(false);
+
 	const handleRegister = async (e: React.FormEvent) => {
 		e.preventDefault();
+		if (submitting) return;
 
+		setSubmitting(true);
 		try {
 			const response = await fetch(
 				"/api/users/register",
@@ -47,6 +50,8 @@ export default function RegisterPage() {
 		} catch (error) {
 			console.error(error);
 			alert("Something went wrong");
+		} finally {
+			setSubmitting(false);
 		}
 	};
 	
@@ -142,8 +147,9 @@ export default function RegisterPage() {
 						</div>
 					</div>
 
-					<button
+					<Button
 						type="submit"
+						loading={submitting}
 						className="btn btn-primary"
 						style={{
 							padding: '8px 16px',
@@ -154,7 +160,7 @@ export default function RegisterPage() {
 						}}
 					>
 						Register
-					</button>
+					</Button>
 
 					<p className='flex gap-2 justify-center'>Already have an account ?
 						<AnimateIcon animateOnHover className='flex gap-1 text-blue-500 cursor-pointer'>
@@ -167,3 +173,4 @@ export default function RegisterPage() {
 		</div>
 	);
 }
+

@@ -21,10 +21,11 @@ import {
 } from 'lucide-react';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import CreateClientModal from '@/components/CreateClientModal';
+import { Button } from '@/components/ui/button';
 import { toast } from '@/lib/toast';
 import { createProject } from '@/lib/projectApi';
+import { getClients } from '@/lib/clientApi';
 import { useModalDraft } from '@/context/ModalDraftContext';
-import { staticClient } from '@/lib/staticClient';
 
 export interface CreateProjectModalProps {
   isOpen: boolean;
@@ -83,8 +84,25 @@ export default function CreateProjectModal({
     setError(null);
     setModalOpenState(draftKey, true);
 
-    // Clients are still read from the existing client data source.
-    setFetchedClients(staticClient.getClients() as any);
+    const loadClients = async () => {
+      try {
+        const clientResult = await getClients();
+        if (!clientResult.success) {
+          throw new Error(clientResult.message || 'Failed to load clients');
+        }
+
+        if (!cancelled) {
+          setFetchedClients(Array.isArray(clientResult.data) ? clientResult.data : []);
+        }
+      } catch (clientError) {
+        if (!cancelled) {
+          setFetchedClients([]);
+          setError(clientError instanceof Error ? clientError.message : 'Failed to load clients');
+        }
+      }
+    };
+
+    loadClients();
 
     const loadEmployees = async () => {
       try {
@@ -1031,25 +1049,13 @@ export default function CreateProjectModal({
                 Cancel
               </button>
 
-              <button
+              <Button
                 type="submit"
+                loading={submitting}
                 className="btn btn-primary"
-                // disabled={submitting}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
               >
-                {submitting ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>Creating...</span>
-                  </>
-                ) : (
-                  <span>Create Project</span>
-                )}
-              </button>
+                Create Project
+              </Button>
             </div>
           </form>
         </div>

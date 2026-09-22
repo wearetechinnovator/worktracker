@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Edit3, FileText, Loader2, Pin, PinOff, Plus, Trash2, X, StickyNote } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
-import type {KeepNote} from '../../types/KeepNote';
+import type { KeepNote } from '@/types/KeepNote';
 import { toast } from '@/lib/toast';
 import { useModalDraft } from '@/context/ModalDraftContext';
-import { staticClient } from '@/lib/staticClient';
+import { usePunch } from '@/context/PunchContext';
+import ViewModeBanner from '@/components/ViewModeBanner';
+
 
 const NOTE_COLORS = [
   { name: 'Yellow', value: '#fef9c3', border: '#fde047', accent: '#ca8a04' },
@@ -19,28 +21,7 @@ const NOTE_COLORS = [
   { name: 'White', value: '#ffffff', border: '#e2e8f0', accent: '#475569' },
 ];
 
-const DEFAULT_INLINE_NOTES: KeepNote[] = [
-  {
-    _id: 'note-1',
-    userId: 'emp-1',
-    title: 'Sprint Planning Key Takeaways',
-    content: '1. Finalize UI dark mode color palette.\n2. Add instant search filter to clients table.\n3. Conduct load testing on static routes.',
-    color: '#1e293b',
-    isPinned: true,
-    createdAt: '2026-09-05T10:00:00.000Z',
-    updatedAt: '2026-09-05T10:00:00.000Z'
-  },
-  {
-    _id: 'note-2',
-    userId: 'emp-1',
-    title: 'Client Meeting Checklist',
-    content: 'Verify contract renewal dates for Acme Financials and review active team members assigned to Mobile Banking App.',
-    color: '#064e3b',
-    isPinned: false,
-    createdAt: '2026-09-06T14:30:00.000Z',
-    updatedAt: '2026-09-06T14:30:00.000Z'
-  }
-];
+const DEFAULT_INLINE_NOTES: KeepNote[] = [];
 
 const DEFAULT_DEMO_USER = {
   _id: 'emp-1',
@@ -56,6 +37,8 @@ export default function KeepNotesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { isViewMode } = usePunch();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
@@ -67,14 +50,16 @@ export default function KeepNotesPage() {
   });
 
   useEffect(() => {
-    const demoUser = staticClient.getUser();
-    setUser(demoUser);
-    setNotes(staticClient.getKeepNotes() as any);
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && json.user) setUser(json.user);
+      })
+      .catch(() => {});
     setLoading(false);
   }, []);
 
   const fetchNotes = useCallback(async () => {
-    setNotes(staticClient.getKeepNotes() as any);
     setLoading(false);
   }, []);
 
@@ -221,6 +206,7 @@ export default function KeepNotesPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <ViewModeBanner />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1 className="hero-title" style={{ margin: 0, fontSize: '1.45rem', fontWeight: 850 }}>Keep Notes</h1>
@@ -230,6 +216,8 @@ export default function KeepNotesPage() {
           type="button"
           onClick={() => openModal()}
           className="btn btn-primary"
+          disabled={isViewMode}
+          title={isViewMode ? 'Punched out' : 'Create new note'}
           style={{
             padding: '9px 18px',
             fontSize: '0.84rem',
@@ -239,7 +227,8 @@ export default function KeepNotesPage() {
             alignItems: 'center',
             gap: '8px',
             boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
-            cursor: 'pointer',
+            cursor: isViewMode ? 'not-allowed' : 'pointer',
+            opacity: isViewMode ? 0.6 : 1,
           }}
         >
           <Plus size={16} />
@@ -311,6 +300,7 @@ export default function KeepNotesPage() {
                     onEdit={() => openModal(note)}
                     onDelete={(e) => handleDelete(note._id, e)}
                     onTogglePin={(e) => handleTogglePin(note, e)}
+                    isViewMode={isViewMode}
                   />
                 ))}
               </div>
@@ -338,6 +328,7 @@ export default function KeepNotesPage() {
                     onEdit={() => openModal(note)}
                     onDelete={(e) => handleDelete(note._id, e)}
                     onTogglePin={(e) => handleTogglePin(note, e)}
+                    isViewMode={isViewMode}
                   />
                 ))}
               </div>
@@ -545,15 +536,17 @@ function StickyNoteCard({
   onEdit,
   onDelete,
   onTogglePin,
+  isViewMode,
 }: {
   note: KeepNote;
   onEdit: () => void;
   onDelete: (e: React.MouseEvent) => void;
   onTogglePin: (e: React.MouseEvent) => void;
+  isViewMode?: boolean;
 }) {
   return (
     <article
-      onClick={onEdit}
+      onClick={() => !isViewMode && onEdit()}
       style={{
         backgroundColor: note.color || '#fef9c3',
         border: note.isPinned ? '1px solid #60a5fa' : '1px solid rgba(0,0,0,0.1)',
@@ -566,7 +559,7 @@ function StickyNoteCard({
         boxShadow: note.isPinned
           ? '0 4px 14px rgba(37, 99, 235, 0.12)'
           : '0 2px 6px rgba(0, 0, 0, 0.04)',
-        cursor: 'pointer',
+        cursor: isViewMode ? 'default' : 'pointer',
         transition: 'all 0.2s ease',
         position: 'relative',
       }}
@@ -621,35 +614,37 @@ function StickyNoteCard({
           {new Date(note.updatedAt || note.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
         </span>
 
-        <div style={{ display: 'flex', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="action-btn"
-            title={note.isPinned ? 'Unpin' : 'Pin'}
-            onClick={onTogglePin}
-            style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#475569', borderRadius: '4px' }}
-          >
-            {note.isPinned ? <PinOff size={13} /> : <Pin size={13} />}
-          </button>
-          <button
-            type="button"
-            className="action-btn"
-            title="Edit Note"
-            onClick={onEdit}
-            style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#475569', borderRadius: '4px' }}
-          >
-            <Edit3 size={13} />
-          </button>
-          <button
-            type="button"
-            className="action-btn btn-delete-item"
-            title="Delete Note"
-            onClick={onDelete}
-            style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', borderRadius: '4px' }}
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
+        {!isViewMode && (
+          <div style={{ display: 'flex', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="action-btn"
+              title={note.isPinned ? 'Unpin' : 'Pin'}
+              onClick={onTogglePin}
+              style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#475569', borderRadius: '4px' }}
+            >
+              {note.isPinned ? <PinOff size={13} /> : <Pin size={13} />}
+            </button>
+            <button
+              type="button"
+              className="action-btn"
+              title="Edit Note"
+              onClick={onEdit}
+              style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#475569', borderRadius: '4px' }}
+            >
+              <Edit3 size={13} />
+            </button>
+            <button
+              type="button"
+              className="action-btn btn-delete-item"
+              title="Delete Note"
+              onClick={onDelete}
+              style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', borderRadius: '4px' }}
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        )}
       </div>
     </article>
   );

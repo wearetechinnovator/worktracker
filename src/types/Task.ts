@@ -21,6 +21,8 @@ export interface TaskFile {
 
 export interface Task {
   _id: string;
+  task_id?: string;
+  taskId?: string;
   title: string;
   description?: string;
   

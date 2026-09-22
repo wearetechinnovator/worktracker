@@ -4,28 +4,25 @@ import mongoose, { Schema } from "mongoose";
    COMMENT SCHEMA
    ========================================================= */
 
-const taskCommentSchema = new Schema(
-  {
-    comment: {
-      type: String,
-      default: "",
-      trim: true,
-    },
-
-    user_id: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-
-    datetime: {
-      type: Date,
-      default: Date.now,
-    },
+const taskCommentSchema = new Schema({
+  comment: {
+    type: String,
+    default: "",
+    trim: true,
   },
-  {
-    _id: true,
-  }
+
+  user_id: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    default: null,
+  },
+
+  datetime: {
+    type: Date,
+    default: Date.now,
+  },
+},
+  { _id: true, }
 );
 
 /* =========================================================
@@ -34,6 +31,13 @@ const taskCommentSchema = new Schema(
 
 const taskSchema = new Schema(
   {
+    task_id: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+
     title: {
       type: String,
       required: true,
@@ -145,6 +149,16 @@ const taskSchema = new Schema(
       default: [],
     },
 
+    task_assign_date:{
+      type: Date,
+      default: null,
+    },
+
+    task_delay_reason:{
+      type: String,
+      default: null,
+    },
+
     /* -------------------------
        COMPLETION
        ------------------------- */
@@ -155,7 +169,7 @@ const taskSchema = new Schema(
     },
 
     completion_time: {
-      type: String,
+      type: Date,
       default: null,
     },
 

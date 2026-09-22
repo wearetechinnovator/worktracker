@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Settings as SettingsIcon, Clock, Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
-import type { SettingsData } from '../../types/SettingsData';
+import type { SettingsData } from '@/types/SettingsData';
 import { CustomTimePicker } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
+
 import './style.css';
 
 export default function SettingsPage() {
@@ -19,6 +19,8 @@ export default function SettingsPage() {
     punchInEndTime: '10:00',
     punchOutStartTime: '17:00',
     punchOutEndTime: '19:00',
+    taskIdPrefix: 'QT',
+    nextTaskNumber: 1,
   });
 
   const [loading, setLoading] = useState(true);
@@ -36,12 +38,7 @@ export default function SettingsPage() {
 
       let currentUser = JSON.parse(storedUser);
 
-      try {
-        const currentUser = staticClient.getUser();
-        setUser(currentUser);
-      } catch (err) {
-        console.error(err);
-      }
+      setUser(currentUser);
 
       const hasAccess =
         currentUser.userType === 'admin' ||
@@ -65,13 +62,16 @@ export default function SettingsPage() {
         setLoading(true);
         setError(null);
 
-        const result = await staticClient.getSettings();
+        const res = await fetch('/api/settings');
+        const result = await res.json();
         if (result.success && result.data) {
           setSettings({
             punchInStartTime: result.data.punchInStartTime,
             punchInEndTime: result.data.punchInEndTime,
             punchOutStartTime: result.data.punchOutStartTime,
             punchOutEndTime: result.data.punchOutEndTime,
+            taskIdPrefix: 'QT',
+            nextTaskNumber: 1,
           });
         }
       } catch (err: any) {

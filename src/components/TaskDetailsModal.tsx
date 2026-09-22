@@ -26,6 +26,7 @@ import {
 
 export interface TaskDetailsTask {
   _id: string;
+  task_id?: string;
   title: string;
   description?: string;
   projectId?: { _id: string; name: string; color: string };
@@ -64,7 +65,7 @@ export interface TaskDetailsModalProps {
   task: TaskDetailsTask;
   sessions: any[];
   loadingSessions: boolean;
-  user?: { _id?: string; id?: string; name?: string } | null;
+  user?: { _id?: string; id?: string; name?: string; user_role?: number | string } | null;
   newCommentText: string;
   newCommentStatus: string;
   submittingComment: boolean;
@@ -143,6 +144,7 @@ export default function TaskDetailsModal({
   isCopiedAllComments,
   isCopiedAllUrls,
   isDownloadingZip,
+  user,
   onClose,
   onEdit,
   onDelete,
@@ -158,6 +160,7 @@ export default function TaskDetailsModal({
   onDownloadAllFiles,
 }: TaskDetailsModalProps) {
   const [tab, setTab] = useState<'details' | 'updates' | 'work' | 'files' | 'links'>('details');
+  const isAdmin = Number(user?.user_role) === 1;
 
   const links = useMemo(() => {
     if (task.urls?.length) return task.urls;
@@ -426,7 +429,7 @@ export default function TaskDetailsModal({
         .td-tabs{display:flex;gap:4px;margin-top:20px;overflow:auto}.td-tab{position:relative;border:0;background:transparent;color:var(--text-secondary,#64748b);height:44px;padding:0 13px;display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:750;white-space:nowrap;cursor:pointer}.td-tab.active{color:#2563eb}.td-tab.active:after{content:'';position:absolute;left:8px;right:8px;bottom:-1px;height:2px;border-radius:2px;background:#2563eb}.td-tab-count{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--bg-secondary,#f1f5f9);display:inline-flex;align-items:center;justify-content:center;font-size:10px}.td-tab.active .td-tab-count{background:#eff6ff;color:#2563eb}
         .td-body{display:grid;grid-template-columns:minmax(0,1fr) 330px;min-height:0;flex:1}.td-main{min-width:0;overflow:auto;padding:24px}.td-sidebar{overflow:auto;padding:20px;border-left:1px solid var(--border-color,#e2e8f0);background:var(--bg-secondary,#fafcff)}
         .td-card{background:var(--bg-primary,#fff);border:1px solid var(--border-color,#e2e8f0);border-radius:14px;padding:17px}.td-sidebar-card+.td-sidebar-card{margin-top:12px}.td-sidebar-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;margin-bottom:15px}.td-sidebar-title svg{color:#2563eb}.td-info-list{display:flex;flex-direction:column;gap:14px}.td-info-row{display:flex;justify-content:space-between;gap:15px;align-items:flex-start}.td-info-label{font-size:11px;color:var(--text-muted,#94a3b8);font-weight:700}.td-info-value{font-size:12px;color:var(--text-primary,#0f172a);font-weight:750;text-align:right}.td-info-value.left{text-align:left}.td-due{display:inline-flex;align-items:center;gap:6px}.td-due-time{padding:3px 6px;border-radius:5px;background:#eff6ff;color:#2563eb}
-        .td-assignee-list{display:flex;flex-wrap:wrap;gap:6px}.td-assignee{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-color,#e2e8f0);background:var(--bg-secondary,#f8fafc);border-radius:999px;padding:4px 8px 4px 4px;font-size:11px;font-weight:700}.td-avatar{width:28px;height:28px;border-radius:50%;background:#4f46e5;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex:none}.td-avatar.sm{width:26px;height:26px;font-size:9px}
+        .td-assignee-list{display:flex;flex-wrap:wrap;gap:6px}.td-assignee{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-color,#e2e8f0);background:var(--bg-secondary,#f8fafc);border-radius:999px;padding:4px 8px 4px 4px;font-size:11px;font-weight:700}.td-avatar{width:28px;height:28px;border-radius:50%;background:#4f46e5;color:transparent;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex:none;background-image:url('/user-circles-set.png') !important;background-position:center;background-size:cover;background-repeat:no-repeat}.td-avatar.sm{width:26px;height:26px;font-size:9px}
         .td-progress{height:7px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin:10px 0 7px}.td-progress-fill{height:100%;border-radius:inherit;background:#2563eb;width:${sessions.length ? '65%' : '0%'}}.td-progress-meta{display:flex;justify-content:space-between;color:var(--text-muted,#94a3b8);font-size:10px;font-weight:700}
         .td-section-stack{display:flex;flex-direction:column;gap:18px}.td-section-heading{display:flex;justify-content:space-between;gap:15px;align-items:center}.td-section-heading h3{font-size:17px;margin:3px 0 0;font-weight:850;letter-spacing:-.02em}.td-eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;font-weight:800}.td-heading-pills{display:flex;gap:6px;flex-wrap:wrap}.td-heading-pills span{padding:6px 9px;border-radius:999px;background:#f1f5f9;color:#475569;font-size:10px;font-weight:800}
         .td-description{font-size:13px;line-height:1.7;color:var(--text-secondary,#475569);background:var(--bg-secondary,#f8fafc);border:1px solid var(--border-color,#e2e8f0);border-radius:12px;padding:16px}.td-description:empty{display:none}
@@ -455,7 +458,10 @@ export default function TaskDetailsModal({
                 )}
                 <span className="td-chip" style={{ background: status.bg, color: status.color, borderColor: status.border }}>{task.status}</span>
               </div>
-              <h2 className="td-title">{task.title}</h2>
+              <div>
+                {task.task_id && <div className="td-eyebrow">{task.task_id}</div>}
+                <h2 className="td-title">{task.title}</h2>
+              </div>
               {task.description ? (
                 <div className="td-description-preview" dangerouslySetInnerHTML={{ __html: task.description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() }} />
               ) : (
@@ -463,10 +469,47 @@ export default function TaskDetailsModal({
               )}
             </div>
             <div className="td-header-actions">
-              {onEdit && <button type="button" className="td-action-btn" onClick={onEdit}><FileText size={15} /><span>Edit</span></button>}
-              <button type="button" className="td-action-btn" onClick={() => navigator.clipboard?.writeText(task.title)}><Copy size={15} /><span>Duplicate</span></button>
-              {onDelete && <button type="button" className="td-action-btn danger" onClick={onDelete}><Trash2 size={15} /><span>Delete</span></button>}
-              <button type="button" className="td-action-btn td-close" onClick={onClose} aria-label="Close"><X size={17} /></button>
+              {isAdmin && onEdit && (
+                <button
+                  type="button"
+                  className="td-action-btn"
+                  onClick={onEdit}
+                >
+                  <FileText size={15} />
+                  <span>Edit</span>
+                </button>
+              )}
+
+              {/* {isAdmin && (
+                <button
+                  type="button"
+                  className="td-action-btn"
+                  onClick={() => navigator.clipboard?.writeText(task.title)}
+                >
+                  <Copy size={15} />
+                  <span>Duplicate</span>
+                </button>
+              )} */}
+
+              {isAdmin && onDelete && (
+                <button
+                  type="button"
+                  className="td-action-btn danger"
+                  onClick={onDelete}
+                >
+                  <Trash2 size={15} />
+                  <span>Delete</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="td-action-btn td-close"
+                onClick={onClose}
+                aria-label="Close"
+              >
+                <X size={17} />
+              </button>
             </div>
           </div>
           <nav className="td-tabs" aria-label="Task details tabs">

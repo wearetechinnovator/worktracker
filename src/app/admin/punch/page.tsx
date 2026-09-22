@@ -4,62 +4,24 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, LogIn, LogOut, CheckCircle2, AlertCircle, Calendar, Users } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
-import { getClientPunchLocation } from '@/lib/geoClient';
-import { staticClient } from '@/lib/staticClient';
+import AttendanceRequestsPanel from '@/components/AttendanceRequestsPanel';
 
-interface PunchData {
-  isPunchedIn?: boolean;
-  attendance: {
-    checkIn: string | null;
-    checkOut: string | null;
-    status?: string;
-    checkInIpAddress?: string;
-    checkInLocation?: string;
-    checkInLatitude?: number;
-    checkInLongitude?: number;
-    checkOutIpAddress?: string;
-    checkOutLocation?: string;
-    checkOutLatitude?: number;
-    checkOutLongitude?: number;
-  } | null;
-  canPunchIn: boolean;
-  canPunchOut: boolean;
-  currentTime: string;
-  settings: {
-    punchInWindow: string;
-    punchOutWindow: string;
-  };
-}
-
-const DEFAULT_INLINE_PUNCH: PunchData = {
-  isPunchedIn: true,
-  attendance: {
-    checkIn: '09:00 AM',
-    checkOut: null,
-    checkInLocation: 'Office HQ - New York',
-    checkInLatitude: 40.7128,
-    checkInLongitude: -74.0060,
-  },
-  canPunchIn: false,
-  canPunchOut: true,
-  currentTime: new Date().toLocaleTimeString(),
-  settings: {
-    punchInWindow: '09:00 AM - 10:00 AM',
-    punchOutWindow: '05:00 PM - 07:00 PM',
-  }
-};
-
-const DEFAULT_DEMO_USER = {
-  _id: 'emp-1',
-  name: 'Alex Johnson',
-  email: 'alex@techinnovator.com',
-  userType: 'admin'
-};
+import { usePunch } from '@/context/PunchContext';
 
 export default function PunchPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
-  const [punchData, setPunchData] = useState<PunchData | null>(DEFAULT_INLINE_PUNCH);
+  const {
+    isPunchedIn,
+    canPunchIn,
+    canPunchOut,
+    attendance,
+    loading: ctxLoading,
+    punchIn: ctxPunchIn,
+    punchOut: ctxPunchOut,
+    refreshPunch,
+    user
+  } = usePunch();
+
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,31 +62,19 @@ export default function PunchPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Authenticate user & load employees for Admin
+  // Fetch user employees list if admin
   useEffect(() => {
-    const demoUser = staticClient.getUser();
-    setUser(demoUser);
-    setEmployeesList(staticClient.getEmployees() as any);
-    setPunchData(staticClient.getPunchStatus() as any);
-    setLoading(false);
-  }, []);
-
-  const loadPunchStatus = async (showLoading = true) => {
-    setPunchData(staticClient.getPunchStatus() as any);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    if (!user) return;
-    loadPunchStatus(true);
-
-    const handleFocus = () => {
-      loadPunchStatus(false);
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [user, selectedEmpId]);
+    if (user?.userType === 'admin') {
+      fetch('/api/users/employees')
+        .then(res => res.json())
+        .then(json => {
+          if (json.success && Array.isArray(json.data)) {
+            setEmployeesList(json.data);
+          }
+        })
+        .catch(() => { });
+    }
+  }, [user]);
 
   const formatTimeTo12Hour = (time24: string) => {
     if (!time24) return '';
@@ -174,10 +124,19 @@ export default function PunchPage() {
 
   const submitPunch = async (action: 'punchIn' | 'punchOut') => {
     setProcessing(true);
-    const newStatus = staticClient.togglePunch();
-    setPunchData(newStatus as any);
-    setSuccessMsg(action === 'punchIn' ? 'Punched in successfully' : 'Punched out successfully');
-    setProcessing(false);
+    setError(null);
+    try {
+      if (action === 'punchIn') {
+        await ctxPunchIn();
+      } else {
+        await ctxPunchOut({ reason: reportPreview });
+      }
+      setSuccessMsg(action === 'punchIn' ? 'Punched in successfully' : 'Punched out successfully');
+    } catch (err: any) {
+      setError(err.message || 'Failed to punch');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handlePunch = async (action: 'punchIn' | 'punchOut') => {
@@ -204,44 +163,27 @@ export default function PunchPage() {
     }
   };
 
-  if (loading) {
+  if (ctxLoading) {
     return <PageShimmer variant="punch" />;
   }
 
-  const today = new Date().toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
   });
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-        <h1 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: '8px' }}>
-          Punch Here
-        </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-          {today}
-        </p>
-        <div style={{ 
-          fontSize: '2rem', 
-          fontWeight: 700, 
-          color: 'var(--accent-primary)', 
-          marginTop: '12px',
-          fontFamily: 'monospace'
-        }}>
-          {currentTime}
-        </div>
-      </div>
+
 
       {error && (
-        <div className="card" style={{ 
-          borderLeft: '4px solid #ef4444', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '12px', 
+        <div className="card" style={{
+          borderLeft: '4px solid #ef4444',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
           marginBottom: '20px',
           background: '#fef2f2'
         }}>
@@ -249,184 +191,17 @@ export default function PunchPage() {
           <p style={{ fontWeight: 600, color: '#991b1b' }}>{error}</p>
         </div>
       )}
-
-      {successMsg && (
-        <div className="card" style={{ 
-          borderLeft: '4px solid #10b981', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '12px', 
-          marginBottom: '20px', 
-          background: '#ecfdf5' 
-        }}>
-          <CheckCircle2 style={{ color: '#10b981' }} />
-          <p style={{ color: '#065f46', fontWeight: 700 }}>{successMsg}</p>
-        </div>
-      )}
-
-      {/* Admin Manual Override Section */}
-      {user?.userType === 'admin' && (
-        <div className="card" style={{ marginBottom: '20px', background: 'var(--bg-secondary)' }}>
-          <h4 style={{ fontWeight: 800, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Users size={18} style={{ color: 'var(--accent-primary)' }} />
-            Admin Manual Punch Override
-          </h4>
-          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-            Select an employee to manually punch in/out on their behalf or specify custom punch time if they forgot.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'flex-start' }}>
-            <div>
-              <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>Select Employee</label>
-              <select
-                className="form-control"
-                style={{ padding: '7px 10px', fontSize: '0.82rem', fontWeight: 600 }}
-                value={selectedEmpId || user._id}
-                onChange={(e) => setSelectedEmpId(e.target.value)}
-              >
-                {employeesList.map((emp) => (
-                  <option key={emp._id} value={emp._id}>
-                    {emp.name} ({emp.Project} - {emp.role})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={useCustomTime}
-                  onChange={(e) => setUseCustomTime(e.target.checked)}
-                />
-                Custom Punch Time
-              </label>
-              <input
-                type="time"
-                className="form-control"
-                disabled={!useCustomTime}
-                style={{ padding: '7px 10px', fontSize: '0.82rem', opacity: useCustomTime ? 1 : 0.5, fontWeight: 700, fontFamily: 'monospace' }}
-                value={customTime}
-                onChange={(e) => setCustomTime(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Shift Completed Banner */}
-      {punchData?.attendance?.checkOut && !punchData?.canPunchIn && (
-        <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid #10b981', background: '#ecfdf5', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <CheckCircle2 style={{ color: '#10b981' }} />
-          <div>
-            <p style={{ fontWeight: 700, color: '#065f46', fontSize: '0.85rem', margin: 0 }}>
-              Shift Completed for Today
-            </p>
-            <p style={{ color: '#047857', fontSize: '0.78rem', margin: '2px 0 0 0' }}>
-              You punched out at <b>{formatTimeTo12Hour(punchData.attendance.checkOut)}</b>. Re-punching is disabled for the rest of today.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Punch Buttons */}
-      <div className="card" style={{ marginBottom: '24px' }}>
-        <h3 className="card-title" style={{ marginBottom: '20px' }}>Today's Attendance</h3>
-        
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: '1fr 1fr', 
-          gap: '20px',
-          marginBottom: '24px'
-        }}>
-          {/* Punch In Button */}
-          <button
-            onClick={() => handlePunch('punchIn')}
-            disabled={!punchData?.canPunchIn || processing}
-            className="btn"
-            style={{
-              height: '120px',
-              fontSize: '1rem',
-              fontWeight: 700,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              background: punchData?.canPunchIn ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-              color: punchData?.canPunchIn ? 'white' : 'var(--text-muted)',
-              border: punchData?.canPunchIn ? 'none' : '2px solid var(--border-color)',
-              cursor: punchData?.canPunchIn ? 'pointer' : 'not-allowed',
-              opacity: punchData?.canPunchIn ? 1 : 0.5,
-              filter: punchData?.canPunchIn ? 'none' : 'blur(1px)',
-            }}
-          >
-            <LogIn size={32} />
-            <span>PUNCH IN</span>
-            {punchData?.attendance?.checkIn && (
-              <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>
-                ✓ {punchData.attendance.checkIn}
-              </span>
-            )}
-          </button>
-
-          {/* Punch Out Button */}
-          <button
-            onClick={() => handlePunch('punchOut')}
-            disabled={!punchData?.canPunchOut || processing || isPreparingReport}
-            className="btn"
-            style={{
-              height: '120px',
-              fontSize: '1rem',
-              fontWeight: 700,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              background: punchData?.canPunchOut ? '#ef4444' : 'var(--bg-tertiary)',
-              color: punchData?.canPunchOut ? 'white' : 'var(--text-muted)',
-              border: punchData?.canPunchOut ? 'none' : '2px solid var(--border-color)',
-              cursor: punchData?.canPunchOut ? 'pointer' : 'not-allowed',
-              opacity: punchData?.canPunchOut ? 1 : 0.5,
-              filter: punchData?.canPunchOut ? 'none' : 'blur(1px)',
-            }}
-          >
-            <LogOut size={32} />
-            <span>PUNCH OUT</span>
-            {punchData?.attendance?.checkOut && (
-              <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>
-                ✓ {punchData.attendance.checkOut}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Status Info */}
-        <div style={{ 
-          background: 'var(--bg-secondary)', 
-          padding: '16px', 
-          borderRadius: '8px',
-          fontSize: '0.85rem'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <Clock size={16} style={{ color: 'var(--accent-primary)' }} />
-            <strong>Allowed Timings:</strong>
-          </div>
-          <div style={{ color: 'var(--text-secondary)', marginLeft: '24px' }}>
-            <div>• Punch In: {punchData?.settings?.punchInWindow || '09:00 AM - 10:00 AM'}</div>
-            <div>• Punch Out: {punchData?.settings?.punchOutWindow || '05:00 PM - 07:00 PM'}</div>
-          </div>
-
-          {locationStatus && (
-            <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
-              <strong style={{ color: 'var(--text-primary)' }}>Location:</strong> {locationStatus}
-            </div>
-          )}
-        </div>
+      <div style={{
+        fontSize: '2rem',
+        fontWeight: 700,
+        color: 'var(--accent-primary)',
+        marginTop: '12px',
+        fontFamily: 'monospace'
+      }}>
+        {currentTime}
       </div>
-
       {/* Current Status */}
-      {punchData?.attendance && (
+      {attendance && (
         <div className="card">
           <h3 className="card-title" style={{ marginBottom: '16px' }}>Today's Record</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
@@ -435,7 +210,7 @@ export default function PunchPage() {
                 Status
               </div>
               <div style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>
-                {punchData.attendance?.status || 'Present'}
+                {attendance.status || 'Present'}
               </div>
             </div>
             <div>
@@ -443,7 +218,7 @@ export default function PunchPage() {
                 Check In
               </div>
               <div style={{ fontWeight: 700 }}>
-                {punchData.attendance?.checkIn || '-'}
+                {attendance.checkIn || '-'}
               </div>
             </div>
             <div>
@@ -451,16 +226,16 @@ export default function PunchPage() {
                 Check Out
               </div>
               <div style={{ fontWeight: 700 }}>
-                {punchData.attendance?.checkOut || '-'}
+                {attendance.checkOut || '-'}
               </div>
             </div>
           </div>
 
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: '1fr 1fr', 
-            gap: '16px', 
-            borderTop: '1px solid var(--border-color)', 
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '16px',
+            borderTop: '1px solid var(--border-color)',
             paddingTop: '14px',
             fontSize: '0.8rem'
           }}>
@@ -469,10 +244,10 @@ export default function PunchPage() {
                 Check In Details
               </div>
               <div style={{ color: 'var(--text-secondary)' }}>
-                <div>• <strong>IP Address:</strong> {punchData.attendance?.checkInIpAddress || '-'}</div>
-                <div>• <strong>Location:</strong> {punchData.attendance?.checkInLocation || '-'}</div>
-                {punchData.attendance?.checkInLatitude !== undefined && punchData.attendance?.checkInLongitude !== undefined && (
-                  <div>• <strong>Geo Coordinates:</strong> {punchData.attendance.checkInLatitude?.toFixed(4)}, {punchData.attendance.checkInLongitude?.toFixed(4)}</div>
+                <div>• <strong>IP Address:</strong> {attendance.punch_in_ip || '-'}</div>
+                <div>• <strong>Browser:</strong> {attendance.punch_in_browser || '-'}</div>
+                {attendance.punch_in_geo && attendance.punch_in_geo.length >= 2 && (
+                  <div>• <strong>Geo Coordinates:</strong> {attendance.punch_in_geo[0]}, {attendance.punch_in_geo[1]}</div>
                 )}
               </div>
             </div>
@@ -482,10 +257,10 @@ export default function PunchPage() {
                 Check Out Details
               </div>
               <div style={{ color: 'var(--text-secondary)' }}>
-                <div>• <strong>IP Address:</strong> {punchData.attendance?.checkOutIpAddress || '-'}</div>
-                <div>• <strong>Location:</strong> {punchData.attendance?.checkOutLocation || '-'}</div>
-                {punchData.attendance?.checkOutLatitude !== undefined && punchData.attendance?.checkOutLongitude !== undefined && (
-                  <div>• <strong>Geo Coordinates:</strong> {punchData.attendance.checkOutLatitude?.toFixed(4)}, {punchData.attendance.checkOutLongitude?.toFixed(4)}</div>
+                <div>• <strong>IP Address:</strong> {attendance.punch_out_ip || '-'}</div>
+                <div>• <strong>Browser:</strong> {attendance.punch_out_browser || '-'}</div>
+                {attendance.punch_out_geo && attendance.punch_out_geo.length >= 2 && (
+                  <div>• <strong>Geo Coordinates:</strong> {attendance.punch_out_geo[0]}, {attendance.punch_out_geo[1]}</div>
                 )}
               </div>
             </div>
@@ -531,16 +306,8 @@ export default function PunchPage() {
         </div>
       )}
 
-      {/* Back to Dashboard */}
-      <div style={{ textAlign: 'center', marginTop: '24px' }}>
-        <button
-          onClick={() => router.push('/')}
-          className="btn btn-secondary"
-          disabled={processing}
-        >
-          Back to Dashboard
-        </button>
-      </div>
+      {/* Attendance Requests Review Panel */}
+      <AttendanceRequestsPanel />
     </div>
   );
 }

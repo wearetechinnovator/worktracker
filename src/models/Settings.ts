@@ -1,24 +1,124 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
 
-export interface ISettings extends Document {
-  punchInStartTime: string; // Format: "HH:MM" e.g., "09:00"
-  punchInEndTime: string; // Format: "HH:MM" e.g., "10:00"
-  punchOutStartTime: string; // Format: "HH:MM" e.g., "17:00"
-  punchOutEndTime: string; // Format: "HH:MM" e.g., "19:00"
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const SettingsSchema = new Schema<ISettings>(
+const settingsSchema = new Schema(
   {
-    punchInStartTime: { type: String, required: true, default: '00:00' },
-    punchInEndTime: { type: String, required: true, default: '23:59' },
-    punchOutStartTime: { type: String, required: true, default: '00:00' },
-    punchOutEndTime: { type: String, required: true, default: '23:59' },
+    owner_user_id: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true,
+      index: true,
+    },
+
+    punchInGeoRequired: {
+      type: Boolean,
+      default: false,
+    },
+
+    punchInIpRequired: {
+      type: Boolean,
+      default: false,
+    },
+
+    punchInBrowserRequired: {
+      type: Boolean,
+      default: false,
+    },
+
+    punchInSystemIdRequired: {
+      type: Boolean,
+      default: false,
+    },
+
+    punchOutGeoRequired: {
+      type: Boolean,
+      default: false,
+    },
+
+    punchOutIpRequired: {
+      type: Boolean,
+      default: false,
+    },
+
+    punchOutBrowserRequired: {
+      type: Boolean,
+      default: false,
+    },
+
+    punchOutSystemIdRequired: {
+      type: Boolean,
+      default: false,
+    },
+
+
+    punchInStartTime: {
+      type: String,
+      default: null,
+    },
+
+    punchInEndTime: {
+      type: String,
+      default: null,
+    },
+
+    punchOutStartTime: {
+      type: String,
+      default: null,
+    },
+
+    punchOutEndTime: {
+      type: String,
+      default: null,
+    },
+
+    taskIdPrefix: {
+      type: String,
+      default: "QT",
+      trim: true,
+      uppercase: true,
+    },
+
+    nextTaskNumber: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+
+    created_by: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    created_on: {
+      type: Date,
+      default: Date.now,
+    },
+
+    modified_by: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    modified_on: {
+      type: Date,
+      default: null,
+    },
+
+    status: {
+      type: Number,
+      default: 1,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: false,
+    versionKey: false,
+  }
 );
 
-const Settings: Model<ISettings> = mongoose.models.Settings || mongoose.model<ISettings>('Settings', SettingsSchema);
+const Settings =
+  mongoose.models.Settings ||
+  mongoose.model("Settings", settingsSchema);
 
 export default Settings;

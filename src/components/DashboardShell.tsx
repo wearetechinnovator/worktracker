@@ -1,5 +1,6 @@
 import Sidebar from "@/components/Sidebar";
 import TopNavbar from "@/components/TopNavbar";
+import { PunchProvider } from "@/context/PunchContext";
 
 export default function DashboardShell({
   children,
@@ -7,16 +8,18 @@ export default function DashboardShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="app-layout">
-      <Sidebar />
+    <PunchProvider>
+      <div className="app-layout">
+        <Sidebar />
 
-      <div className="main-wrapper">
-        <TopNavbar />
+        <div className="main-wrapper">
+          <TopNavbar />
 
-        <main className="main-content">
-          {children}
-        </main>
+          <main className="main-content">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </PunchProvider>
   );
 }

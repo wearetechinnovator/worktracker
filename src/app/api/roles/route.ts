@@ -60,8 +60,25 @@ export async function GET() {
   try {
     await dbConnect();
 
+    const user = await currentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    if (Number(user.user_role) !== 1) {
+      return NextResponse.json(
+        { success: false, message: "Only admins can view roles" },
+        { status: 403 }
+      );
+    }
+
     const roles = await Role.find({
       status: 1,
+      created_by: user._id,
     })
       .sort({ createdAt: 1 })
       .lean();
@@ -93,7 +110,10 @@ export async function POST(request: Request) {
     const auth = await requireAdmin();
 
     if (!auth.user) {
-      return auth.response;
+      return auth.response ?? NextResponse.json(
+        { success: false, message: "Authentication required" },
+        { status: 401 }
+      );
     }
 
     const body = await request.json();
@@ -112,6 +132,7 @@ export async function POST(request: Request) {
     }
 
     const existingRole = await Role.findOne({
+      created_by: auth.user._id,
       name: {
         $regex: `^${escapeRegex(name)}$`,
         $options: "i",
@@ -132,8 +153,8 @@ export async function POST(request: Request) {
       name,
       short_desc,
       status: 1,
-      created_by: null,
-      modified_by: null,
+      created_by: auth.user._id,
+      modified_by: auth.user._id,
     });
 
     return NextResponse.json(
@@ -167,7 +188,10 @@ export async function PATCH(request: Request) {
     const auth = await requireAdmin();
 
     if (!auth.user) {
-      return auth.response;
+      return auth.response ?? NextResponse.json(
+        { success: false, message: "Authentication required" },
+        { status: 401 }
+      );
     }
 
     const { searchParams } = new URL(request.url);
@@ -202,6 +226,7 @@ export async function PATCH(request: Request) {
 
       const duplicate = await Role.findOne({
         _id: { $ne: id },
+        created_by: auth.user._id,
         name: {
           $regex: `^${escapeRegex(name)}$`,
           $options: "i",
@@ -227,8 +252,8 @@ export async function PATCH(request: Request) {
 
     updateData.modified_by = null;
 
-    const role = await Role.findByIdAndUpdate(
-      id,
+    const role = await Role.findOneAndUpdate(
+      { _id: id, created_by: auth.user._id },
       { $set: updateData },
       {
         new: true,
@@ -274,7 +299,10 @@ export async function DELETE(request: Request) {
     const auth = await requireAdmin();
 
     if (!auth.user) {
-      return auth.response;
+      return auth.response ?? NextResponse.json(
+        { success: false, message: "Authentication required" },
+        { status: 401 }
+      );
     }
 
     const { searchParams } = new URL(request.url);
@@ -290,7 +318,10 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const role = await Role.findByIdAndDelete(id).lean();
+    const role = await Role.findOneAndDelete({
+      _id: id,
+      created_by: auth.user._id,
+    }).lean();
 
     if (!role) {
       return NextResponse.json(

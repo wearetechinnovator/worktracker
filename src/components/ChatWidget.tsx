@@ -11,9 +11,11 @@ import {
   ChevronRight, ChevronLeft, Hash, Lock, Search, X, CornerUpLeft,
   Paperclip, FileText, ChevronDown, Settings, Trash2
 } from 'lucide-react';
-import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
 import '@/app/chat.css';
+import { toast } from '@/lib/toast';
+
+const chatMessagesStore: any[] = [];
+const chatChannelsStore: any[] = [];
 
 interface IAttachment {
   fileUrl: string;
@@ -201,12 +203,23 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
 
     const fetchInitialData = async () => {
       try {
-        const emps = staticClient.getEmployees();
+        let emps: any[] = [];
+        try {
+          const empRes = await fetch('/api/users/employees', { cache: 'no-store' });
+          const empJson = await empRes.json();
+          if (empJson.success && Array.isArray(empJson.data)) emps = empJson.data;
+        } catch {}
         setMembers(emps.filter((m: any) => m._id !== user._id) as any);
-        const projs = staticClient.getProjects();
+
+        let projs: any[] = [];
+        try {
+          const projRes = await fetch('/api/projects', { cache: 'no-store' });
+          const projJson = await projRes.json();
+          if (projJson.success && Array.isArray(projJson.data)) projs = projJson.data;
+        } catch {}
         setProjects(projs as any);
-        const channels = staticClient.getChatChannels();
-        setCustomChannels(channels as any);
+
+        setCustomChannels([...chatChannelsStore]);
       } catch (err) {
         console.error('Error fetching initial chat metadata:', err);
       }
@@ -217,7 +230,7 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
 
   // Helper to reload custom channels
   const fetchCustomChannels = async () => {
-    setCustomChannels(staticClient.getChatChannels() as any);
+    setCustomChannels([...chatChannelsStore]);
   };
 
   // 3. Scroll to Bottom
@@ -230,7 +243,7 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
   // Load message history for a specific channel
   const fetchChannelHistory = useCallback(async (channelId: string) => {
     try {
-      const allMsgs = staticClient.getChatMessages();
+      const allMsgs = chatMessagesStore;
       const channelMsgs = allMsgs.filter((m: any) => m.channelId === channelId);
       setMessages(channelMsgs as any);
       setUnreadCounts((prev) => ({ ...prev, [channelId]: 0 }));
@@ -304,7 +317,7 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
     setTimeout(() => scrollToBottom('smooth'), 50);
 
     try {
-      staticClient.getChatMessages().push(optimisticMessage as any);
+      chatMessagesStore.push(optimisticMessage as any);
       lastFetchedTimeRef.current = optimisticMessage.createdAt;
     } catch (err) {
       console.error('Error sending message:', err);
@@ -355,8 +368,8 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
         allowMessages: newChannelAllowMessages,
         allowAttachments: newChannelAllowAttachments,
       };
-      staticClient.getChatChannels().push(newChan as any);
-      setCustomChannels(staticClient.getChatChannels() as any);
+      chatChannelsStore.push(newChan as any);
+      setCustomChannels([...chatChannelsStore]);
       setShowCreateChannelModal(false);
       const chanName = newChannelName.trim();
       setNewChannelName('');
@@ -403,7 +416,9 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
   // Channel deletion handler
   const handleDeleteChannel = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to delete #${name}?`)) return;
-    staticClient.getChatChannels();
+    const idx = chatChannelsStore.findIndex(c => c._id === id || c.name === name);
+    if (idx !== -1) chatChannelsStore.splice(idx, 1);
+    setCustomChannels([...chatChannelsStore]);
     setActiveChannelId('#general');
     toast.success(`Channel #${name} deleted successfully`);
   };

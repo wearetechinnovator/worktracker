@@ -1,42 +1,93 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
 
-export interface ITaskWork extends Document {
-  taskId: mongoose.Types.ObjectId;
-  employeeId: mongoose.Types.ObjectId;
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:MM:SS
-  endTime?: string; // HH:MM:SS
-  totalMinutes?: number; // Calculated duration
-  status: 'In Progress' | 'Completed';
-  isFullyCompleted?: boolean; // Whether the employee completed their work fully
-  notes?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const TaskWorkSchema = new Schema<ITaskWork>(
+const taskWorkSchema = new Schema(
   {
-    taskId: { type: Schema.Types.ObjectId, ref: 'Task', required: true },
-    employeeId: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
-    date: { type: String, required: true },
-    startTime: { type: String, required: true },
-    endTime: { type: String },
-    totalMinutes: { type: Number },
-    status: { 
-      type: String, 
-      enum: ['In Progress', 'Completed'], 
-      default: 'In Progress',
-      required: true 
+    taskId: {
+      type: Schema.Types.ObjectId,
+      ref: "Task",
+      required: true,
+      index: true,
     },
-    isFullyCompleted: { type: Boolean, default: false },
-    notes: { type: String, trim: true },
+
+    employeeId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+
+    date: {
+      type: Date,
+      required: true,
+      index: true,
+    },
+
+    startTime: {
+      type: Date,
+      default: null,
+    },
+
+    endTime: {
+      type: Date,
+      default: null,
+    },
+
+    status: {
+      type: String,
+      enum: ["In Progress", "Paused", "Completed"],
+      default: "In Progress",
+      index: true,
+    },
+
+    notes: {
+      type: String,
+      default: "",
+    },
+
+    totalMinutes: {
+      type: Number,
+      default: 0,
+    },
+
+    isFullyCompleted: {
+      type: Boolean,
+      default: false,
+    },
+
+    pausedAt: {
+      type: Date,
+      default: null,
+    },
+
+    totalPausedMinutes: {
+      type: Number,
+      default: 0,
+    },
+
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    updatedAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    versionKey: false,
+  }
 );
 
-TaskWorkSchema.index({ employeeId: 1, date: 1, createdAt: -1 });
-TaskWorkSchema.index({ taskId: 1, employeeId: 1, date: 1, status: 1 });
+taskWorkSchema.index({
+  taskId: 1,
+  employeeId: 1,
+  status: 1,
+});
 
-const TaskWork: Model<ITaskWork> = mongoose.models.TaskWork || mongoose.model<ITaskWork>('TaskWork', TaskWorkSchema);
+const TaskWork =
+  mongoose.models.TaskWork ||
+  mongoose.model("TaskWork", taskWorkSchema);
 
 export default TaskWork;

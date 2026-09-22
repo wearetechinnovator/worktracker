@@ -6,6 +6,7 @@ import {
   FileText, Image as ImageIcon, Download, ChevronLeft, ChevronRight,
   Sparkles, ExternalLink
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 /* ==========================================================================
    1. CUSTOM DROPDOWN COMPONENT
@@ -1151,20 +1152,20 @@ export function CustomFileAttachment({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '12px 14px',
+          padding: '3px 14px',
           border: '1.5px dashed var(--border-color)',
           borderRadius: 'var(--border-radius-sm)',
-          background: 'var(--bg-tertiary)',
+          // background: 'var(--bg-tertiary)',
           cursor: 'pointer',
           transition: 'all 0.2s ease',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.borderColor = 'var(--accent-primary)';
-          e.currentTarget.style.background = 'rgba(59, 130, 246, 0.04)';
+
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.borderColor = 'var(--border-color)';
-          e.currentTarget.style.background = 'var(--bg-tertiary)';
+
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1173,7 +1174,7 @@ export function CustomFileAttachment({
               width: '32px',
               height: '32px',
               borderRadius: '8px',
-              background: '#eff6ff',
+              // background: '#eff6ff',
               color: 'var(--accent-primary)',
               display: 'flex',
               alignItems: 'center',
@@ -1183,12 +1184,12 @@ export function CustomFileAttachment({
             <Paperclip size={16} />
           </div>
           <div>
-            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            <div style={{ fontSize: '0.78rem', fontWeight: 400, color: 'var(--text-primary)' }}>
               Choose or drop supporting files
             </div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+            {/* <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
               Images, PDFs, documents, screenshots, and logs
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -1423,35 +1424,24 @@ export function CustomMultipleLinks({
         </div>
       )}
 
-      {/* Input container with matching height to file dropzone */}
+      {/* Sleek, standard input field container */}
       <div
+        className="custom-input-group"
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
-          padding: '8px 10px',
-          border: '1.5px solid var(--border-color)',
+          padding: '2px 4px 2px 10px',
+          border: '1px solid var(--border-color)',
           borderRadius: 'var(--border-radius-sm)',
-          background: 'var(--bg-tertiary)',
-          minHeight: '58px',
+          background: 'var(--bg-secondary)',
+          minHeight: '38px',
+          height: '38px',
           boxSizing: 'border-box',
+          transition: 'var(--transition-smooth)',
         }}
       >
-        <div
-          style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            background: '#eff6ff',
-            color: 'var(--accent-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <ExternalLink size={16} />
-        </div>
+        <ExternalLink size={15} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
 
         <input
           type="url"
@@ -1464,32 +1454,31 @@ export function CustomMultipleLinks({
             border: 'none',
             background: 'transparent',
             outline: 'none',
-            fontSize: '0.78rem',
+            fontSize: '0.8rem',
             color: 'var(--text-primary)',
             minWidth: 0,
+            height: '100%',
           }}
         />
 
-        <button
+        <Button
           type="button"
           onClick={handleAddLink}
           disabled={!inputUrl.trim()}
-          className="btn btn-secondary btn-sm"
+          variant="secondary"
+          size="xs"
           style={{
+            height: '28px',
             fontSize: '0.72rem',
-            fontWeight: 700,
-            padding: '5px 10px',
+            fontWeight: 600,
+            padding: '0 10px',
             flexShrink: 0,
-            opacity: inputUrl.trim() ? 1 : 0.6,
-            cursor: inputUrl.trim() ? 'pointer' : 'default',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
+            borderRadius: '6px',
           }}
         >
           <Plus size={13} />
           <span>Add Link</span>
-        </button>
+        </Button>
       </div>
 
       {/* Added Links List - Compact chip pills */}

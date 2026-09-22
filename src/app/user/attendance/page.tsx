@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
 import PageShimmer from '@/components/PageShimmer';
-import { staticClient } from '@/lib/staticClient';
+// import './style.css';
 
 interface AttendanceLog {
   _id: string;
@@ -37,41 +37,9 @@ interface AttendanceLog {
   checkOutLongitude?: number | null;
 }
 
-const DEFAULT_INLINE_ATTENDANCE: AttendanceLog[] = [
-  {
-    _id: 'att-1',
-    date: new Date().toISOString().split('T')[0],
-    status: 'Present',
-    employeeId: { _id: 'emp-1', name: 'Alex Johnson', role: 'System Admin', avatarColor: '#4f46e5', Project: 'AI WorkTracker Pro' },
-    checkIn: '09:00 AM',
-    checkOut: '05:30 PM',
-    checkInLocation: 'Office HQ - New York',
-    checkOutLocation: 'Office HQ - New York'
-  },
-  {
-    _id: 'att-2',
-    date: new Date().toISOString().split('T')[0],
-    status: 'Present',
-    employeeId: { _id: 'emp-2', name: 'Sarah Connor', role: 'Project Manager', avatarColor: '#ec4899', Project: 'Mobile Banking App' },
-    checkIn: '09:15 AM',
-    checkOut: null,
-    checkInLocation: 'Remote - San Francisco',
-  },
-  {
-    _id: 'att-3',
-    date: new Date().toISOString().split('T')[0],
-    status: 'On Leave',
-    employeeId: { _id: 'emp-3', name: 'Michael Scott', role: 'Senior Developer', avatarColor: '#10b981', Project: 'Enterprise CRM' },
-    checkIn: null,
-    checkOut: null,
-  }
-];
+const DEFAULT_INLINE_ATTENDANCE: AttendanceLog[] = [];
 
-const DEFAULT_INLINE_EMPLOYEES = [
-  { _id: 'emp-1', name: 'Alex Johnson', role: 'System Admin', avatarColor: '#4f46e5' },
-  { _id: 'emp-2', name: 'Sarah Connor', role: 'Project Manager', avatarColor: '#ec4899' },
-  { _id: 'emp-3', name: 'Michael Scott', role: 'Senior Developer', avatarColor: '#10b981' },
-];
+const DEFAULT_INLINE_EMPLOYEES: any[] = [];
 
 const DEFAULT_DEMO_USER = {
   _id: 'emp-1',
@@ -128,10 +96,16 @@ export default function AttendancePage() {
   const loadEmployees = useCallback(async () => {
     try {
       setLoadingEmployees(true);
-      const data = staticClient.getEmployees();
-      setEmployees(data as any);
+      const res = await fetch('/api/users/employees', { cache: 'no-store' });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setEmployees(json.data);
+      } else {
+        setEmployees([]);
+      }
     } catch (err) {
       console.error('Error fetching employees:', err);
+      setEmployees([]);
     } finally {
       setLoadingEmployees(false);
     }
@@ -142,8 +116,7 @@ export default function AttendancePage() {
     try {
       setLoading(true);
       setError(null);
-      const result = await staticClient.getAttendance();
-      setLogs((result.data as any) || []);
+      setLogs([]);
       setCurrentPage(1);
     } catch (err: any) {
       console.error(err);

@@ -11,7 +11,7 @@ import {
 import PageShimmer from '@/components/PageShimmer';
 import { PERMISSION_GROUPS, ALL_PERMISSION_KEYS, PermissionGroup } from '@/lib/permissions';
 import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
+
 
 interface Employee {
   _id: string;
@@ -44,52 +44,9 @@ const PRESET_COLORS = [
   '#64748b', '#d97706'
 ];
 
-const DEFAULT_INLINE_ROLES: RoleData[] = [
-  {
-    _id: 'role-admin-1',
-    name: 'System Admin',
-    description: 'Full system control with access to all modules and configurations.',
-    color: '#7f56d9',
-    isSystemAdmin: true,
-    permissions: [
-      'dashboard:view', 'projects:create', 'projects:read', 'projects:update', 'projects:delete',
-      'tasks:create', 'tasks:read', 'tasks:update', 'tasks:delete',
-      'employees:create', 'employees:read', 'employees:update', 'employees:delete',
-      'roles:create', 'roles:read', 'roles:update', 'roles:delete'
-    ],
-    userCount: 2,
-    createdAt: '2026-01-10T08:00:00.000Z'
-  },
-  {
-    _id: 'role-mgr-2',
-    name: 'Project Manager',
-    description: 'Manages projects, task allocations, client relations, and team workloads.',
-    color: '#3b82f6',
-    isSystemAdmin: false,
-    permissions: [
-      'dashboard:view', 'projects:create', 'projects:read', 'projects:update',
-      'tasks:create', 'tasks:read', 'tasks:update', 'tasks:delete'
-    ],
-    userCount: 3,
-    createdAt: '2026-01-15T09:30:00.000Z'
-  },
-  {
-    _id: 'role-dev-3',
-    name: 'Senior Developer',
-    description: 'Executes complex tasks, conducts code reviews, and updates work logs.',
-    color: '#10b981',
-    isSystemAdmin: false,
-    permissions: ['dashboard:view', 'projects:read', 'tasks:read', 'tasks:update'],
-    userCount: 5,
-    createdAt: '2026-02-01T10:00:00.000Z'
-  }
-];
+const DEFAULT_INLINE_ROLES: RoleData[] = [];
 
-const DEFAULT_INLINE_EMPLOYEES: Employee[] = [
-  { _id: 'emp-1', name: 'Alex Johnson', email: 'alex@techinnovator.com', role: 'System Admin', Project: 'AI WorkTracker Pro', status: 'Active', avatarColor: '#4f46e5', userType: 'admin' },
-  { _id: 'emp-2', name: 'Sarah Connor', email: 'sarah@techinnovator.com', role: 'Project Manager', Project: 'Mobile Banking App', status: 'Active', avatarColor: '#ec4899', userType: 'employee' },
-  { _id: 'emp-3', name: 'Michael Scott', email: 'michael@techinnovator.com', role: 'Senior Developer', Project: 'Enterprise CRM', status: 'Active', avatarColor: '#10b981', userType: 'employee' },
-];
+const DEFAULT_INLINE_EMPLOYEES: Employee[] = [];
 
 const DEFAULT_DEMO_USER = {
   _id: 'emp-1',
@@ -134,33 +91,38 @@ export default function RolesPage() {
   const [selectedEmpId, setSelectedEmpId] = useState('');
   const [reassigning, setReassigning] = useState(false);
 
-  // Authenticate user
-  useEffect(() => {
-    const demoUser = staticClient.getUser();
-    setUser(demoUser);
-    const rList = staticClient.getRoles() as any;
-    setRoles(rList);
-    if (rList.length > 0) setSelectedRoleId(rList[0]._id);
-    setAllEmployees(staticClient.getEmployees() as any);
-    setLoading(false);
-  }, []);
-
   const fetchRoles = useCallback(async () => {
-    const rList = staticClient.getRoles() as any;
-    setRoles(rList);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const res = await fetch('/api/roles', { cache: 'no-store' });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setRoles(json.data);
+        if (json.data.length > 0) setSelectedRoleId(json.data[0]._id);
+      }
+    } catch {} finally {
+      setLoading(false);
+    }
   }, []);
 
   const fetchEmployees = useCallback(async () => {
-    setAllEmployees(staticClient.getEmployees() as any);
+    try {
+      const res = await fetch('/api/users/employees', { cache: 'no-store' });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setAllEmployees(json.data);
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
-    if (user) {
-      fetchRoles();
-      fetchEmployees();
-    }
-  }, [user, fetchRoles, fetchEmployees]);
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(j => { if (j.success && j.user) setUser(j.user); })
+      .catch(() => {});
+    fetchRoles();
+    fetchEmployees();
+  }, [fetchRoles, fetchEmployees]);
 
   const selectedRole = useMemo(() => {
     return roles.find((r) => r._id === selectedRoleId) || roles[0] || null;

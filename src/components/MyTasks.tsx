@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
 import dynamic from 'next/dynamic';
-import { staticClient } from '@/lib/staticClient';
+import { taskApi } from '@/lib/taskApi';
 
 const CKEditorComponent = dynamic(
   () => import('@/components/CKEditorWrapper'),
@@ -128,9 +128,9 @@ export default function MyTasks({ userId }: { userId: string }) {
       _id: 'comment-' + Date.now(),
       author: {
         _id: userId,
-        name: 'Alex Johnson',
+        name: 'User',
         avatarColor: '#4f46e5',
-        role: 'System Administrator'
+        role: 'User'
       },
       content: newCommentText.trim(),
       createdAt: new Date().toISOString(),
@@ -294,7 +294,7 @@ export default function MyTasks({ userId }: { userId: string }) {
       let completedEntries: any[] = [];
 
       try {
-        const worksData = await staticClient.getTaskWork({ employeeId: empId });
+        const worksData = await taskApi.getTaskWork({ employeeId: empId });
 
         if (worksData.success && Array.isArray(worksData.data)) {
           completedEntries = worksData.data.filter((e: any) => e.status === 'Completed' && (e.date === today || !e.date));
@@ -374,11 +374,11 @@ export default function MyTasks({ userId }: { userId: string }) {
 
   const loadData = useCallback(async () => {
     try {
-      const apiTasks = await staticClient.fetchTasksApi();
-      setTasks((apiTasks || staticClient.getTasks()) as any);
+      const apiTasks = await taskApi.fetchTasksApi();
+      setTasks((apiTasks || []) as any);
     } catch (e) {
       console.error(e);
-      setTasks(staticClient.getTasks() as any);
+      setTasks([]);
     }
     setTaskWorks([] as any);
     setLoading(false);
@@ -970,7 +970,7 @@ export default function MyTasks({ userId }: { userId: string }) {
                             title="View task details"
                           >
                             <Eye size={12} />
-                            <span>Details</span>
+                            {/* <span>Details</span> */}
                           </button>
                           {isWorking ? (
                             <>
@@ -1011,7 +1011,7 @@ export default function MyTasks({ userId }: { userId: string }) {
                                 }}
                               >
                                 <StopCircle size={12} />
-                                <span>End Work</span>
+                                {/* <span>End Work</span> */}
                               </button>
                             </>
                           ) : (
@@ -1074,7 +1074,7 @@ export default function MyTasks({ userId }: { userId: string }) {
                                       title="Resume or log more work on this task"
                                     >
                                       <Play size={11} />
-                                      <span>Resume</span>
+                                      {/* <span>Resume</span> */}
                                     </button>
                                   )}
                                 </div>
@@ -1104,7 +1104,7 @@ export default function MyTasks({ userId }: { userId: string }) {
                                       display: 'inline-flex',
                                       alignItems: 'center',
                                       gap: '4px',
-                                      padding: '5px 10px',
+                                      padding: '10px 10px',
                                       fontSize: '0.75rem'
                                     }}
                                   >
@@ -1113,7 +1113,7 @@ export default function MyTasks({ userId }: { userId: string }) {
                                     ) : (
                                       <Play size={12} />
                                     )}
-                                    <span>Start Work</span>
+                                    {/* <span>Start Work</span> */}
                                   </button>
                                 </>
                               )}

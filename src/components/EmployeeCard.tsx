@@ -120,8 +120,8 @@ export default function EmployeeCard({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: 'var(--bg-secondary)',
-                            border: '1px solid var(--border-color)',
+                            
+                            // border: '1px solid var(--border-color)',
                             color: 'black'
                         }}
                     >

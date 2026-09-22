@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell, CheckCheck, Clock, CheckCircle2, ClipboardList, ExternalLink, X } from 'lucide-react';
 import { requestNotificationPermission, sendNativeNotification } from '@/lib/notifications';
-import { staticClient } from '@/lib/staticClient';
 
 interface NotificationItem {
   _id: string;
@@ -51,9 +50,9 @@ export default function NotificationCenter() {
   const fetchNotifications = async () => {
     if (!user) return;
     try {
-      const list = staticClient.getNotifications();
-      setNotifications(list as any);
-      setUnreadCount(list.filter(n => !n.read).length);
+      const list: NotificationItem[] = [];
+      setNotifications(list);
+      setUnreadCount(0);
     } catch (err) {
       console.error('Error fetching notifications:', err);
     }

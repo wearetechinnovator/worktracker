@@ -3,20 +3,22 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { staticClient } from '@/lib/staticClient';
-import { LogIn } from '@/components/animate-ui/icons/log-in';
+import { Button } from '@/components/ui/button';
 import { AnimateIcon } from '@/components/animate-ui/icons/icon';
-import { ExternalLink, ExternalLinkIcon } from '@/components/animate-ui/icons/external-link';
+import { ExternalLinkIcon } from '@/components/animate-ui/icons/external-link';
 
 export default function LoginPage() {
 	const router = useRouter();
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const [showPassword, setShowPassword] = useState(false);
+	const [submitting, setSubmitting] = useState(false);
 
 	const handleLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
+		if (submitting) return;
 
+		setSubmitting(true);
 		try {
 			const response = await fetch(
 				"/api/auth/login",
@@ -50,6 +52,8 @@ export default function LoginPage() {
 		} catch (error) {
 			console.error(error);
 			alert("Something went wrong");
+		} finally {
+			setSubmitting(false);
 		}
 	};
 
@@ -129,21 +133,20 @@ export default function LoginPage() {
 						</div>
 					</div>
 
-
-						<button
-							type="submit"
-							className="btn btn-primary"
-							style={{
-								padding: '8px 16px',
-								fontSize: '0.85rem',
-								marginTop: '10px',
-								width: '100%',
-								height: '38px',
-							}}
-						>
-							Login
-
-						</button>
+					<Button
+						type="submit"
+						loading={submitting}
+						className="btn btn-primary"
+						style={{
+							padding: '8px 16px',
+							fontSize: '0.85rem',
+							marginTop: '10px',
+							width: '100%',
+							height: '38px',
+						}}
+					>
+						Login
+					</Button>
 
 					<p className='flex gap-2 justify-center'>Don't have an account ?
 						<AnimateIcon animateOnHover className='flex gap-1 text-blue-500 cursor-pointer'>
@@ -156,3 +159,4 @@ export default function LoginPage() {
 		</div>
 	);
 }
+

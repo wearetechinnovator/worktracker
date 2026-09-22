@@ -5,6 +5,19 @@ import Task from '@/models/Task';
 import User from '@/models/User';
 import { currentUser } from '@/lib/auth';
 
+function toTimeDate(value: unknown) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+
+  const text = String(value);
+  if (/^\d{2}:\d{2}(:\d{2})?$/.test(text)) {
+    return new Date(`1970-01-01T${text.length === 5 ? `${text}:00` : text}`);
+  }
+
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 // GET /api/tasks/[id] - Retrieve task details
 export async function GET(
   req: Request,
@@ -80,7 +93,10 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const updateData: Record<string, any> = {};
+    const updateData: Record<string, any> = {
+      task_assign_date: body.task_assign_date,
+      task_delay_reason: body.task_delay_reason
+    };
 
     if (body.title !== undefined) updateData.title = body.title.trim();
     if (body.description !== undefined) updateData.description = body.description;
@@ -121,7 +137,7 @@ export async function PATCH(
     }
 
     if (body.completion_time !== undefined || body.dueTime !== undefined) {
-      updateData.completion_time = body.completion_time ?? body.dueTime ?? null;
+      updateData.completion_time = toTimeDate(body.completion_time ?? body.dueTime);
     }
 
     if (body.status !== undefined && typeof body.status === 'number') {

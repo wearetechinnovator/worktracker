@@ -7,10 +7,11 @@ import {
   MessageSquare,
   AlertCircle,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
+
 import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
 import { useModalDraft } from '@/context/ModalDraftContext';
 import {
   CustomDropdown,
@@ -33,6 +34,7 @@ export interface ProjectOption {
   color?: string;
   members?: any[];
   project_users?: any[];
+  client?: any;
   clientId?: any;
 }
 
@@ -85,6 +87,8 @@ export function CreateTaskModal({
     status: 'To Do' as 'To Do' | 'In Progress' | 'Partially Completed' | 'Review' | 'Completed',
     dueDate: '',
     dueTime: '',
+    task_assign_date: '',
+    task_delay_reason: '',
     url: '',
     urls: [] as string[],
     comments: '',
@@ -117,9 +121,8 @@ export function CreateTaskModal({
     } catch {
     }
 
-    const fallback = staticClient.getProjects();
-    setProjects(fallback as any);
-    return fallback;
+    setProjects([]);
+    return [];
   }, []);
 
   // Fetch employees from API
@@ -134,9 +137,8 @@ export function CreateTaskModal({
     } catch {
     }
 
-    const fallback = staticClient.getEmployees();
-    setEmployees(fallback as any);
-    return fallback;
+    setEmployees([]);
+    return [];
   }, []);
 
   // Fetch clients from API
@@ -152,9 +154,8 @@ export function CreateTaskModal({
       // Use the local client list when the API is temporarily unavailable.
     }
 
-    const fallback = staticClient.getClients();
-    setClients(fallback as any);
-    return fallback;
+    setClients([]);
+    return [];
   }, []);
 
   const getProjectContacts = () => {
@@ -295,6 +296,8 @@ export function CreateTaskModal({
           status: editingTask.task_status || (typeof editingTask.status === 'string' ? editingTask.status : 'To Do'),
           dueDate: editingTask.dueDate || '',
           dueTime: editingTask.dueTime || '',
+          task_assign_date: editingTask.task_assign_date ? String(editingTask.task_assign_date).slice(0, 10) : '',
+          task_delay_reason: editingTask.task_delay_reason || '',
           url: editingTask.url || '',
           urls: Array.isArray(editingTask.urls)
             ? editingTask.urls
@@ -317,6 +320,8 @@ export function CreateTaskModal({
           status: 'To Do',
           dueDate: '',
           dueTime: '',
+          task_assign_date: '',
+          task_delay_reason: '',
           url: '',
           urls: [],
           comments: '',
@@ -330,19 +335,40 @@ export function CreateTaskModal({
     }
   }, [isOpen, editingTask, initialProjectId, projectsOptions, employeesList, propUser, fetchProjects, fetchEmployees, fetchClients, getDraft]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
-    Array.from(fileList).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setFormData((prev) => ({
-          ...prev,
-          files: [...prev.files, { name: file.name, url: String(reader.result), size: file.size, type: file.type }],
-        }));
-      };
-      reader.readAsDataURL(file);
-    });
+
+    try {
+      const uploadedFiles = await Promise.all(
+        Array.from(fileList).map(async (file) => {
+          const uploadData = new FormData();
+          uploadData.append('file', file);
+
+          const response = await fetch('/api/uploads', {
+            method: 'POST',
+            credentials: 'include',
+            body: uploadData,
+          });
+          const result = await response.json();
+
+          if (!response.ok || !result.success || !result.data?.url) {
+            throw new Error(result.message || `Failed to upload ${file.name}`);
+          }
+
+          return result.data;
+        })
+      );
+
+      setFormData((prev) => ({
+        ...prev,
+        files: [...prev.files, ...uploadedFiles],
+      }));
+    } catch (uploadError: any) {
+      setError(uploadError.message || 'Failed to upload file');
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const handleRemoveFile = (index: number) => {
@@ -396,6 +422,8 @@ export function CreateTaskModal({
   };
 
   const handleClose = () => {
+    const closingEdit = Boolean(editingTask);
+
     if (isFormDirty()) {
       saveDraft(draftKey, {
         type: 'task',
@@ -406,6 +434,29 @@ export function CreateTaskModal({
     } else {
       clearDraft(draftKey);
     }
+
+    if (closingEdit) {
+      setFormData({
+        title: '',
+        description: '',
+        projectId: initialProjectId || '',
+        assignedTo: [],
+        priority: 'Medium',
+        status: 'To Do',
+        dueDate: '',
+        dueTime: '',
+        task_assign_date: '',
+        task_delay_reason: '',
+        url: '',
+        urls: [],
+        comments: '',
+        contactPerson: '',
+        contactPersons: [],
+        files: [],
+        tags: '',
+      });
+    }
+
     onClose();
   };
 
@@ -436,6 +487,8 @@ export function CreateTaskModal({
         comments: formData.comments ? [{ comment: formData.comments, user_id: userId, datetime: new Date().toISOString() }] : [],
         completion_date: formData.dueDate || undefined,
         completion_time: formData.dueTime || undefined,
+        task_assign_date: formData.task_assign_date || undefined,
+        task_delay_reason: formData.task_delay_reason ? (formData.task_delay_reason.trim() || undefined) : undefined,
         status: 1,
 
         // Backward compatibility properties
@@ -444,29 +497,34 @@ export function CreateTaskModal({
         createdBy: userId,
         dueDate: formData.dueDate || undefined,
         dueTime: formData.dueTime || undefined,
+
+        // Backward-compatible camelCase fields
+        // task_assign_date: formData.task_assign_date || undefined,
+        // task_delay_reason: formData.task_assign_date
+        //   ? (formData.task_delay_reason.trim() || undefined)
+        //   : undefined,
+
         url: formData.urls[0] || formData.url || undefined,
         tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : []
       };
 
       let savedTask: any = null;
 
-      try {
-        const url = editingTask ? `/api/tasks/${editingTask._id}` : '/api/tasks';
-        const method = editingTask ? 'PATCH' : 'POST';
+      const url = editingTask ? `/api/tasks/${editingTask._id}` : '/api/tasks';
+      const method = editingTask ? 'PATCH' : 'POST';
 
-        const res = await fetch(url, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-        const json = await res.json();
-        if (json.success && json.data) {
-          savedTask = json.data;
-        }
-      } catch (apiErr) {
-        console.warn('Task API call failed, persisting in local store:', apiErr);
+      const json = await res.json();
+      if (!res.ok || !json.success || !json.data) {
+        throw new Error(json.message || `Failed to ${editingTask ? 'update' : 'create'} task`);
       }
+
+      savedTask = json.data;
 
       if (!savedTask) {
         savedTask = {
@@ -474,13 +532,6 @@ export function CreateTaskModal({
           ...payload,
           createdAt: new Date().toISOString()
         };
-      }
-
-      if (editingTask) {
-        const idx = staticClient.getTasks().findIndex(t => t._id === editingTask._id);
-        if (idx !== -1) staticClient.getTasks()[idx] = savedTask;
-      } else {
-        staticClient.getTasks().unshift(savedTask);
       }
 
       window.dispatchEvent(new CustomEvent('worktracker-refresh'));
@@ -559,7 +610,7 @@ export function CreateTaskModal({
                     ]}
                     onChange={(val) => setFormData((prev) => ({ ...prev, projectId: val, contactPersons: prev.projectId === val ? prev.contactPersons : [] }))}
                     actionButton={{
-                      label: 'add project',
+                      label: 'Add Project',
                       onClick: () => setIsProjectModalOpen(true),
                     }}
                   />
@@ -620,6 +671,88 @@ export function CreateTaskModal({
                     onChange={(val) => setFormData({ ...formData, dueTime: val })}
                     align="right"
                   />
+                </div>
+
+                {/* Task Assignment Details */}
+                <div
+                  style={{
+                    marginBottom: '16px',
+                    padding: '14px',
+                    border: '1px solid var(--border-color, #e2e8f0)',
+                    borderRadius: '10px',
+                    background: 'var(--bg-secondary, #f8fafc)',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      marginBottom: '12px',
+                      color: 'var(--text-primary, #0f172a)',
+                    }}
+                  >
+                    Task Assignment Details
+                  </div>
+
+                  {/* Assign Date */}
+                  <div
+                    style={{
+                      marginBottom: formData.task_assign_date ? '14px' : 0,
+                    }}
+                  >
+                    <CustomDatePicker
+                      label="Task Assign Date"
+                      value={formData.task_assign_date}
+                      onChange={(val) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          task_assign_date: val,
+                          // Clear the reason when the assignment date is removed.
+                          task_delay_reason: val
+                            ? prev.task_delay_reason
+                            : '',
+                        }))
+                      }
+                    />
+                  </div>
+
+                  {/* Assignment Reason - only visible after date is selected */}
+                  {formData.task_assign_date && (
+                    <div>
+                      <label
+                        className="form-label"
+                        style={{
+                          display: 'block',
+                          fontWeight: 700,
+                          fontSize: '0.75rem',
+                          marginBottom: '6px',
+                        }}
+                      >
+                        Assignment Reason
+                      </label>
+
+                      <textarea
+                        className="form-control"
+                        value={formData.task_delay_reason}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            task_delay_reason: e.target.value,
+                          }))
+                        }
+                        placeholder="Why is this task being assigned?"
+                        rows={3}
+                        style={{
+                          width: '100%',
+                          minHeight: '72px',
+                          resize: 'vertical',
+                          fontSize: '0.8rem',
+                          padding: '9px 10px',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Assign To (Admin Only) - Dual-Column Drag & Drop / Project-Scoped Selection */}
@@ -687,13 +820,13 @@ export function CreateTaskModal({
 
             {/* Comments & Tags (Admin Only) */}
             {isAdmin && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', alignItems: 'start' }}>
+              <div style={{ gap: '16px', marginBottom: '20px', alignItems: 'start' }}>
                 <div>
                   <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
                     Comments / Notes
                   </label>
                   <div className="custom-input-group" style={{ alignItems: 'flex-start' }}>
-                    <span className="custom-input-addon" style={{ height: 'auto', paddingTop: '8px' }}>
+                    <span className="custom-input-addon" style={{ height: '10vh', paddingTop: '8px' }}>
                       <MessageSquare size={14} />
                     </span>
                     <textarea
@@ -706,7 +839,7 @@ export function CreateTaskModal({
                   </div>
                 </div>
 
-                <div>
+                {/* <div>
                   <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
                     Tags (comma separated)
                   </label>
@@ -717,7 +850,7 @@ export function CreateTaskModal({
                     onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                     placeholder="e.g., frontend, urgent, bug"
                   />
-                </div>
+                </div> */}
               </div>
             )}
 
@@ -730,15 +863,13 @@ export function CreateTaskModal({
               >
                 Cancel
               </button>
-              <button type="submit" className="btn btn-primary" >
-                {submitting
-                  ? editingTask
-                    ? 'Updating...'
-                    : 'Creating...'
-                  : editingTask
-                    ? 'Update Task'
-                    : 'Create Task'}
-              </button>
+              <Button
+                type="submit"
+                loading={submitting}
+                className="btn btn-primary"
+              >
+                {editingTask ? 'Update Task' : 'Create Task'}
+              </Button>
             </div>
           </form>
         </div>

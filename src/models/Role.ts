@@ -16,12 +16,14 @@ const roleSchema = new Schema(
     },
 
     created_by: {
-      type: Number,
+      type: Schema.Types.ObjectId,
+      ref: "User",
       default: null,
     },
 
     modified_by: {
-      type: Number,
+      type: Schema.Types.ObjectId,
+      ref: "User",
       default: null,
     },
 
@@ -34,6 +36,15 @@ const roleSchema = new Schema(
     timestamps: true,
   }
 );
+
+const cachedRoleModel = mongoose.models.Role;
+
+if (
+  process.env.NODE_ENV !== "production" &&
+  cachedRoleModel?.schema.path("created_by")?.instance === "Number"
+) {
+  mongoose.deleteModel("Role");
+}
 
 const Role =
   mongoose.models.Role ||

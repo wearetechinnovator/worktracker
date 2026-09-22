@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, LogIn, LogOut, CheckCircle2, AlertCircle, Calendar, Users } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
-import { getClientPunchLocation } from '@/lib/geoClient';
-import { staticClient } from '@/lib/staticClient';
+import PunchRequestModal from '@/components/PunchRequestModal';
+import { punchService } from '@/lib/punchService';
+import { usePunch } from '@/context/PunchContext';
 
 interface PunchData {
   isPunchedIn?: boolean;
@@ -32,16 +33,10 @@ interface PunchData {
 }
 
 const DEFAULT_INLINE_PUNCH: PunchData = {
-  isPunchedIn: true,
-  attendance: {
-    checkIn: '09:00 AM',
-    checkOut: null,
-    checkInLocation: 'Office HQ - New York',
-    checkInLatitude: 40.7128,
-    checkInLongitude: -74.0060,
-  },
-  canPunchIn: false,
-  canPunchOut: true,
+  isPunchedIn: false,
+  attendance: null,
+  canPunchIn: true,
+  canPunchOut: false,
   currentTime: new Date().toLocaleTimeString(),
   settings: {
     punchInWindow: '09:00 AM - 10:00 AM',
@@ -58,8 +53,19 @@ const DEFAULT_DEMO_USER = {
 
 export default function PunchPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
-  const [punchData, setPunchData] = useState<PunchData | null>(DEFAULT_INLINE_PUNCH);
+  const { 
+    isPunchedIn, 
+    canPunchIn, 
+    canPunchOut, 
+    attendance, 
+    pendingRequest,
+    loading: ctxLoading, 
+    punchIn: ctxPunchIn, 
+    punchOut: ctxPunchOut, 
+    refreshPunch,
+    user 
+  } = usePunch();
+  
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +75,15 @@ export default function PunchPage() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [isPreparingReport, setIsPreparingReport] = useState(false);
   const [locationStatus, setLocationStatus] = useState<string>('');
+
+  // Punch Request Modal State
+  const [isPunchRequestModalOpen, setIsPunchRequestModalOpen] = useState(false);
+  const [punchRequestType, setPunchRequestType] = useState<'punchIn' | 'punchOut'>('punchIn');
+  const [punchRequestMeta, setPunchRequestMeta] = useState<{
+    currentTime?: string;
+    startTime?: string | null;
+    endTime?: string | null;
+  }>({});
 
   // Admin Override States
   const [employeesList, setEmployeesList] = useState<any[]>([]);
@@ -100,31 +115,19 @@ export default function PunchPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Authenticate user & load employees for Admin
+  // Fetch user employees list if admin
   useEffect(() => {
-    const demoUser = staticClient.getUser();
-    setUser(demoUser);
-    setEmployeesList(staticClient.getEmployees() as any);
-    setPunchData(staticClient.getPunchStatus() as any);
-    setLoading(false);
-  }, []);
-
-  const loadPunchStatus = async (showLoading = true) => {
-    setPunchData(staticClient.getPunchStatus() as any);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    if (!user) return;
-    loadPunchStatus(true);
-
-    const handleFocus = () => {
-      loadPunchStatus(false);
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [user, selectedEmpId]);
+    if (user?.userType === 'admin') {
+      fetch('/api/users/employees')
+        .then(res => res.json())
+        .then(json => {
+          if (json.success && Array.isArray(json.data)) {
+            setEmployeesList(json.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user]);
 
   const formatTimeTo12Hour = (time24: string) => {
     if (!time24) return '';
@@ -173,11 +176,39 @@ export default function PunchPage() {
   };
 
   const submitPunch = async (action: 'punchIn' | 'punchOut') => {
+    if (pendingRequest) {
+      setError(
+        `You already have a ${
+          pendingRequest.request_type === 'punchIn' ? 'Punch In' : 'Punch Out'
+        } request pending admin approval.`
+      );
+      return;
+    }
+
     setProcessing(true);
-    const newStatus = staticClient.togglePunch();
-    setPunchData(newStatus as any);
-    setSuccessMsg(action === 'punchIn' ? 'Punched in successfully' : 'Punched out successfully');
-    setProcessing(false);
+    setError(null);
+    try {
+      if (action === 'punchIn') {
+        await ctxPunchIn();
+      } else {
+        await ctxPunchOut({ reason: reportPreview });
+      }
+      setSuccessMsg(action === 'punchIn' ? 'Punched in successfully' : 'Punched out successfully');
+    } catch (err: any) {
+      if (err?.requiresRequest || err?.requestType) {
+        setPunchRequestType(action);
+        setPunchRequestMeta({
+          currentTime: err?.currentTime,
+          startTime: action === 'punchIn' ? err?.punchInStartTime : err?.punchOutStartTime,
+          endTime: action === 'punchIn' ? err?.punchInEndTime : err?.punchOutEndTime,
+        });
+        setIsPunchRequestModalOpen(true);
+        return;
+      }
+      setError(err.message || 'Failed to punch');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handlePunch = async (action: 'punchIn' | 'punchOut') => {
@@ -204,7 +235,7 @@ export default function PunchPage() {
     }
   };
 
-  if (loading) {
+  if (ctxLoading) {
     return <PageShimmer variant="punch" />;
   }
 
@@ -313,8 +344,30 @@ export default function PunchPage() {
         </div>
       )}
 
+      {/* Pending Request Alert */}
+      {pendingRequest && (
+        <div className="card" style={{ 
+          borderLeft: '4px solid #f59e0b', 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px', 
+          marginBottom: '20px', 
+          background: '#fffbeb' 
+        }}>
+          <Clock style={{ color: '#d97706', flexShrink: 0 }} />
+          <div>
+            <p style={{ color: '#92400e', fontWeight: 700, margin: 0 }}>
+              {pendingRequest.request_type === 'punchIn' ? 'Punch In' : 'Punch Out'} Request Pending Admin Approval
+            </p>
+            <p style={{ color: '#b45309', fontSize: '0.78rem', margin: '2px 0 0 0' }}>
+              Submitted on {pendingRequest.attendance_date}. Reason: &quot;{pendingRequest.reason}&quot;. Your attendance will update once reviewed.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Shift Completed Banner */}
-      {punchData?.attendance?.checkOut && !punchData?.canPunchIn && (
+      {attendance?.checkOut && !canPunchIn && (
         <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid #10b981', background: '#ecfdf5', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <CheckCircle2 style={{ color: '#10b981' }} />
           <div>
@@ -322,7 +375,7 @@ export default function PunchPage() {
               Shift Completed for Today
             </p>
             <p style={{ color: '#047857', fontSize: '0.78rem', margin: '2px 0 0 0' }}>
-              You punched out at <b>{formatTimeTo12Hour(punchData.attendance.checkOut)}</b>. Re-punching is disabled for the rest of today.
+              You punched out at <b>{attendance.checkOut}</b>. Re-punching is disabled for the rest of today.
             </p>
           </div>
         </div>
@@ -330,7 +383,7 @@ export default function PunchPage() {
 
       {/* Punch Buttons */}
       <div className="card" style={{ marginBottom: '24px' }}>
-        <h3 className="card-title" style={{ marginBottom: '20px' }}>Today's Attendance</h3>
+        <h3 className="card-title" style={{ marginBottom: '20px' }}>Today&apos;s Attendance</h3>
         
         <div style={{ 
           display: 'grid', 
@@ -341,7 +394,7 @@ export default function PunchPage() {
           {/* Punch In Button */}
           <button
             onClick={() => handlePunch('punchIn')}
-            disabled={!punchData?.canPunchIn || processing}
+            disabled={!canPunchIn || processing || Boolean(pendingRequest)}
             className="btn"
             style={{
               height: '120px',
@@ -352,19 +405,19 @@ export default function PunchPage() {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '12px',
-              background: punchData?.canPunchIn ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-              color: punchData?.canPunchIn ? 'white' : 'var(--text-muted)',
-              border: punchData?.canPunchIn ? 'none' : '2px solid var(--border-color)',
-              cursor: punchData?.canPunchIn ? 'pointer' : 'not-allowed',
-              opacity: punchData?.canPunchIn ? 1 : 0.5,
-              filter: punchData?.canPunchIn ? 'none' : 'blur(1px)',
+              background: canPunchIn ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+              color: canPunchIn ? 'white' : 'var(--text-muted)',
+              border: canPunchIn ? 'none' : '2px solid var(--border-color)',
+              cursor: canPunchIn ? 'pointer' : 'not-allowed',
+              opacity: canPunchIn ? 1 : 0.5,
+              filter: canPunchIn ? 'none' : 'blur(1px)',
             }}
           >
             <LogIn size={32} />
             <span>PUNCH IN</span>
-            {punchData?.attendance?.checkIn && (
+            {attendance?.checkIn && (
               <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>
-                ✓ {punchData.attendance.checkIn}
+                ✓ {attendance.checkIn}
               </span>
             )}
           </button>
@@ -372,7 +425,7 @@ export default function PunchPage() {
           {/* Punch Out Button */}
           <button
             onClick={() => handlePunch('punchOut')}
-            disabled={!punchData?.canPunchOut || processing || isPreparingReport}
+            disabled={!isPunchedIn || processing || isPreparingReport || Boolean(pendingRequest)}
             className="btn"
             style={{
               height: '120px',
@@ -383,19 +436,19 @@ export default function PunchPage() {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '12px',
-              background: punchData?.canPunchOut ? '#ef4444' : 'var(--bg-tertiary)',
-              color: punchData?.canPunchOut ? 'white' : 'var(--text-muted)',
-              border: punchData?.canPunchOut ? 'none' : '2px solid var(--border-color)',
-              cursor: punchData?.canPunchOut ? 'pointer' : 'not-allowed',
-              opacity: punchData?.canPunchOut ? 1 : 0.5,
-              filter: punchData?.canPunchOut ? 'none' : 'blur(1px)',
+              background: isPunchedIn ? '#ef4444' : 'var(--bg-tertiary)',
+              color: isPunchedIn ? 'white' : 'var(--text-muted)',
+              border: isPunchedIn ? 'none' : '2px solid var(--border-color)',
+              cursor: isPunchedIn && !processing && !pendingRequest ? 'pointer' : 'not-allowed',
+              opacity: isPunchedIn && !pendingRequest ? 1 : 0.5,
+              filter: isPunchedIn ? 'none' : 'blur(1px)',
             }}
           >
             <LogOut size={32} />
             <span>PUNCH OUT</span>
-            {punchData?.attendance?.checkOut && (
+            {attendance?.checkOut && (
               <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>
-                ✓ {punchData.attendance.checkOut}
+                ✓ {attendance.checkOut}
               </span>
             )}
           </button>
@@ -413,8 +466,8 @@ export default function PunchPage() {
             <strong>Allowed Timings:</strong>
           </div>
           <div style={{ color: 'var(--text-secondary)', marginLeft: '24px' }}>
-            <div>• Punch In: {punchData?.settings?.punchInWindow || '09:00 AM - 10:00 AM'}</div>
-            <div>• Punch Out: {punchData?.settings?.punchOutWindow || '05:00 PM - 07:00 PM'}</div>
+            <div>• Punch In: 09:00 AM - 10:00 AM</div>
+            <div>• Punch Out: 05:00 PM - 07:00 PM</div>
           </div>
 
           {locationStatus && (
@@ -426,7 +479,7 @@ export default function PunchPage() {
       </div>
 
       {/* Current Status */}
-      {punchData?.attendance && (
+      {attendance && (
         <div className="card">
           <h3 className="card-title" style={{ marginBottom: '16px' }}>Today's Record</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
@@ -435,7 +488,7 @@ export default function PunchPage() {
                 Status
               </div>
               <div style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>
-                {punchData.attendance?.status || 'Present'}
+                {attendance.status || 'Present'}
               </div>
             </div>
             <div>
@@ -443,7 +496,7 @@ export default function PunchPage() {
                 Check In
               </div>
               <div style={{ fontWeight: 700 }}>
-                {punchData.attendance?.checkIn || '-'}
+                {attendance.checkIn || '-'}
               </div>
             </div>
             <div>
@@ -451,7 +504,7 @@ export default function PunchPage() {
                 Check Out
               </div>
               <div style={{ fontWeight: 700 }}>
-                {punchData.attendance?.checkOut || '-'}
+                {attendance.checkOut || '-'}
               </div>
             </div>
           </div>
@@ -469,10 +522,10 @@ export default function PunchPage() {
                 Check In Details
               </div>
               <div style={{ color: 'var(--text-secondary)' }}>
-                <div>• <strong>IP Address:</strong> {punchData.attendance?.checkInIpAddress || '-'}</div>
-                <div>• <strong>Location:</strong> {punchData.attendance?.checkInLocation || '-'}</div>
-                {punchData.attendance?.checkInLatitude !== undefined && punchData.attendance?.checkInLongitude !== undefined && (
-                  <div>• <strong>Geo Coordinates:</strong> {punchData.attendance.checkInLatitude?.toFixed(4)}, {punchData.attendance.checkInLongitude?.toFixed(4)}</div>
+                <div>• <strong>IP Address:</strong> {attendance.punch_in_ip || '-'}</div>
+                <div>• <strong>Browser:</strong> {attendance.punch_in_browser || '-'}</div>
+                {attendance.punch_in_geo && attendance.punch_in_geo.length >= 2 && (
+                  <div>• <strong>Geo Coordinates:</strong> {attendance.punch_in_geo[0]}, {attendance.punch_in_geo[1]}</div>
                 )}
               </div>
             </div>
@@ -482,10 +535,10 @@ export default function PunchPage() {
                 Check Out Details
               </div>
               <div style={{ color: 'var(--text-secondary)' }}>
-                <div>• <strong>IP Address:</strong> {punchData.attendance?.checkOutIpAddress || '-'}</div>
-                <div>• <strong>Location:</strong> {punchData.attendance?.checkOutLocation || '-'}</div>
-                {punchData.attendance?.checkOutLatitude !== undefined && punchData.attendance?.checkOutLongitude !== undefined && (
-                  <div>• <strong>Geo Coordinates:</strong> {punchData.attendance.checkOutLatitude?.toFixed(4)}, {punchData.attendance.checkOutLongitude?.toFixed(4)}</div>
+                <div>• <strong>IP Address:</strong> {attendance.punch_out_ip || '-'}</div>
+                <div>• <strong>Browser:</strong> {attendance.punch_out_browser || '-'}</div>
+                {attendance.punch_out_geo && attendance.punch_out_geo.length >= 2 && (
+                  <div>• <strong>Geo Coordinates:</strong> {attendance.punch_out_geo[0]}, {attendance.punch_out_geo[1]}</div>
                 )}
               </div>
             </div>
@@ -541,6 +594,24 @@ export default function PunchPage() {
           Back to Dashboard
         </button>
       </div>
+
+      {/* Punch Request Modal */}
+      <PunchRequestModal
+        isOpen={isPunchRequestModalOpen}
+        onClose={() => setIsPunchRequestModalOpen(false)}
+        requestType={punchRequestType}
+        currentTime={punchRequestMeta.currentTime}
+        startTime={punchRequestMeta.startTime}
+        endTime={punchRequestMeta.endTime}
+        onSuccess={async () => {
+          await refreshPunch();
+          setSuccessMsg(
+            `${
+              punchRequestType === 'punchIn' ? 'Punch In' : 'Punch Out'
+            } request submitted to admin successfully.`
+          );
+        }}
+      />
     </div>
   );
 }

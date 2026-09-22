@@ -22,6 +22,11 @@ const userSchema = new Schema(
       type: String,
       default: null,
     },
+    role_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Role",
+      default: null,
+    },
     group: {
       type: String,
       default: null,
@@ -34,6 +39,11 @@ const userSchema = new Schema(
     modified_by: {
       type: Schema.Types.ObjectId,
       ref: "User",
+      default: null,
+    },
+    settings_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Settings",
       default: null,
     },
     isVerify: {

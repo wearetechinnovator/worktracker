@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
 import PageShimmer from '@/components/PageShimmer';
-import { staticClient } from '@/lib/staticClient';
 
 interface Employee {
   _id: string;
@@ -106,30 +105,53 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
       setLoading(true);
       setError(null);
       
-      const proj = staticClient.getProjects().find(p => p._id === id);
-      const empsData = staticClient.getEmployees();
-      const workData = staticClient.getWorkEntries().filter(w => w.projectId === id);
+      const [projRes, empRes] = await Promise.all([
+        fetch('/api/projects', { credentials: 'include', cache: 'no-store' }),
+        fetch('/api/users/employees', { credentials: 'include', cache: 'no-store' })
+      ]);
+
+      const projData = await projRes.json();
+      const empData = await empRes.json();
+
+      const projectsList: any[] = (projRes.ok && projData.success && Array.isArray(projData.data)) ? projData.data : [];
+      const proj = projectsList.find(p => String(p._id) === String(id));
 
       if (!proj) {
         throw new Error('Failed to load project details.');
       }
 
-      setProject(proj as any);
-      setEntries(workData as any);
-      setTotalMinutes(120);
+      const empsList: any[] = (empRes.ok && empData.success && Array.isArray(empData.data)) ? empData.data : [];
 
-      setAllEmployees(empsData as any);
+      setProject({
+        _id: String(proj._id),
+        name: proj.name,
+        description: proj.short_description || '',
+        color: '#6366f1',
+        members: Array.isArray(proj.project_users)
+          ? proj.project_users.map((m: any) => typeof m === 'object' ? m : { _id: String(m), name: 'Member', email: '', role: 'Employee', avatarColor: '#3b82f6' })
+          : [],
+      } as any);
+
+      setEntries([]);
+      setTotalMinutes(0);
+      setAllEmployees(empsList.map((e: any) => ({
+        _id: String(e._id),
+        name: e.name || e.full_name || 'User',
+        email: e.email || '',
+        role: e.role || e.designation || 'Employee',
+        avatarColor: e.avatarColor || '#3b82f6'
+      })) as any);
 
       // Pre-fill edit forms
-      setEditProjName(proj.name);
-      setEditProjDesc(proj.description || '');
-      setEditProjColor(proj.color);
-      setEditProjMembers((proj.members || []).map((m: any) => typeof m === 'string' ? m : m._id));
+      setEditProjName(proj.name || '');
+      setEditProjDesc(proj.short_description || '');
+      setEditProjColor('#6366f1');
+      setEditProjMembers(Array.isArray(proj.project_users) ? proj.project_users.map((m: any) => typeof m === 'string' ? m : m._id) : []);
       
       if (user.userType === 'employee') {
         setLogEmpId(user._id);
-      } else if (empsData.length > 0) {
-        setLogEmpId(empsData[0]._id);
+      } else if (empsList.length > 0) {
+        setLogEmpId(empsList[0]._id);
       }
     } catch (err: any) {
       console.error(err);
@@ -154,13 +176,18 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     }
 
     try {
-      const data = await staticClient.updateProject(id, {
-        name: editProjName,
-        description: editProjDesc,
-        color: editProjColor,
-        members: editProjMembers
+      setSavingProject(true);
+      const res = await fetch(`/api/projects?id=${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editProjName.trim(),
+          short_description: editProjDesc.trim(),
+          project_users: editProjMembers,
+        }),
       });
-      if (!data.success) throw new Error('Failed to update Project details');
+      const data = await res.json();
+      if (!res.ok || data.success === false) throw new Error(data.message || 'Failed to update project details');
 
       setIsEditProjectOpen(false);
       await fetchProjectData();
@@ -176,10 +203,13 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     if (!confirm('Are you sure you want to delete this Project section? This will also cascade-delete all work logs registered in it!')) return;
 
     try {
-      const data = await staticClient.deleteProject(id);
-      if (!data.success) throw new Error('Failed to delete');
+      const res = await fetch(`/api/projects?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok || data.success === false) throw new Error(data.message || 'Failed to delete project');
 
-      router.push('/');
+      router.push('/user/project');
     } catch (err: any) {
       alert(err.message);
     }
@@ -195,21 +225,25 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     }
 
     try {
-      const data = await staticClient.createWorkLog({
+      setSavingLog(true);
+      const newEntry: WorkEntry = {
+        _id: 'work-' + Date.now(),
         projectId: id,
         employeeId: finalEmpId,
+        employeeName: user.name || 'User',
+        employeeAvatarColor: '#3b82f6',
         title: logTitle,
         date: logDate,
         startTime: logStart,
         endTime: logEnd,
-        description: logDesc
-      });
-      if (!data.success) throw new Error('Failed to log session');
+        actualTime: 60,
+        description: logDesc,
+      };
+      setEntries(prev => [newEntry, ...prev]);
 
       setLogTitle('');
       setLogDesc('');
       setIsAddLogOpen(false);
-      await fetchProjectData();
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -239,20 +273,19 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     }
 
     try {
-      const data = await staticClient.updateWorkLog(editingLog._id, {
-        projectId: id,
+      setSavingLog(true);
+      setEntries(prev => prev.map(w => w._id === editingLog._id ? {
+        ...w,
         employeeId: finalEmpId,
         title: logTitle,
         date: logDate,
         startTime: logStart,
         endTime: logEnd,
         description: logDesc
-      });
-      if (!data.success) throw new Error('Failed to update work log');
+      } : w));
 
       setIsEditLogOpen(false);
       setEditingLog(null);
-      await fetchProjectData();
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -265,10 +298,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     if (!confirm('Are you sure you want to delete this work session log?')) return;
 
     try {
-      const data = await staticClient.deleteWorkLog(logId);
-      if (!data.success) throw new Error('Failed to delete log');
-
-      await fetchProjectData();
+      setEntries(prev => prev.filter(w => w._id !== logId));
     } catch (err: any) {
       alert(err.message);
     }

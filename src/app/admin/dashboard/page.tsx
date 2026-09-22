@@ -19,23 +19,11 @@ import PageShimmer from '@/components/PageShimmer';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import { getClientPunchLocation } from '@/lib/geoClient';
 import CreateProjectModal from '@/components/CreateProjectModal';
-import {
-	CustomDropdown,
-	CustomMultiSelectDropdown,
-	CustomDatePicker,
-	CustomTimePicker,
-	CustomFileAttachment,
-	CustomMultipleLinks
-} from '@/components/TaskFormControls';
-import { ProjectAssigneeSelector } from '@/components/ProjectAssigneeSelector';
+import CreateTaskModal from '@/components/CreateTaskModal';
 import dynamic from 'next/dynamic';
 
 import './dashboard.css';
 
-const CKEditorComponent = dynamic(
-	() => import('@/components/CKEditorWrapper'),
-	{ ssr: false }
-);
 
 // ======================================
 // ================ Types ===============
@@ -65,28 +53,16 @@ const DEFAULT_DEMO_USER = {
 	isPunchedIn: true,
 };
 
-const DEFAULT_INLINE_EMPLOYEES = [
-	{ _id: 'emp-1', name: 'Alex Johnson', email: 'alex@techinnovator.com', role: 'System Admin', Project: 'AI WorkTracker Pro', status: 'Active', avatarColor: '#4f46e5', userType: 'admin', totalMinutes: 1420 },
-	{ _id: 'emp-2', name: 'Sarah Connor', email: 'sarah@techinnovator.com', role: 'Project Manager', Project: 'Mobile Banking App', status: 'Active', avatarColor: '#ec4899', userType: 'employee', totalMinutes: 1180 },
-	{ _id: 'emp-3', name: 'Michael Scott', email: 'michael@techinnovator.com', role: 'Senior Developer', Project: 'Enterprise CRM', status: 'Active', avatarColor: '#10b981', userType: 'employee', totalMinutes: 960 },
-	{ _id: 'emp-4', name: 'Dwight Schrute', email: 'dwight@techinnovator.com', role: 'UI/UX Designer', Project: 'Cloud Analytics', status: 'Active', avatarColor: '#f59e0b', userType: 'employee', totalMinutes: 840 },
-	{ _id: 'emp-5', name: 'Jim Halpert', email: 'jim@techinnovator.com', role: 'QA Lead', Project: 'AI WorkTracker Pro', status: 'Active', avatarColor: '#8b5cf6', userType: 'employee', totalMinutes: 720 },
-];
-
-const DEFAULT_INLINE_PROJECTS = [
-	{ _id: 'proj-1', name: 'AI WorkTracker Pro', description: 'Next-gen workforce management platform with AI insights.', color: '#4f46e5', members: ['emp-1', 'emp-5'], entryCount: 12, totalMinutes: 4800 },
-	{ _id: 'proj-2', name: 'Mobile Banking App', description: 'Fintech mobile application with biometric login.', color: '#ec4899', members: ['emp-2'], entryCount: 8, totalMinutes: 2400 },
-	{ _id: 'proj-3', name: 'Enterprise CRM Redesign', description: 'Complete UI overhaul for corporate CRM clients.', color: '#10b981', members: ['emp-3'], entryCount: 6, totalMinutes: 1800 },
-	{ _id: 'proj-4', name: 'Cloud Analytics Dashboard', description: 'Real-time telemetry and reporting system.', color: '#f59e0b', members: ['emp-4'], entryCount: 4, totalMinutes: 1200 },
-];
+const DEFAULT_INLINE_EMPLOYEES: Employee[] = [];
+const DEFAULT_INLINE_PROJECTS: Project[] = [];
 
 export default function Dashboard() {
 	const router = useRouter();
-	const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
+	const [user, setUser] = useState<any>([]);
 
 	// Data State initialized directly with inline data
-	const [employees, setEmployees] = useState<Employee[]>(DEFAULT_INLINE_EMPLOYEES as any);
-	const [projects, setProjects] = useState<Project[]>(DEFAULT_INLINE_PROJECTS as any);
+	const [employees, setEmployees] = useState<Employee[]>([]);
+	const [projects, setProjects] = useState<Project[]>([]);
 	const [entries, setEntries] = useState<WorkEntry[]>([]);
 	const [stats, setStats] = useState<DashboardStats | null>(null);
 	const [loading, setLoading] = useState(false);
@@ -104,6 +80,7 @@ export default function Dashboard() {
 	const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
 	const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
 	const [isWorkModalOpen, setIsWorkModalOpen] = useState(false);
+	const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
 
 	// KPI Widget Customization & 3-Dot Settings State
 	const [isKpiSettingsOpen, setIsKpiSettingsOpen] = useState(false);
@@ -153,8 +130,6 @@ export default function Dashboard() {
 	const workmodes = ['Hybrid', 'Remote', 'Onsite'];
 
 
-	const [showModal, setShowModal] = useState(false);
-	const [editingTask, setEditingTask] = useState<Task | null>(null);
 	const [tasksKey, setTasksKey] = useState(0);
 
 	// AI Activity Tracking State
@@ -171,24 +146,6 @@ export default function Dashboard() {
 	const featuredEmployee = employees.length > 0 ? employees[0] : meEmployee;
 	const isAdmin = user?.userType === 'admin';
 
-	// Form state
-	const [formData, setFormData] = useState({
-		title: '',
-		description: '',
-		projectId: '',
-		assignedTo: [] as string[],
-		priority: 'Medium' as 'Low' | 'Medium' | 'High' | 'Urgent',
-		status: 'To Do' as 'To Do' | 'In Progress' | 'Partially Completed' | 'Review' | 'Completed',
-		dueDate: '',
-		dueTime: '',
-		url: '',
-		urls: [] as string[],
-		comments: '',
-		contactPerson: '',
-		contactPersons: [] as string[],
-		files: [] as Array<{ name: string; url: string; size?: number; type?: string }>,
-		tags: '',
-	});
 
 	const getTimelineColor = (projColor: string) => {
 		if (projColor === '#10b981') return 'green';
@@ -261,65 +218,33 @@ export default function Dashboard() {
 		alert('Task summary copied to clipboard!');
 	};
 
-	const openCreateModal = () => {
-		resetForm();
-		if (!isAdmin && user) {
-			setFormData((current) => ({
-				...current,
-				assignedTo: user._id ? [user._id] : [],
-				Project: user.Project || '',
-			}));
-		}
-		setShowModal(true);
-	};
-
-	const resetForm = () => {
-		setFormData({
-			title: '',
-			description: '',
-			projectId: '',
-			assignedTo: [],
-			priority: 'Medium',
-			status: 'To Do',
-			dueDate: '',
-			dueTime: '',
-			url: '',
-			urls: [],
-			comments: '',
-			contactPerson: '',
-			contactPersons: [],
-			files: [],
-			tags: '',
-		});
-		setEditingTask(null);
-	};
 
 	const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 	const getTrendX = (index: number) => 40 + index * 63.3;
 
-	// Static Demo Constants for Visual UI Components
-	const realProjectsTotal = 4;
-	const realProjectsOnTrack = 3;
-	const realProjectsAtRisk = 1;
-	const realProjectsDelayed = 0;
+	// Dynamic Constants for Visual UI Components
+	const realProjectsTotal = projects.length;
+	const realProjectsOnTrack = projects.filter(p => (p as any).status !== 'Delayed' && (p as any).status !== 'At Risk').length;
+	const realProjectsAtRisk = projects.filter(p => (p as any).status === 'At Risk').length;
+	const realProjectsDelayed = projects.filter(p => (p as any).status === 'Delayed').length;
 
-	const totalTrackedMinutes = 8500;
-	const trackedHoursStr = '141.6 h';
-	const totalUtilizationPct = 88;
-	const totalCapacityHours = 160;
-	const totalScheduledHours = 142;
-	const onTimeDeliveryPct = 92;
-	const completedTasksCount = 12;
-	const onTimeTasksCount = 11;
+	const totalTrackedMinutes = entries.reduce((acc, e) => acc + ((e as any).minutesWorked || ((e as any).hoursWorked || 0) * 60), 0);
+	const trackedHoursStr = `${(totalTrackedMinutes / 60).toFixed(1)} h`;
+	const totalUtilizationPct = employees.length > 0 ? 100 : 0;
+	const totalCapacityHours = employees.length * 40;
+	const totalScheduledHours = Math.round(totalTrackedMinutes / 60);
+	const onTimeDeliveryPct = 0;
+	const completedTasksCount = tasksList.filter(t => String(t.status) === 'Completed').length;
+	const onTimeTasksCount = completedTasksCount;
 
 	const trendDays = [
-		{ dateStr: '2026-09-05', dayLabel: 'Sat 5', trackedH: 6.5, overtimeH: 0, untrackedH: 1.5 },
-		{ dateStr: '2026-09-06', dayLabel: 'Sun 6', trackedH: 0, overtimeH: 0, untrackedH: 8.0 },
-		{ dateStr: '2026-09-07', dayLabel: 'Mon 7', trackedH: 8.5, overtimeH: 0.5, untrackedH: 0 },
-		{ dateStr: '2026-09-08', dayLabel: 'Tue 8', trackedH: 9.0, overtimeH: 1.0, untrackedH: 0 },
-		{ dateStr: '2026-09-09', dayLabel: 'Wed 9', trackedH: 8.0, overtimeH: 0, untrackedH: 0 },
-		{ dateStr: '2026-09-10', dayLabel: 'Thu 10', trackedH: 8.2, overtimeH: 0.2, untrackedH: 0 },
-		{ dateStr: '2026-09-11', dayLabel: 'Fri 11', trackedH: 7.8, overtimeH: 0, untrackedH: 0.2 },
+		{ dateStr: '', dayLabel: 'Sat', trackedH: 0, overtimeH: 0, untrackedH: 0 },
+		{ dateStr: '', dayLabel: 'Sun', trackedH: 0, overtimeH: 0, untrackedH: 0 },
+		{ dateStr: '', dayLabel: 'Mon', trackedH: 0, overtimeH: 0, untrackedH: 0 },
+		{ dateStr: '', dayLabel: 'Tue', trackedH: 0, overtimeH: 0, untrackedH: 0 },
+		{ dateStr: '', dayLabel: 'Wed', trackedH: 0, overtimeH: 0, untrackedH: 0 },
+		{ dateStr: '', dayLabel: 'Thu', trackedH: 0, overtimeH: 0, untrackedH: 0 },
+		{ dateStr: '', dayLabel: 'Fri', trackedH: 0, overtimeH: 0, untrackedH: 0 },
 	];
 
 	const maxTrendH = 10;
@@ -345,91 +270,47 @@ export default function Dashboard() {
 		return idx === 0 ? `M ${x},${y}` : `${acc} L ${x},${y}`;
 	}, '');
 
-	const displayPerformanceProjects = [
-		{
-			id: 'proj-1',
-			name: 'AI WorkTracker Pro',
-			est: '120h',
-			act: '105h',
-			var: '-15h',
-			varColor: '#16a34a',
-			pct: 88,
-			barColor: '#10b981',
-			status: 'On Track',
-			statusBg: '#ecfdf5',
-			statusColor: '#047857',
-		},
-		{
-			id: 'proj-2',
-			name: 'Mobile Banking App',
-			est: '90h',
-			act: '94h',
-			var: '+4h',
-			varColor: '#dc2626',
-			pct: 65,
-			barColor: '#f59e0b',
-			status: 'At Risk',
-			statusBg: '#fffbeb',
-			statusColor: '#b45309',
-		},
-		{
-			id: 'proj-3',
-			name: 'Enterprise CRM Redesign',
-			est: '150h',
-			act: '130h',
-			var: '-20h',
-			varColor: '#16a34a',
-			pct: 92,
-			barColor: '#10b981',
-			status: 'On Track',
-			statusBg: '#ecfdf5',
-			statusColor: '#047857',
-		},
-		{
-			id: 'proj-4',
-			name: 'Cloud Analytics Platform',
-			est: '80h',
-			act: '75h',
-			var: '-5h',
-			varColor: '#16a34a',
-			pct: 78,
-			barColor: '#10b981',
-			status: 'On Track',
-			statusBg: '#ecfdf5',
-			statusColor: '#047857',
-		},
-	];
+	const displayPerformanceProjects = projects.map(p => ({
+		id: p._id,
+		name: p.name,
+		est: '0h',
+		act: `${Math.round(((p as any).totalMinutes || 0) / 60)}h`,
+		var: '0h',
+		varColor: '#16a34a',
+		pct: (p as any).progress || 0,
+		barColor: p.color || '#4f46e5',
+		status: (p as any).status || 'Active',
+		statusBg: '#ecfdf5',
+		statusColor: '#047857',
+	}));
 
-	const healthOnTrack = 3;
-	const healthAtRisk = 1;
-	const healthDelayed = 0;
-	const healthCompletedTasks = 12;
-	const onTrackPct = 75;
-	const atRiskPct = 25;
-	const delayedPct = 0;
+	const healthOnTrack = realProjectsOnTrack;
+	const healthAtRisk = realProjectsAtRisk;
+	const healthDelayed = realProjectsDelayed;
+	const healthCompletedTasks = completedTasksCount;
+	const totalHealthProj = projects.length || 1;
+	const onTrackPct = Math.round((healthOnTrack / totalHealthProj) * 100);
+	const atRiskPct = Math.round((healthAtRisk / totalHealthProj) * 100);
+	const delayedPct = Math.round((healthDelayed / totalHealthProj) * 100);
 
-	const totalDistHoursStr = '141.6';
-	const timeDistBreakdown = [
-		{ name: 'Development', color: '#3b82f6', mins: 4200, hours: '70.0 h', pct: 49 },
-		{ name: 'Design', color: '#8b5cf6', mins: 2100, hours: '35.0 h', pct: 25 },
-		{ name: 'Meetings', color: '#a855f7', mins: 1200, hours: '20.0 h', pct: 14 },
-		{ name: 'Testing', color: '#f59e0b', mins: 600, hours: '10.0 h', pct: 7 },
-		{ name: 'Documentation', color: '#84cc16', mins: 400, hours: '6.6 h', pct: 5 },
-	];
+	const totalDistHoursStr = (totalTrackedMinutes / 60).toFixed(1);
+	const timeDistBreakdown = totalTrackedMinutes > 0 ? [
+		{ name: 'Development', color: '#3b82f6', mins: totalTrackedMinutes, hours: `${(totalTrackedMinutes / 60).toFixed(1)} h`, pct: 100 },
+	] : [];
 
-	const teamUtilizationData = [
-		{ name: 'Development', pct: 92, schedStr: '147h / 160h' },
-		{ name: 'Design', pct: 85, schedStr: '68h / 80h' },
-		{ name: 'Marketing', pct: 78, schedStr: '31h / 40h' },
-		{ name: 'QA', pct: 88, schedStr: '35h / 40h' },
-		{ name: 'Support', pct: 70, schedStr: '28h / 40h' },
-	];
+	const teamUtilizationData: any[] = [];
 
-	const realTopEmployees = [
-		{ id: 'emp-1', name: 'Alex Johnson', initials: 'AJ', avatarColor: '#4f46e5', hours: '42.5 h', tasksDone: 5, onTimePct: '100%', aiAssistedPct: '0%', numericHours: 2550 },
-		{ id: 'emp-2', name: 'Sarah Connor', initials: 'SC', avatarColor: '#ec4899', hours: '38.0 h', tasksDone: 4, onTimePct: '100%', aiAssistedPct: '0%', numericHours: 2280 },
-		{ id: 'emp-3', name: 'Michael Scott', initials: 'MS', avatarColor: '#10b981', hours: '35.5 h', tasksDone: 3, onTimePct: '90%', aiAssistedPct: '0%', numericHours: 2130 },
-	];
+	const realTopEmployees = employees.map(emp => ({
+		id: emp._id,
+		name: emp.name,
+		initials: emp.name ? emp.name.split(' ').map(n => n[0]).join('').toUpperCase() : '?',
+		avatarColor: emp.avatarColor || '#4f46e5',
+		hours: `${((emp.totalMinutes || 0) / 60).toFixed(1)} h`,
+		tasksDone: 0,
+		onTimePct: '100%',
+		aiAssistedPct: '0%',
+		numericHours: emp.totalMinutes || 0,
+	}));
 
 	const kpiDefinitions = [
 		{
@@ -521,7 +402,7 @@ export default function Dashboard() {
 			{error && (
 				<div className="card" style={{ borderLeft: '4px solid #ef4444', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
 					<AlertCircle style={{ color: '#ef4444' }} />
-					<p style={{ fontWeight: 650 }}>{error}</p>
+					<p style={{ fontWeight: 400 }}>{error}</p>
 				</div>
 			)}
 
@@ -619,7 +500,7 @@ export default function Dashboard() {
 												)}
 												{row.label}
 											</span>
-											{row.value && <span style={{ fontWeight: 700, color: '#0f172a' }}>{row.value}</span>}
+											{row.value && <span style={{ fontWeight: 400, color: '#0f172a' }}>{row.value}</span>}
 										</div>
 									))}
 								</div>
@@ -634,7 +515,7 @@ export default function Dashboard() {
 					<div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px' }}>
 						<div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
 							<div>
-								<h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>Edit KPI Widgets</h3>
+								<h3 style={{ fontSize: '1.05rem', fontWeight: 400 }}>Edit KPI Widgets</h3>
 								<p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
 									Unhide or hide KPI section widgets. Cards will align automatically.
 								</p>
@@ -676,7 +557,7 @@ export default function Dashboard() {
 											>
 												<WIcon size={14} />
 											</div>
-											<span style={{ fontSize: '0.82rem', fontWeight: 650, color: '#1e293b' }}>{widget.title}</span>
+											<span style={{ fontSize: '0.82rem', fontWeight: 400, color: '#1e293b' }}>{widget.title}</span>
 										</div>
 										<input
 											type="checkbox"
@@ -693,7 +574,7 @@ export default function Dashboard() {
 							<button
 								type="button"
 								onClick={resetAllKpiWidgets}
-								style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
+								style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '0.78rem', fontWeight: 400, cursor: 'pointer' }}
 							>
 								Reset to Show All
 							</button>
@@ -701,7 +582,7 @@ export default function Dashboard() {
 								type="button"
 								className="btn btn-primary"
 								onClick={() => setIsEditWidgetsModalOpen(false)}
-								style={{ padding: '8px 20px', fontSize: '0.82rem', fontWeight: 650 }}
+								style={{ padding: '8px 20px', fontSize: '0.82rem', fontWeight: 400 }}
 							>
 								Done
 							</button>
@@ -729,7 +610,7 @@ export default function Dashboard() {
 							<button
 								type="button"
 								onClick={() => setIsTrendUnitOpen(!isTrendUnitOpen)}
-								style={{ border: '1px solid #e2e8f0', borderRadius: '7px', padding: '4px 10px', fontSize: '0.75rem', fontWeight: 600, color: '#475569', background: '#fff', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+								style={{ border: '1px solid #e2e8f0', borderRadius: '7px', padding: '4px 10px', fontSize: '0.75rem', fontWeight: 400, color: '#475569', background: '#fff', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
 							>
 								<span>{trendUnit}</span>
 								<ChevronDown size={13} style={{ color: '#64748b' }} />
@@ -739,14 +620,14 @@ export default function Dashboard() {
 									<button
 										type="button"
 										onClick={() => { setTrendUnit('Hours'); setIsTrendUnitOpen(false); }}
-										style={{ width: '100%', textDecoration: 'none', background: trendUnit === 'Hours' ? '#eff6ff' : 'transparent', color: trendUnit === 'Hours' ? '#2563eb' : '#334155', border: 'none', padding: '6px 10px', textAlign: 'left', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+										style={{ width: '100%', textDecoration: 'none', background: trendUnit === 'Hours' ? '#eff6ff' : 'transparent', color: trendUnit === 'Hours' ? '#2563eb' : '#334155', border: 'none', padding: '6px 10px', textAlign: 'left', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 400, cursor: 'pointer' }}
 									>
 										Hours
 									</button>
 									<button
 										type="button"
 										onClick={() => { setTrendUnit('Days'); setIsTrendUnitOpen(false); }}
-										style={{ width: '100%', textDecoration: 'none', background: trendUnit === 'Days' ? '#eff6ff' : 'transparent', color: trendUnit === 'Days' ? '#2563eb' : '#334155', border: 'none', padding: '6px 10px', textAlign: 'left', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+										style={{ width: '100%', textDecoration: 'none', background: trendUnit === 'Days' ? '#eff6ff' : 'transparent', color: trendUnit === 'Days' ? '#2563eb' : '#334155', border: 'none', padding: '6px 10px', textAlign: 'left', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 400, cursor: 'pointer' }}
 									>
 										Days
 									</button>
@@ -756,10 +637,10 @@ export default function Dashboard() {
 					</div>
 
 					{/* Legend */}
-					<div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '12px', fontSize: '0.73rem', fontWeight: 600 }}>
+					<div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '12px', fontSize: '0.73rem', fontWeight: 400 }}>
 						<div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#eff6ff', color: '#2563eb', padding: '3px 10px', borderRadius: '12px' }}>
 							<span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
-							<span>Tracked Hours</span>
+							<span >Tracked Hours</span>
 						</div>
 						<div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#8b5cf6' }}>
 							<span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#8b5cf6', display: 'inline-block' }} />
@@ -848,7 +729,7 @@ export default function Dashboard() {
 					</div>
 
 					{/* X Axis Labels */}
-					<div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '28px', paddingRight: '4px', fontSize: '0.72rem', color: '#64748b', fontWeight: 550, marginTop: '4px' }}>
+					<div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '28px', paddingRight: '4px', fontSize: '0.72rem', color: '#64748b', fontWeight: 400, marginTop: '4px' }}>
 						{trendDays.map((td, idx) => (
 							<span key={idx}>{td.dayLabel}</span>
 						))}
@@ -865,7 +746,7 @@ export default function Dashboard() {
 								<Info size={13} style={{ color: '#94a3b8' }} />
 							</span>
 						</div>
-						<Link href="/project" style={{ fontSize: '0.78rem', fontWeight: 650, color: '#2563eb', border: '1px solid #dbeafe', background: '#eff6ff', padding: '3px 10px', borderRadius: '6px', textDecoration: 'none' }}>
+						<Link href="/project" style={{ fontSize: '0.78rem', fontWeight: 400, color: '#2563eb', border: '1px solid #dbeafe', background: '#eff6ff', padding: '3px 10px', borderRadius: '6px', textDecoration: 'none' }}>
 							View All
 						</Link>
 					</div>
@@ -875,12 +756,12 @@ export default function Dashboard() {
 						<table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
 							<thead>
 								<tr style={{ borderBottom: '1px solid #f1f5f9', color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-									<th style={{ textAlign: 'left', padding: '6px 8px 8px 0', fontWeight: 600 }}>Project</th>
-									<th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 600 }}>Estimated (h)</th>
-									<th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 600 }}>Actual (h)</th>
-									<th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 600 }}>Variance</th>
-									<th style={{ textAlign: 'left', padding: '6px 8px 8px 8px', fontWeight: 600, minWidth: '90px' }}>Progress</th>
-									<th style={{ textAlign: 'right', padding: '6px 0 8px 8px', fontWeight: 600 }}>Status</th>
+									<th style={{ textAlign: 'left', padding: '6px 8px 8px 0', fontWeight: 400 }}>Project</th>
+									<th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 400 }}>Estimated (h)</th>
+									<th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 400 }}>Actual (h)</th>
+									<th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 400 }}>Variance</th>
+									<th style={{ textAlign: 'left', padding: '6px 8px 8px 8px', fontWeight: 400, minWidth: '90px' }}>Progress</th>
+									<th style={{ textAlign: 'right', padding: '6px 0 8px 8px', fontWeight: 400 }}>Status</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -889,7 +770,7 @@ export default function Dashboard() {
 										<td style={{ padding: '9px 8px 9px 0', fontWeight: 400, color: '#0f172a' }}>{row.name}</td>
 										<td style={{ textAlign: 'center', padding: '9px 8px', fontWeight: 400, color: '#475569' }}>{row.est}</td>
 										<td style={{ textAlign: 'center', padding: '9px 8px', fontWeight: 400, color: '#0f172a' }}>{row.act}</td>
-										<td style={{ textAlign: 'center', padding: '9px 8px', fontWeight: 700, color: row.varColor }}>{row.var}</td>
+										<td style={{ textAlign: 'center', padding: '9px 8px', fontWeight: 400, color: row.varColor }}>{row.var}</td>
 										<td style={{ padding: '9px 8px' }}>
 											<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 												<span style={{ fontSize: '0.72rem', fontWeight: 400, color: '#475569', minWidth: '28px' }}>{row.pct}%</span>
@@ -899,7 +780,7 @@ export default function Dashboard() {
 											</div>
 										</td>
 										<td style={{ textAlign: 'right', padding: '9px 0 9px 8px' }}>
-											<span style={{ fontSize: '0.7rem', fontWeight: 700, background: row.statusBg, color: row.statusColor, padding: '3px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+											<span style={{ fontSize: '0.7rem', fontWeight: 400, background: row.statusBg, color: row.statusColor, padding: '3px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
 												{row.status}
 											</span>
 										</td>
@@ -973,10 +854,10 @@ export default function Dashboard() {
 								transform: 'translate(-50%, -50%)',
 								textAlign: 'center'
 							}}>
-								<div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', lineHeight: '1' }}>
+								<div style={{ fontSize: '1.4rem', fontWeight: 400, color: '#0f172a', lineHeight: '1' }}>
 									{projects.length || 2}
 								</div>
-								<div style={{ fontSize: '0.68rem', fontWeight: 600, color: '#94a3b8', marginTop: '2px' }}>
+								<div style={{ fontSize: '0.68rem', fontWeight: 400, color: '#94a3b8', marginTop: '2px' }}>
 									Total
 								</div>
 							</div>
@@ -986,26 +867,26 @@ export default function Dashboard() {
 						<div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.76rem' }}>
 							<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
 								<span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
-								<span style={{ fontWeight: 700, color: '#0f172a' }}>{healthOnTrack}</span>
-								<span style={{ color: '#475569', fontWeight: 500 }}>On Track ({onTrackPct}%)</span>
+								<span style={{ fontWeight: 400, color: '#0f172a' }}>{healthOnTrack}</span>
+								<span style={{ color: '#475569', fontWeight: 400}}>On Track ({onTrackPct}%)</span>
 							</div>
 
 							<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
 								<span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
-								<span style={{ fontWeight: 700, color: '#0f172a' }}>{healthAtRisk}</span>
-								<span style={{ color: '#475569', fontWeight: 500 }}>At Risk ({atRiskPct}%)</span>
+								<span style={{ fontWeight: 400, color: '#0f172a' }}>{healthAtRisk}</span>
+								<span style={{ color: '#475569', fontWeight: 400}}>At Risk ({atRiskPct}%)</span>
 							</div>
 
 							<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
 								<span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
-								<span style={{ fontWeight: 700, color: '#0f172a' }}>{healthDelayed}</span>
-								<span style={{ color: '#475569', fontWeight: 500 }}>Delayed ({delayedPct}%)</span>
+								<span style={{ fontWeight: 400, color: '#0f172a' }}>{healthDelayed}</span>
+								<span style={{ color: '#475569', fontWeight: 400}}>Delayed ({delayedPct}%)</span>
 							</div>
 
 							<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
 								<span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#cbd5e1', display: 'inline-block' }} />
-								<span style={{ fontWeight: 700, color: '#0f172a' }}>{healthCompletedTasks}</span>
-								<span style={{ color: '#475569', fontWeight: 500 }}>Completed</span>
+								<span style={{ fontWeight: 400, color: '#0f172a' }}>{healthCompletedTasks}</span>
+								<span style={{ color: '#475569', fontWeight: 400}}>Completed</span>
 							</div>
 						</div>
 					</div>
@@ -1016,7 +897,7 @@ export default function Dashboard() {
 							href="/project"
 							style={{
 								fontSize: '0.8rem',
-								fontWeight: 700,
+								fontWeight: 400,
 								color: '#2563eb',
 								display: 'inline-flex',
 								alignItems: 'center',
@@ -1080,10 +961,10 @@ export default function Dashboard() {
 								<div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
 									<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 										<span style={{ width: '8px', height: '8px', borderRadius: '50%', background: cat.color, display: 'inline-block' }} />
-										<span style={{ color: '#475569', fontWeight: 550 }}>{cat.name}</span>
+										<span style={{ color: '#475569', fontWeight: 400 }}>{cat.name}</span>
 									</div>
 									<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-										<span style={{ fontWeight: 700, color: '#0f172a' }}>{cat.pct}%</span>
+										<span style={{ fontWeight: 400, color: '#0f172a' }}>{cat.pct}%</span>
 										<span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>({cat.hours})</span>
 									</div>
 								</div>
@@ -1108,7 +989,7 @@ export default function Dashboard() {
 								<Info size={13} style={{ color: '#94a3b8' }} />
 							</span>
 						</div>
-						<Link href="/employees" style={{ fontSize: '0.78rem', fontWeight: 650, color: '#2563eb', border: '1px solid #dbeafe', background: '#eff6ff', padding: '3px 10px', borderRadius: '6px', textDecoration: 'none' }}>
+						<Link href="/employees" style={{ fontSize: '0.78rem', fontWeight: 400, color: '#2563eb', border: '1px solid #dbeafe', background: '#eff6ff', padding: '3px 10px', borderRadius: '6px', textDecoration: 'none' }}>
 							View All
 						</Link>
 					</div>
@@ -1118,9 +999,9 @@ export default function Dashboard() {
 						<table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
 							<thead>
 								<tr style={{ borderBottom: '1px solid #f1f5f9', color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-									<th style={{ textAlign: 'left', padding: '6px 8px 8px 0', fontWeight: 600 }}>Team</th>
-									<th style={{ textAlign: 'left', padding: '6px 8px 8px 8px', fontWeight: 600 }}>Utilization</th>
-									<th style={{ textAlign: 'right', padding: '6px 0 8px 8px', fontWeight: 600 }}>Scheduled / Capacity</th>
+									<th style={{ textAlign: 'left', padding: '6px 8px 8px 0', fontWeight: 400 }}>Team</th>
+									<th style={{ textAlign: 'left', padding: '6px 8px 8px 8px', fontWeight: 400 }}>Utilization</th>
+									<th style={{ textAlign: 'right', padding: '6px 0 8px 8px', fontWeight: 400 }}>Scheduled / Capacity</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -1129,13 +1010,13 @@ export default function Dashboard() {
 										<td style={{ padding: '9px 8px 9px 0', fontWeight: 400, color: '#0f172a' }}>{row.name}</td>
 										<td style={{ padding: '9px 8px' }}>
 											<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-												<span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0f172a', minWidth: '30px' }}>{row.pct}%</span>
+												<span style={{ fontSize: '0.72rem', fontWeight: 400, color: '#0f172a', minWidth: '30px' }}>{row.pct}%</span>
 												<div style={{ flex: 1, height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
 													<div style={{ width: `${row.pct}%`, height: '100%', background: '#10b981', borderRadius: '3px' }} />
 												</div>
 											</div>
 										</td>
-										<td style={{ textAlign: 'right', padding: '9px 0 9px 8px', fontWeight: 650, color: '#475569' }}>{row.schedStr}</td>
+										<td style={{ textAlign: 'right', padding: '9px 0 9px 8px', fontWeight: 400, color: '#475569' }}>{row.schedStr}</td>
 									</tr>
 								))}
 							</tbody>
@@ -1153,7 +1034,7 @@ export default function Dashboard() {
 								<Info size={13} style={{ color: '#94a3b8' }} />
 							</span>
 						</div>
-						<Link href="/employees" style={{ fontSize: '0.78rem', fontWeight: 650, color: '#2563eb', border: '1px solid #dbeafe', background: '#eff6ff', padding: '3px 10px', borderRadius: '6px', textDecoration: 'none' }}>
+						<Link href="/employees" style={{ fontSize: '0.78rem', fontWeight: 400, color: '#2563eb', border: '1px solid #dbeafe', background: '#eff6ff', padding: '3px 10px', borderRadius: '6px', textDecoration: 'none' }}>
 							View All
 						</Link>
 					</div>
@@ -1163,11 +1044,11 @@ export default function Dashboard() {
 						<table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
 							<thead>
 								<tr style={{ borderBottom: '1px solid #f1f5f9', color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-									<th style={{ textAlign: 'left', padding: '6px 8px 8px 0', fontWeight: 600 }}>Employee</th>
-									<th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 600 }}>Hours</th>
-									<th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 600 }}>Tasks Done</th>
-									<th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 600 }}>On-Time %</th>
-									<th style={{ textAlign: 'right', padding: '6px 0 8px 8px', fontWeight: 600 }}>AI Assisted</th>
+									<th style={{ textAlign: 'left', padding: '6px 8px 8px 0', fontWeight: 400 }}>Employee</th>
+									<th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 400 }}>Hours</th>
+									<th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 400 }}>Tasks Done</th>
+									<th style={{ textAlign: 'center', padding: '6px 8px 8px 8px', fontWeight: 400 }}>On-Time %</th>
+									<th style={{ textAlign: 'right', padding: '6px 0 8px 8px', fontWeight: 400 }}>AI Assisted</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -1175,16 +1056,16 @@ export default function Dashboard() {
 									<tr key={emp.id || idx} style={{ borderBottom: idx === realTopEmployees.length - 1 ? 'none' : '1px solid #f8fafc' }}>
 										<td style={{ padding: '8px 8px 8px 0' }}>
 											<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-												<div style={{ width: '24px', height: '24px', borderRadius: '50%', background: emp.avatarColor, color: '#fff', fontSize: '0.65rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+														<div className="avatar" style={{ width: '24px', height: '24px', borderRadius: '50%', background: emp.avatarColor, color: '#fff', fontSize: '0.65rem', fontWeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
 													{emp.initials}
 												</div>
 												<span style={{ fontWeight: 400, color: '#0f172a' }}>{emp.name}</span>
 											</div>
 										</td>
 										<td style={{ textAlign: 'center', padding: '8px', fontWeight: 400, color: '#0f172a' }}>{emp.hours}</td>
-										<td style={{ textAlign: 'center', padding: '8px', fontWeight: 600, color: '#475569' }}>{emp.tasksDone}</td>
-										<td style={{ textAlign: 'center', padding: '8px', fontWeight: 700, color: '#0f172a' }}>{emp.onTimePct}</td>
-										<td style={{ textAlign: 'right', padding: '8px 0 8px 8px', fontWeight: 700, color: '#0f172a' }}>{emp.aiAssistedPct}</td>
+										<td style={{ textAlign: 'center', padding: '8px', fontWeight: 400, color: '#475569' }}>{emp.tasksDone}</td>
+										<td style={{ textAlign: 'center', padding: '8px', fontWeight: 400, color: '#0f172a' }}>{emp.onTimePct}</td>
+										<td style={{ textAlign: 'right', padding: '8px 0 8px 8px', fontWeight: 400, color: '#0f172a' }}>{emp.aiAssistedPct}</td>
 									</tr>
 								))}
 							</tbody>
@@ -1195,14 +1076,14 @@ export default function Dashboard() {
 			</div>
 
 			{/* Main Grid Layout */}
-			<div className="dashboard-grid">
+			{/* <div className="dashboard-grid"> */}
 				{/* Employee Tasks Section */}
-				{!isAdmin && user && (
+				{/* {!isAdmin && user && (
 					<div className="col-12" style={{ marginBottom: '20px' }}>
 						<MyTasks userId={user._id} key={tasksKey} />
 					</div>
-				)}
-			</div>
+				)} */}
+			{/* </div> */}
 
 			{/* MODAL: ADD EMPLOYEE (Admin Only) */}
 			<AddTeamMemberModal
@@ -1226,7 +1107,7 @@ export default function Dashboard() {
 				<div className="modal-overlay" onClick={() => setIsWorkModalOpen(false)}>
 					<div className="modal-container" onClick={(e) => e.stopPropagation()}>
 						<div className="modal-header">
-							<h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Log Time Entry</h3>
+							<h3 style={{ fontSize: '1.1rem', fontWeight: 400 }}>Log Time Entry</h3>
 							<button className="modal-close" onClick={() => setIsWorkModalOpen(false)}>&times;</button>
 						</div>
 						<form >
@@ -1334,7 +1215,7 @@ export default function Dashboard() {
 				<div className="modal-overlay" onClick={() => setIsMailModalOpen(false)}>
 					<div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
 						<div className="modal-header">
-							<h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Daily Email Summary</h3>
+							<h3 style={{ fontSize: '1.1rem', fontWeight: 400 }}>Daily Email Summary</h3>
 							<button className="modal-close" onClick={() => setIsMailModalOpen(false)}>&times;</button>
 						</div>
 						<div style={{ marginBottom: '14px' }}>
@@ -1379,239 +1260,20 @@ export default function Dashboard() {
 				</div>
 			)}
 
-			{/* Create/Edit Modal */}
-			{showModal && (
-				<div
-					style={{
-						position: 'fixed',
-						top: 0,
-						left: 0,
-						right: 0,
-						bottom: 0,
-						background: 'rgba(0,0,0,0.5)',
-						display: 'flex',
-						alignItems: 'center',
-						justifyContent: 'center',
-						zIndex: 1000,
-						padding: '20px',
-					}}
-					onClick={() => {
-						setShowModal(false);
-						resetForm();
-					}}
-				>
-					<div
-						className="card"
-						style={{
-							maxWidth: '850px',
-							width: '100%',
-							maxHeight: '90vh',
-							overflow: 'auto',
-						}}
-						onClick={(e) => e.stopPropagation()}
-					>
-						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-							<h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>
-								{editingTask ? 'Edit Task' : 'Create New Task'}
-							</h2>
-							<button
-								onClick={() => {
-									setShowModal(false);
-									resetForm();
-								}}
-								className="btn"
-								style={{ padding: '6px' }}
-							>
-								<X size={20} />
-							</button>
-						</div>
+			{/* MODAL: CREATE TASK */}
+			{/* <CreateTaskModal
+				isOpen={isTaskModalOpen}
+				onClose={() => setIsTaskModalOpen(false)}
+				user={user}
+				projectsOptions={projects}
+				employeesList={employees}
+				onSuccess={async () => {
+					setIsTaskModalOpen(false);
+					setTasksKey((prev) => prev + 1);
+					window.dispatchEvent(new CustomEvent('worktracker-refresh'));
+				}}
+			/> */}
 
-						<form>
-							{isAdmin && (
-								<>
-									{/* Row 1: Choose Project, Contact Person, & Priority */}
-									<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-										<CustomDropdown
-											label="Choose Project"
-											placeholder="Choose Project"
-											value={formData.projectId}
-											options={[
-												{ value: '', label: 'Choose Project' },
-												...projects.map((p) => ({
-													value: p._id,
-													label: p.name,
-													color: p.color || '#3b82f6',
-												})),
-											]}
-											onChange={(val) => setFormData((prev) => ({ ...prev, projectId: val, contactPersons: prev.projectId === val ? prev.contactPersons : [] }))}
-											actionButton={{
-												label: 'add project',
-												onClick: () => setIsProjectModalOpen(true),
-											}}
-										/>
-
-
-
-										<CustomDropdown
-											label="Priority"
-											placeholder="Select Priority"
-											value={formData.priority}
-											options={[
-												{ value: 'Low', label: 'Low', color: '#3b82f6', badgeText: 'Low', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-												{ value: 'Medium', label: 'Medium', color: '#f59e0b', badgeText: 'Medium', badgeBg: '#fffbeb', badgeColor: '#b45309' },
-												{ value: 'High', label: 'High', color: '#f97316', badgeText: 'High', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
-												{ value: 'Urgent', label: 'Urgent', color: '#ef4444', badgeText: 'Urgent', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
-											]}
-											onChange={(val) => setFormData({ ...formData, priority: val as any })}
-										/>
-									</div>
-
-									{/* Row 2: Status, Due Date, Time */}
-									<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-										<CustomDropdown
-											label="Status"
-											placeholder="Select Status"
-											value={formData.status}
-											options={[
-												{ value: 'To Do', label: 'To Do', badgeText: 'To Do', badgeBg: '#f1f5f9', badgeColor: '#475569' },
-												{ value: 'In Progress', label: 'In Progress', badgeText: 'In Progress', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-												{ value: 'Partially Completed', label: 'Partially Completed', badgeText: 'Partially Completed', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
-												{ value: 'Review', label: 'Review', badgeText: 'Review', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
-												{ value: 'Completed', label: 'Completed', badgeText: 'Completed', badgeBg: '#ecfdf5', badgeColor: '#047857' },
-											]}
-											onChange={(val) => setFormData({ ...formData, status: val as any })}
-										/>
-
-										<CustomDatePicker
-											label="Due Date"
-											value={formData.dueDate}
-											onChange={(val) => setFormData({ ...formData, dueDate: val })}
-											placeholder="Pick date"
-										/>
-
-										<CustomTimePicker
-											label="Due Time"
-											value={formData.dueTime}
-											onChange={(val) => setFormData({ ...formData, dueTime: val })}
-											placeholder="Pick time"
-											align="right"
-										/>
-									</div>
-
-									{/* Assign To (Admin Only) - Dual-Column Drag & Drop / Project-Scoped Selection */}
-									<ProjectAssigneeSelector
-										projectId={formData.projectId}
-										projects={projects as any}
-										allEmployees={employees as any}
-										assignedTo={formData.assignedTo}
-										onChangeAssignedTo={(newAssignedTo) =>
-											setFormData((prev) => ({ ...prev, assignedTo: newAssignedTo }))
-										}
-										onProjectUpdated={(updatedProject) => {
-											setProjects((prev) =>
-												prev.map((p) =>
-													p._id === updatedProject._id || p._id?.toString() === updatedProject._id?.toString()
-														? { ...p, ...updatedProject }
-														: p
-												)
-											);
-
-										}}
-										onAddNewEmployeeClick={() => setIsEmployeeModalOpen(true)}
-									/>
-								</>
-							)}
-
-
-							{/* Task Title */}
-							<div style={{ marginBottom: '16px' }}>
-								<label className="form-label">Task Title *</label>
-								<input
-									type="text"
-									className="form-control"
-									placeholder="e.g., Design user registration flow"
-									value={formData.title}
-									onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-									required
-								/>
-							</div>
-
-							{/* Task Description */}
-							<div style={{ marginBottom: '16px' }}>
-								<label className="form-label">Task Description</label>
-								<CKEditorComponent
-									value={formData.description}
-									onChange={(val: string) => setFormData({ ...formData, description: val })}
-								/>
-							</div>
-
-							{/* Row: Supporting Files & URL / Resource Links */}
-							<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
-
-
-
-								<CustomMultipleLinks
-									label="URL / Resource Links"
-									links={formData.urls}
-									onChange={(newLinks) => setFormData({ ...formData, urls: newLinks, url: newLinks[0] || '' })}
-								/>
-							</div>
-
-							{/* Comments & Tags (Admin Only) */}
-							{isAdmin && (
-								<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', alignItems: 'start' }}>
-									<div>
-										<label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-											Comments / Notes
-										</label>
-										<div className="custom-input-group" style={{ alignItems: 'flex-start' }}>
-											<span className="custom-input-addon" style={{ height: 'auto', paddingTop: '8px' }}>
-												<MessageSquare size={14} />
-											</span>
-											<textarea
-												className="custom-input-control"
-												style={{ minHeight: '62px', height: '62px', resize: 'vertical' }}
-												placeholder="Add any additional notes, remarks or comments..."
-												value={formData.comments}
-												onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
-											/>
-										</div>
-									</div>
-
-									<div>
-										<label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-											Tags (comma separated)
-										</label>
-										<textarea
-											className="form-control"
-											style={{ minHeight: '62px', height: '62px', resize: 'vertical', fontSize: '0.8rem', padding: '8px 10px' }}
-											value={formData.tags}
-											onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-											placeholder="e.g., frontend, urgent, bug"
-										/>
-									</div>
-								</div>
-							)}
-
-							<div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-								<button
-									type="button"
-									className="btn btn-secondary"
-									onClick={() => {
-										setShowModal(false);
-										resetForm();
-									}}
-								>
-									Cancel
-								</button>
-								<button type="submit" className="btn btn-primary">
-									{editingTask ? 'Update Task' : 'Create Task'}
-								</button>
-							</div>
-						</form>
-					</div>
-				</div>
-			)}
 		</div>
 	);
 }

@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, Calendar, CheckSquare, AlertCircle, Filter, Folder, ChevronDown, ChevronRight } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
-import { staticClient } from '@/lib/staticClient';
+import { taskApi } from '@/lib/taskApi';
 
 interface TaskWorkRecord {
   _id: string;
@@ -65,8 +65,12 @@ export default function TaskHistoryPage() {
 
   const loadRecords = useCallback(async () => {
     try {
-      const data = staticClient.getWorkEntries();
-      setRecords(data as any);
+      const res = await taskApi.getTaskWork();
+      if (res.success && Array.isArray(res.data)) {
+        setRecords(res.data as any);
+      } else {
+        setRecords([]);
+      }
     } catch (err: unknown) {
       console.error(err);
       setError(err instanceof Error ? err.message : String(err));
@@ -96,12 +100,20 @@ export default function TaskHistoryPage() {
 
   // Load Projects for Filter
   useEffect(() => {
-    try {
-      const data = staticClient.getProjects();
-      setProjects(data as any);
-    } catch (err) {
-      console.error('Error fetching projects:', err);
+    async function loadProjects() {
+      try {
+        const res = await fetch('/api/projects', { credentials: 'include', cache: 'no-store' });
+        const json = await res.json();
+        if (res.ok && json.success && Array.isArray(json.data)) {
+          setProjects(json.data);
+        } else {
+          setProjects([]);
+        }
+      } catch (err) {
+        console.error('Error fetching projects:', err);
+      }
     }
+    loadProjects();
   }, []);
 
   const formatDuration = (minutes?: number): string => {

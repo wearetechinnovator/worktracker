@@ -9,7 +9,8 @@ import { formatMinutesToDuration } from '@/lib/time';
 import PageShimmer from '@/components/PageShimmer';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
+
+import { getClients } from '@/lib/clientApi';
 
 interface Employee {
   _id: string;
@@ -261,17 +262,17 @@ export default function ProjectsPage() {
 
       const loadedEmployees: Employee[] = Array.isArray(employeeResult.data)
         ? employeeResult.data.map((employee: any) => ({
-            ...employee,
-            _id: String(employee._id),
-            name: employee.name || employee.full_name || 'User',
-            role: employee.role || employee.designation || 'Employee',
-            userType:
-              Number(employee.user_role) === 1
-                ? 'admin'
-                : 'employee',
-            avatarColor: employee.avatarColor || '#3b82f6',
-            totalMinutes: Number(employee.totalMinutes) || 0,
-          }))
+          ...employee,
+          _id: String(employee._id),
+          name: employee.name || employee.full_name || 'User',
+          role: employee.role || employee.designation || 'Employee',
+          userType:
+            Number(employee.user_role) === 1
+              ? 'admin'
+              : 'employee',
+          avatarColor: employee.avatarColor || '#3b82f6',
+          totalMinutes: Number(employee.totalMinutes) || 0,
+        }))
         : [];
 
       // Convert project_users IDs into actual employee objects.
@@ -330,16 +331,16 @@ export default function ProjectsPage() {
 
           const client =
             project.client &&
-            typeof project.client === 'object'
+              typeof project.client === 'object'
               ? {
-                  _id: String(project.client._id),
-                  name: project.client.name || '',
-                  emails: Array.isArray(project.client.emails)
-                    ? project.client.emails
-                    : [],
-                  address: project.client.address,
-                  duration: project.client.duration,
-                }
+                _id: String(project.client._id),
+                name: project.client.name || '',
+                emails: Array.isArray(project.client.emails)
+                  ? project.client.emails
+                  : [],
+                address: project.client.address,
+                duration: project.client.duration,
+              }
               : null;
 
           return {
@@ -360,10 +361,10 @@ export default function ProjectsPage() {
               client ||
               (project.client
                 ? {
-                    _id: String(project.client),
-                    name: '',
-                    emails: [],
-                  }
+                  _id: String(project.client),
+                  name: '',
+                  emails: [],
+                }
                 : null),
             start_date: project.start_date,
             end_date: project.end_date,
@@ -375,10 +376,12 @@ export default function ProjectsPage() {
         }
       );
 
-      // Existing work-log/client UI still uses staticClient.
-      // It is NOT used for employees or project member ownership.
-      const loadedWork = staticClient.getWorkEntries() as any[];
-      const loadedClients = staticClient.getClients() as any[];
+      const loadedWork: any[] = [];
+      const clientResult = await getClients();
+      if (!clientResult.success) {
+        throw new Error(clientResult.message || 'Failed to load clients');
+      }
+      const loadedClients = Array.isArray(clientResult.data) ? clientResult.data : [];
 
       setEmployees(loadedEmployees);
       setEntries(loadedWork as any);
@@ -544,14 +547,13 @@ export default function ProjectsPage() {
 
     try {
       setSubmittingWork(true);
-      const result = await staticClient.createWorkLog({ projectId: workProjId, employeeId: finalEmpId, title: workTitle, date: workDate, startTime: workStart, endTime: workEnd, description: workDesc });
-      if (!result.success) throw new Error('Failed to log work session');
+      const newLog = { _id: 'work-' + Date.now(), projectId: workProjId, employeeId: finalEmpId, title: workTitle, date: workDate, startTime: workStart, endTime: workEnd, description: workDesc, createdAt: new Date().toISOString() };
+      setEntries(prev => [newLog as any, ...prev]);
 
       setWorkTitle('');
       setWorkDesc('');
       setIsLogWorkOpen(false);
       toast.success('Work session logged successfully');
-      await fetchData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to log work session');
     } finally {
@@ -580,13 +582,11 @@ export default function ProjectsPage() {
 
     try {
       setSubmittingWork(true);
-      const result = await staticClient.updateWorkLog(editingLog._id, { projectId: logProjId, employeeId: logEmpId, title: logTitle, date: logDate, startTime: logStart, endTime: logEnd, description: logDesc });
-      if (!result.success) throw new Error('Failed to update work entry');
+      setEntries(prev => prev.map(w => w._id === editingLog._id ? { ...w, projectId: logProjId, employeeId: logEmpId, title: logTitle, date: logDate, startTime: logStart, endTime: logEnd, description: logDesc } : w));
 
       setIsEditLogOpen(false);
       setEditingLog(null);
       toast.success('Work log updated successfully');
-      await fetchData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to update work entry');
     } finally {
@@ -598,11 +598,8 @@ export default function ProjectsPage() {
     if (!confirm('Are you sure you want to delete this work log?')) return;
 
     try {
-      const result = await staticClient.deleteWorkLog(logId);
-      if (!result.success) throw new Error('Failed to delete');
-
+      setEntries(prev => prev.filter(w => w._id !== logId));
       toast.success('Work log deleted successfully');
-      await fetchData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete work log');
     }
@@ -681,10 +678,10 @@ export default function ProjectsPage() {
         {/* Left column master list */}
         <div className="split-master" style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 400, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               PROJECTS
             </span>
-            <span style={{ fontSize: '0.7rem', fontWeight: 700, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', padding: '1px 7px', borderRadius: '10px', color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: '0.7rem', fontWeight: 400, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', padding: '1px 7px', borderRadius: '10px', color: 'var(--text-secondary)' }}>
               {projects.length}
             </span>
           </div>
@@ -739,7 +736,7 @@ export default function ProjectsPage() {
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
                     {/* <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: proj.color, flexShrink: 0 }} /> */}
-                    <span style={{ fontWeight: 700, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span style={{ fontWeight: 400, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {proj.name}
                     </span>
                   </div>
@@ -747,7 +744,7 @@ export default function ProjectsPage() {
                   {/* Avatar Stack for Assigned Members */}
                   {assignedMembers.length > 0 && (
                     <div
-                      title={`Assigned Members (${assignedMembers.length})`}
+                      title={`Assigned Members`}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -793,7 +790,7 @@ export default function ProjectsPage() {
                               alignItems: 'center',
                               justifyContent: 'center',
                               fontSize: '0.66rem',
-                              fontWeight: 700,
+                              fontWeight: 400,
                               border: '1.5px solid var(--bg-primary)',
                               marginLeft: idx === 0 ? 0 : '-6px',
                               boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
@@ -828,13 +825,13 @@ export default function ProjectsPage() {
                             width: '22px',
                             height: '22px',
                             borderRadius: '50%',
-                            backgroundColor: 'var(--bg-tertiary)',
+                            // backgroundColor: 'var(--bg-tertiary)',
                             color: 'var(--text-secondary)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: '0.58rem',
-                            fontWeight: 700,
+                            fontWeight: 400,
                             border: '1.5px solid var(--bg-primary)',
                             marginLeft: '-6px',
                             boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
@@ -851,7 +848,7 @@ export default function ProjectsPage() {
                   )}
 
                   {/* Task Count Badge */}
-                  <span className="tag-badge" title={`${proj.taskCount || 0} active tasks`} style={{ fontSize: '0.68rem', padding: '1px 6px', fontWeight: 700, borderRadius: '10px', flexShrink: 0 }}>
+                  <span className="tag-badge" title={`${proj.taskCount || 0} active tasks`} style={{ fontSize: '0.68rem', padding: '1px 6px', fontWeight: 400, borderRadius: '10px', flexShrink: 0 }}>
                     {proj.taskCount || 0}
                   </span>
                 </div>
@@ -868,7 +865,7 @@ export default function ProjectsPage() {
                 marginTop: '4px'
               }}>
                 <FolderPlus size={22} style={{ color: 'var(--accent-primary)', marginBottom: '6px', opacity: 0.8 }} />
-                <div style={{ fontWeight: 700, fontSize: '0.78rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
+                <div style={{ fontWeight: 400, fontSize: '0.78rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
                   No projects yet
                 </div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: '1.3' }}>
@@ -886,7 +883,7 @@ export default function ProjectsPage() {
             background: 'var(--bg-tertiary)',
             marginTop: '16px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '0.74rem', color: 'var(--accent-primary)', marginBottom: '3px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 400, fontSize: '0.74rem', color: 'var(--accent-primary)', marginBottom: '3px' }}>
               <Lightbulb size={13} />
               <span>Tip</span>
             </div>
@@ -914,20 +911,20 @@ export default function ProjectsPage() {
               <div style={{
                 width: '68px',
                 height: '68px',
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(127, 86, 217, 0.12) 100%)',
+                // borderRadius: '50%',
+                // background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(127, 86, 217, 0.12) 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: '20px',
-                border: '1px solid rgba(59, 130, 246, 0.2)',
-                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.08)'
+                // border: '1px solid rgba(59, 130, 246, 0.2)',
+                // boxShadow: '0 4px 12px rgba(59, 130, 246, 0.08)'
               }}>
                 <FolderPlus size={34} style={{ color: 'var(--accent-primary)' }} />
               </div>
 
               {/* Heading & Subtitle */}
-              <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px', textAlign: 'center' }}>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '8px', textAlign: 'center' }}>
                 Your workspace is ready!
               </h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', maxWidth: '460px', textAlign: 'center', lineHeight: '1.5', marginBottom: '24px' }}>
@@ -946,7 +943,7 @@ export default function ProjectsPage() {
                       setDeptMembers([]);
                       setIsAddDeptOpen(true);
                     }}
-                    style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px' }}
+                    style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 400, display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px' }}
                   >
                     <Plus size={16} />
                     <span>Create your first project</span>
@@ -956,7 +953,7 @@ export default function ProjectsPage() {
                     className="btn btn-primary"
                     disabled
                     title="Your role does not have permission to create projects"
-                    style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px', opacity: 0.6 }}
+                    style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 400, display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px', opacity: 0.6 }}
                   >
                     <Plus size={16} />
                     <span>Create your first project</span>
@@ -965,7 +962,7 @@ export default function ProjectsPage() {
                 <button
                   className="btn btn-secondary"
                   onClick={() => setIsExploreModalOpen(true)}
-                  style={{ padding: '10px 16px', fontSize: '0.85rem', fontWeight: 650, display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px' }}
+                  style={{ padding: '10px 16px', fontSize: '0.85rem', display: 'flex', fontWeight: 400, alignItems: 'center', gap: '6px', borderRadius: '8px' }}
                 >
                   <HelpCircle size={15} />
                   <span>Explore how it works</span>
@@ -977,7 +974,7 @@ export default function ProjectsPage() {
 
               {/* Feature Highlights Section */}
               <div style={{ width: '100%', maxWidth: '640px' }}>
-                <h4 style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '14px', textAlign: 'center' }}>
+                <h4 style={{ fontSize: '0.75rem', fontWeight: 400, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '14px', textAlign: 'center' }}>
                   What you can do with projects
                 </h4>
 
@@ -1008,7 +1005,7 @@ export default function ProjectsPage() {
                     }}>
                       <Folder size={16} />
                     </div>
-                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
+                    <span style={{ fontWeight: 400, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
                       Organize work
                     </span>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
@@ -1038,7 +1035,7 @@ export default function ProjectsPage() {
                     }}>
                       <FileBarChart size={16} />
                     </div>
-                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
+                    <span style={{ fontWeight: 400, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
                       Track progress
                     </span>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
@@ -1068,7 +1065,7 @@ export default function ProjectsPage() {
                     }}>
                       <Users size={16} />
                     </div>
-                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
+                    <span style={{ fontWeight: 400, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
                       Manage team
                     </span>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
@@ -1090,15 +1087,15 @@ export default function ProjectsPage() {
               {!editMode ? (
                 /* --- DISPLAY MODE --- */
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '7px' }}>
                     <div>
-                      <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{activeProject.name}</h2>
+                      <h2 style={{ fontSize: '1.25rem', fontWeight: 400, color: 'var(--text-primary)' }}>{activeProject.name}</h2>
                       <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginTop: '4px', whiteSpace: 'pre-wrap' }}>
                         {activeProject.description}
                       </p>
                       {activeProject.clientId && (
                         <div style={{ marginTop: '12px', padding: '10px 14px', background: 'var(--bg-tertiary)', borderRadius: '6px', border: '1px solid var(--border-color)', display: 'inline-block' }}>
-                          <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <p style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <Briefcase size={12} style={{ color: 'var(--accent-primary)' }} />
                             <span>Client: {activeProject.clientId.name}</span>
                           </p>
@@ -1135,31 +1132,31 @@ export default function ProjectsPage() {
                   {/* Stats */}
                   <div className="grid-stats" style={{ marginBottom: '20px' }}>
                     <div className="card stat-card" style={{ background: 'var(--bg-tertiary)' }}>
-                      <div className="stat-icon-wrapper" style={{ color: 'var(--accent-primary)', background: '#eff6ff' }}>
+                      <div className="stat-icon-wrapper" style={{ color: 'var(--accent-primary)'}}>
                         <Clock size={16} />
                       </div>
                       <div className="stat-info">
-                        <span className="stat-value" style={{ fontSize: '0.95rem' }}>{formatMinutesToDuration(activeProjMinutes)}</span>
+                        <span className="stat-value">{formatMinutesToDuration(activeProjMinutes)} - </span>
                         <span className="stat-label"> Total Duration</span>
                       </div>
                     </div>
 
                     <div className="card stat-card" style={{ background: 'var(--bg-tertiary)' }}>
-                      <div className="stat-icon-wrapper" style={{ color: '#10b981', background: '#ecfdf5' }}>
+                      <div className="stat-icon-wrapper" style={{ color: '#10b981' }}>
                         <Users size={16} />
                       </div>
                       <div className="stat-info">
-                        <span className="stat-value" style={{ fontSize: '0.95rem' }}>{activeProjEntries.length}</span>
+                        <span className="stat-value">{activeProjEntries.length} - </span>
                         <span className="stat-label"> Logged Logs</span>
                       </div>
                     </div>
 
                     <div className="card stat-card" style={{ background: 'var(--bg-tertiary)' }}>
-                      <div className="stat-icon-wrapper" style={{ color: '#7f56d9', background: '#f3e8ff' }}>
+                      <div className="stat-icon-wrapper" style={{ color: '#7f56d9' }}>
                         <Users size={16} />
                       </div>
                       <div className="stat-info">
-                        <span className="stat-value" style={{ fontSize: '0.95rem' }}>{activeProject.members?.length || 0}</span>
+                        <span className="stat-value">{activeProject.members?.length || 0} - </span>
                         <span className="stat-label"> Assigned Staff</span>
                       </div>
                     </div>
@@ -1209,7 +1206,7 @@ export default function ProjectsPage() {
                                 </div>
                                 <div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem' }}>
-                                    <span style={{ fontWeight: 700 }}>{log.employeeName}</span>
+                                    <span style={{ fontWeight: 400 }}>{log.employeeName}</span>
                                     <span style={{ color: 'var(--text-muted)' }}>{log.date}</span>
                                   </div>
                                   <h5 style={{ fontWeight: 400, fontSize: '0.78rem', margin: '1px 0' }}>{log.title}</h5>
@@ -1225,7 +1222,7 @@ export default function ProjectsPage() {
 
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '12px' }}>
                                 <div style={{ textAlign: 'right' }}>
-                                  <div style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '0.8rem' }}>{formatMinutesToDuration(log.actualTime)}</div>
+                                  <div style={{ fontWeight: 400, color: 'var(--accent-primary)', fontSize: '0.8rem' }}>{formatMinutesToDuration(log.actualTime)}</div>
                                   <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{log.startTime}-{log.endTime}</div>
                                 </div>
                                 {(isAdmin || log.employeeId === user?._id) && (
@@ -1301,10 +1298,10 @@ export default function ProjectsPage() {
                             <div key={memberKey} className="list-row" style={{ padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                               <div className="avatar-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                                 <div style={{ position: 'relative', flexShrink: 0 }}>
-                                  <div className="avatar" style={{ backgroundColor: m.avatarColor || '#3b82f6', width: '26px', height: '26px', fontSize: '0.68rem', fontWeight: 700 }}>
-                                    {initials}
+                                  <div className="avatar" style={{ width: '26px', height: '26px', fontSize: '0.68rem', fontWeight: 400 }}>
+                                    {/* {initials} */}
                                   </div>
-                                  <span
+                                  {/* <span
                                     style={{
                                       position: 'absolute',
                                       bottom: '-1px',
@@ -1316,17 +1313,17 @@ export default function ProjectsPage() {
                                       border: '1.5px solid var(--bg-primary)',
                                       boxShadow: dotGlow,
                                     }}
-                                  />
+                                  /> */}
                                 </div>
                                 <div style={{ overflow: 'hidden' }}>
-                                  <div style={{ fontWeight: 700, fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{memberName}</div>
+                                  <div style={{ fontWeight: 400, fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{memberName}</div>
                                   <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.designation ?? m.role ?? ''}</div>
                                 </div>
                               </div>
                               <span
                                 style={{
                                   fontSize: '0.62rem',
-                                  fontWeight: 700,
+                                  fontWeight: 400,
                                   padding: '2px 6px',
                                   borderRadius: '6px',
                                   background: badgeBg,
@@ -1351,7 +1348,7 @@ export default function ProjectsPage() {
                 /* --- EDIT INLINE MODE --- */
                 <form onSubmit={handleEditDeptSubmit}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', marginBottom: '14px' }}>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>Edit Project Settings</h3>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 400 }}>Edit Project Settings</h3>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button type="button" className="btn btn-secondary" onClick={() => setEditMode(false)} disabled={savingDept}>
                         Cancel
@@ -1448,7 +1445,7 @@ export default function ProjectsPage() {
         <div className="modal-overlay" onClick={() => setIsLogWorkOpen(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Log Task Session</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 400 }}>Log Task Session</h3>
               <button className="modal-close" onClick={() => setIsLogWorkOpen(false)}>&times;</button>
             </div>
             <form onSubmit={handleAddWorkSubmit}>
@@ -1560,7 +1557,7 @@ export default function ProjectsPage() {
         }}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Edit Task Log</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 400 }}>Edit Task Log</h3>
               <button className="modal-close" onClick={() => {
                 setIsEditLogOpen(false);
                 setEditingLog(null);
@@ -1677,16 +1674,16 @@ export default function ProjectsPage() {
             <div className="modal-header" style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Sparkles size={20} style={{ color: 'var(--accent-primary)' }} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>How Projects Work</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 400 }}>How Projects Work</h3>
               </div>
               <button className="modal-close" onClick={() => setIsExploreModalOpen(false)}>&times;</button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
               <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</div>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-primary)', color: '#fff', fontWeight: 400, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</div>
                 <div>
-                  <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>Create & Associate</h4>
+                  <h4 style={{ fontSize: '0.88rem', fontWeight: 400, color: 'var(--text-primary)' }}>Create & Associate</h4>
                   <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0', lineHeight: '1.4' }}>
                     Set up your project with a name, description, color theme, and optionally tag it to a client.
                   </p>
@@ -1694,9 +1691,9 @@ export default function ProjectsPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</div>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-primary)', color: '#fff', fontWeight: 400, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</div>
                 <div>
-                  <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>Assign Staff Members</h4>
+                  <h4 style={{ fontSize: '0.88rem', fontWeight: 400, color: 'var(--text-primary)' }}>Assign Staff Members</h4>
                   <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0', lineHeight: '1.4' }}>
                     Assign team members to the project so they can log work hours, track tasks, and collaborate.
                   </p>
@@ -1704,9 +1701,9 @@ export default function ProjectsPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>3</div>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-primary)', color: '#fff', fontWeight: 400, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>3</div>
                 <div>
-                  <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>Track Time & Milestones</h4>
+                  <h4 style={{ fontSize: '0.88rem', fontWeight: 400, color: 'var(--text-primary)' }}>Track Time & Milestones</h4>
                   <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0', lineHeight: '1.4' }}>
                     Log work sessions, analyze total durations, filter activity, and generate comprehensive reports.
                   </p>

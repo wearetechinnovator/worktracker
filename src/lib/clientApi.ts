@@ -15,129 +15,200 @@ export interface ClientPayload {
   phone?: string;
   contacts?: ClientContactPayload[];
   status?: number;
+  duration?: string;
+  contract_start_date?: string | null;
+  contract_end_date?: string | null;
+  projects?: string[];
 }
 
-export async function getClients() {
-  const response = await fetch("/api/clients", {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-  });
-
-  const result = await response.json();
-
-  if (!response.ok || result.success === false) {
-    throw new Error(
-      result.message || "Failed to load clients"
-    );
-  }
-
-  return result.data || [];
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message?: string;
+  data?: T;
 }
 
-export async function getClient(id: string) {
-  const response = await fetch(
-    `/api/clients?id=${encodeURIComponent(id)}`,
-    {
+export async function getClients(userId?: string): Promise<ApiResponse<any[]>> {
+  try {
+    const url = userId ? `/api/clients?userId=${encodeURIComponent(userId)}` : "/api/clients";
+    const response = await fetch(url, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include",
       cache: "no-store",
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || result.success === false) {
+      return {
+        success: false,
+        message: result.message || "Failed to load clients",
+        data: [],
+      };
     }
-  );
 
-  const result = await response.json();
-
-  if (!response.ok || result.success === false) {
-    throw new Error(
-      result.message || "Failed to load client"
-    );
+    return {
+      success: true,
+      data: result.data || [],
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || "Failed to load clients",
+      data: [],
+    };
   }
+}
 
-  return result.data;
+export async function getClient(id: string): Promise<ApiResponse<any>> {
+  try {
+    const response = await fetch(
+      `/api/clients?id=${encodeURIComponent(id)}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || result.success === false) {
+      return {
+        success: false,
+        message: result.message || "Failed to load client",
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || "Failed to load client",
+    };
+  }
 }
 
 export async function createClient(
   payload: ClientPayload
-) {
-  const response = await fetch("/api/clients", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+): Promise<ApiResponse<any>> {
+  try {
+    const response = await fetch("/api/clients", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  const result = await response.json();
+    const result = await response.json();
 
-  if (!response.ok || result.success === false) {
-    throw new Error(
-      result.message || "Failed to create client"
-    );
+    if (!response.ok || result.success === false) {
+      return {
+        success: false,
+        message: result.message || "Failed to create client",
+      };
+    }
+
+    return {
+      success: true,
+      message: result.message || "Client created successfully",
+      data: result.data,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || "Failed to create client",
+    };
   }
-
-  return result.data;
 }
 
 export async function updateClient(
   id: string,
   data: any
-) {
-  const response = await fetch(
-    `/api/clients?id=${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify(data),
-    }
-  );
-
-  const text = await response.text();
-
-  let result: any;
-
+): Promise<ApiResponse<any>> {
   try {
-    result = JSON.parse(text);
-  } catch {
-    console.error("Update client returned non-JSON:", text);
-
-    throw new Error(
-      `Update client failed (${response.status})`
+    const response = await fetch(
+      `/api/clients?id=${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(data),
+      }
     );
-  }
 
-  if (!response.ok || result.success === false) {
-    throw new Error(
-      result.message || "Failed to update client"
-    );
-  }
+    const text = await response.text();
+    let result: any;
 
-  return result;
-}
-export async function deleteClient(id: string) {
-  const response = await fetch(
-    `/api/clients?id=${encodeURIComponent(id)}`,
-    {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
+    try {
+      result = JSON.parse(text);
+    } catch {
+      return {
+        success: false,
+        message: `Update client failed (${response.status})`,
+      };
     }
-  );
 
-  const result = await response.json();
+    if (!response.ok || result.success === false) {
+      return {
+        success: false,
+        message: result.message || "Failed to update client",
+      };
+    }
 
-  if (!response.ok || result.success === false) {
-    throw new Error(
-      result.message || "Failed to delete client"
-    );
+    return {
+      success: true,
+      message: result.message || "Client updated successfully",
+      data: result.data,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || "Failed to update client",
+    };
   }
+}
 
-  return result.data;
+export async function deleteClient(id: string): Promise<ApiResponse<any>> {
+  try {
+    const response = await fetch(
+      `/api/clients?id=${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || result.success === false) {
+      return {
+        success: false,
+        message: result.message || "Failed to delete client",
+      };
+    }
+
+    return {
+      success: true,
+      message: result.message || "Client deleted successfully",
+      data: result.data,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || "Failed to delete client",
+    };
+  }
 }

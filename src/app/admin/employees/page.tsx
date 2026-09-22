@@ -10,6 +10,11 @@ import {
 import {
   UserPlus,
   AlertCircle,
+  LayoutGrid,
+  List,
+  Eye,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 
 import { formatMinutesToDuration } from '@/lib/time';
@@ -74,7 +79,28 @@ export default function EmployeesPage() {
   const [selectedEmployee, setSelectedEmployee] =
     useState<Employee | null>(null);
 
+  // View mode: card or tabular
+  const [viewMode, setViewMode] =
+    useState<'card' | 'table'>('card');
+
   const ITEMS_PER_PAGE = 10;
+
+  const tableHeaderStyle: React.CSSProperties = {
+    padding: '12px 14px',
+    textAlign: 'left',
+    fontSize: '0.72rem',
+    fontWeight: 750,
+    color: 'var(--text-secondary)',
+    whiteSpace: 'nowrap',
+  };
+
+  const tableCellStyle: React.CSSProperties = {
+    padding: '12px 14px',
+    fontSize: '0.8rem',
+    color: 'var(--text-secondary)',
+    verticalAlign: 'middle',
+    whiteSpace: 'nowrap',
+  };
 
   /*
    * =========================================================
@@ -636,6 +662,7 @@ export default function EmployeesPage() {
           </span>
         </button>
       </div>
+      
 
       {/* Error */}
       {error && (
@@ -666,46 +693,384 @@ export default function EmployeesPage() {
         </div>
       )}
 
-      {/* Employee Cards */}
+      {/* View Toggle + Employee List */}
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: '14px',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          marginBottom: '14px',
         }}
+        className="no-print"
       >
-        {filteredEmployees.length === 0 ? (
-          <p
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '3px',
+            padding: '4px',
+            borderRadius: '10px',
+            border: '1px solid var(--border-color)',
+            background: 'var(--bg-secondary)',
+          }}
+          role="group"
+          aria-label="Employee view"
+        >
+          <button
+            type="button"
+            onClick={() => setViewMode('card')}
+            aria-label="Card view"
+            aria-pressed={viewMode === 'card'}
+            title="Card view"
             style={{
-              color: 'var(--text-muted)',
-              textAlign: 'center',
-              padding: '32px',
-              gridColumn: '1 / -1',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '7px 10px',
+              border: 'none',
+              borderRadius: '7px',
+              cursor: 'pointer',
+              background:
+                viewMode === 'card'
+                  ? 'var(--bg-primary)'
+                  : 'transparent',
+              color:
+                viewMode === 'card'
+                  ? 'var(--text-primary)'
+                  : 'var(--text-secondary)',
+              boxShadow:
+                viewMode === 'card'
+                  ? '0 1px 4px rgba(0,0,0,0.10)'
+                  : 'none',
+              fontSize: '0.78rem',
+              fontWeight: 650,
             }}
           >
-            No registered employees found. Click Add Employee to create one.
-          </p>
-        ) : (
-          paginatedEmployees.map((employee) => (
-            <EmployeeCard
-              key={employee._id}
-              employee={employee}
-              onOpenDetails={openEmployeeDetails}
-              onEdit={openEditModal}
-              onDelete={handleDelete}
-              onTogglePunchOverride={handleTogglePunchOverride}
-            />
-          ))
-        )}
+            <LayoutGrid size={15} />
+            Cards
+          </button>
 
-        {/* Pagination */}
-        {renderPagination(
-          filteredEmployees.length,
-          ITEMS_PER_PAGE,
-          currentPage,
-          setCurrentPage
-        )}
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            aria-label="Tabular view"
+            aria-pressed={viewMode === 'table'}
+            title="Tabular view"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '7px 10px',
+              border: 'none',
+              borderRadius: '7px',
+              cursor: 'pointer',
+              background:
+                viewMode === 'table'
+                  ? 'var(--bg-primary)'
+                  : 'transparent',
+              color:
+                viewMode === 'table'
+                  ? 'var(--text-primary)'
+                  : 'var(--text-secondary)',
+              boxShadow:
+                viewMode === 'table'
+                  ? '0 1px 4px rgba(0,0,0,0.10)'
+                  : 'none',
+              fontSize: '0.78rem',
+              fontWeight: 650,
+            }}
+          >
+            <List size={15} />
+            Table
+          </button>
+        </div>
       </div>
+
+      {/* Employee List */}
+      {viewMode === 'card' ? (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns:
+              'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: '14px',
+          }}
+        >
+          {filteredEmployees.length === 0 ? (
+            <p
+              style={{
+                color: 'var(--text-muted)',
+                textAlign: 'center',
+                padding: '32px',
+                gridColumn: '1 / -1',
+              }}
+            >
+              No registered employees found. Click Add Employee to create one.
+            </p>
+          ) : (
+            paginatedEmployees.map((employee) => (
+              <EmployeeCard
+                key={employee._id}
+                employee={employee}
+                onOpenDetails={openEmployeeDetails}
+                onEdit={openEditModal}
+                onDelete={handleDelete}
+                onTogglePunchOverride={handleTogglePunchOverride}
+              />
+            ))
+          )}
+        </div>
+      ) : (
+        <div
+          style={{
+            width: '100%',
+            overflowX: 'auto',
+            border: '1px solid var(--border-color)',
+            borderRadius: '10px',
+            // background: 'var(--bg-secondary)',
+          }}
+        >
+          {filteredEmployees.length === 0 ? (
+            <p
+              style={{
+                color: 'var(--text-muted)',
+                textAlign: 'center',
+                padding: '32px',
+              }}
+            >
+              No registered employees found. Click Add Employee to create one.
+            </p>
+          ) : (
+            <table
+              style={{
+                width: '100%',
+                minWidth: '850px',
+                borderCollapse: 'collapse',
+              }}
+            >
+              <thead>
+                <tr
+                  style={{
+                    borderBottom: '1px solid var(--border-color)',
+                    background: 'var(--bg-primary)',
+                  }}
+                >
+                  <th style={tableHeaderStyle}>Employee</th>
+                  <th style={tableHeaderStyle}>Email</th>
+                  {/* <th style={tableHeaderStyle}>Phone</th> */}
+                  <th style={tableHeaderStyle}>Designation</th>
+                  <th style={tableHeaderStyle}>Group</th>
+                  <th style={tableHeaderStyle}>Status</th>
+                  <th
+                    style={{
+                      ...tableHeaderStyle,
+                      textAlign: 'right',
+                    }}
+                  >
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {paginatedEmployees.map((employee) => {
+                  const isActive = employee.status !== false;
+
+                  return (
+                    <tr
+                      key={employee._id}
+                      style={{
+                        borderBottom:
+                          '1px solid var(--border-color)',
+                      }}
+                    >
+                      <td style={tableCellStyle}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            minWidth: '180px',
+                          }}
+                        >
+                          {employee.profile_picture ? (
+                            <img
+                              src={employee.profile_picture}
+                              alt={employee.full_name}
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '50%',
+                                objectFit: 'cover',
+                                flexShrink: 0,
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                
+                                border:
+                                  '1px solid var(--border-color)',
+                                fontSize: '0.78rem',
+                                fontWeight: 750,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {employee.full_name
+                                ?.split(' ')
+                                .map((name) => name[0])
+                                .slice(0, 2)
+                                .join('')
+                                .toUpperCase()}
+                            </div>
+                          )}
+
+                          <div>
+                            <div
+                              style={{
+                                fontWeight: 700,
+                                color: 'var(--text-primary)',
+                              }}
+                            >
+                              {employee.full_name}
+                            </div>
+
+                            <div
+                              style={{
+                                fontSize: '0.72rem',
+                                color: 'var(--text-muted)',
+                                marginTop: '2px',
+                              }}
+                            >
+                              {employee.user_role === 1
+                                ? 'Admin'
+                                : 'Employee'}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td style={tableCellStyle}>
+                        {employee.email || '—'}
+                      </td>
+
+                      {/* <td style={tableCellStyle}>
+                        {employee.phone_number || '—'}
+                      </td> */}
+
+                      <td style={tableCellStyle}>
+                        {employee.designation || '—'}
+                      </td>
+
+                      <td style={tableCellStyle}>
+                        {employee.group || '—'}
+                      </td>
+
+                      <td style={tableCellStyle}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '4px 9px',
+                            borderRadius: '999px',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            background: isActive
+                              ? 'rgba(34,197,94,0.12)'
+                              : 'rgba(239,68,68,0.12)',
+                            color: isActive
+                              ? '#16a34a'
+                              : '#dc2626',
+                          }}
+                        >
+                          {isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+
+                      <td
+                        style={{
+                          ...tableCellStyle,
+                          textAlign: 'right',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            title="View details"
+                            aria-label={`View ${employee.full_name}`}
+                            onClick={() =>
+                              openEmployeeDetails(employee)
+                            }
+                            style={{
+                              padding: '6px 8px',
+                            }}
+                          >
+                            <Eye size={14} />
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            title="Edit employee"
+                            aria-label={`Edit ${employee.full_name}`}
+                            onClick={() =>
+                              openEditModal(employee)
+                            }
+                            style={{
+                              padding: '6px 8px',
+                            }}
+                          >
+                            <Pencil size={14} />
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            title="Delete employee"
+                            aria-label={`Delete ${employee.full_name}`}
+                            onClick={() =>
+                              handleDelete(employee._id)
+                            }
+                            style={{
+                              padding: '6px 8px',
+                              color: '#ef4444',
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {renderPagination(
+        filteredEmployees.length,
+        ITEMS_PER_PAGE,
+        currentPage,
+        setCurrentPage
+      )}
 
       {/* Details Modal */}
       <EmployeeAttendanceCalendarModal

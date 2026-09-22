@@ -79,6 +79,12 @@ const clientSchema = new Schema(
       trim: true,
     },
 
+    phone: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
     contact_members: {
       type: [contactMemberSchema],
       default: [],
@@ -116,7 +122,9 @@ const cachedClientModel = mongoose.models.Client;
 // Replace the stale development model after audit fields changed to strings.
 if (
   process.env.NODE_ENV !== "production" &&
-  cachedClientModel?.schema.path("modified_by")?.instance === "Number"
+  cachedClientModel &&
+  (!cachedClientModel.schema.path("phone") ||
+    cachedClientModel.schema.path("modified_by")?.instance === "Number")
 ) {
   mongoose.deleteModel("Client");
 }

@@ -19,6 +19,36 @@ import './style.css';
 import { ClientData } from '@/types/ClientData';
 import { ProjectOption } from '@/types/ProjectOption';
 
+// ---------------------------------------------------------------------------
+// Small, deterministic color system for avatars / initials.
+// Same name always maps to the same pair, so a client or contact keeps a
+// stable identity color across renders, table + modal.
+// ---------------------------------------------------------------------------
+const AVATAR_PALETTE = [
+  { bg: '#EEF2FF', fg: '#4F46E5', ring: '#C7D2FE' }, // indigo
+  { bg: '#ECFDF5', fg: '#059669', ring: '#A7F3D0' }, // emerald
+  { bg: '#FFF7ED', fg: '#EA580C', ring: '#FED7AA' }, // orange
+  { bg: '#FDF2F8', fg: '#DB2777', ring: '#FBCFE8' }, // pink
+  { bg: '#F0F9FF', fg: '#0284C7', ring: '#BAE6FD' }, // sky
+  { bg: '#FEFCE8', fg: '#CA8A04', ring: '#FDE68A' }, // amber
+  { bg: '#F5F3FF', fg: '#7C3AED', ring: '#DDD6FE' }, // violet
+];
+
+function getIdentityStyle(seed: string) {
+  const str = seed || '?';
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+}
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 export default function ClientsPage() {
   const [user, setUser] = useState<any>(null);
@@ -91,7 +121,7 @@ export default function ClientsPage() {
     try {
       setLoading(true);
 
-      const [clientsData, projectResponse] =
+      const [clientsRes, projectResponse] =
         await Promise.all([
           getClients(),
           fetch("/api/projects", {
@@ -100,6 +130,14 @@ export default function ClientsPage() {
             cache: "no-store",
           }),
         ]);
+
+      const clientsData = clientsRes.success && Array.isArray(clientsRes.data)
+        ? clientsRes.data
+        : [];
+
+      if (!clientsRes.success && clientsRes.message) {
+        toast.error(clientsRes.message);
+      }
 
       const projectResult = await projectResponse.json();
 
@@ -139,6 +177,7 @@ export default function ClientsPage() {
           // contact_members because DB schema
           // has no separate phone field.
           phone:
+            client.phone ||
             client.contact_members?.find(
               (contact: any) =>
                 contact.label === "Primary"
@@ -147,6 +186,17 @@ export default function ClientsPage() {
               (contact: any) => contact.phone
             )?.phone ||
             "",
+
+          contractStartDate:
+            client.contractStartDate ||
+            (client.contract_start_date
+              ? String(client.contract_start_date).split('T')[0]
+              : ''),
+          contractEndDate:
+            client.contractEndDate ||
+            (client.contract_end_date
+              ? String(client.contract_end_date).split('T')[0]
+              : ''),
         })
       );
 
@@ -173,11 +223,6 @@ export default function ClientsPage() {
           };
         })
         .filter(Boolean) as ProjectOption[];
-
-      console.log(
-        "ClientsPage: projects loaded from /api/projects:",
-        normalizedProjects
-      );
 
       setProjectsOptions(normalizedProjects);
     } catch (err) {
@@ -280,19 +325,34 @@ export default function ClientsPage() {
   ) => {
     e.preventDefault();
 
+    const emails = emailsStr
+      .split(",")
+      .map((email) => email.trim())
+      .filter(Boolean);
+
     if (!name.trim()) {
-      setError("Please fill all required fields");
+      setError("Client name is required");
+      return;
+    }
+
+    if (!phone.trim()) {
+      setError("Primary phone number is required");
+      return;
+    }
+
+    if (!/^\d{10,20}$/.test(phone.trim())) {
+      setError("Phone number must contain only numbers and be 10-20 digits long");
+      return;
+    }
+
+    if (emails.length === 0) {
+      setError("At least one valid email address is required");
       return;
     }
 
     try {
       setSubmitting(true);
       setError(null);
-
-      const emails = emailsStr
-        .split(",")
-        .map((email) => email.trim())
-        .filter(Boolean);
 
       const validContacts = contacts.filter(
         (contact) =>
@@ -316,19 +376,35 @@ export default function ClientsPage() {
         status: 1,
       };
 
-      let savedClient;
+      let res;
 
       if (editingClient) {
-        savedClient = await updateClient(
+        res = await updateClient(
           editingClient._id,
           payload
         );
+
+        if (!res.success) {
+          const errMsg = res.message || "Failed to update client";
+          setError(errMsg);
+          toast.error(errMsg);
+          setSubmitting(false);
+          return;
+        }
 
         toast.success(
           `${name.trim()} updated successfully`
         );
       } else {
-        savedClient = await createClient(payload);
+        res = await createClient(payload);
+
+        if (!res.success) {
+          const errMsg = res.message || "Failed to create client";
+          setError(errMsg);
+          toast.error(errMsg);
+          setSubmitting(false);
+          return;
+        }
 
         toast.success(
           `${name.trim()} created successfully`
@@ -376,7 +452,12 @@ export default function ClientsPage() {
     }
 
     try {
-      await deleteClient(clientId);
+      const res = await deleteClient(clientId);
+
+      if (!res.success) {
+        toast.error(res.message || "Failed to delete client");
+        return;
+      }
 
       toast.success(
         `${clientName} deleted successfully`
@@ -384,8 +465,6 @@ export default function ClientsPage() {
 
       await fetchData();
     } catch (err: any) {
-      console.error("Delete client error:", err);
-
       toast.error(
         err?.message || "Failed to delete client"
       );
@@ -393,18 +472,10 @@ export default function ClientsPage() {
   };
   const handleProjectToggle = (projectId: string) => {
     setSelectedProjectIds(prev => {
-      if (editingClient) {
-        if (prev.includes(projectId)) {
-          return prev.filter(id => id !== projectId);
-        } else {
-          return [...prev, projectId];
-        }
+      if (prev.includes(projectId)) {
+        return prev.filter(id => id !== projectId);
       } else {
-        if (prev.includes(projectId)) {
-          return prev.filter(id => id !== projectId);
-        } else {
-          return [...prev, projectId];
-        }
+        return [...prev, projectId];
       }
     });
   };
@@ -413,13 +484,15 @@ export default function ClientsPage() {
     return <PageShimmer variant="dashboard" />;
   }
 
-
   return (
-    <div style={{ display: 'grid', gap: '14px', paddingBottom: '30px' }}>
+    <div style={{ display: 'grid', gap: '16px', paddingBottom: '30px' }}>
 
       <section className="client-hero">
         <div>
           <h1 className="hero-title">Clients Directory</h1>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+            Every client relationship, contract, and point of contact in one place.
+          </p>
         </div>
         {isAdmin && (
           <button className="btn btn-primary" type="button" onClick={openAddModal} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -431,372 +504,564 @@ export default function ClientsPage() {
 
       <section className="summary-grid">
         <article className="summary-card">
-          <div className="summary-icon"><Users size={14} /></div>
+          <div className="summary-icon" style={{ background: '#EEF2FF', color: '#4F46E5' }}><Users size={14} /></div>
           <p className="summary-label">Total Registered Clients</p>
           <p className="summary-value">{totalClientsCount}</p>
         </article>
         <article className="summary-card">
-          <div className="summary-icon"><Briefcase size={14} /></div>
+          <div className="summary-icon" style={{ background: '#ECFDF5', color: '#059669' }}><Briefcase size={14} /></div>
           <p className="summary-label">Active Project Associations</p>
           <p className="summary-value">{totalProjectsTagged}</p>
         </article>
       </section>
 
-      <section className="control-bar card">
-        <label className="search-box" htmlFor="client-search" style={{ width: '100%' }}>
-          <Search size={14} />
+      <section className="control-bar card" style={{ padding: '10px 14px' }}>
+        <label className="search-box" htmlFor="client-search" style={{ width: '100%', position: 'relative' }}>
+          <Search size={14} style={{ color: 'var(--text-muted)' }} />
           <input
             id="client-search"
             type="text"
-            placeholder="Search clients by name, email domain, or location..."
+            placeholder="Search by client name, contact, email, or address..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ paddingRight: searchQuery ? '28px' : undefined }}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
+              style={{
+                position: 'absolute',
+                right: '8px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'var(--bg-tertiary)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '18px',
+                height: '18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <X size={11} />
+            </button>
+          )}
         </label>
       </section>
 
-      <section className="client-grid">
+      <section
+        className="card"
+        style={{
+          padding: 0,
+          overflow: 'hidden',
+          borderRadius: '12px',
+          border: '1px solid var(--border-color)',
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
         {clients.length === 0 ? (
-          <div className="card" style={{
-            gridColumn: '1 / -1',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '48px 32px',
-            minHeight: '460px',
-            borderRadius: '16px',
-            border: '1px solid var(--border-color)',
-            boxShadow: 'var(--shadow-sm)'
-          }}>
-            <div style={{
-              width: '68px',
-              height: '68px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(16, 185, 129, 0.12) 100%)',
+          <div
+            style={{
+              minHeight: '360px',
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: '20px',
-              border: '1px solid rgba(59, 130, 246, 0.2)',
-              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.08)'
-            }}>
-              <UserPlus size={34} style={{ color: 'var(--accent-primary)' }} />
+              padding: '40px 24px',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.12), rgba(5, 150, 105, 0.12))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '16px',
+              }}
+            >
+              <UserPlus size={30} style={{ color: 'var(--accent-primary)' }} />
             </div>
 
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px', textAlign: 'center' }}>
-              Your client directory is ready!
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '6px' }}>
+              Your client directory is ready
             </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', maxWidth: '460px', textAlign: 'center', lineHeight: '1.5', marginBottom: '24px' }}>
-              Add client profiles to organize contacts, contract terms, locations, and link them directly to your workspace projects.
+
+            <p
+              style={{
+                color: 'var(--text-secondary)',
+                fontSize: '0.82rem',
+                maxWidth: '440px',
+                lineHeight: '1.5',
+                marginBottom: '18px',
+              }}
+            >
+              Add client profiles to organize contacts, contract terms, locations,
+              and project associations.
             </p>
 
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-              {isAdmin ? (
-                <button
-                  className="btn btn-primary"
-                  onClick={openAddModal}
-                  style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px' }}
-                >
-                  <Plus size={16} />
-                  <span>Add your first client</span>
-                </button>
-              ) : (
-                <button
-                  className="btn btn-primary"
-                  disabled
-                  title="Only admins can add clients"
-                  style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px', opacity: 0.6 }}
-                >
-                  <Plus size={16} />
-                  <span>Add your first client</span>
-                </button>
-              )}
+            {isAdmin && (
               <button
-                className="btn btn-secondary"
-                onClick={() => setIsExploreModalOpen(true)}
-                style={{ padding: '10px 16px', fontSize: '0.85rem', fontWeight: 650, display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px' }}
+                className="btn btn-primary"
+                onClick={openAddModal}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '7px' }}
               >
-                <span>Explore client workflows</span>
+                <Plus size={15} />
+                Add your first client
               </button>
-            </div>
-
-            <div style={{ width: '100%', maxWidth: '540px', height: '1px', background: 'var(--border-color)', margin: '32px 0 24px 0' }} />
-
-            <div style={{ width: '100%', maxWidth: '640px' }}>
-              <h4 style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '14px', textAlign: 'center' }}>
-                What you can do with clients
-              </h4>
-
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '12px'
-              }}>
-                <div style={{
-                  background: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '10px',
-                  padding: '14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start'
-                }}>
-                  <div style={{
-                    width: '30px',
-                    height: '30px',
-                    borderRadius: '6px',
-                    background: '#eff6ff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: '8px',
-                    color: '#3b82f6'
-                  }}>
-                    <Mail size={16} />
-                  </div>
-                  <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
-                    Organize contacts
-                  </span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
-                    Store email addresses, locations, and contract durations.
-                  </span>
-                </div>
-
-                <div style={{
-                  background: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '10px',
-                  padding: '14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start'
-                }}>
-                  <div style={{
-                    width: '30px',
-                    height: '30px',
-                    borderRadius: '6px',
-                    background: '#ecfdf5',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: '8px',
-                    color: '#10b981'
-                  }}>
-                    <Briefcase size={16} />
-                  </div>
-                  <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
-                    Tag to projects
-                  </span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
-                    Link clients directly to active workspace projects.
-                  </span>
-                </div>
-
-                <div style={{
-                  background: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '10px',
-                  padding: '14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start'
-                }}>
-                  <div style={{
-                    width: '30px',
-                    height: '30px',
-                    borderRadius: '6px',
-                    background: '#f3e8ff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: '8px',
-                    color: '#7f56d9'
-                  }}>
-                    <FileBarChart size={16} />
-                  </div>
-                  <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
-                    Track activity
-                  </span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
-                    View active project associations and client work entries.
-                  </span>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         ) : filteredClients.length === 0 ? (
-          <div className="card empty-state" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>
-            <p style={{ color: 'var(--text-secondary)' }}>No clients match the current search query.</p>
+          <div
+            style={{
+              padding: '50px 24px',
+              textAlign: 'center',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            No clients match &ldquo;{searchQuery}&rdquo;. Try a different name, email, or contact.
           </div>
         ) : (
-          filteredClients.map((client, cIdx: number) => (
-            <article
-              key={client._id ? String(client._id) : `client-${cIdx}`}
-              className="card client-card"
+          <div style={{ width: '100%', overflowX: 'auto' }}>
+            <table
+              style={{
+                width: '100%',
+                minWidth: '980px',
+                borderCollapse: 'collapse',
+                fontSize: '0.78rem',
+              }}
             >
-              <div className="client-card-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div className="client-avatar">
-                    {client.name.substring(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <h3 className="client-title">{client.name}</h3>
-                    {client.duration && (
-                      <p className="client-meta" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                        <Clock size={11} />
-                        <span>Contract: {client.duration}</span>
-                      </p>
-                    )}
-                    {(client.contractStartDate || client.contractEndDate) && (
-                      <p className="client-meta" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                        <Calendar size={11} />
-                        <span>
-                          {client.contractStartDate ? new Date(client.contractStartDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Start'}
-                          {' - '}
-                          {client.contractEndDate ? new Date(client.contractEndDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Ongoing'}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                </div>
+              <thead>
+                <tr
+                  style={{
+                    background: 'var(--bg-tertiary)',
+                    borderBottom: '1px solid var(--border-color)',
+                  }}
+                >
+                  <th style={{ padding: '11px 14px', textAlign: 'left', whiteSpace: 'nowrap', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.01em' }}>
+                    Client
+                  </th>
+                  <th style={{ padding: '11px 14px', textAlign: 'left', whiteSpace: 'nowrap', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.01em' }}>
+                    Phone
+                  </th>
+                  <th style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.01em' }}>
+                    Email
+                  </th>
+                  <th style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.01em' }}>
+                    Address
+                  </th>
+                  <th style={{ padding: '11px 14px', textAlign: 'left', whiteSpace: 'nowrap', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.01em' }}>
+                    Contract
+                  </th>
+                  <th style={{ padding: '11px 14px', textAlign: 'left', minWidth: '180px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.01em' }}>
+                    Projects
+                  </th>
+                  <th style={{ padding: '11px 14px', textAlign: 'left', minWidth: '210px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.01em' }}>
+                    Contact Persons
+                  </th>
+                  {isAdmin && (
+                    <th style={{ padding: '11px 14px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.01em' }}>
+                      Actions
+                    </th>
+                  )}
+                </tr>
+              </thead>
 
-                {isAdmin && (
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button className="btn btn-icon" onClick={() => openEditModal(client)} title="Edit Client details">
-                      <Edit3 size={12} />
-                    </button>
-                    <button className="btn btn-icon btn-danger-text" onClick={() => handleDelete(client._id)} title="Delete Client">
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                )}
-              </div>
+              <tbody>
+                {filteredClients.map((client, cIdx: number) => {
+                  const clientColor = getIdentityStyle(client.name || `client-${cIdx}`);
 
-              <div className="client-card-body">
-                <div className="info-section">
-                  {/* <h4 className="section-label">Contact Details</h4> */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px' }}>
-                    {client.phone && (
-                      <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem' }}>
-                        <Phone size={11} style={{ color: 'var(--accent-primary)' }} />
-                        <a href={`tel:${client.phone}`} style={{ color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 600 }}>
-                          {client.phone}
-                        </a>
-                      </div>
-                    )}
-                    {!Array.isArray(client.emails) || client.emails.length === 0 ? (
-                      !client.phone ? <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>No primary contact info</p> : null
-                    ) : (
-                      client.emails.map((email, idx) => (
-                        <div key={idx} className="info-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem' }}>
-                          <Mail size={11} style={{ color: 'var(--text-muted)' }} />
-                          <a href={`mailto:${email}`} style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>
-                            {email}
-                          </a>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {client.contacts && client.contacts.length > 0 && (
-                  <div className="info-section">
-                    <h4 className="section-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span>Contact Persons ({client.contacts.length})</span>
-                    </h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
-                      {client.contacts.map((c, cIdx) => (
-                        <div
-                          key={cIdx}
-                          style={{
-                            background: 'var(--bg-tertiary)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '6px',
-                            padding: '6px 8px',
-                            fontSize: '0.72rem',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-                            <div>
-                              <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{c.name}</span>
-                              {c.label && (
-                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: '6px', fontWeight: 500 }}>
-                                  ({c.label})
-                                </span>
-                              )}
-                            </div>
-                            {c.designation && (
-                              <span style={{
-                                fontSize: '0.65rem',
-                                padding: '1px 6px',
-                                background: 'rgba(59, 130, 246, 0.1)',
-                                color: 'var(--accent-primary)',
-                                borderRadius: '4px',
-                                fontWeight: 600,
-                              }}>
-                                {c.designation}
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', color: 'var(--text-muted)', fontSize: '0.68rem' }}>
-                            {c.phone && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                <Phone size={10} /> {c.phone}
-                              </span>
-                            )}
-                            {c.email && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                <Mail size={10} /> {c.email}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {client.address && (
-                  <div className="info-section">
-                    {/* <h4 className="section-label">Address</h4> */}
-                    <p className="info-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                      <MapPin size={11} style={{ color: 'var(--text-muted)' }} />
-                      <span>{client.address}</span>
-                    </p>
-                  </div>
-                )}
-
-                <div className="info-section">
-                  {/* <h4 className="section-label">Associated Projects</h4> */}
-                  {!client.projects || client.projects.length === 0 ? (
-                    <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
-                      No active projects assigned
-                    </p>
-                  ) : (
-                    <div className="projects-badges-list">
-                      {client.projects.map((project: any, pIdx: number) => {
-                        const projObj = typeof project === 'object' && project ? project : (projectsOptions.find(p => p._id === project) || { _id: String(project || pIdx), name: String(project || 'Project'), color: '#3b82f6' });
-                        return (
-                          <span
-                            key={projObj._id || `proj-${pIdx}`}
-                            className="project-badge"
+                  return (
+                    <tr
+                      key={client._id ? String(client._id) : `client-${cIdx}`}
+                      className="clients-table-row"
+                      style={{ borderBottom: '1px solid var(--border-color)' }}
+                    >
+                      <td style={{ padding: '13px 14px', verticalAlign: 'top' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '170px' }}>
+                          <div
+                            className="avatar"
                             style={{
-                              background: `${projObj.color || '#3b82f6'}15`,
-                              color: projObj.color || '#3b82f6',
-                              borderColor: `${projObj.color || '#3b82f6'}30`
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '10px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                              // background: clientColor.bg,
+                              color: clientColor.fg,
+                              fontWeight: 800,
+                              fontSize: '0.7rem',
                             }}
                           >
-                            {projObj.name}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </article>
-          ))
+                            {getInitials(client.name)}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontWeight: 800,
+                                color: 'var(--text-primary)',
+                                maxWidth: '190px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title={client.name}
+                            >
+                              {client.name}
+                            </div>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.66rem' }}>
+                              Client
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td style={{ padding: '13px 14px', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+                        {client.phone ? (
+                          <a
+                            href={`tel:${client.phone}`}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              color: 'var(--accent-primary)',
+                              textDecoration: 'none',
+                              fontWeight: 650,
+                            }}
+                          >
+                            <Phone size={11} />
+                            {client.phone}
+                          </a>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+
+                      <td style={{ padding: '13px 14px', verticalAlign: 'top' }}>
+                        {client.emails?.length ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '180px' }}>
+                            {client.emails.slice(0, 2).map((email, idx) => (
+                              <a
+                                key={idx}
+                                href={`mailto:${email}`}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  color: 'var(--text-secondary)',
+                                  textDecoration: 'none',
+                                  maxWidth: '230px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title={email}
+                              >
+                                <Mail size={11} />
+                                {email}
+                              </a>
+                            ))}
+                            {client.emails.length > 2 && (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.66rem' }}>
+                                +{client.emails.length - 2} more
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+
+                      <td style={{ padding: '13px 14px', verticalAlign: 'top' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '5px',
+                            maxWidth: '210px',
+                            color: 'var(--text-secondary)',
+                          }}
+                          title={client.address || ''}
+                        >
+                          {client.address ? (
+                            <>
+                              <MapPin size={11} style={{ marginTop: '2px', flexShrink: 0 }} />
+                              <span
+                                style={{
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                }}
+                              >
+                                {client.address}
+                              </span>
+                            </>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td style={{ padding: '13px 14px', verticalAlign: 'top' }}>
+                        <div style={{ minWidth: '150px' }}>
+                          {client.duration && (
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                fontWeight: 700,
+                                marginBottom: '6px',
+                                padding: '2px 8px',
+                                borderRadius: '999px',
+                                background: 'var(--bg-tertiary)',
+                                fontSize: '0.68rem',
+                                color: 'var(--text-primary)',
+                              }}
+                            >
+                              <Clock size={10} />
+                              {client.duration}
+                            </div>
+                          )}
+
+                          {(client.contractStartDate || client.contractEndDate) ? (
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '5px',
+                                color: 'var(--text-muted)',
+                                fontSize: '0.68rem',
+                              }}
+                            >
+                              <Calendar size={11} style={{ marginTop: '1px', flexShrink: 0 }} />
+                              <span>
+                                {client.contractStartDate
+                                  ? new Date(client.contractStartDate + 'T00:00:00').toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    })
+                                  : 'Start'}
+                                {' – '}
+                                {client.contractEndDate
+                                  ? new Date(client.contractEndDate + 'T00:00:00').toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    })
+                                  : 'Ongoing'}
+                              </span>
+                            </div>
+                          ) : (
+                            !client.duration && <span style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td style={{ padding: '13px 14px', verticalAlign: 'top' }}>
+                        {client.projects?.length ? (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', maxWidth: '260px' }}>
+                            {client.projects.map((project: any, pIdx: number) => {
+                              const projObj =
+                                typeof project === 'object' && project
+                                  ? project
+                                  : (
+                                      projectsOptions.find((p) => p._id === project) || {
+                                        _id: String(project || pIdx),
+                                        name: String(project || 'Project'),
+                                        color: '#3b82f6',
+                                      }
+                                    );
+                              const chipColor = projObj.color || '#3b82f6';
+
+                              return (
+                                <span
+                                  key={projObj._id || `proj-${pIdx}`}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    padding: '4px 9px 4px 7px',
+                                    borderRadius: '999px',
+                                    background: `${chipColor}14`,
+                                    color: chipColor,
+                                    border: `1px solid ${chipColor}33`,
+                                    fontSize: '0.66rem',
+                                    fontWeight: 700,
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: chipColor, flexShrink: 0 }} />
+                                  {projObj.name}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>No projects</span>
+                        )}
+                      </td>
+
+                      <td style={{ padding: '11px 12px', verticalAlign: 'top' }}>
+                        {client.contacts?.length ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', minWidth: '180px' }}>
+                            {client.contacts.slice(0, 1).map((contact, idx) => {
+                              const contactColor = getIdentityStyle(contact.name || `${client._id}-contact-${idx}`);
+                              const isPrimary = (contact.label || '').toLowerCase() === 'primary';
+
+                              return (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    display: 'flex',
+                                    gap: '8px',
+                                    padding: '7px 8px',
+                                    borderRadius: '8px',
+                                    background: 'var(--bg-tertiary)',
+                                    border: '1px solid var(--border-color)',
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      width: '24px',
+                                      height: '24px',
+                                      borderRadius: '50%',
+                                      background: contact.name ? contactColor.bg : 'var(--bg-secondary)',
+                                      color: contact.name ? contactColor.fg : 'var(--text-muted)',
+                                      border: contact.name ? 'none' : '1px dashed var(--border-color)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '0.6rem',
+                                      fontWeight: 800,
+                                      flexShrink: 0,
+                                      marginTop: '1px',
+                                    }}
+                                  >
+                                    {contact.name ? getInitials(contact.name) : <Contact size={11} />}
+                                  </div>
+
+                                  <div style={{ minWidth: 0, flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                                      <span
+                                        style={{
+                                          fontWeight: 750,
+                                          fontSize: '0.72rem',
+                                          color: contact.name ? 'var(--text-primary)' : 'var(--text-muted)',
+                                          fontStyle: contact.name ? 'normal' : 'italic',
+                                        }}
+                                      >
+                                        {contact.name || `Contact #${idx + 1}`}
+                                      </span>
+                                      {isPrimary && (
+                                        <span
+                                          style={{
+                                            fontSize: '0.58rem',
+                                            fontWeight: 700,
+                                            color: '#059669',
+                                            background: '#ECFDF5',
+                                            padding: '1px 6px',
+                                            borderRadius: '999px',
+                                            lineHeight: '1.4',
+                                          }}
+                                        >
+                                          Primary
+                                        </span>
+                                      )}
+                                      {contact.label && !isPrimary && (
+                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.61rem' }}>
+                                          {contact.label}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {contact.designation && (
+                                      <div style={{ color: 'var(--accent-primary)', fontSize: '0.64rem', fontWeight: 650, marginTop: '1px' }}>
+                                        {contact.designation}
+                                      </div>
+                                    )}
+
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px', color: 'var(--text-muted)', fontSize: '0.62rem', marginTop: '3px' }}>
+                                      {contact.phone && (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                          <Phone size={9} />
+                                          {contact.phone}
+                                        </span>
+                                      )}
+                                      {contact.email && (
+                                        <span
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '3px',
+                                            maxWidth: '140px',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                          }}
+                                          title={contact.email}
+                                        >
+                                          <Mail size={9} />
+                                          {contact.email}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {client.contacts.length > 1 && (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.64rem', paddingLeft: '2px' }}>
+                                +{client.contacts.length - 1} more contact{client.contacts.length - 1 > 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>No contacts</span>
+                        )}
+                      </td>
+
+                      {isAdmin && (
+                        <td style={{ padding: '13px 14px', verticalAlign: 'top', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '5px' }}>
+                            <button
+                              className="btn btn-icon"
+                              onClick={() => openEditModal(client)}
+                              title="Edit Client details"
+                            >
+                              <Edit3 size={12} />
+                            </button>
+
+                            <button
+                              className="btn btn-icon btn-danger-text"
+                              onClick={() => handleDelete(client._id)}
+                              title="Delete Client"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
@@ -860,29 +1125,29 @@ export default function ClientsPage() {
                     <input
                       type="text"
                       className="form-control"
-                      // required
                       placeholder="e.g. Acme Corporation"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-
                     />
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Primary Phone Number</label>
+                    <label className="form-label">Primary Phone Number *</label>
                     <input
                       type="tel"
                       className="form-control"
-                      placeholder="e.g. +1 (555) 234-5678"
+                      placeholder="Enter 10-20 digit phone number"
+                      inputMode="numeric"
+                      minLength={10}
+                      maxLength={20}
                       value={phone}
                       onChange={(e) => setPhone(sanitizeNumericInput(e.target.value))}
-
                     />
                   </div>
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '10px' }}>
-                  <label className="form-label">General Emails (comma-separated)</label>
+                  <label className="form-label">General Emails (comma-separated) *</label>
                   <input
                     type="text"
                     className="form-control"
@@ -918,7 +1183,6 @@ export default function ClientsPage() {
                     placeholder="e.g. 123 Main St, Suite 400, New York, NY"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-
                   />
                 </div>
 
@@ -966,7 +1230,7 @@ export default function ClientsPage() {
                       }}
                     >
                       <Plus size={14} style={{ margin: '0 auto 4px auto', display: 'block', color: 'var(--accent-primary)' }} />
-                      <span style={{ fontWeight: 600, color: 'var(--accent-primary)' }}>+ Click to add contact person</span> (e.g. Lead, PM, Billing)
+                      <span style={{ fontWeight: 600, color: 'var(--accent-primary)' }}>Click to add a contact person</span> (e.g. Lead, PM, Billing)
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '2px' }}>
@@ -1167,7 +1431,6 @@ export default function ClientsPage() {
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => handleProjectToggle(proj._id)}
-
                             />
                             <span
                               className="color-dot"
@@ -1189,11 +1452,10 @@ export default function ClientsPage() {
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setShowModal(false)}
-
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" >
+                <button type="submit" className="btn btn-primary" disabled={submitting}>
                   {submitting ? 'Saving...' : editingClient ? 'Save Changes' : 'Create Client'}
                 </button>
               </div>
@@ -1201,7 +1463,6 @@ export default function ClientsPage() {
           </div>
         </div>
       )}
-
 
       {isExploreModalOpen && (
         <div className="modal-overlay" onClick={() => setIsExploreModalOpen(false)}>

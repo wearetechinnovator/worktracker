@@ -9,7 +9,9 @@ import { formatMinutesToDuration } from '@/lib/time';
 import PageShimmer from '@/components/PageShimmer';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { toast } from '@/lib/toast';
-import { staticClient } from '@/lib/staticClient';
+import { getClients } from '@/lib/clientApi';
+import { usePunch } from '@/context/PunchContext';
+import ViewModeBanner from '@/components/ViewModeBanner';
 
 interface Employee {
   _id: string;
@@ -75,22 +77,13 @@ const DEFAULT_DEMO_USER = {
   role: 'System Administrator'
 };
 
-const DEFAULT_INLINE_PROJECTS: Project[] = [
-  { _id: 'proj-1', name: 'AI WorkTracker Pro', description: 'Next-gen workforce management platform with AI insights.', color: '#4f46e5', members: ['emp-1', 'emp-5'], entryCount: 12, totalMinutes: 4800 },
-  { _id: 'proj-2', name: 'Mobile Banking App', description: 'Fintech mobile application with biometric login.', color: '#ec4899', members: ['emp-2'], entryCount: 8, totalMinutes: 2400 },
-  { _id: 'proj-3', name: 'Enterprise CRM Redesign', description: 'Complete UI overhaul for corporate CRM clients.', color: '#10b981', members: ['emp-3'], entryCount: 6, totalMinutes: 1800 },
-  { _id: 'proj-4', name: 'Cloud Analytics Dashboard', description: 'Real-time telemetry and reporting system.', color: '#f59e0b', members: ['emp-4'], entryCount: 4, totalMinutes: 1200 },
-];
+const DEFAULT_INLINE_PROJECTS: Project[] = [];
 
-const DEFAULT_INLINE_EMPLOYEES: Employee[] = [
-  { _id: 'emp-1', name: 'Alex Johnson', email: 'alex@techinnovator.com', role: 'System Admin', Project: 'AI WorkTracker Pro', status: 'Active', avatarColor: '#4f46e5', userType: 'admin', totalMinutes: 1420 },
-  { _id: 'emp-2', name: 'Sarah Connor', email: 'sarah@techinnovator.com', role: 'Project Manager', Project: 'Mobile Banking App', status: 'Active', avatarColor: '#ec4899', userType: 'employee', totalMinutes: 1180 },
-  { _id: 'emp-3', name: 'Michael Scott', email: 'michael@techinnovator.com', role: 'Senior Developer', Project: 'Enterprise CRM', status: 'Active', avatarColor: '#10b981', userType: 'employee', totalMinutes: 960 },
-  { _id: 'emp-4', name: 'Dwight Schrute', email: 'dwight@techinnovator.com', role: 'UI/UX Designer', Project: 'Cloud Analytics', status: 'Active', avatarColor: '#f59e0b', userType: 'employee', totalMinutes: 840 },
-];
+const DEFAULT_INLINE_EMPLOYEES: Employee[] = [];
 
 export default function ProjectsPage() {
   const [user, setUser] = useState<any>(null);
+  const { isViewMode } = usePunch();
 
   // Shared Data State
   const [employees, setEmployees] = useState<Employee[]>(DEFAULT_INLINE_EMPLOYEES);
@@ -298,9 +291,29 @@ export default function ProjectsPage() {
         };
       });
 
-      const loadedEmployees = staticClient.getEmployees() as any[];
-      const loadedWork = staticClient.getWorkEntries() as any[];
-      const loadedClients = staticClient.getClients() as any[];
+      const employeeResponse = await fetch('/api/users/employees', {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      const employeeResult = await employeeResponse.json();
+      const loadedEmployees: Employee[] = (employeeResponse.ok && employeeResult.success && Array.isArray(employeeResult.data))
+        ? employeeResult.data.map((employee: any) => ({
+            ...employee,
+            _id: String(employee._id),
+            name: employee.name || employee.full_name || 'User',
+            role: employee.role || employee.designation || 'Employee',
+            userType: Number(employee.user_role) === 1 ? 'admin' : 'employee',
+            avatarColor: employee.avatarColor || '#3b82f6',
+            totalMinutes: Number(employee.totalMinutes) || 0,
+          }))
+        : [];
+      const loadedWork: any[] = [];
+      const clientResult = await getClients();
+      if (!clientResult.success) {
+        throw new Error(clientResult.message || 'Failed to load clients');
+      }
+      const loadedClients = Array.isArray(clientResult.data) ? clientResult.data : [];
 
       setEmployees(loadedEmployees);
       setEntries(loadedWork as any);
@@ -433,6 +446,10 @@ export default function ProjectsPage() {
   // --- Work Log Actions ---
   const handleAddWorkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isViewMode) {
+      toast.error('You are currently in View-Only mode. Please punch in to log work sessions.');
+      return;
+    }
     const finalEmpId = Number(user.user_role) === 2 ? user._id : workEmpId;
     if (!workProjId || !finalEmpId || !workTitle.trim() || !workDate || !workStart || !workEnd) {
       alert('Please fill all required fields');
@@ -441,14 +458,13 @@ export default function ProjectsPage() {
 
     try {
       setSubmittingWork(true);
-      const result = await staticClient.createWorkLog({ projectId: workProjId, employeeId: finalEmpId, title: workTitle, date: workDate, startTime: workStart, endTime: workEnd, description: workDesc });
-      if (!result.success) throw new Error('Failed to log work session');
+      const newLog = { _id: 'work-' + Date.now(), projectId: workProjId, employeeId: finalEmpId, title: workTitle, date: workDate, startTime: workStart, endTime: workEnd, description: workDesc, createdAt: new Date().toISOString() };
+      setEntries(prev => [newLog as any, ...prev]);
 
       setWorkTitle('');
       setWorkDesc('');
       setIsLogWorkOpen(false);
       toast.success('Work session logged successfully');
-      await fetchData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to log work session');
     } finally {
@@ -470,6 +486,10 @@ export default function ProjectsPage() {
 
   const handleEditLogSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isViewMode) {
+      toast.error('You are currently in View-Only mode. Please punch in to edit work entries.');
+      return;
+    }
     if (!editingLog || !logProjId || !logEmpId || !logTitle.trim() || !logDate || !logStart || !logEnd) {
       alert('Please fill all required fields');
       return;
@@ -477,13 +497,11 @@ export default function ProjectsPage() {
 
     try {
       setSubmittingWork(true);
-      const result = await staticClient.updateWorkLog(editingLog._id, { projectId: logProjId, employeeId: logEmpId, title: logTitle, date: logDate, startTime: logStart, endTime: logEnd, description: logDesc });
-      if (!result.success) throw new Error('Failed to update work entry');
+      setEntries(prev => prev.map(w => w._id === editingLog._id ? { ...w, projectId: logProjId, employeeId: logEmpId, title: logTitle, date: logDate, startTime: logStart, endTime: logEnd, description: logDesc } : w));
 
       setIsEditLogOpen(false);
       setEditingLog(null);
       toast.success('Work log updated successfully');
-      await fetchData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to update work entry');
     } finally {
@@ -492,14 +510,15 @@ export default function ProjectsPage() {
   };
 
   const handleDeleteLog = async (logId: string) => {
+    if (isViewMode) {
+      toast.error('You are currently in View-Only mode. Please punch in to delete work logs.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this work log?')) return;
 
     try {
-      const result = await staticClient.deleteWorkLog(logId);
-      if (!result.success) throw new Error('Failed to delete');
-
+      setEntries(prev => prev.filter(w => w._id !== logId));
       toast.success('Work log deleted successfully');
-      await fetchData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete work log');
     }
@@ -537,6 +556,7 @@ export default function ProjectsPage() {
 
   return (
     <div>
+      <ViewModeBanner />
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div className="project-heading">

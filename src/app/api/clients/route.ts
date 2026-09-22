@@ -29,7 +29,7 @@ function getClientLookup(id: string) {
     return {
       $or: [
         { id: id },
-        { _id: id },
+        { _id: new mongoose.Types.ObjectId(id) },
       ],
     };
   }
@@ -78,6 +78,19 @@ function normalizeProjectIds(
     .filter(Boolean);
 }
 
+function normalizePhone(value: unknown) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function hasSamePhone(client: any, phone: string) {
+  const target = normalizePhone(phone);
+  if (!target) return false;
+
+  return normalizePhone(client.phone) === target ||
+    (Array.isArray(client.contact_members) &&
+      client.contact_members.some((contact: any) => normalizePhone(contact?.phone) === target));
+}
+
 /* =========================================================
    GET CLIENTS
    ========================================================= */
@@ -91,20 +104,41 @@ export async function GET(req: Request) {
   try {
     await dbConnect();
 
-    const { searchParams } =
-      new URL(req.url);
-
+    const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
+    const paramUserId = searchParams.get("userId") || searchParams.get("created_by");
+
+    const user = await currentUser();
+
+    const userIds = Array.from(
+      new Set(
+        [
+          getUserId(user),
+          user?._id ? String(user._id) : null,
+          user?.qd_id ? String(user.qd_id) : null,
+          paramUserId ? String(paramUserId).trim() : null,
+        ].filter(Boolean) as string[]
+      )
+    );
+
+    if (userIds.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Authentication required",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
 
     /* -------------------------
        GET SINGLE CLIENT
        ------------------------- */
 
     if (id) {
-      const client =
-        await Client.findOne(
-          getClientLookup(id)
-        ).lean();
+      const client = await Client.findOne(getClientLookup(id)).lean();
 
       if (!client) {
         return NextResponse.json(
@@ -118,6 +152,20 @@ export async function GET(req: Request) {
         );
       }
 
+      // Verify client ownership by created_by user ID
+      const isOwner = userIds.includes(String(client.created_by || ""));
+      if (!isOwner) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Access denied",
+          },
+          {
+            status: 403,
+          }
+        );
+      }
+
       return NextResponse.json({
         success: true,
         data: client,
@@ -125,25 +173,23 @@ export async function GET(req: Request) {
     }
 
     /* -------------------------
-       GET ALL CLIENTS
+       GET CLIENTS FILTERED BY USER ID
        ------------------------- */
 
-    const clients =
-      await Client.find()
-        .sort({
-          created_on: -1,
-        })
-        .lean();
+    const clients = await Client.find({
+      created_by: { $in: userIds },
+    })
+      .sort({
+        created_on: -1,
+      })
+      .lean();
 
     return NextResponse.json({
       success: true,
       data: clients,
     });
   } catch (error) {
-    console.error(
-      "GET CLIENTS ERROR:",
-      error
-    );
+    console.error("GET CLIENTS ERROR:", error);
 
     return NextResponse.json(
       {
@@ -301,13 +347,85 @@ export async function POST(req: Request) {
         : [];
 
     /* -------------------------
-       PRIMARY PHONE
+       PRIMARY PHONE & EMAILS VALIDATION
        ------------------------- */
 
-    const primaryPhone =
-      String(
-        body.phone || ""
-      ).trim();
+    const primaryPhone = String(body.phone || "").trim();
+    if (!primaryPhone) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Primary phone number is required",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    if (!/^\d{10,20}$/.test(primaryPhone)) {
+      return NextResponse.json(
+        { success: false, message: "Phone number must contain only numbers and be 10-20 digits long" },
+        { status: 400 }
+      );
+    }
+
+    if (emails.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "At least one client email address is required",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const phoneCandidates = await Client.find({
+      $or: [
+        { phone: { $exists: true, $ne: '' } },
+        { 'contact_members.phone': { $exists: true, $ne: '' } },
+      ],
+    }).select('name phone contact_members').lean();
+
+    const duplicatePhoneClient = phoneCandidates.find((client: any) => hasSamePhone(client, primaryPhone));
+    if (duplicatePhoneClient) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `A client (${duplicatePhoneClient.name}) with this phone number already exists. Duplicate phone numbers cannot be added.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    /* -------------------------
+       DUPLICATE EMAIL CHECK
+       ------------------------- */
+
+    const emailRegexes = emails.map(
+      (e: string) => new RegExp(`^${e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
+    );
+
+    const existingDuplicate = await Client.findOne({
+      $or: [
+        { email: { $in: emailRegexes } },
+        { "contact_members.email": { $in: emailRegexes } },
+      ],
+    }).lean();
+
+    if (existingDuplicate) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `A client (${existingDuplicate.name}) with this email already exists. Duplicate clients cannot be added.`,
+        },
+        {
+          status: 400,
+        }
+      );
+    }
 
     /**
      * Client schema doesn't have
@@ -410,6 +528,8 @@ export async function POST(req: Request) {
         name,
 
         email: emails,
+
+        phone: primaryPhone,
 
         address:
           String(
@@ -616,22 +736,49 @@ export async function PATCH(req: Request) {
        EMAIL
        ------------------------- */
 
-    if (
-      body.emails !== undefined
-    ) {
-      updateData.email =
-        Array.isArray(
-          body.emails
-        )
-          ? body.emails
-              .map(
-                (email: unknown) =>
-                  String(
-                    email
-                  ).trim()
-              )
-              .filter(Boolean)
-          : [];
+    if (body.emails !== undefined) {
+      const parsedEmails = Array.isArray(body.emails)
+        ? body.emails
+            .map((email: unknown) => String(email).trim())
+            .filter(Boolean)
+        : [];
+
+      if (parsedEmails.length > 0) {
+        const emailRegexes = parsedEmails.map(
+          (e: string) => new RegExp(`^${e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
+        );
+
+        const excludeConditions: Record<string, any>[] = [{ id: { $ne: id } }];
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          excludeConditions.push({ _id: { $ne: new mongoose.Types.ObjectId(id) } });
+        }
+
+        const duplicateClient = await Client.findOne({
+          $and: [
+            ...excludeConditions,
+            {
+              $or: [
+                { email: { $in: emailRegexes } },
+                { "contact_members.email": { $in: emailRegexes } },
+              ],
+            },
+          ],
+        }).lean();
+
+        if (duplicateClient) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: `Another client (${duplicateClient.name}) with this email already exists.`,
+            },
+            {
+              status: 400,
+            }
+          );
+        }
+      }
+
+      updateData.email = parsedEmails;
     }
 
     /* -------------------------
@@ -658,6 +805,50 @@ export async function PATCH(req: Request) {
         String(
           body.phone || ""
         ).trim();
+
+      if (!phone) {
+        return NextResponse.json(
+          { success: false, message: "Primary phone number is required" },
+          { status: 400 }
+        );
+      }
+
+      if (!/^\d{10,20}$/.test(phone)) {
+        return NextResponse.json(
+          { success: false, message: "Phone number must contain only numbers and be 10-20 digits long" },
+          { status: 400 }
+        );
+      }
+
+      const phoneExclusions: Record<string, any>[] = [{ id: { $ne: id } }];
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        phoneExclusions.push({ _id: { $ne: new mongoose.Types.ObjectId(id) } });
+      }
+
+      const phoneCandidates = await Client.find({
+        $and: [
+          ...phoneExclusions,
+          {
+            $or: [
+              { phone: { $exists: true, $ne: '' } },
+              { 'contact_members.phone': { $exists: true, $ne: '' } },
+            ],
+          },
+        ],
+      }).select('name phone contact_members').lean();
+
+      const duplicatePhoneClient = phoneCandidates.find((client: any) => hasSamePhone(client, phone));
+      if (duplicatePhoneClient) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Another client (${duplicatePhoneClient.name}) with this phone number already exists.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      updateData.phone = phone;
 
       /**
        * Keep primary phone
