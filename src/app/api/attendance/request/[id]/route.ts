@@ -213,23 +213,6 @@ export async function PATCH(
             request.attendance_date,
         });
 
-      /*
-       * Never reopen a completed day.
-       */
-      if (
-        existingToday?.punch_in_on &&
-        existingToday?.punch_out_on
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              "This attendance day is already completed.",
-          },
-          { status: 400 }
-        );
-      }
-
       const attendance =
         existingToday ||
         new Attendance();

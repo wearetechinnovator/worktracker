@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import { currentUser } from "@/lib/auth";
 import Settings from "@/models/Settings";
+import User from "@/models/User";
 
 function serializeSettings(
   settings: any
@@ -87,7 +88,63 @@ function serializeSettings(
 }
 
 /* =========================================================
-   REQUIRE ADMIN
+   GET OR CREATE ADMIN SETTINGS
+   ========================================================= */
+
+async function getOrCreateAdminSettings(admin: any) {
+  let settings = null;
+
+  if (admin.settings_id) {
+    settings = await Settings.findOne({
+      _id: admin.settings_id,
+      status: 1,
+    });
+  }
+
+  if (!settings) {
+    settings = await Settings.findOne({
+      owner_user_id: admin._id,
+      status: 1,
+    });
+  }
+
+  if (!settings) {
+    settings = await Settings.create({
+      owner_user_id: admin._id,
+      punchInGeoRequired: false,
+      punchInIpRequired: false,
+      punchInBrowserRequired: false,
+      punchInSystemIdRequired: false,
+      punchOutGeoRequired: false,
+      punchOutIpRequired: false,
+      punchOutBrowserRequired: false,
+      punchOutSystemIdRequired: false,
+      punchInStartTime: null,
+      punchInEndTime: null,
+      punchOutStartTime: null,
+      punchOutEndTime: null,
+      taskIdPrefix: "QT",
+      nextTaskNumber: 1,
+      created_by: admin._id,
+      created_on: new Date(),
+      status: 1,
+    });
+  }
+
+  if (!admin.settings_id || String(admin.settings_id) !== String(settings._id)) {
+    try {
+      await User.findByIdAndUpdate(admin._id, { $set: { settings_id: settings._id } });
+      admin.settings_id = settings._id;
+    } catch (e) {
+      console.error("Failed to sync admin.settings_id:", e);
+    }
+  }
+
+  return settings;
+}
+
+/* =========================================================
+   REQUIRE ADMIN / SETTINGS MANAGER
    ========================================================= */
 
 async function requireAdmin() {
@@ -110,11 +167,10 @@ async function requireAdmin() {
     };
   }
 
-  if (
-    Number(
-      user.user_role
-    ) !== 1
-  ) {
+  const isAdmin = Number(user.user_role) === 1 || Boolean(user.isSystemAdmin);
+  const hasSettingsManage = Array.isArray(user.permissions) && user.permissions.includes("settings:manage");
+
+  if (!isAdmin && !hasSettingsManage) {
     return {
       user: null,
 
@@ -144,52 +200,59 @@ export async function GET() {
   try {
     await dbConnect();
 
-    const auth =
-      await requireAdmin();
+    const user = await currentUser();
 
-    if (!auth.user) {
-      return auth.response!;
-    }
-
-    const admin =
-      auth.user;
-
-    /* =====================================================
-       ADMIN MUST HAVE SETTINGS
-    ===================================================== */
-
-    if (!admin.settings_id) {
+    if (!user) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Settings are not configured for this admin",
+          message: "Authentication required",
         },
-        { status: 404 }
+        { status: 401 }
       );
     }
 
-    /* =====================================================
-       GET THIS ADMIN'S SETTINGS ONLY
-    ===================================================== */
+    const isAdmin = Number(user.user_role) === 1 || Boolean(user.isSystemAdmin);
 
-    const settings =
-      await Settings.findOne({
-        _id:
-          admin.settings_id,
+    if (isAdmin) {
+      const adminSettings = await getOrCreateAdminSettings(user);
+      return NextResponse.json({
+        success: true,
+        data: serializeSettings(adminSettings),
+      });
+    }
 
-        owner_user_id:
-          admin._id,
-
+    // For employees: find their admin's settings
+    let employeeSettings = null;
+    if (user.settings_id) {
+      employeeSettings = await Settings.findOne({
+        _id: user.settings_id,
         status: 1,
       }).lean();
+    }
 
-    if (!settings) {
+    if (!employeeSettings && user.created_by) {
+      employeeSettings = await Settings.findOne({
+        owner_user_id: user.created_by,
+        status: 1,
+      }).lean();
+    }
+
+    if (!employeeSettings) {
+      const fallbackAdmin = await User.findOne({ user_role: 1, status: true });
+      if (fallbackAdmin) {
+        employeeSettings = await Settings.findOne({
+          owner_user_id: fallbackAdmin._id,
+          status: 1,
+        }).lean();
+      }
+    }
+
+    if (!employeeSettings) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Settings not found",
+          message: "Settings not found for this organization",
         },
         { status: 404 }
       );
@@ -197,10 +260,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data:
-        serializeSettings(
-          settings
-        ),
+      data: serializeSettings(employeeSettings),
     });
   } catch (error) {
     console.error(
@@ -241,20 +301,8 @@ export async function PATCH(
     const admin =
       auth.user;
 
-    /* =====================================================
-       ADMIN MUST HAVE SETTINGS
-    ===================================================== */
-
-    if (!admin.settings_id) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Settings are not configured for this admin",
-        },
-        { status: 404 }
-      );
-    }
+    const adminSettings =
+      await getOrCreateAdminSettings(admin);
 
     const body =
       await request.json();
@@ -273,8 +321,9 @@ export async function PATCH(
       undefined
     ) {
       updateData.punchInStartTime =
-        body.punchInStartTime ||
-        null;
+        body.punchInStartTime && String(body.punchInStartTime).trim()
+          ? String(body.punchInStartTime).trim()
+          : null;
     }
 
     if (
@@ -282,8 +331,9 @@ export async function PATCH(
       undefined
     ) {
       updateData.punchInEndTime =
-        body.punchInEndTime ||
-        null;
+        body.punchInEndTime && String(body.punchInEndTime).trim()
+          ? String(body.punchInEndTime).trim()
+          : null;
     }
 
     /* =====================================================
@@ -339,8 +389,9 @@ export async function PATCH(
       undefined
     ) {
       updateData.punchOutStartTime =
-        body.punchOutStartTime ||
-        null;
+        body.punchOutStartTime && String(body.punchOutStartTime).trim()
+          ? String(body.punchOutStartTime).trim()
+          : null;
     }
 
     if (
@@ -348,8 +399,9 @@ export async function PATCH(
       undefined
     ) {
       updateData.punchOutEndTime =
-        body.punchOutEndTime ||
-        null;
+        body.punchOutEndTime && String(body.punchOutEndTime).trim()
+          ? String(body.punchOutEndTime).trim()
+          : null;
     }
 
     /* =====================================================
@@ -479,16 +531,8 @@ export async function PATCH(
     ===================================================== */
 
     const settings =
-      await Settings.findOneAndUpdate(
-        {
-          _id:
-            admin.settings_id,
-
-          owner_user_id:
-            admin._id,
-
-          status: 1,
-        },
+      await Settings.findByIdAndUpdate(
+        adminSettings._id,
         {
           $set:
             updateData,

@@ -1,113 +1,98 @@
 'use client';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable react-hooks/set-state-in-effect */
-/* eslint-disable react-hooks/exhaustive-deps */
 
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
-import { useRouter } from 'next/navigation';
-import { Clock, Calendar, CheckSquare, AlertCircle, Filter, Folder, ChevronDown, ChevronRight } from 'lucide-react';
+import {
+  Clock,
+  Calendar,
+  CheckSquare,
+  AlertCircle,
+  Filter,
+  Folder,
+  ChevronDown,
+  ChevronRight,
+  Search,
+  RefreshCw,
+  X,
+  FileText,
+  PauseCircle,
+  PlayCircle,
+  CheckCircle2,
+  Clock4
+} from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
-import { taskApi } from '@/lib/taskApi';
 
 interface TaskWorkRecord {
   _id: string;
   taskId: {
     _id: string;
+    task_id?: string;
     title: string;
     description?: string;
-    priority: string;
-    status: string;
+    priority?: string;
+    task_status?: string;
+    status?: string;
+    project_id?: {
+      _id: string;
+      name: string;
+      color?: string;
+    };
   };
   employeeId: {
     _id: string;
-    name: string;
-    avatarColor: string;
+    full_name?: string;
+    name?: string;
+    email?: string;
+    profile_picture?: string;
+    avatarColor?: string;
   };
   date: string;
   startTime: string;
   endTime?: string;
   totalMinutes?: number;
-  status: 'In Progress' | 'Completed';
+  status: 'In Progress' | 'Paused' | 'Completed';
   isFullyCompleted?: boolean;
   notes?: string;
   createdAt: string;
 }
 
-export default function TaskHistoryPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<{ userType?: string } | null>(null);
+export default function UserTaskHistoryPage() {
   const [records, setRecords] = useState<TaskWorkRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Filters
+
+  // Filter States
+  const [search, setSearch] = useState('');
   const [filterDate, setFilterDate] = useState('');
-  const [filterEmployee, setFilterEmployee] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterProject, setFilterProject] = useState('');
-  const [projects, setProjects] = useState<any[]>([]);
+  const [filterProject, setFilterProject] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [showFilters, setShowFilters] = useState(false);
 
   // Grouping State
   const [groupByTask, setGroupByTask] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
+  // Projects Options
+  const [projectsList, setProjectsList] = useState<Array<{ _id: string; name: string; color?: string }>>([]);
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterDate, filterEmployee, filterStatus, filterProject, groupByTask]);
+  const ITEMS_PER_PAGE = 12;
 
   // View Details Modal
   const [selectedRecord, setSelectedRecord] = useState<TaskWorkRecord | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-  const loadRecords = useCallback(async () => {
-    try {
-      const res = await taskApi.getTaskWork();
-      if (res.success && Array.isArray(res.data)) {
-        setRecords(res.data as any);
-      } else {
-        setRecords([]);
-      }
-    } catch (err: unknown) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Authenticate
-  useEffect(() => {
-    const storedUser = localStorage.getItem('worktracker_user');
-    if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser);
-        setUser(parsed);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    setFilterDate(new Date().toISOString().split('T')[0]);
-  }, []);
-
-  // Load data
-  useEffect(() => {
-    loadRecords();
-  }, [loadRecords]);
-
-  // Load Projects for Filter
+  // Fetch projects list for filter dropdown
   useEffect(() => {
     async function loadProjects() {
       try {
         const res = await fetch('/api/projects', { credentials: 'include', cache: 'no-store' });
         const json = await res.json();
         if (res.ok && json.success && Array.isArray(json.data)) {
-          setProjects(json.data);
-        } else {
-          setProjects([]);
+          setProjectsList(json.data);
         }
       } catch (err) {
         console.error('Error fetching projects:', err);
@@ -116,12 +101,87 @@ export default function TaskHistoryPage() {
     loadProjects();
   }, []);
 
+  // Fetch logged-in employee task work records
+  const loadRecords = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      setError(null);
+
+      const params = new URLSearchParams({ limit: '1000' });
+      if (filterDate) params.set('date', filterDate);
+      if (filterProject !== 'All') params.set('projectId', filterProject);
+      if (filterStatus !== 'All') params.set('status', filterStatus);
+
+      const res = await fetch(`/api/task-work?${params.toString()}`, {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success && Array.isArray(json.data)) {
+        setRecords(json.data);
+      } else {
+        setRecords([]);
+        if (!json.success && json.message) {
+          setError(json.message);
+        }
+      }
+    } catch (err: unknown) {
+      console.error('Error fetching work history:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load work history');
+      setRecords([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [filterDate, filterProject, filterStatus]);
+
+  useEffect(() => {
+    loadRecords();
+  }, [loadRecords]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterDate, filterProject, filterStatus, groupByTask]);
+
+  // Formatting Helpers
   const formatDuration = (minutes?: number): string => {
     if (minutes === undefined || minutes === null) return '-';
     if (minutes === 0) return '< 1m';
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  const formatTimeDisplay = (timeStr?: string | Date | null): string => {
+    if (!timeStr) return '-';
+    try {
+      const d = new Date(timeStr);
+      if (Number.isNaN(d.getTime())) return String(timeStr);
+      return d.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return String(timeStr);
+    }
+  };
+
+  const formatDateDisplay = (dateStr?: string | Date | null): string => {
+    if (!dateStr) return '-';
+    try {
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return String(dateStr);
+      return d.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch {
+      return String(dateStr);
+    }
   };
 
   const formatNotesHtml = (notes: string): string => {
@@ -136,31 +196,45 @@ export default function TaskHistoryPage() {
     return formatted;
   };
 
-  // Toggle Group Expand/Collapse
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
-  // Group records by taskId._id
+  // Search filter
+  const filteredRecords = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return records;
+
+    return records.filter((r) => {
+      const taskObj = r.taskId || ({} as any);
+      const taskIdStr = taskObj.task_id || '';
+      const taskTitle = taskObj.title || '';
+      const notes = r.notes || '';
+      const projName = taskObj.project_id?.name || '';
+
+      return [taskIdStr, taskTitle, notes, projName].some((val) =>
+        val.toLowerCase().includes(q)
+      );
+    });
+  }, [records, search]);
+
+  // Grouped items
   const displayItems = useMemo(() => {
-    if (!groupByTask) return records;
+    if (!groupByTask) return filteredRecords;
 
     const groups: Record<string, any> = {};
-    records.forEach((record) => {
+    filteredRecords.forEach((record) => {
       if (!record.taskId) return;
-      const key = record.taskId._id;
-      
-      const projObj = (record.taskId as any).projectId;
-      const projectName = projObj ? projObj.name : ((record.taskId as any).Project || 'General');
-      const projectColor = projObj ? projObj.color : '#cbd5e1';
+      const key = record.taskId._id || String(record.taskId);
+
+      const projObj = record.taskId.project_id;
+      const projectName = projObj ? projObj.name : 'General';
+      const projectColor = projObj?.color || '#cbd5e1';
 
       if (!groups[key]) {
         groups[key] = {
@@ -170,630 +244,788 @@ export default function TaskHistoryPage() {
           projectColor,
           totalTime: 0,
           latestDate: record.date,
-          employeeNames: [],
           entries: [],
+          hasActive: false,
+          hasPaused: false
         };
       }
 
       if (record.status === 'Completed') {
         groups[key].totalTime += record.totalMinutes || 0;
+      } else if (record.status === 'In Progress') {
+        groups[key].hasActive = true;
+      } else if (record.status === 'Paused') {
+        groups[key].hasPaused = true;
       }
 
       if (new Date(record.date) > new Date(groups[key].latestDate)) {
         groups[key].latestDate = record.date;
       }
 
-      if (record.employeeId) {
-        const empName = typeof record.employeeId === 'object' ? record.employeeId?.name : String(record.employeeId);
-        if (empName && !groups[key].employeeNames.includes(empName)) {
-          groups[key].employeeNames.push(empName);
-        }
-      }
-
       groups[key].entries.push(record);
     });
 
-    return Object.values(groups).sort((a: any, b: any) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime());
-  }, [records, groupByTask]);
-
-  const ITEMS_PER_PAGE = 10;
-  const paginatedRecords = displayItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
-
-  const renderPagination = (totalItems: number, itemsPerPage: number, page: number, onPageChange: (p: number) => void) => {
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
-    if (totalPages <= 1) return null;
-
-    return (
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }} className="no-print">
-        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-          Showing <strong>{Math.min(totalItems, (page - 1) * itemsPerPage + 1)}-{Math.min(totalItems, page * itemsPerPage)}</strong> of <strong>{totalItems}</strong> entries
-        </div>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <button
-            className="btn btn-secondary"
-            onClick={() => onPageChange(page - 1)}
-            disabled={page === 1}
-            style={{ padding: '4px 10px', fontSize: '0.75rem', opacity: page === 1 ? 0.5 : 1 }}
-          >
-            Previous
-          </button>
-          {Array.from({ length: totalPages }).map((_, i) => {
-            const pageNum = i + 1;
-            if (pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - page) <= 1) {
-              return (
-                <button
-                  key={pageNum}
-                  className={page === pageNum ? "btn btn-primary" : "btn btn-secondary"}
-                  onClick={() => onPageChange(pageNum)}
-                  style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-                >
-                  {pageNum}
-                </button>
-              );
-            }
-            if (pageNum === 2 || pageNum === totalPages - 1) {
-              return <span key={pageNum} style={{ color: 'var(--text-muted)', alignSelf: 'center', padding: '0 4px' }}>...</span>;
-            }
-            return null;
-          })}
-          <button
-            className="btn btn-secondary"
-            onClick={() => onPageChange(page + 1)}
-            disabled={page === totalPages}
-            style={{ padding: '4px 10px', fontSize: '0.75rem', opacity: page === totalPages ? 0.5 : 1 }}
-          >
-            Next
-          </button>
-        </div>
-      </div>
+    return Object.values(groups).sort(
+      (a: any, b: any) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime()
     );
+  }, [filteredRecords, groupByTask]);
+
+  const paginatedRecords = displayItems.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  const clearFilters = () => {
+    setSearch('');
+    setFilterDate('');
+    setFilterProject('All');
+    setFilterStatus('All');
   };
 
-  const getTotalHours = (): string => {
-    const total = records
-      .filter(r => r.status === 'Completed')
-      .reduce((sum, r) => sum + (r.totalMinutes || 0), 0);
-    return formatDuration(total);
-  };
+  const hasActiveFilters = Boolean(
+    search ||
+      filterDate ||
+      filterProject !== 'All' ||
+      filterStatus !== 'All'
+  );
 
-  const getUniqueEmployees = (): Array<{ _id: string; name: string }> => {
-    const map = new Map();
-    records.forEach(r => {
-      if (r.employeeId) {
-        const empId = typeof r.employeeId === 'object' ? r.employeeId._id : String(r.employeeId);
-        const name = typeof r.employeeId === 'object' ? r.employeeId.name : String(r.employeeId);
-        if (empId && !map.has(empId)) {
-          map.set(empId, name || empId);
-        }
-      }
-    });
-    return Array.from(map, ([_id, name]) => ({ _id, name }));
-  };
+  const totalMinutesAll = records
+    .filter((r) => r.status === 'Completed')
+    .reduce((sum, r) => sum + (r.totalMinutes || 0), 0);
 
   if (loading) {
     return <PageShimmer variant="history" />;
   }
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '1.6rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* <Clock size={28} style={{ color: 'var(--accent-primary)' }} /> */}
-          Task Work History
-        </h1>
-      </div>
-
-      {error && (
-        <div className="card" style={{ borderLeft: '4px solid #ef4444', marginBottom: '20px', background: '#fef2f2' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <AlertCircle style={{ color: '#ef4444' }} />
-            <p style={{ fontWeight: 600, color: '#991b1b' }}>{error}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
-        <div className="card">
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-            Total Sessions
-          </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--accent-primary)' }}>
-            {records.length}
-          </div>
-        </div>
-        
-        <div className="card">
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-            Completed
-          </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#10b981' }}>
-            {records.filter(r => r.status === 'Completed').length}
-          </div>
-        </div>
-        
-        <div className="card">
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-            In Progress
-          </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f59e0b' }}>
-            {records.filter(r => r.status === 'In Progress').length}
-          </div>
-        </div>
-        
-        <div className="card">
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-            Total Time
-          </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--accent-primary)' }}>
-            {getTotalHours()}
-          </div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="card" style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Filter size={16} style={{ color: 'var(--text-muted)' }} />
-            <strong style={{ fontSize: '0.85rem' }}>Filters:</strong>
-          </div>
-
+    <div style={{ padding: 24, minHeight: '100%', background: 'var(--bg-primary)' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
           <div>
+            <h1 style={{ margin: '0 0 5px', fontSize: '1.45rem', fontWeight: 750, display: 'flex', alignItems: 'center', gap: 9 }}>
+              <Clock size={23} style={{ color: 'var(--accent-primary)' }} /> My Work History
+            </h1>
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '.84rem' }}>
+              Review your logged work sessions, hours spent, and submission notes across your tasks.
+            </p>
+          </div>
+          <button
+            className="btn btn-secondary"
+            onClick={loadRecords}
+            disabled={refreshing}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}
+          >
+            <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} /> Refresh
+          </button>
+        </div>
+
+        {error && (
+          <div className="card" style={{ borderLeft: '4px solid #ef4444', marginBottom: 18, background: '#fef2f2', padding: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <AlertCircle size={18} style={{ color: '#ef4444' }} />
+              <span style={{ fontWeight: 650, color: '#991b1b', fontSize: '.84rem' }}>{error}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Stats Summary Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12, marginBottom: 18 }}>
+          <div className="card" style={{ padding: 15 }}>
+            <div style={{ fontSize: '.7rem', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Clock4 size={13} /> TOTAL SESSIONS
+            </div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--accent-primary)' }}>
+              {records.length}
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: 15 }}>
+            <div style={{ fontSize: '.7rem', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Clock size={13} /> TOTAL TIME LOGGED
+            </div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#059669' }}>
+              {formatDuration(totalMinutesAll)}
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: 15 }}>
+            <div style={{ fontSize: '.7rem', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <CheckCircle2 size={13} /> COMPLETED SESSIONS
+            </div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#10b981' }}>
+              {records.filter((r) => r.status === 'Completed' && r.isFullyCompleted !== false).length}
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: 15 }}>
+            <div style={{ fontSize: '.7rem', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <PlayCircle size={13} /> ACTIVE / PAUSED
+            </div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#f59e0b' }}>
+              {records.filter((r) => r.status === 'In Progress' || r.status === 'Paused').length}
+            </div>
+          </div>
+        </div>
+
+        {/* Search & Filter Bar */}
+        <div className="card" style={{ padding: 12, marginBottom: 14, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: '1 1 300px' }}>
+            <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
-              type="date"
               className="form-control"
-              style={{ width: '160px', padding: '6px 10px', fontSize: '0.85rem' }}
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by Task ID (e.g. QT-2), title, notes..."
+              style={{ paddingLeft: 38, height: 40 }}
             />
           </div>
 
-          {user?.userType === 'admin' && (
-            <select
-              className="form-control"
-              style={{ width: '180px', padding: '6px 10px', fontSize: '0.85rem' }}
-              value={filterEmployee}
-              onChange={(e) => setFilterEmployee(e.target.value)}
-            >
-              <option value="">All Employees</option>
-              {getUniqueEmployees().map((emp) => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.name}
-                </option>
-              ))}
-            </select>
-          )}
-
-          <select
-            className="form-control"
-            style={{ width: '180px', padding: '6px 10px', fontSize: '0.85rem' }}
-            value={filterProject}
-            onChange={(e) => setFilterProject(e.target.value)}
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowFilters((v) => !v)}
+            style={{
+              height: 40,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              background: showFilters ? 'var(--bg-secondary)' : undefined,
+              borderColor: showFilters ? 'var(--accent-primary)' : undefined
+            }}
           >
-            <option value="">All Projects</option>
-            {projects.map((proj) => (
-              <option key={proj._id} value={proj._id}>
-                {proj.name}
-              </option>
-            ))}
-          </select>
+            <Filter size={15} /> Filters {hasActiveFilters && '(Active)'}
+          </button>
 
-          <select
-            className="form-control"
-            style={{ width: '150px', padding: '6px 10px', fontSize: '0.85rem' }}
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              fontSize: '0.82rem',
+              fontWeight: 650,
+              cursor: 'pointer',
+              marginLeft: 'auto',
+              userSelect: 'none'
+            }}
           >
-            <option value="">All Status</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Completed">Completed</option>
-          </select>
+            <input
+              type="checkbox"
+              checked={groupByTask}
+              onChange={(e) => setGroupByTask(e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+            />
+            Group by Task
+          </label>
 
-          {(filterEmployee || filterStatus || filterProject) && (
+          {hasActiveFilters && (
             <button
-              onClick={() => {
-                setFilterEmployee('');
-                setFilterStatus('');
-                setFilterProject('');
-              }}
-              className="btn btn-secondary"
-              style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+              className="btn"
+              onClick={clearFilters}
+              style={{ height: 40, display: 'inline-flex', alignItems: 'center', gap: 5, color: '#ef4444' }}
             >
-              Clear
+              <X size={14} /> Clear
             </button>
           )}
+        </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: 650, cursor: 'pointer', color: 'var(--text-primary)' }}>
+        {/* Collapsible Filter Panel */}
+        {showFilters && (
+          <div className="card" style={{ padding: 16, marginBottom: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+            <label style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 5 }}>
+              DATE
               <input
-                type="checkbox"
-                checked={groupByTask}
-                onChange={(e) => setGroupByTask(e.target.checked)}
-                style={{ width: '15px', height: '15px', cursor: 'pointer', accentColor: 'var(--accent-primary)' }}
+                type="date"
+                className="form-control"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                style={{ height: 38 }}
               />
-              Group by Task Title
+            </label>
+
+            <label style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 5 }}>
+              PROJECT
+              <select
+                className="form-control"
+                value={filterProject}
+                onChange={(e) => setFilterProject(e.target.value)}
+                style={{ height: 38 }}
+              >
+                <option value="All">All Projects</option>
+                {projectsList.map((proj) => (
+                  <option key={proj._id} value={proj._id}>
+                    {proj.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 5 }}>
+              STATUS
+              <select
+                className="form-control"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                style={{ height: 38 }}
+              >
+                <option value="All">All Statuses</option>
+                <option value="Completed">Completed</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Paused">Paused</option>
+                <option value="Partially Done">Partially Done</option>
+              </select>
             </label>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Records Table */}
-      <div className="card">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Employee</th>
-              <th>Project</th>
-              <th>Task</th>
-              <th>Date</th>
-              <th>Start Time</th>
-              <th>End Time</th>
-              <th style={{ textAlign: 'right' }}>Duration</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {displayItems.length === 0 ? (
-              <tr>
-                <td colSpan={11} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                  No records found for the selected filters
-                </td>
-              </tr>
-            ) : (
-              paginatedRecords.map((item: any) => {
-                if (groupByTask) {
-                  const group = item;
-                  const isExpanded = expandedGroups.has(group.key);
-                  return (
-                    <Fragment key={group.key}>
-                      <tr
-                        onClick={() => toggleGroup(group.key)}
-                        style={{ cursor: 'pointer', background: isExpanded ? 'var(--bg-tertiary)' : 'transparent' }}
-                      >
-                        <td>
-                          <span style={{ fontWeight: 650, fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                            took by {group.employeeNames.length} {group.employeeNames.length === 1 ? 'member' : 'members'}
+        {/* Data Table */}
+        <div className="card" style={{ overflow: 'hidden' }}>
+          {displayItems.length === 0 ? (
+            <div style={{ height: 320, display: 'grid', placeItems: 'center', color: 'var(--text-muted)', padding: 20 }}>
+              <div style={{ textAlign: 'center' }}>
+                <Clock size={36} style={{ strokeWidth: 1.5, marginBottom: 8 }} />
+                <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>No work records found</div>
+                <p style={{ fontSize: '.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                  {hasActiveFilters ? 'Try adjusting or clearing your filters' : 'Your work sessions will appear here as you log time on tasks'}
+                </p>
+                {hasActiveFilters && (
+                  <button className="btn btn-secondary" onClick={clearFilters} style={{ marginTop: 10, fontSize: '.76rem' }}>
+                    Reset Filters
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={th}>TASK</th>
+                    <th style={th}>PROJECT</th>
+                    <th style={th}>DATE</th>
+                    <th style={th}>TIME WINDOW</th>
+                    <th style={{ ...th, textAlign: 'right' }}>DURATION</th>
+                    <th style={th}>STATUS</th>
+                    <th style={{ ...th, textAlign: 'center' }}>NOTES</th>
+                    {groupByTask && <th style={{ ...th, width: 45, textAlign: 'center' }}></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedRecords.map((item: any) => {
+                    if (groupByTask) {
+                      const group = item;
+                      const isExpanded = expandedGroups.has(group.key);
+                      const taskObj = group.taskId || {};
+
+                      return (
+                        <Fragment key={group.key}>
+                          <tr
+                            onClick={() => toggleGroup(group.key)}
+                            style={{
+                              borderTop: '1px solid var(--border-color)',
+                              cursor: 'pointer',
+                              background: isExpanded ? 'var(--bg-secondary)' : 'transparent',
+                              transition: 'background 0.15s ease'
+                            }}
+                          >
+                            <td style={td}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                {taskObj.task_id && (
+                                  <span style={taskIdBadgeStyle}>
+                                    {taskObj.task_id}
+                                  </span>
+                                )}
+                                <b style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                                  {taskObj.title || 'Untitled Task'}
+                                </b>
+                              </div>
+                            </td>
+
+                            <td style={td}>
+                              <span
+                                style={{
+                                  background: `${group.projectColor}15`,
+                                  color: group.projectColor,
+                                  border: `1px solid ${group.projectColor}35`,
+                                  padding: '2px 8px',
+                                  borderRadius: 4,
+                                  fontSize: '.72rem',
+                                  fontWeight: 650,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4
+                                }}
+                              >
+                                <Folder size={11} /> {group.projectName}
+                              </span>
+                            </td>
+
+                            <td style={td}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.78rem' }}>
+                                <Calendar size={13} style={{ color: 'var(--text-muted)' }} />
+                                {formatDateDisplay(group.latestDate)}
+                              </div>
+                            </td>
+
+                            <td style={{ ...td, color: 'var(--text-muted)', fontSize: '0.76rem' }}>
+                              {group.entries.length} logged sessions
+                            </td>
+
+                            <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: 'var(--accent-primary)', fontSize: '0.82rem' }}>
+                              {formatDuration(group.totalTime)}
+                            </td>
+
+                            <td style={td}>
+                              <span
+                                style={{
+                                  ...getStatusBadgeStyles(
+                                    group.hasActive ? 'In Progress' : group.hasPaused ? 'Paused' : 'Completed'
+                                  ),
+                                  padding: '2px 8px',
+                                  borderRadius: 4,
+                                  fontWeight: 700,
+                                  fontSize: '0.72rem',
+                                  display: 'inline-block'
+                                }}
+                              >
+                                {group.hasActive ? 'In Progress' : group.hasPaused ? 'Paused' : 'Completed'}
+                              </span>
+                            </td>
+
+                            <td style={{ ...td, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                              {group.entries.filter((e: any) => e.notes).length > 0 ? (
+                                <span style={{ fontWeight: 600 }}>{group.entries.filter((e: any) => e.notes).length} with notes</span>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+
+                            <td style={{ ...td, textAlign: 'center' }}>
+                              {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                            </td>
+                          </tr>
+
+                          {/* Expanded Sub-sessions breakdown */}
+                          {isExpanded && (
+                            <tr key={group.key + '_expanded'}>
+                              <td colSpan={8} style={{ padding: '12px 18px', background: 'var(--bg-secondary)' }}>
+                                <div style={{ borderLeft: '3px solid var(--accent-primary)', paddingLeft: 14 }}>
+                                  <div style={{ fontSize: '.7rem', fontWeight: 750, color: 'var(--text-muted)', letterSpacing: 0.5, marginBottom: 8 }}>
+                                    WORK SESSIONS BREAKDOWN ({group.entries.length})
+                                  </div>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.76rem' }}>
+                                    <thead>
+                                      <tr style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-color)', height: 26 }}>
+                                        <th style={{ textAlign: 'left', padding: '3px 6px' }}>Date</th>
+                                        <th style={{ textAlign: 'left', padding: '3px 6px' }}>Time Window</th>
+                                        <th style={{ textAlign: 'right', padding: '3px 6px' }}>Duration</th>
+                                        <th style={{ textAlign: 'left', padding: '3px 6px', paddingLeft: 12 }}>Status</th>
+                                        <th style={{ textAlign: 'center', padding: '3px 6px' }}>Notes</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {group.entries.map((sub: any) => (
+                                        <tr key={sub._id} style={{ borderBottom: '1px solid var(--border-color)', height: 32 }}>
+                                          <td style={{ padding: '4px 6px' }}>{formatDateDisplay(sub.date)}</td>
+                                          <td style={{ padding: '4px 6px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                                            {formatTimeDisplay(sub.startTime)} - {sub.endTime ? formatTimeDisplay(sub.endTime) : (sub.status === 'Paused' ? 'Paused' : 'Active')}
+                                          </td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 750, color: 'var(--accent-primary)' }}>
+                                            {formatDuration(sub.totalMinutes)}
+                                          </td>
+                                          <td style={{ padding: '4px 6px', paddingLeft: 12 }}>
+                                            <span
+                                              style={{
+                                                ...getStatusBadgeStyles(
+                                                  sub.status === 'Completed'
+                                                    ? sub.isFullyCompleted !== false
+                                                      ? 'Completed'
+                                                      : 'Partially Done'
+                                                    : sub.status
+                                                ),
+                                                padding: '1px 6px',
+                                                borderRadius: 4,
+                                                fontSize: '0.68rem',
+                                                fontWeight: 700
+                                              }}
+                                            >
+                                              {sub.status === 'Completed'
+                                                ? sub.isFullyCompleted !== false
+                                                  ? 'Completed'
+                                                  : 'Partially Done'
+                                                : sub.status}
+                                            </span>
+                                          </td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                                            {sub.notes ? (
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setSelectedRecord(sub);
+                                                  setShowDetailsModal(true);
+                                                }}
+                                                className="btn btn-secondary"
+                                                style={{ padding: '2px 8px', fontSize: '.7rem' }}
+                                              >
+                                                View Notes
+                                              </button>
+                                            ) : (
+                                              <span style={{ color: 'var(--text-muted)' }}>—</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    }
+
+                    const record = item as TaskWorkRecord;
+                    const taskObj = record.taskId || ({} as any);
+                    const projObj = taskObj.project_id;
+                    const projName = projObj?.name || 'General';
+                    const projColor = projObj?.color || '#3b82f6';
+
+                    return (
+                      <tr key={record._id} style={{ borderTop: '1px solid var(--border-color)' }}>
+                        <td style={td}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                            {taskObj.task_id && (
+                              <span style={taskIdBadgeStyle}>
+                                {taskObj.task_id}
+                              </span>
+                            )}
+                            <b style={{ fontSize: '.8rem', color: 'var(--text-primary)' }}>
+                              {taskObj.title || 'Untitled Task'}
+                            </b>
+                          </div>
+                          {taskObj.description && (
+                            <div
+                              style={{ fontSize: '.68rem', color: 'var(--text-muted)', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                              dangerouslySetInnerHTML={{ __html: taskObj.description }}
+                            />
+                          )}
+                        </td>
+
+                        <td style={td}>
+                          <span
+                            style={{
+                              background: `${projColor}15`,
+                              color: projColor,
+                              border: `1px solid ${projColor}35`,
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              fontSize: '.72rem',
+                              fontWeight: 650,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <Folder size={11} /> {projName}
                           </span>
                         </td>
-                        <td>
-                          <span className="tag-badge" style={{ backgroundColor: `${group.projectColor}15`, color: group.projectColor, borderColor: `${group.projectColor}30` }}>
-                            {group.projectName}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{group.taskId.title}</div>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
-                            <Calendar size={14} style={{ color: 'var(--text-muted)' }} />
-                            {new Date(group.latestDate).toLocaleDateString()}
+
+                        <td style={td}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '.78rem' }}>
+                            <Calendar size={13} style={{ color: 'var(--text-muted)' }} />
+                            {formatDateDisplay(record.date)}
                           </div>
                         </td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Multiple</td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Multiple</td>
-                        <td style={{ textAlign: 'right', fontWeight: 750, color: 'var(--accent-primary)', fontSize: '0.85rem' }}>
-                          {formatDuration(group.totalTime)}
+
+                        <td style={{ ...td, fontFamily: 'monospace', fontSize: '.76rem' }}>
+                          <div>{formatTimeDisplay(record.startTime)}</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '.7rem' }}>
+                            {record.endTime ? formatTimeDisplay(record.endTime) : (record.status === 'Paused' ? 'Paused' : 'Ongoing')}
+                          </div>
                         </td>
-                        <td>
-                          <span className="tag-badge" style={{
-                            background: group.status === 'Completed' ? '#ecfdf5' : group.status === 'In Progress' ? '#eff6ff' : '#f1f5f9',
-                            color: group.status === 'Completed' ? '#065f46' : group.status === 'In Progress' ? '#1d4ed8' : '#475569',
-                            fontSize: '0.7rem',
-                            padding: '3px 10px',
-                            border: `1px solid ${group.status === 'Completed' ? '#10b98130' : group.status === 'In Progress' ? '#3b82f630' : '#cbd5e130'}`,
-                          }}>
-                            {group.status}
+
+                        <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: 'var(--accent-primary)', fontSize: '.84rem' }}>
+                          {formatDuration(record.totalMinutes)}
+                        </td>
+
+                        <td style={td}>
+                          <span
+                            style={{
+                              ...getStatusBadgeStyles(
+                                record.status === 'Completed'
+                                  ? record.isFullyCompleted !== false
+                                    ? 'Completed'
+                                    : 'Partially Done'
+                                  : record.status
+                              ),
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              fontWeight: 700,
+                              fontSize: '.72rem',
+                              display: 'inline-block'
+                            }}
+                          >
+                            {record.status === 'Completed'
+                              ? record.isFullyCompleted !== false
+                                ? 'Completed'
+                                : 'Partially Done'
+                              : record.status}
                           </span>
                         </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            className="action-btn"
-                            style={{ border: 'none', background: 'transparent', display: 'inline-flex', padding: '4px' }}
-                          >
-                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          </button>
+
+                        <td style={{ ...td, textAlign: 'center' }}>
+                          {record.notes ? (
+                            <button
+                              onClick={() => {
+                                setSelectedRecord(record);
+                                setShowDetailsModal(true);
+                              }}
+                              className="btn btn-secondary"
+                              style={{ padding: '3px 10px', fontSize: '.72rem', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <FileText size={12} /> Notes
+                            </button>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '.75rem' }}>—</span>
+                          )}
                         </td>
                       </tr>
-                      {isExpanded && (
-                        <tr key={group.key + '_expanded'} className="expanded-row-details">
-                          <td colSpan={11} style={{ padding: '10px 18px', background: 'var(--bg-tertiary)' }}>
-                            <div style={{ borderLeft: '3px solid var(--accent-primary)', paddingLeft: '16px', background: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border-color)', padding: '12px' }}>
-                              <h4 style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', color: 'var(--text-muted)' }}>Session Breakdowns</h4>
-                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.74rem' }}>
-                                <thead>
-                                  <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', height: '28px' }}>
-                                    <th style={{ textAlign: 'left', padding: '4px 6px' }}>Date</th>
-                                    <th style={{ textAlign: 'left', padding: '4px 6px' }}>Employee</th>
-                                    <th style={{ textAlign: 'left', padding: '4px 6px' }}>Time Frame</th>
-                                    <th style={{ textAlign: 'right', padding: '4px 6px' }}>Duration</th>
-                                    <th style={{ textAlign: 'left', padding: '4px 6px', paddingLeft: '12px' }}>Status</th>
-                                    <th style={{ textAlign: 'center', padding: '4px 6px', width: '120px' }}>Notes</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {group.entries.map((subEntry: any) => {
-                                    const subName = typeof subEntry.employeeId === 'object' && subEntry.employeeId?.name ? subEntry.employeeId.name : (typeof subEntry.employeeId === 'string' ? subEntry.employeeId : 'Employee');
-                                    const subInitials = subName ? subName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').toUpperCase() : 'E';
-                                    const subBg = typeof subEntry.employeeId === 'object' && subEntry.employeeId?.avatarColor ? subEntry.employeeId.avatarColor : '#3b82f6';
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
-                                    return (
-                                      <tr key={subEntry._id} style={{ borderBottom: '1px solid var(--border-color)', height: '32px' }}>
-                                        <td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>{new Date(subEntry.date).toLocaleDateString()}</td>
-                                        <td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <div className="avatar" style={{ backgroundColor: subBg, width: '18px', height: '18px', fontSize: '0.55rem' }}>
-                                              {subInitials}
-                                            </div>
-                                            <span style={{ fontWeight: 600 }}>{subName}</span>
-                                          </div>
-                                        </td>
-                                        <td style={{ padding: '4px 6px', color: 'var(--text-secondary)' }}>{subEntry.startTime} - {subEntry.endTime || 'Active'}</td>
-                                        <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                                          {formatDuration(subEntry.totalMinutes)}
-                                        </td>
-                                        <td style={{ padding: '4px 6px', paddingLeft: '12px' }}>
-                                           <span className="tag-badge" style={{
-                                             background: subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? '#ecfdf5' : '#fff7ed') : '#eff6ff',
-                                             color: subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? '#065f46' : '#c2410c') : '#1d4ed8',
-                                             border: subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? '1px solid #10b98130' : '1px solid #fed7aa') : '1px solid #3b82f630',
-                                             fontSize: '0.66rem',
-                                             padding: '2px 6px',
-                                           }}>
-                                             {subEntry.status === 'Completed' ? (subEntry.isFullyCompleted !== false ? 'Completed' : 'Partially Done') : 'In Progress'}
-                                           </span>
-                                        </td>
-                                        <td style={{ padding: '4px 6px', textAlign: 'center' }}>
-                                          {subEntry.notes ? (
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setSelectedRecord(subEntry);
-                                                setShowDetailsModal(true);
-                                              }}
-                                              className="btn btn-secondary"
-                                              style={{ padding: '2px 8px', fontSize: '0.7rem' }}
-                                            >
-                                              View Notes
-                                            </button>
-                                          ) : (
-                                            <span style={{ color: 'var(--text-muted)' }}>-</span>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                }
- 
-                const record = item as TaskWorkRecord;
-                const recName = typeof record.employeeId === 'object' && record.employeeId?.name ? record.employeeId.name : (typeof record.employeeId === 'string' ? record.employeeId : 'Employee');
-                const recInitials = recName ? recName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() : 'E';
-                const recBg = typeof record.employeeId === 'object' && record.employeeId?.avatarColor ? record.employeeId.avatarColor : '#3b82f6';
+        {/* Pagination */}
+        {renderPagination(displayItems.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
 
-                return (
-                  <tr key={record._id}>
-                    <td>
-                      <div className="avatar-wrapper">
-                        <div
-                          className="avatar"
-                          style={{
-                            backgroundColor: recBg,
-                            width: '28px',
-                            height: '28px',
-                            fontSize: '0.7rem',
-                          }}
-                        >
-                          {recInitials}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>
-                            {recName}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      {record.taskId && (record.taskId as any).projectId ? (
-                        <span className="tag-badge" style={{
-                          backgroundColor: `${((record.taskId as any).projectId as any).color || '#3b82f6'}15`,
-                          color: ((record.taskId as any).projectId as any).color || '#3b82f6',
-                          borderColor: `${((record.taskId as any).projectId as any).color || '#3b82f6'}30`,
-                          fontSize: '0.72rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          <Folder size={10} style={{ color: ((record.taskId as any).projectId as any).color || '#3b82f6' }} />
-                          {((record.taskId as any).projectId as any).name}
-                        </span>
-                      ) : record.taskId && (record.taskId as any).Project ? (
-                        <span className="tag-badge" style={{ backgroundColor: '#cbd5e120', color: 'var(--text-secondary)', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <Folder size={10} />
-                          {(record.taskId as any).Project}
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>None</span>
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '2px' }}>
-                        {record.taskId.title}
-                      </div>
-                      {record.taskId.description && (
-                        <div
-                          style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}
-                          dangerouslySetInnerHTML={{ __html: record.taskId.description }}
-                        />
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
-                        <Calendar size={14} style={{ color: 'var(--text-muted)' }} />
-                        {new Date(record.date).toLocaleDateString()}
-                      </div>
-                    </td>
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                      {record.startTime}
-                    </td>
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                      {record.endTime || '-'}
-                    </td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.85rem' }}>
-                      {formatDuration(record.totalMinutes)}
-                    </td>
-                    <td>
-                      <span
-                        className="tag-badge"
-                        style={{
-                          background: record.status === 'Completed' ? (record.isFullyCompleted !== false ? '#ecfdf5' : '#fff7ed') : '#eff6ff',
-                          color: record.status === 'Completed' ? (record.isFullyCompleted !== false ? '#065f46' : '#c2410c') : '#1d4ed8',
-                          fontSize: '0.7rem',
-                          padding: '3px 10px',
-                          border: `1px solid ${record.status === 'Completed' ? (record.isFullyCompleted !== false ? '#10b98130' : '#fed7aa') : '#3b82f630'}`,
-                        }}
-                      >
-                        {record.status === 'Completed' ? (record.isFullyCompleted !== false ? 'Completed' : 'Partially Done') : 'In Progress'}
-                      </span>
-                    </td>
-                    <td>
-                      {record.notes ? (
-                        <button
-                          onClick={() => {
-                            setSelectedRecord(record);
-                            setShowDetailsModal(true);
-                          }}
-                          className="btn btn-secondary"
-                          style={{ padding: '4px 12px', fontSize: '0.75rem' }}
-                        >
-                          View Notes
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>-</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {renderPagination(displayItems.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
-
-      {/* Details Modal */}
-      {showDetailsModal && selectedRecord && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px',
-          }}
-          onClick={() => setShowDetailsModal(false)}
-        >
+        {/* Notes & Details Modal */}
+        {showDetailsModal && selectedRecord && (
           <div
-            className="card"
             style={{
-              maxWidth: '600px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflow: 'auto',
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.6)',
+              display: 'grid',
+              placeItems: 'center',
+              zIndex: 1000,
+              padding: 20
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={() => setShowDetailsModal(false)}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Work Session Details</h3>
-              <button
-                onClick={() => setShowDetailsModal(false)}
-                className="btn"
-                style={{ padding: '6px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Task Info */}
-            <div style={{ marginBottom: '20px', padding: '16px', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <CheckSquare size={18} style={{ color: 'var(--accent-primary)' }} />
-                <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>{selectedRecord.taskId.title}</h4>
+            <div
+              className="card"
+              style={{
+                maxWidth: 620,
+                width: '100%',
+                maxHeight: '90vh',
+                overflow: 'auto',
+                padding: 24,
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 750, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <CheckSquare size={18} style={{ color: 'var(--accent-primary)' }} /> Work Session Details
+                </h3>
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="btn"
+                  style={{ padding: 6, display: 'grid', placeItems: 'center', borderRadius: 6 }}
+                >
+                  <X size={16} />
+                </button>
               </div>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.85rem', marginTop: '12px' }}>
-                <div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Employee</div>
-                  <div style={{ fontWeight: 600 }}>{typeof selectedRecord.employeeId === 'object' ? selectedRecord.employeeId?.name : (selectedRecord.employeeId || 'Employee')}</div>
+
+              {/* Task Header Box */}
+              <div style={{ marginBottom: 16, padding: 14, background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                  {selectedRecord.taskId?.task_id && (
+                    <span style={taskIdBadgeStyle}>
+                      {selectedRecord.taskId.task_id}
+                    </span>
+                  )}
+                  <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 700 }}>
+                    {selectedRecord.taskId?.title || 'Task'}
+                  </h4>
                 </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Date</div>
-                  <div style={{ fontWeight: 600 }}>{new Date(selectedRecord.date).toLocaleDateString()}</div>
-                </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Time</div>
-                  <div style={{ fontWeight: 600, fontFamily: 'monospace' }}>
-                    {selectedRecord.startTime} - {selectedRecord.endTime || 'Ongoing'}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: '0.8rem', marginTop: 10 }}>
+                  <div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Date</div>
+                    <div style={{ fontWeight: 650 }}>
+                      {formatDateDisplay(selectedRecord.date)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Time Range</div>
+                    <div style={{ fontWeight: 650, fontFamily: 'monospace' }}>
+                      {formatTimeDisplay(selectedRecord.startTime)} - {selectedRecord.endTime ? formatTimeDisplay(selectedRecord.endTime) : 'Active'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Duration</div>
+                    <div style={{ fontWeight: 750, color: 'var(--accent-primary)' }}>
+                      {formatDuration(selectedRecord.totalMinutes)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Status</div>
+                    <div style={{ fontWeight: 650 }}>
+                      {selectedRecord.status === 'Completed'
+                        ? selectedRecord.isFullyCompleted !== false
+                          ? 'Completed'
+                          : 'Partially Done'
+                        : selectedRecord.status}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Duration</div>
-                  <div style={{ fontWeight: 600, color: 'var(--accent-primary)' }}>
-                    {formatDuration(selectedRecord.totalMinutes)}
-                  </div>
+              </div>
+
+              {/* Notes */}
+              {selectedRecord.notes && (
+                <div style={{ marginBottom: 18 }}>
+                  <h4 style={{ fontSize: '.84rem', fontWeight: 750, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                    Work Notes & Links
+                  </h4>
+                  <div
+                    style={{
+                      background: 'var(--bg-secondary)',
+                      padding: 16,
+                      borderRadius: 8,
+                      fontSize: '.82rem',
+                      lineHeight: 1.6,
+                      wordBreak: 'break-word',
+                      border: '1px solid var(--border-color)'
+                    }}
+                    dangerouslySetInnerHTML={{ __html: formatNotesHtml(selectedRecord.notes) }}
+                  />
                 </div>
-              </div>
-            </div>
+              )}
 
-            {/* Notes Section */}
-            {selectedRecord.notes && (
-              <div style={{ marginBottom: '16px' }}>
-                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '12px', color: 'var(--text-secondary)' }}>
-                  Work Notes & Links
-                </h4>
-                <div 
-                  style={{
-                    background: 'var(--bg-secondary)',
-                    padding: '16px',
-                    borderRadius: '8px',
-                    fontSize: '0.85rem',
-                    lineHeight: '1.6',
-                    wordBreak: 'break-word',
-                    fontFamily: 'system-ui, sans-serif',
-                  }}
-                  dangerouslySetInnerHTML={{ __html: formatNotesHtml(selectedRecord.notes) }}
-                />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                <button onClick={() => setShowDetailsModal(false)} className="btn btn-primary" style={{ padding: '6px 18px', fontSize: '.82rem' }}>
+                  Close
+                </button>
               </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowDetailsModal(false)}
-                className="btn btn-primary"
-              >
-                Close
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
+}
+
+function renderPagination(totalItems: number, itemsPerPage: number, page: number, onPageChange: (p: number) => void) {
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  if (totalPages <= 1) return null;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 16,
+        padding: '10px 16px',
+        background: 'var(--bg-secondary)',
+        borderRadius: 8,
+        border: '1px solid var(--border-color)'
+      }}
+    >
+      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+        Showing <strong>{Math.min(totalItems, (page - 1) * itemsPerPage + 1)}-{Math.min(totalItems, page * itemsPerPage)}</strong> of <strong>{totalItems}</strong> entries
+      </div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          className="btn btn-secondary"
+          onClick={() => onPageChange(page - 1)}
+          disabled={page === 1}
+          style={{ padding: '4px 10px', fontSize: '0.74rem', opacity: page === 1 ? 0.5 : 1 }}
+        >
+          Previous
+        </button>
+        {Array.from({ length: totalPages }).map((_, i) => {
+          const pageNum = i + 1;
+          if (pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - page) <= 1) {
+            return (
+              <button
+                key={pageNum}
+                className={page === pageNum ? 'btn btn-primary' : 'btn btn-secondary'}
+                onClick={() => onPageChange(pageNum)}
+                style={{ padding: '4px 10px', fontSize: '0.74rem' }}
+              >
+                {pageNum}
+              </button>
+            );
+          }
+          if (pageNum === 2 || pageNum === totalPages - 1) {
+            return (
+              <span key={pageNum} style={{ color: 'var(--text-muted)', alignSelf: 'center', padding: '0 4px' }}>
+                ...
+              </span>
+            );
+          }
+          return null;
+        })}
+        <button
+          className="btn btn-secondary"
+          onClick={() => onPageChange(page + 1)}
+          disabled={page === totalPages}
+          style={{ padding: '4px 10px', fontSize: '0.74rem', opacity: page === totalPages ? 0.5 : 1 }}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const th: React.CSSProperties = {
+  padding: '11px 14px',
+  textAlign: 'left',
+  fontSize: '.68rem',
+  color: 'var(--text-muted)',
+  letterSpacing: '0.5px'
+};
+
+const td: React.CSSProperties = {
+  padding: '12px 14px',
+  fontSize: '.78rem',
+  color: 'var(--text-primary)',
+  verticalAlign: 'middle'
+};
+
+const taskIdBadgeStyle: React.CSSProperties = {
+  fontSize: '0.74rem',
+  fontWeight: 750,
+  color: 'var(--accent-primary)',
+  background: 'var(--bg-secondary)',
+  padding: '2px 7px',
+  borderRadius: 4,
+  border: '1px solid var(--border-color)',
+  display: 'inline-block',
+  fontFamily: 'monospace'
+};
+
+function getStatusBadgeStyles(statusName: string): React.CSSProperties {
+  switch (statusName) {
+    case 'Completed':
+      return { background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' };
+    case 'In Progress':
+      return { background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' };
+    case 'Paused':
+      return { background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' };
+    case 'Partially Done':
+    case 'Partially Completed':
+      return { background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' };
+    default:
+      return { background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0' };
+  }
 }

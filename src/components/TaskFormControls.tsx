@@ -1094,6 +1094,32 @@ export function CustomTimePicker({
                 </button>
               </div>
             </div>
+
+            {/* Apply Button */}
+            <div style={{ marginTop: '12px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(format24(hours, minutes, ampm));
+                  setIsOpen(false);
+                }}
+                style={{
+                  width: '100%',
+                  background: 'var(--accent-primary)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'opacity 0.15s ease',
+                }}
+              >
+                Set Time
+              </button>
+            </div>
           </div>
         </div>
       )}

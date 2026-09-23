@@ -65,6 +65,8 @@ interface WorkEntry {
   endTime: string;
   actualTime: number;
   description?: string;
+  status?: string;
+  sessionCount?: number;
   createdAt: string;
 }
 
@@ -308,12 +310,83 @@ export default function ProjectsPage() {
             totalMinutes: Number(employee.totalMinutes) || 0,
           }))
         : [];
-      const loadedWork: any[] = [];
-      const clientResult = await getClients();
+      const [clientResult, workResult] = await Promise.all([
+        getClients(),
+        fetch('/api/task-work?limit=1000', { credentials: 'include', cache: 'no-store' })
+          .then((r) => r.json())
+          .catch(() => ({ success: false, data: [] }))
+      ]);
+
       if (!clientResult.success) {
         throw new Error(clientResult.message || 'Failed to load clients');
       }
       const loadedClients = Array.isArray(clientResult.data) ? clientResult.data : [];
+      const rawSessions = (workResult && workResult.success && Array.isArray(workResult.data))
+        ? workResult.data
+        : [];
+
+      // Group sessions by task so each task appears once per project with accumulated total time
+      const taskMap = new Map<string, WorkEntry>();
+
+      for (const ws of rawSessions) {
+        const taskObj = ws.taskId;
+        if (!taskObj) continue;
+
+        const tId = String(taskObj._id || taskObj);
+        const pId = taskObj.project_id?._id
+          ? String(taskObj.project_id._id)
+          : (typeof taskObj.project_id === 'string' ? taskObj.project_id : '');
+
+        if (!pId) continue;
+
+        const empObj = ws.employeeId || {};
+        const empName = empObj.full_name || empObj.name || 'Employee';
+        const empId = String(empObj._id || '');
+        const duration = Number(ws.totalMinutes) || 0;
+        const taskDisplayTitle = taskObj.task_id ? `[${taskObj.task_id}] ${taskObj.title}` : (taskObj.title || 'Task');
+
+        const existing = taskMap.get(tId);
+        if (!existing) {
+          taskMap.set(tId, {
+            _id: String(ws._id),
+            projectId: pId,
+            projectName: taskObj.project_id?.name || 'Project',
+            projectColor: taskObj.project_id?.color || '#3b82f6',
+            employeeId: empId,
+            employeeName: empName,
+            employeeAvatarColor: empObj.avatarColor || '#3b82f6',
+            employeeRole: empObj.designation || empObj.role || 'Member',
+            title: taskDisplayTitle,
+            date: ws.date ? new Date(ws.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recent',
+            startTime: ws.startTime ? new Date(ws.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '',
+            endTime: ws.endTime ? new Date(ws.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : (ws.status === 'Paused' ? 'Paused' : 'Active'),
+            actualTime: duration,
+            description: ws.notes || taskObj.description || '',
+            status: ws.status === 'Completed' ? (ws.isFullyCompleted !== false ? 'Completed' : 'Partially Done') : ws.status,
+            sessionCount: 1,
+            createdAt: ws.createdAt || ws.date || new Date().toISOString(),
+          });
+        } else {
+          // Accumulate duration across all sessions of this task
+          existing.actualTime += duration;
+          existing.sessionCount = (existing.sessionCount || 1) + 1;
+
+          if (ws.status === 'Completed') {
+            existing.status = ws.isFullyCompleted !== false ? 'Completed' : 'Partially Done';
+          }
+          if (ws.notes && !existing.description) {
+            existing.description = ws.notes;
+          }
+          if (new Date(ws.createdAt || ws.date) > new Date(existing.createdAt)) {
+            existing.date = ws.date ? new Date(ws.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : existing.date;
+            existing.endTime = ws.endTime ? new Date(ws.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : existing.endTime;
+            existing.createdAt = ws.createdAt || ws.date;
+            if (ws.notes) existing.description = ws.notes;
+          }
+        }
+      }
+
+      const loadedWork: WorkEntry[] = Array.from(taskMap.values());
 
       setEmployees(loadedEmployees);
       setEntries(loadedWork as any);
@@ -1128,6 +1201,35 @@ export default function ProjectsPage() {
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem' }}>
                                     <span style={{ fontWeight: 700 }}>{log.employeeName}</span>
                                     <span style={{ color: 'var(--text-muted)' }}>{log.date}</span>
+                                    {log.status && (
+                                      <span
+                                        style={{
+                                          background: log.status === 'Completed' ? '#ecfdf5' : log.status === 'Partially Done' ? '#fff7ed' : '#eff6ff',
+                                          color: log.status === 'Completed' ? '#047857' : log.status === 'Partially Done' ? '#c2410c' : '#1d4ed8',
+                                          border: `1px solid ${log.status === 'Completed' ? '#a7f3d0' : log.status === 'Partially Done' ? '#fed7aa' : '#bfdbfe'}`,
+                                          padding: '1px 6px',
+                                          borderRadius: '4px',
+                                          fontSize: '0.64rem',
+                                          fontWeight: 650,
+                                        }}
+                                      >
+                                        {log.status}
+                                      </span>
+                                    )}
+                                    {log.sessionCount && log.sessionCount > 1 && (
+                                      <span
+                                        style={{
+                                          background: 'var(--bg-secondary)',
+                                          border: '1px solid var(--border-color)',
+                                          padding: '1px 5px',
+                                          borderRadius: '4px',
+                                          fontSize: '0.64rem',
+                                          color: 'var(--text-muted)',
+                                        }}
+                                      >
+                                        {log.sessionCount} sessions
+                                      </span>
+                                    )}
                                   </div>
                                   <h5 style={{ fontWeight: 400, fontSize: '0.78rem', margin: '1px 0' }}>{log.title}</h5>
                                   {log.description && (

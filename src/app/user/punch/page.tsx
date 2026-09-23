@@ -80,6 +80,7 @@ export default function PunchPage() {
   const [isPunchRequestModalOpen, setIsPunchRequestModalOpen] = useState(false);
   const [punchRequestType, setPunchRequestType] = useState<'punchIn' | 'punchOut'>('punchIn');
   const [punchRequestMeta, setPunchRequestMeta] = useState<{
+    message?: string;
     currentTime?: string;
     startTime?: string | null;
     endTime?: string | null;
@@ -198,6 +199,7 @@ export default function PunchPage() {
       if (err?.requiresRequest || err?.requestType) {
         setPunchRequestType(action);
         setPunchRequestMeta({
+          message: err?.message,
           currentTime: err?.currentTime,
           startTime: action === 'punchIn' ? err?.punchInStartTime : err?.punchOutStartTime,
           endTime: action === 'punchIn' ? err?.punchInEndTime : err?.punchOutEndTime,
@@ -366,16 +368,16 @@ export default function PunchPage() {
         </div>
       )}
 
-      {/* Shift Completed Banner */}
-      {attendance?.checkOut && !canPunchIn && (
-        <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid #10b981', background: '#ecfdf5', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <CheckCircle2 style={{ color: '#10b981' }} />
+      {/* Shift Completed / Punched Out Banner */}
+      {attendance?.checkOut && !isPunchedIn && !pendingRequest && (
+        <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid #3b82f6', background: '#eff6ff', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <CheckCircle2 style={{ color: '#3b82f6', flexShrink: 0 }} />
           <div>
-            <p style={{ fontWeight: 700, color: '#065f46', fontSize: '0.85rem', margin: 0 }}>
-              Shift Completed for Today
+            <p style={{ fontWeight: 700, color: '#1e40af', fontSize: '0.85rem', margin: 0 }}>
+              Punched Out for Today
             </p>
-            <p style={{ color: '#047857', fontSize: '0.78rem', margin: '2px 0 0 0' }}>
-              You punched out at <b>{attendance.checkOut}</b>. Re-punching is disabled for the rest of today.
+            <p style={{ color: '#1d4ed8', fontSize: '0.78rem', margin: '2px 0 0 0' }}>
+              You punched out at <b>{attendance.checkOut}</b>. If you need to punch in again, click <b>PUNCH IN</b> to submit a request to your admin.
             </p>
           </div>
         </div>
@@ -600,6 +602,7 @@ export default function PunchPage() {
         isOpen={isPunchRequestModalOpen}
         onClose={() => setIsPunchRequestModalOpen(false)}
         requestType={punchRequestType}
+        message={punchRequestMeta.message}
         currentTime={punchRequestMeta.currentTime}
         startTime={punchRequestMeta.startTime}
         endTime={punchRequestMeta.endTime}

@@ -11,6 +11,7 @@ interface PunchRequestModalProps {
   currentTime?: string;
   startTime?: string | null;
   endTime?: string | null;
+  message?: string | null;
   onSuccess?: () => void;
 }
 
@@ -21,6 +22,7 @@ export default function PunchRequestModal({
   currentTime,
   startTime,
   endTime,
+  message,
   onSuccess,
 }: PunchRequestModalProps) {
   const [reason, setReason] = useState('');
@@ -111,19 +113,20 @@ export default function PunchRequestModal({
         {/* Header */}
         <div
           style={{
-            padding: '16px 20px',
+            padding: '4px 10px',
             borderBottom: '1px solid var(--border-color, #e2e8f0)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             background: 'var(--bg-secondary, #f8fafc)',
+            borderRadius: '10px'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div
               style={{
-                width: '32px',
-                height: '32px',
+                width: '20px',
+                height: '20px',
                 borderRadius: '8px',
                 background: isPunchIn ? '#ecfdf5' : '#fff1f2',
                 color: isPunchIn ? '#059669' : '#e11d48',
@@ -135,11 +138,11 @@ export default function PunchRequestModal({
               <Clock size={18} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
+              {/* <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
                 {actionLabel} Request
-              </h3>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>
-                Time window closed — Admin approval required
+              </h3> */}
+              <p style={{ margin: 0, fontSize: '12px', fontWeight: 700 }}>
+                Time window closed. Admin approval required
               </p>
             </div>
           </div>
@@ -171,17 +174,23 @@ export default function PunchRequestModal({
               border: '1px solid #fef3c7',
               display: 'flex',
               gap: '10px',
-              alignItems: 'flex-start',
+              alignItems: 'center',
             }}
           >
             <AlertTriangle size={18} style={{ color: '#d97706', flexShrink: 0, marginTop: '2px' }} />
             <div style={{ fontSize: '0.8rem', color: '#92400e', lineHeight: 1.4 }}>
-              <strong>Configured {actionLabel} window is currently closed.</strong>
-              {startTime && endTime && (
-                <div>Allowed Window: {startTime} – {endTime}</div>
-              )}
-              {currentTime && <div>Current Time: {currentTime}</div>}
-              <div>Please submit your reason below. Your admin will review and approve it.</div>
+              {/* <strong>
+                {message || `Configured ${actionLabel} window is currently closed.`}
+              </strong> */}
+                <strong className='flex gap-2'>
+                  {startTime && endTime && (
+                    <div>Allowed: {startTime} – {endTime}</div>
+                  )}
+
+                  {currentTime && <div>Current Time: {currentTime}</div>}
+                </strong>
+
+              <div>Please enter a reason for admin approval.</div>
             </div>
           </div>
 
@@ -221,7 +230,7 @@ export default function PunchRequestModal({
               onChange={(e) => setReason(e.target.value)}
               placeholder={
                 isPunchIn
-                  ? 'e.g., Delayed due to client meeting / transit delay / forgot to punch in earlier'
+                  ? 'e.g., Punch in window passed / re-punching for overtime / returning to complete shift tasks'
                   : 'e.g., Working late on project deployment / approved overtime / shift completion'
               }
               disabled={isSubmitting}

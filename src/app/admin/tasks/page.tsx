@@ -54,7 +54,7 @@ interface Task {
     avatarColor: string;
   }>;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  status: 'To Do' | 'In Progress' | 'Partially Completed' | 'Review' | 'Completed';
+  status: 'To Do' | 'In Progress' | 'Paused' | 'Partially Done' | 'Partially Completed' | 'Review' | 'Completed';
   dueDate?: string;
   dueTime?: string;
   url?: string;
@@ -400,10 +400,16 @@ export default function TasksPage() {
           ? workResult.data
           : [];
 
-      const normalizedTasks = (allTasks as any[]).map((task) => ({
-        ...task,
-        comments: typeof task.comments === 'string' ? task.comments : '',
-      }));
+      const normalizedTasks = (allTasks as any[]).map((task) => {
+        let taskStatus = task.task_status || (typeof task.status === 'string' ? task.status : 'To Do');
+        if (taskStatus === 'Partially Completed') taskStatus = 'Partially Done';
+        return {
+          ...task,
+          status: taskStatus,
+          task_status: taskStatus,
+          comments: typeof task.comments === 'string' ? task.comments : '',
+        };
+      });
 
       setTasks(normalizedTasks as Task[]);
       setProjects(allProjects as any);
@@ -762,6 +768,16 @@ export default function TasksPage() {
     );
   };
 
+  const getPausedWorkersForTask = (taskId: string) => {
+    const taskIdStr = String(taskId);
+
+    return taskWorks.filter(
+      (work) =>
+        getTaskWorkId(work) === taskIdStr &&
+        work.status === 'Paused'
+    );
+  };
+
   const getTaskProgress = (taskId: string) => {
     const taskIdStr = String(taskId);
 
@@ -904,6 +920,8 @@ export default function TasksPage() {
       // Show all including Completed
     } else if (filterStatus === 'Completed') {
       if (task.status !== 'Completed' && !isTaskFullyCompletedByMe(task._id)) return false;
+    } else if (filterStatus === 'Partially Done' || filterStatus === 'Partially Completed') {
+      if (task.status !== 'Partially Done' && task.status !== 'Partially Completed') return false;
     } else if (filterStatus) {
       if (task.status !== filterStatus) return false;
     } else {
@@ -985,6 +1003,9 @@ export default function TasksPage() {
         return { color: '#047857' };
       case 'In Progress':
         return { color: '#1d4ed8' };
+      case 'Paused':
+        return { color: '#b45309' };
+      case 'Partially Done':
       case 'Partially Completed':
         return { color: '#c2410c' };
       case 'Review':
@@ -1106,9 +1127,183 @@ export default function TasksPage() {
       )}
 
       {/* Search & Filters Panel */}
+      <div className="card" style={{ marginBottom: '20px', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {/* Top Bar: Search input + Reset Button + Count */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
+          {/* Search Box */}
+          <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
+            <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Search by title, description, project, links..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                paddingLeft: '36px',
+                paddingRight: searchQuery ? '32px' : '12px',
+                fontSize: '0.85rem',
+                width: '100%',
+                height: '38px'
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={resetAllFilters}
+                className="btn btn-secondary"
+                style={{
+                  padding: '6px 14px',
+                  fontSize: '0.8rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 650,
+                  color: '#ef4444',
+                  borderColor: '#ef444430',
+                  background: '#fef2f2'
+                }}
+              >
+                <RotateCcw size={13} />
+                <span>Reset Filters</span>
+              </button>
+            )}
 
-      {/* Tasks Table */}
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 650, whiteSpace: 'nowrap' }}>
+              Showing <strong style={{ color: 'var(--text-primary)' }}>{filteredTasks.length}</strong> of <strong>{tasks.length}</strong> tasks
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Bar: Dropdown Filters Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', alignItems: 'center' }}>
+          {/* Status Filter */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Status
+            </label>
+            <select
+              className="form-control"
+              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <option value="">Active Tasks (Default)</option>
+              <option value="all">All Tasks (Inc. Completed)</option>
+              <option value="To Do">To Do</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Paused">Paused</option>
+              <option value="Partially Done">Partially Done</option>
+              <option value="Review">Review</option>
+              <option value="Completed">Completed Only</option>
+            </select>
+          </div>
+
+          {/* Priority Filter */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Priority
+            </label>
+            <select
+              className="form-control"
+              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
+              value={filterPriority}
+              onChange={(e) => setFilterPriority(e.target.value)}
+            >
+              <option value="">All Priorities</option>
+              <option value="Urgent">🔴 Urgent</option>
+              <option value="High">🟠 High</option>
+              <option value="Medium">🟡 Medium</option>
+              <option value="Low">🟢 Low</option>
+            </select>
+          </div>
+
+          {/* Project Filter */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Project
+            </label>
+            <select
+              className="form-control"
+              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
+              value={filterProject}
+              onChange={(e) => setFilterProject(e.target.value)}
+            >
+              <option value="">All Projects</option>
+              {projects.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Assignee Filter */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Assigned To
+            </label>
+            <select
+              className="form-control"
+              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
+              value={filterAssignee}
+              onChange={(e) => setFilterAssignee(e.target.value)}
+            >
+              <option value="">All Assignees</option>
+              {employees.map((e) => (
+                <option key={e._id} value={e._id}>
+                  {e.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Due Date Filter */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Due Date
+            </label>
+            <select
+              className="form-control"
+              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
+              value={filterDateRange}
+              onChange={(e) => setFilterDateRange(e.target.value)}
+            >
+              <option value="">All Dates</option>
+              <option value="overdue">⚠️ Overdue</option>
+              <option value="today">📅 Due Today</option>
+              <option value="this_week">📆 Due This Week</option>
+              <option value="has_date">With Due Date</option>
+              <option value="no_date">No Due Date</option>
+            </select>
+          </div>
+        </div>
+      </div>
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table className="data-table" style={{ margin: 0, width: '100%' }}>
@@ -1159,7 +1354,9 @@ export default function TasksPage() {
               ) : (
                 paginatedTasks.map((task) => {
                   const activeWorkers = getActiveWorkersForTask(task._id);
+                  const pausedWorkers = getPausedWorkersForTask(task._id);
                   const isSomeoneWorking = activeWorkers.length > 0;
+                  const isSomeonePaused = pausedWorkers.length > 0;
                   const progress = getTaskProgress(task._id);
 
                   return (
@@ -1168,7 +1365,11 @@ export default function TasksPage() {
                       onClick={() => openTaskDetailsModal(task)}
                       className="task-row-interactive"
                       style={{
-                        background: isSomeoneWorking ? 'rgba(16, 185, 129, 0.04)' : undefined,
+                        background: isSomeoneWorking
+                          ? 'rgba(16, 185, 129, 0.04)'
+                          : isSomeonePaused
+                            ? 'rgba(245, 158, 11, 0.05)'
+                            : undefined,
                       }}
                     >
                       <td style={{ whiteSpace: 'nowrap', verticalAlign: 'middle', }}>
@@ -1217,19 +1418,43 @@ export default function TasksPage() {
                           </span>
                           {isSomeoneWorking && (
                             <span className="tag-badge" style={{
-                              // background: '#ecfdf5',
-                              // color: '#047857',
-                              // borderColor: '#10b98140',
                               fontSize: '0.66rem',
                               fontWeight: 750,
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
                               padding: '2px 6px',
-                              width: 'fit-content'
+                              width: 'fit-content',
+                              background: '#ecfdf5',
+                              color: '#047857',
+                              borderColor: '#10b98140',
                             }}>
                               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} className="animate-pulse" />
                               <span>Working Now</span>
+                            </span>
+                          )}
+                          {!isSomeoneWorking && isSomeonePaused && (
+                            <span className="tag-badge" style={{
+                              fontSize: '0.66rem',
+                              fontWeight: 750,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 6px',
+                              width: 'fit-content',
+                              background: '#fef3c7',
+                              color: '#b45309',
+                              borderColor: '#fde68a',
+                            }}>
+                              <PauseCircle size={10} style={{ color: '#d97706' }} />
+                              <span>
+                                Paused
+                                {pausedWorkers.length > 0 && (
+                                  <span style={{ fontWeight: 600, opacity: 0.9 }}>
+                                    {` (${pausedWorkers.map((w: any) => w.employeeId?.full_name || w.employeeId?.name || 'Employee').join(', ')})`}
+                                  </span>
+                                )}
+                              </span>
                             </span>
                           )}
                         </div>
@@ -1272,6 +1497,9 @@ export default function TasksPage() {
                               const isWorkerActive = activeWorkers.some(
                                 (work) => getTaskWorkEmployeeId(work) === empIdStr
                               );
+                              const isWorkerPaused = pausedWorkers.some(
+                                (work) => getTaskWorkEmployeeId(work) === empIdStr
+                              );
                               const empSessions = taskWorks
                                 .filter(
                                   (work) =>
@@ -1290,11 +1518,13 @@ export default function TasksPage() {
 
                               const statusDesc = isWorkerActive
                                 ? ' (Working Now)'
-                                : isEmpDone
-                                  ? ' (Completed their part)'
-                                  : isEmpPartial
-                                    ? ' (Partially Done)'
-                                    : '';
+                                : isWorkerPaused
+                                  ? ' (Paused)'
+                                  : isEmpDone
+                                    ? ' (Completed their part)'
+                                    : isEmpPartial
+                                      ? ' (Partially Done)'
+                                      : '';
 
                               return (
                                 <div
@@ -1306,15 +1536,17 @@ export default function TasksPage() {
                                     height: '24px',
                                     fontSize: '0.62rem',
                                     color: '#ffffff',
-                                    // border: isWorkerActive
-                                    //   ? '2px solid #10b981'
-                                    //   : isEmpDone
-                                    //     ? '2px solid #047857'
-                                    //     : isEmpPartial
-                                    //       ? '2px solid #f97316'
-                                    //       : '2px solid var(--bg-primary)',
-                                    boxShadow: isWorkerActive ? '0 0 6px #10b98180' : undefined,
-                                    marginLeft: eIdx > 0 && !isWorkerActive ? '-6px' : '0',
+                                    border: isWorkerActive
+                                      ? '2px solid #10b981'
+                                      : isWorkerPaused
+                                        ? '2px solid #f59e0b'
+                                        : undefined,
+                                    boxShadow: isWorkerActive
+                                      ? '0 0 6px #10b98180'
+                                      : isWorkerPaused
+                                        ? '0 0 6px #f59e0b80'
+                                        : undefined,
+                                    marginLeft: eIdx > 0 && !isWorkerActive && !isWorkerPaused ? '-6px' : '0',
                                     flexShrink: 0
                                   }}
                                   title={`Assigned to: ${emp.name}${statusDesc}`}

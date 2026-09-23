@@ -10,18 +10,28 @@ import { toast } from '@/lib/toast';
 
 import './style.css';
 
+const defaultSettings: SettingsData = {
+  punchInStartTime: '',
+  punchInEndTime: '',
+  punchInGeoRequired: false,
+  punchInIpRequired: false,
+  punchInBrowserRequired: false,
+  punchInSystemIdRequired: false,
+  punchOutStartTime: '',
+  punchOutEndTime: '',
+  punchOutGeoRequired: false,
+  punchOutIpRequired: false,
+  punchOutBrowserRequired: false,
+  punchOutSystemIdRequired: false,
+  taskIdPrefix: 'QT',
+  nextTaskNumber: 1,
+};
+
 export default function SettingsPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
 
-  const [settings, setSettings] = useState<SettingsData>({
-    punchInStartTime: '09:00',
-    punchInEndTime: '10:00',
-    punchOutStartTime: '17:00',
-    punchOutEndTime: '19:00',
-    taskIdPrefix: 'QT',
-    nextTaskNumber: 1,
-  });
+  const [settings, setSettings] = useState<SettingsData>(defaultSettings);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,12 +76,20 @@ export default function SettingsPage() {
         const result = await res.json();
         if (result.success && result.data) {
           setSettings({
-            punchInStartTime: result.data.punchInStartTime,
-            punchInEndTime: result.data.punchInEndTime,
-            punchOutStartTime: result.data.punchOutStartTime,
-            punchOutEndTime: result.data.punchOutEndTime,
-            taskIdPrefix: 'QT',
-            nextTaskNumber: 1,
+            punchInStartTime: result.data.punchInStartTime || '',
+            punchInEndTime: result.data.punchInEndTime || '',
+            punchInGeoRequired: Boolean(result.data.punchInGeoRequired),
+            punchInIpRequired: Boolean(result.data.punchInIpRequired),
+            punchInBrowserRequired: Boolean(result.data.punchInBrowserRequired),
+            punchInSystemIdRequired: Boolean(result.data.punchInSystemIdRequired),
+            punchOutStartTime: result.data.punchOutStartTime || '',
+            punchOutEndTime: result.data.punchOutEndTime || '',
+            punchOutGeoRequired: Boolean(result.data.punchOutGeoRequired),
+            punchOutIpRequired: Boolean(result.data.punchOutIpRequired),
+            punchOutBrowserRequired: Boolean(result.data.punchOutBrowserRequired),
+            punchOutSystemIdRequired: Boolean(result.data.punchOutSystemIdRequired),
+            taskIdPrefix: result.data.taskIdPrefix || 'QT',
+            nextTaskNumber: Number(result.data.nextTaskNumber || 1),
           });
         }
       } catch (err: any) {
@@ -86,6 +104,78 @@ export default function SettingsPage() {
     }
   }, [user]);
 
+  type TimeField =
+    | 'punchInStartTime'
+    | 'punchInEndTime'
+    | 'punchOutStartTime'
+    | 'punchOutEndTime';
+
+  const timeFieldLabels: Record<TimeField, string> = {
+    punchInStartTime: 'Punch In Start Time',
+    punchInEndTime: 'Punch In End Time',
+    punchOutStartTime: 'Punch Out Start Time',
+    punchOutEndTime: 'Punch Out End Time',
+  };
+
+  const formatDisplayTime = (val: string) => {
+    if (!val) return '';
+    const parts = val.split(':');
+    let h = parseInt(parts[0] || '0', 10);
+    const m = parseInt(parts[1] || '0', 10);
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${h}:${String(m).padStart(2, '0')} ${ap}`;
+  };
+
+  const handleTimeChange = async (field: TimeField, value: string) => {
+    const previousValue = settings[field] || '';
+    const cleanValue = value ? value.trim() : '';
+
+    setSettings((prev) => ({ ...prev, [field]: cleanValue }));
+
+    try {
+      setError(null);
+
+      const response = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          [field]: cleanValue || null,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Failed to update time setting');
+      }
+
+      if (result.data) {
+        setSettings((prev) => ({
+          ...prev,
+          [field]: result.data[field] ?? cleanValue,
+        }));
+      }
+
+      const label = timeFieldLabels[field] || 'Timing';
+      const displayVal = formatDisplayTime(cleanValue);
+      toast.success(cleanValue ? `${label} updated to ${displayVal}` : `${label} cleared`);
+    } catch (err: any) {
+      console.error('Time update error:', err);
+      setSettings((prev) => ({
+        ...prev,
+        [field]: previousValue,
+      }));
+      const msg = err?.message || 'Failed to update timing';
+      setError(msg);
+      toast.error(msg);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -93,6 +183,31 @@ export default function SettingsPage() {
       setSaving(true);
       setError(null);
       setSuccessMsg(null);
+
+      const response = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(settings),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Failed to save settings');
+      }
+
+      if (result.data) {
+        setSettings((prev) => ({
+          ...prev,
+          punchInStartTime: result.data.punchInStartTime ?? prev.punchInStartTime,
+          punchInEndTime: result.data.punchInEndTime ?? prev.punchInEndTime,
+          punchOutStartTime: result.data.punchOutStartTime ?? prev.punchOutStartTime,
+          punchOutEndTime: result.data.punchOutEndTime ?? prev.punchOutEndTime,
+        }));
+      }
 
       toast.success('Settings updated successfully');
       setSuccessMsg('Shift timings updated successfully!');
@@ -104,10 +219,6 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleChange = (field: keyof SettingsData, value: string) => {
-    setSettings((prev) => ({ ...prev, [field]: value }));
   };
 
   if (loading) {
@@ -139,38 +250,20 @@ export default function SettingsPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
             <div>
-
               <CustomTimePicker
                 label="Start Time"
-                value={settings.punchInStartTime}
-                onChange={(value) => handleChange('punchInStartTime', value)}
+                value={settings.punchInStartTime || ''}
+                onChange={(value) => handleTimeChange('punchInStartTime', value)}
                 align="right"
               />
-              {/* <label className="form-label">Start Time</label> */}
-              {/* <input
-                type="time"
-                className="form-control"
-                value={settings.punchInStartTime}
-                onChange={(e) => handleChange('punchInStartTime', e.target.value)}
-                required
-              /> */}
             </div>
             <div>
-
               <CustomTimePicker
                 label="End Time"
-                 value={settings.punchInEndTime}
-                onChange={(value) => handleChange('punchInEndTime', value)}
+                value={settings.punchInEndTime || ''}
+                onChange={(value) => handleTimeChange('punchInEndTime', value)}
                 align="right"
               />
-              {/* <label className="form-label">End Time</label>
-              <input
-                type="time"
-                className="form-control"
-                value={settings.punchInEndTime}
-                onChange={(e) => handleChange('punchInEndTime', e.target.value)}
-                required
-              /> */}
             </div>
           </div>
         </div>
@@ -185,34 +278,18 @@ export default function SettingsPage() {
             <div>
               <CustomTimePicker
                 label="Start Time"
-                value={settings.punchOutStartTime}
-                onChange={(value) => handleChange('punchOutStartTime', value)}
+                value={settings.punchOutStartTime || ''}
+                onChange={(value) => handleTimeChange('punchOutStartTime', value)}
                 align="right"
               />
-              {/* <label className="form-label">Start Time</label>
-              <input
-                type="time"
-                className="form-control"
-                value={settings.punchOutStartTime}
-                onChange={(e) => handleChange('punchOutStartTime', e.target.value)}
-                required
-              /> */}
             </div>
             <div>
               <CustomTimePicker
                 label="End Time"
-                value={settings.punchOutEndTime}
-                onChange={(value) => handleChange('punchOutEndTime', value)}
+                value={settings.punchOutEndTime || ''}
+                onChange={(value) => handleTimeChange('punchOutEndTime', value)}
                 align="right"
               />
-              {/* <label className="form-label">End Time</label>
-              <input
-                type="time"
-                className="form-control"
-                value={settings.punchOutEndTime}
-                onChange={(e) => handleChange('punchOutEndTime', e.target.value)}
-                required
-              /> */}
             </div>
           </div>
         </div>

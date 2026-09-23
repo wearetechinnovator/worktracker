@@ -44,6 +44,7 @@ export default function TopNavbar() {
   const [isPunchRequestModalOpen, setIsPunchRequestModalOpen] = useState(false);
   const [punchRequestType, setPunchRequestType] = useState<'punchIn' | 'punchOut'>('punchIn');
   const [punchRequestMeta, setPunchRequestMeta] = useState<{
+    message?: string;
     currentTime?: string;
     startTime?: string | null;
     endTime?: string | null;
@@ -466,6 +467,7 @@ export default function TopNavbar() {
         ) {
           setPunchRequestType(action);
           setPunchRequestMeta({
+            message: error?.message,
             currentTime: error?.currentTime,
             startTime:
               action === 'punchIn'
@@ -1440,7 +1442,7 @@ export default function TopNavbar() {
               VIEW MODE
           ================================================= */}
 
-          {!isAdmin &&
+          {/* {!isAdmin &&
             !isPunchedIn && (
               <div
                 title="You are currently punched out. All actions are in View-Only mode."
@@ -1473,7 +1475,7 @@ export default function TopNavbar() {
                   View Mode
                 </span>
               </div>
-            )}
+            )} */}
 
           {/* =================================================
               EMPLOYEE PUNCH
@@ -1687,6 +1689,7 @@ export default function TopNavbar() {
         isOpen={isPunchRequestModalOpen}
         onClose={() => setIsPunchRequestModalOpen(false)}
         requestType={punchRequestType}
+        message={punchRequestMeta.message}
         currentTime={punchRequestMeta.currentTime}
         startTime={punchRequestMeta.startTime}
         endTime={punchRequestMeta.endTime}

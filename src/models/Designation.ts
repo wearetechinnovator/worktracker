@@ -6,7 +6,6 @@ const designationSchema = new Schema(
       type: String,
       required: true,
       trim: true,
-      unique: true,
     },
 
     short_desc: {
@@ -19,6 +18,7 @@ const designationSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       default: null,
+      index: true,
     },
 
     modified_by: {
@@ -39,6 +39,11 @@ const designationSchema = new Schema(
     },
   }
 );
+
+designationSchema.index({ name: 1, created_by: 1 }, { unique: true });
+designationSchema.index({ created_by: 1, status: 1 });
+
+delete (mongoose.models as any).Designation;
 
 const Designation =
   mongoose.models.Designation ||

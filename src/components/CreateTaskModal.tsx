@@ -84,7 +84,7 @@ export function CreateTaskModal({
     projectId: '',
     assignedTo: [] as string[],
     priority: 'Medium' as 'Low' | 'Medium' | 'High' | 'Urgent',
-    status: 'To Do' as 'To Do' | 'In Progress' | 'Partially Completed' | 'Review' | 'Completed',
+    status: 'To Do' as 'To Do' | 'In Progress' | 'Paused' | 'Partially Done' | 'Partially Completed' | 'Review' | 'Completed',
     dueDate: '',
     dueTime: '',
     task_assign_date: '',

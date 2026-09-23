@@ -53,7 +53,11 @@ export async function GET(req: Request) {
       filter.assign_to = assignTo;
     }
     if (taskStatus && taskStatus !== 'all') {
-      filter.task_status = taskStatus;
+      if (taskStatus === 'Partially Done' || taskStatus === 'Partially Completed') {
+        filter.task_status = { $in: ['Partially Done', 'Partially Completed'] };
+      } else {
+        filter.task_status = taskStatus;
+      }
     }
     if (priority) {
       filter.priority = priority;
@@ -127,13 +131,14 @@ export async function GET(req: Request) {
         project_id: task.project_id,
         assign_to: task.assign_to,
         created_by: task.created_by,
-        task_status: task.task_status || 'To Do',
+        task_status: task.task_status === 'Partially Completed' ? 'Partially Done' : (task.task_status || 'To Do'),
         completion_date: task.completion_date,
         completion_time: task.completion_time,
         created_on: task.created_on || task.createdAt,
         modified_by: task.modified_by,
         modified_on: task.modified_on,
-        status: task.status ?? 1,
+        status: task.task_status === 'Partially Completed' ? 'Partially Done' : (task.task_status || 'To Do'),
+        record_status: task.status ?? 1,
         comments: typeof task.comments === 'string' ? task.comments : '',
 
         // Compatibility getters

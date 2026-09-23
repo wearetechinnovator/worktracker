@@ -56,7 +56,7 @@ interface Task {
     avatarColor: string;
   }>;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  status: 'To Do' | 'In Progress' | 'Partially Completed' | 'Review' | 'Completed';
+  status: 'To Do' | 'In Progress' | 'Paused' | 'Partially Done' | 'Partially Completed' | 'Review' | 'Completed';
   dueDate?: string;
   dueTime?: string;
   url?: string;
@@ -407,10 +407,16 @@ export default function TasksPage() {
           ? workResult.data
           : [];
 
-      const normalizedTasks = (allTasks as any[]).map((task) => ({
-        ...task,
-        comments: typeof task.comments === 'string' ? task.comments : '',
-      }));
+      const normalizedTasks = (allTasks as any[]).map((task) => {
+        let taskStatus = task.task_status || (typeof task.status === 'string' ? task.status : 'To Do');
+        if (taskStatus === 'Partially Completed') taskStatus = 'Partially Done';
+        return {
+          ...task,
+          status: taskStatus,
+          task_status: taskStatus,
+          comments: typeof task.comments === 'string' ? task.comments : '',
+        };
+      });
 
       setTasks(normalizedTasks as Task[]);
       setProjects(allProjects as any);
@@ -773,6 +779,16 @@ export default function TasksPage() {
     );
   };
 
+  const getPausedWorkersForTask = (taskId: string) => {
+    const taskIdStr = String(taskId);
+
+    return taskWorks.filter(
+      (work) =>
+        getTaskWorkId(work) === taskIdStr &&
+        work.status === 'Paused'
+    );
+  };
+
   const getTaskProgress = (taskId: string) => {
     const taskIdStr = String(taskId);
 
@@ -919,6 +935,8 @@ export default function TasksPage() {
       // Show all including Completed
     } else if (filterStatus === 'Completed') {
       if (task.status !== 'Completed' && !isTaskFullyCompletedByMe(task._id)) return false;
+    } else if (filterStatus === 'Partially Done' || filterStatus === 'Partially Completed') {
+      if (task.status !== 'Partially Done' && task.status !== 'Partially Completed') return false;
     } else if (filterStatus) {
       if (task.status !== filterStatus) return false;
     } else {
@@ -1000,6 +1018,9 @@ export default function TasksPage() {
         return { background: '#ecfdf5', color: '#047857', border: '1px solid #10b98130' };
       case 'In Progress':
         return { background: '#eff6ff', color: '#1d4ed8', border: '1px solid #3b82f630' };
+      case 'Paused':
+        return { background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' };
+      case 'Partially Done':
       case 'Partially Completed':
         return { background: '#fff7ed', color: '#c2410c', border: '1px solid #f9731630' };
       case 'Review':
@@ -1212,7 +1233,8 @@ export default function TasksPage() {
               <option value="all">All Tasks (Inc. Completed)</option>
               <option value="To Do">To Do</option>
               <option value="In Progress">In Progress</option>
-              <option value="Partially Completed">Partially Completed</option>
+              <option value="Paused">Paused</option>
+              <option value="Partially Done">Partially Done</option>
               <option value="Review">Review</option>
               <option value="Completed">Completed Only</option>
             </select>
@@ -1350,7 +1372,9 @@ export default function TasksPage() {
               ) : (
                 paginatedTasks.map((task) => {
                   const activeWorkers = getActiveWorkersForTask(task._id);
+                  const pausedWorkers = getPausedWorkersForTask(task._id);
                   const isSomeoneWorking = activeWorkers.length > 0;
+                  const isSomeonePaused = pausedWorkers.length > 0;
                   const progress = getTaskProgress(task._id);
 
                   return (
@@ -1359,7 +1383,11 @@ export default function TasksPage() {
                       onClick={() => openTaskDetailsModal(task)}
                       className="task-row-interactive"
                       style={{
-                        background: isSomeoneWorking ? 'rgba(16, 185, 129, 0.04)' : undefined,
+                        background: isSomeoneWorking
+                          ? 'rgba(16, 185, 129, 0.04)'
+                          : isSomeonePaused
+                            ? 'rgba(245, 158, 11, 0.05)'
+                            : undefined,
                       }}
                     >
                       <td style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>
@@ -1431,6 +1459,30 @@ export default function TasksPage() {
                               <span>Working Now</span>
                             </span>
                           )}
+                          {!isSomeoneWorking && isSomeonePaused && (
+                            <span className="tag-badge" style={{
+                              background: '#fef3c7',
+                              color: '#b45309',
+                              borderColor: '#fde68a',
+                              fontSize: '0.66rem',
+                              fontWeight: 750,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 6px',
+                              width: 'fit-content'
+                            }}>
+                              <PauseCircle size={10} style={{ color: '#d97706' }} />
+                              <span>
+                                Paused
+                                {pausedWorkers.length > 0 && (
+                                  <span style={{ fontWeight: 600, opacity: 0.9 }}>
+                                    {` (${pausedWorkers.map((w: any) => w.employeeId?.full_name || w.employeeId?.name || 'Employee').join(', ')})`}
+                                  </span>
+                                )}
+                              </span>
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td>
@@ -1471,6 +1523,9 @@ export default function TasksPage() {
                               const isWorkerActive = activeWorkers.some(
                                 (work) => getTaskWorkEmployeeId(work) === empIdStr
                               );
+                              const isWorkerPaused = pausedWorkers.some(
+                                (work) => getTaskWorkEmployeeId(work) === empIdStr
+                              );
                               const empSessions = taskWorks
                                 .filter(
                                   (work) =>
@@ -1489,11 +1544,13 @@ export default function TasksPage() {
 
                               const statusDesc = isWorkerActive
                                 ? ' (Working Now)'
-                                : isEmpDone
-                                  ? ' (Completed their part)'
-                                  : isEmpPartial
-                                    ? ' (Partially Done)'
-                                    : '';
+                                : isWorkerPaused
+                                  ? ' (Paused)'
+                                  : isEmpDone
+                                    ? ' (Completed their part)'
+                                    : isEmpPartial
+                                      ? ' (Partially Done)'
+                                      : '';
 
                               return (
                                 <div
@@ -1507,13 +1564,19 @@ export default function TasksPage() {
                                     color: '#ffffff',
                                     border: isWorkerActive
                                       ? '2px solid #10b981'
-                                      : isEmpDone
-                                        ? '2px solid #047857'
-                                        : isEmpPartial
-                                          ? '2px solid #f97316'
-                                          : '2px solid var(--bg-primary)',
-                                    boxShadow: isWorkerActive ? '0 0 6px #10b98180' : undefined,
-                                    marginLeft: eIdx > 0 && !isWorkerActive ? '-6px' : '0',
+                                      : isWorkerPaused
+                                        ? '2px solid #f59e0b'
+                                        : isEmpDone
+                                          ? '2px solid #047857'
+                                          : isEmpPartial
+                                            ? '2px solid #f97316'
+                                            : '2px solid var(--bg-primary)',
+                                    boxShadow: isWorkerActive
+                                      ? '0 0 6px #10b98180'
+                                      : isWorkerPaused
+                                        ? '0 0 6px #f59e0b80'
+                                        : undefined,
+                                    marginLeft: eIdx > 0 && !isWorkerActive && !isWorkerPaused ? '-6px' : '0',
                                     flexShrink: 0
                                   }}
                                   title={`Assigned to: ${emp.name}${statusDesc}`}

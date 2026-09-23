@@ -176,22 +176,6 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-
-      const attendanceDate = getAttendanceDate();
-      const todayAttendance = await Attendance.findOne({
-        user_id: user._id,
-        attendance_date: attendanceDate,
-      });
-
-      if (todayAttendance?.punch_in_on && todayAttendance?.punch_out_on) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "Today's attendance is already completed.",
-          },
-          { status: 400 }
-        );
-      }
     }
 
     /*

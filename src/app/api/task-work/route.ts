@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
 import dbConnect from "@/lib/dbConnect";
 import { currentUser } from "@/lib/auth";
 import Task from "@/models/Task";
 import TaskWork from "@/models/TaskWork";
 import TaskLog from "@/models/TaskLog";
+import User from "@/models/User";
+import { syncTaskStatus } from "@/lib/taskStatusHelper";
 
 type Action = "start" | "pause" | "resume" | "complete";
 
@@ -57,26 +60,118 @@ export async function GET(request: Request) {
     const filter: Record<string, any> = {};
 
     if (isAdmin) {
+      // Find all employees managed by this admin
+      const managedEmployees = await User.find({
+        $or: [{ created_by: user._id }, { _id: user._id }],
+      }).distinct("_id");
+
+      // Find all tasks created by or assigned under this admin
+      const managedTasks = await Task.find({
+        $or: [
+          { created_by: user._id },
+          { assign_to: { $in: managedEmployees } },
+        ],
+      }).distinct("_id");
+
       const employeeId = searchParams.get("employeeId");
-      if (employeeId) filter.employeeId = employeeId;
+      if (employeeId && employeeId !== "all" && employeeId !== "All") {
+        filter.employeeId = employeeId;
+      } else {
+        filter.$or = [
+          { employeeId: { $in: managedEmployees } },
+          { taskId: { $in: managedTasks } },
+        ];
+      }
     } else {
       filter.employeeId = user._id;
     }
 
-    const taskId = searchParams.get("taskId");
-    const status = searchParams.get("status");
+    // Filter by Date
+    const dateStr = searchParams.get("date");
+    if (dateStr && dateStr !== "all" && dateStr !== "All") {
+      const startOfDay = new Date(dateStr);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+      const endOfDay = new Date(dateStr);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+      filter.date = { $gte: startOfDay, $lte: endOfDay };
+    }
 
-    if (taskId) filter.taskId = taskId;
-    if (status) filter.status = status;
+    // Filter by Task ID
+    const taskId = searchParams.get("taskId");
+    if (taskId && taskId !== "all" && taskId !== "All") {
+      if (mongoose.Types.ObjectId.isValid(taskId)) {
+        filter.taskId = taskId;
+      } else {
+        const matchedTask = await Task.findOne({
+          task_id: { $regex: `^${taskId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+        }).select("_id");
+        if (matchedTask) {
+          filter.taskId = matchedTask._id;
+        } else {
+          return NextResponse.json({ success: true, data: [] });
+        }
+      }
+    }
+
+    // Filter by Project
+    const projectId = searchParams.get("projectId");
+    if (projectId && projectId !== "all" && projectId !== "All") {
+      const projectTaskIds = await Task.find({ project_id: projectId }).distinct("_id");
+      if (filter.taskId) {
+        // If already set, verify intersection
+        const existingTaskId = String(filter.taskId);
+        if (!projectTaskIds.some((id: any) => String(id) === existingTaskId)) {
+          return NextResponse.json({ success: true, data: [] });
+        }
+      } else {
+        filter.taskId = { $in: projectTaskIds };
+      }
+    }
+
+    // Filter by Status
+    const status = searchParams.get("status");
+    if (status && status !== "all" && status !== "All") {
+      if (status === "Partially Done" || status === "Partially Completed") {
+        filter.status = "Completed";
+        filter.isFullyCompleted = false;
+      } else if (status === "Completed") {
+        filter.status = "Completed";
+        filter.isFullyCompleted = true;
+      } else {
+        filter.status = status;
+      }
+    }
 
     const workSessions = await TaskWork.find(filter)
-      .populate("taskId", "title project_id")
-      .populate("employeeId", "full_name email profile_picture")
+      .populate({
+        path: "taskId",
+        select: "task_id title description project_id task_status priority",
+        populate: {
+          path: "project_id",
+          select: "name color",
+        },
+      })
+      .populate("employeeId", "full_name name email profile_picture")
       .sort({ createdAt: -1 })
-      .limit(Math.min(Number(searchParams.get("limit")) || 500, 500))
+      .limit(Math.min(Number(searchParams.get("limit")) || 1000, 1000))
       .lean();
 
-    return NextResponse.json({ success: true, data: workSessions });
+    const normalized = workSessions.map((w: any) => {
+      const emp = w.employeeId || {};
+      const empName = emp.full_name || emp.name || emp.email || "Employee";
+      return {
+        ...w,
+        _id: String(w._id),
+        employeeId: {
+          ...emp,
+          _id: emp._id ? String(emp._id) : "",
+          name: empName,
+          full_name: empName,
+        },
+      };
+    });
+
+    return NextResponse.json({ success: true, data: normalized });
   } catch (error) {
     console.error("GET /api/task-work Error:", error);
     return NextResponse.json(
@@ -182,6 +277,8 @@ export async function POST(request: NextRequest) {
         action: "Started",
       });
 
+      await syncTaskStatus(task._id);
+
       return NextResponse.json({
         success: true,
         message: "Work started successfully",
@@ -226,9 +323,11 @@ export async function POST(request: NextRequest) {
       await TaskLog.create({
         task_id: task._id,
         user_id: employee._id,
-        status: "In Progress",
+        status: "Paused",
         action: "Paused",
       });
+
+      await syncTaskStatus(task._id);
 
       return NextResponse.json({
         success: true,
@@ -263,6 +362,8 @@ export async function POST(request: NextRequest) {
         status: "In Progress",
         action: "Resumed",
       });
+
+      await syncTaskStatus(task._id);
 
       return NextResponse.json({
         success: true,
@@ -315,9 +416,11 @@ export async function POST(request: NextRequest) {
       await TaskLog.create({
         task_id: task._id,
         user_id: employee._id,
-        status: "Completed",
+        status: work.isFullyCompleted ? "Completed" : "Partially Done",
         action: "Completed",
       });
+
+      await syncTaskStatus(task._id);
 
       return NextResponse.json({
         success: true,

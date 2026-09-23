@@ -95,12 +95,9 @@ body {
   color: var(--text-primary);
   font-family: var(--font-sans);
   min-height: 100vh;
-  display: flex;
-  flex-direction: row;
   overflow-x: hidden;
   line-height: 1.4;
-  font-size: 0.8rem;
-  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-size: 1rem;
 }
 
 a {
@@ -113,7 +110,6 @@ input,
 select,
 textarea {
   font-family: inherit;
-  font-size: inherit;
   color: inherit;
 }
 
@@ -363,10 +359,6 @@ textarea {
 }
 
 @media (max-width: 768px) {
-  body {
-    flex-direction: column !important;
-  }
-
   .top-navbar {
     padding: 8px 12px;
     height: auto;
@@ -413,29 +405,8 @@ textarea {
     pointer-events: auto;
   }
 
-  /* Universal Mobile Grid & Form Auto-Collapse */
-  div[style*="grid-template-columns"],
-  div[style*="gridTemplateColumns"],
-  .grid-2-col,
-  .grid-3-col,
-  .grid-4-col {
-    grid-template-columns: 1fr !important;
-  }
-
-  /* Calendar / Day picker exceptions - retain 7 columns on mobile */
-  div[style*="repeat(7, 1fr)"],
-  div[style*="repeat(7,1fr)"],
-  div[style*="repeat(7, 1fr)"] {
-    grid-template-columns: repeat(7, 1fr) !important;
-  }
-
-  /* Stat cards mini grids on mobile */
-  .stats-grid,
-  div[style*="repeat(auto-fit, minmax(180px, 1fr))"],
-  div[style*="repeat(auto-fit, minmax(150px, 1fr))"] {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 8px !important;
-  }
+  /* Mobile layout is controlled by each component / Tailwind.
+     Avoid global attribute selectors that override component layouts. */
 
   /* Page Headers & Action Bars on Mobile */
   .page-header,
@@ -508,28 +479,8 @@ textarea {
     min-width: 580px !important;
   }
 
-  /* Universal Modal Dialog Mobile Responsiveness */
-  .modal-overlay {
-    padding: 8px !important;
-  }
-
-  .modal-container,
-  div[style*="maxWidth: 800px"],
-  div[style*="maxWidth: 900px"],
-  div[style*="maxWidth: 700px"],
-  div[style*="maxWidth: 600px"],
-  div[style*="maxWidth: 500px"],
-  div[style*="max-width: 800px"],
-  div[style*="max-width: 900px"],
-  div[style*="max-width: 600px"] {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 16px 14px !important;
-    max-height: 88vh !important;
-    overflow-y: auto !important;
-    border-radius: 14px !important;
-  }
+  /* Modal responsiveness is controlled by modal components.
+     Do not target arbitrary inline styles globally. */
 
   /* Buttons & Touch Targets */
   .btn,

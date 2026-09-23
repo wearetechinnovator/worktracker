@@ -510,6 +510,107 @@ export default function SettingsPage() {
   };
 
   /* =======================================================
+     HANDLE DYNAMIC TIME CHANGE
+  ======================================================= */
+
+  type TimeField =
+    | "punchInStartTime"
+    | "punchInEndTime"
+    | "punchOutStartTime"
+    | "punchOutEndTime";
+
+  const timeFieldLabels: Record<TimeField, string> = {
+    punchInStartTime: "Punch In Start Time",
+    punchInEndTime: "Punch In End Time",
+    punchOutStartTime: "Punch Out Start Time",
+    punchOutEndTime: "Punch Out End Time",
+  };
+
+  const formatDisplayTime = (val: string) => {
+    if (!val) return "";
+    const parts = val.split(":");
+    let h = parseInt(parts[0] || "0", 10);
+    const m = parseInt(parts[1] || "0", 10);
+    const ap = h >= 12 ? "PM" : "AM";
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${h}:${String(m).padStart(2, "0")} ${ap}`;
+  };
+
+  const handleTimeChange = async (
+    field: TimeField,
+    value: string
+  ) => {
+    const previousValue = settings[field] || "";
+    const cleanValue = value ? value.trim() : "";
+
+    // 1. Optimistic UI update
+    setSettings((prev) => ({
+      ...prev,
+      [field]: cleanValue,
+    }));
+
+    try {
+      setError(null);
+
+      const response = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          [field]: cleanValue || null,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
+
+      if (response.status === 403) {
+        throw new Error(result.message || "Only admins can manage settings");
+      }
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to update time setting");
+      }
+
+      // Sync server data
+      if (result.data) {
+        setSettings((prev) => ({
+          ...prev,
+          [field]: result.data[field] ?? cleanValue,
+        }));
+      }
+
+      const label = timeFieldLabels[field] || "Timing";
+      const displayVal = formatDisplayTime(cleanValue);
+      showToast(
+        cleanValue
+          ? `${label} updated to ${displayVal}`
+          : `${label} cleared`,
+        "success"
+      );
+    } catch (err: any) {
+      console.error("Time update error:", err);
+
+      // Rollback
+      setSettings((prev) => ({
+        ...prev,
+        [field]: previousValue,
+      }));
+
+      const message = err?.message || "Failed to update timing";
+      setError(message);
+      showToast(message, "error");
+    }
+  };
+
+  /* =======================================================
      SAVE NORMAL SETTINGS
   ======================================================= */
 
@@ -899,7 +1000,7 @@ export default function SettingsPage() {
                 ""
               }
               onChange={(value) =>
-                handleChange(
+                handleTimeChange(
                   "punchInStartTime",
                   value
                 )
@@ -914,7 +1015,7 @@ export default function SettingsPage() {
                 ""
               }
               onChange={(value) =>
-                handleChange(
+                handleTimeChange(
                   "punchInEndTime",
                   value
                 )
@@ -1053,7 +1154,7 @@ export default function SettingsPage() {
                 ""
               }
               onChange={(value) =>
-                handleChange(
+                handleTimeChange(
                   "punchOutStartTime",
                   value
                 )
@@ -1068,7 +1169,7 @@ export default function SettingsPage() {
                 ""
               }
               onChange={(value) =>
-                handleChange(
+                handleTimeChange(
                   "punchOutEndTime",
                   value
                 )

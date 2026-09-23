@@ -107,6 +107,8 @@ const taskSchema = new Schema(
       enum: [
         "To Do",
         "In Progress",
+        "Paused",
+        "Partially Done",
         "Partially Completed",
         "Review",
         "Completed",
@@ -211,6 +213,8 @@ const taskSchema = new Schema(
 
   }
 );
+
+delete (mongoose.models as any).Task;
 
 const Task =
   mongoose.models.Task ||

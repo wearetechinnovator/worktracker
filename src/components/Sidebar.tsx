@@ -101,7 +101,7 @@ export default function Sidebar() {
 		loadCurrentUser();
 	}, [pathname]);
 
-	// Check punch status for employees
+	// Check punch status and load shift settings for employees
 	useEffect(() => {
 		const checkPunchStatus = async () => {
 			if (!user) {
@@ -122,8 +122,28 @@ export default function Sidebar() {
 			setCheckingPunch(false);
 		};
 
+		const loadShiftSettings = async () => {
+			try {
+				const res = await fetch("/api/settings", {
+					method: "GET",
+					credentials: "include",
+					cache: "no-store",
+				});
+				const result = await res.json();
+				if (result.success && result.data) {
+					setShiftTimes({
+						punchOutStartTime: result.data.punchOutStartTime,
+						punchOutEndTime: result.data.punchOutEndTime,
+					});
+				}
+			} catch (err) {
+				console.error("Failed to load shift settings in sidebar:", err);
+			}
+		};
+
 		if (user) {
 			checkPunchStatus();
+			loadShiftSettings();
 		} else {
 			setCheckingPunch(false);
 		}
@@ -131,6 +151,7 @@ export default function Sidebar() {
 		const handlePunchStatusChange = () => {
 			if (user) {
 				checkPunchStatus();
+				loadShiftSettings();
 			}
 		};
 
@@ -541,7 +562,7 @@ export default function Sidebar() {
 												<span>Punch In/Out</span>
 											</Link>
 										</AnimateIcon>
-										<AnimateIcon animateOnHover delay={500}>
+										{/* <AnimateIcon animateOnHover delay={500}>
 											<Link
 												href={`${basePath}/attendance`}
 												className={`sidebar-link ${pathname === `${basePath}/attendance` ? 'active' : ''}`}
@@ -551,7 +572,7 @@ export default function Sidebar() {
 												<ClipboardList />
 												<span>{isAdmin ? 'Punch Logs' : 'Attendance'}</span>
 											</Link>
-										</AnimateIcon>
+										</AnimateIcon> */}
 									</div>
 								)}
 							</div>
@@ -595,7 +616,7 @@ export default function Sidebar() {
 													</Link>
 												</AnimateIcon>
 											)}
-											<AnimateIcon animateOnHover="default-loop" delay={500}>
+											{/* <AnimateIcon animateOnHover="default-loop" delay={500}>
 												<Link
 													href={`${basePath}/departments`}
 													className={`sidebar-link ${pathname === `${basePath}/departments` ? 'active' : ''}`}
@@ -605,7 +626,7 @@ export default function Sidebar() {
 													<Blocks />
 													<span>Departments</span>
 												</Link>
-											</AnimateIcon>
+											</AnimateIcon> */}
 
 											{isAdmin && (
 												<>

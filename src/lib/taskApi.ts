@@ -124,10 +124,16 @@ export async function endTaskWork(
 export async function getTaskWork(params?: {
   taskId?: string;
   employeeId?: string;
+  date?: string;
+  status?: string;
+  projectId?: string;
 }) {
   const search = new URLSearchParams();
   if (params?.taskId) search.set('taskId', params.taskId);
   if (params?.employeeId) search.set('employeeId', params.employeeId);
+  if (params?.date) search.set('date', params.date);
+  if (params?.status) search.set('status', params.status);
+  if (params?.projectId) search.set('projectId', params.projectId);
 
   const response = await fetch(
     `/api/task-work${search.toString() ? `?${search.toString()}` : ''}`,

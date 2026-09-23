@@ -18,26 +18,14 @@ const taskLogSchema = new Schema(
 
     status: {
       type: String,
-      enum: [
-        "To Do",
-        "In Progress",
-        "Partially Done",
-        "Completed",
-      ],
       required: true,
+      trim: true,
     },
 
     action: {
       type: String,
-      enum: [
-        "Created",
-        "Started",
-        "Paused",
-        "Resumed",
-        "Completed",
-        "Updated",
-      ],
       required: true,
+      trim: true,
     },
 
     timestamp: {
@@ -57,6 +45,8 @@ taskLogSchema.index({
   user_id: 1,
   timestamp: -1,
 });
+
+delete (mongoose.models as any).TaskLog;
 
 const TaskLog =
   mongoose.models.TaskLog ||

@@ -31,7 +31,17 @@ export async function syncTaskStatus(taskId: string | mongoose.Types.ObjectId) {
       return parentTask;
     }
 
-    // 2. Multi-assignee completion resolution
+    // 2. If NO employee is currently 'In Progress', but at least one employee has a 'Paused' session
+    const hasPausedSession = allTaskWorks.some(tw => tw.status === 'Paused');
+    if (hasPausedSession) {
+      if (parentTask.task_status !== 'Paused') {
+        parentTask.task_status = 'Paused';
+        await parentTask.save();
+      }
+      return parentTask;
+    }
+
+    // 3. Multi-assignee completion resolution
     const assignedEmployees = ((parentTask.assign_to && parentTask.assign_to.length > 0) ? parentTask.assign_to : parentTask.assignedTo || []).map((emp: any) =>
       (emp?._id || emp)?.toString()
     ).filter(Boolean);
@@ -42,9 +52,17 @@ export async function syncTaskStatus(taskId: string | mongoose.Types.ObjectId) {
       // No assigned employees specified
       if (completedSessions.length > 0) {
         const latestSession = completedSessions[0];
-        parentTask.task_status = latestSession.isFullyCompleted ? 'Completed' : 'Partially Completed';
+        if (latestSession.isFullyCompleted) {
+          parentTask.task_status = 'Completed';
+          if (!parentTask.completion_date) {
+            parentTask.completion_date = new Date();
+            parentTask.completion_time = new Date();
+          }
+        } else {
+          parentTask.task_status = 'Partially Done';
+        }
       } else {
-        if (parentTask.task_status === 'In Progress' || parentTask.task_status === 'Partially Completed' || parentTask.task_status === 'Completed') {
+        if (['In Progress', 'Paused', 'Partially Completed', 'Partially Done', 'Completed'].includes(parentTask.task_status)) {
           parentTask.task_status = 'To Do';
         }
       }
@@ -75,10 +93,14 @@ export async function syncTaskStatus(taskId: string | mongoose.Types.ObjectId) {
 
       if (allAssigneesCompleted && anyWorkDone) {
         parentTask.task_status = 'Completed';
+        if (!parentTask.completion_date) {
+          parentTask.completion_date = new Date();
+          parentTask.completion_time = new Date();
+        }
       } else if (anyWorkDone) {
-        parentTask.task_status = 'Partially Completed';
+        parentTask.task_status = 'Partially Done';
       } else {
-        if (parentTask.task_status === 'In Progress' || parentTask.task_status === 'Partially Completed' || parentTask.task_status === 'Completed') {
+        if (['In Progress', 'Paused', 'Partially Completed', 'Partially Done', 'Completed'].includes(parentTask.task_status)) {
           parentTask.task_status = 'To Do';
         }
       }

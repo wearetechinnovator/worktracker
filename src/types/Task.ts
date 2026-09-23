@@ -50,7 +50,7 @@ export interface Task {
   } | string | number;
   
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  task_status: 'To Do' | 'In Progress' | 'Partially Completed' | 'Review' | 'Completed';
+  task_status: 'To Do' | 'In Progress' | 'Paused' | 'Partially Done' | 'Partially Completed' | 'Review' | 'Completed';
   
   files?: TaskFile[];
   urls?: string[];

@@ -538,8 +538,7 @@ export async function GET() {
       isPunchedIn: false,
 
       canPunchIn:
-        !isCompletedToday &&
-        (!pendingRequest || pendingRequest.request_type !== "punchIn"),
+        !pendingRequest || pendingRequest.request_type !== "punchIn",
 
       canPunchOut: false,
 
@@ -910,7 +909,7 @@ export async function POST(
             success: false,
 
             message:
-              "Today's attendance is already completed. You can punch in again in the next Punch In window.",
+              "You have already punched out for today.",
 
             isPunchedIn: false,
 
@@ -918,10 +917,23 @@ export async function POST(
 
             canPunchOut: false,
 
-            requiresRequest: false,
+            requiresRequest: true,
+
+            requestType:
+              "punchIn",
+
+            isAlreadyPunchedOut: true,
+
+            currentTime,
+
+            punchInStartTime:
+              settings?.punchInStartTime,
+
+            punchInEndTime:
+              settings?.punchInEndTime,
           },
           {
-            status: 400,
+            status: 403,
           }
         );
       }
@@ -947,7 +959,7 @@ export async function POST(
             success: false,
 
             message:
-              "Punch In time window has passed or is not currently open.",
+              "Punch In window closed.",
 
             requiresRequest: true,
 

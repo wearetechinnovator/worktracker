@@ -4,6 +4,8 @@ import mongoose from "mongoose";
 import dbConnect from "@/lib/dbConnect";
 import Project from "@/models/Project";
 import User from "@/models/User";
+import Task from "@/models/Task";
+import TaskWork from "@/models/TaskWork";
 import { currentUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -93,7 +95,7 @@ export async function POST(req: Request) {
 }
 
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await dbConnect();
 
@@ -106,9 +108,97 @@ export async function GET() {
       );
     }
 
-    const projects = await Project.find({ created_by: user._id })
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    let query: any = {};
+
+    if (id && mongoose.Types.ObjectId.isValid(id)) {
+      query._id = id;
+    } else if (Number(user.user_role) === 1) {
+      // Admin: projects created by this admin
+      query = { created_by: user._id };
+    } else {
+      // Employee:
+      // 1. Projects where user is in project_users
+      // 2. OR projects where tasks are assigned to this user
+      const assignedTaskProjectIds = await Task.find({
+        assign_to: user._id,
+        project_id: { $ne: null },
+      }).distinct("project_id");
+
+      query = {
+        $or: [
+          { project_users: user._id },
+          { _id: { $in: assignedTaskProjectIds } },
+        ],
+      };
+    }
+
+    const rawProjects = await Project.find(query)
+      .populate("project_users", "full_name name email role designation profile_picture user_role")
+      .populate("client", "name emails phone address duration")
       .sort({ createdAt: -1 })
       .lean();
+
+    const projectIds = rawProjects.map((p: any) => p._id);
+
+    // 1. Calculate taskCount per project from Task collection
+    const taskCounts = await Task.aggregate([
+      { $match: { project_id: { $in: projectIds } } },
+      { $group: { _id: "$project_id", count: { $sum: 1 } } },
+    ]);
+    const taskCountMap = new Map(
+      taskCounts.map((tc: any) => [tc._id.toString(), tc.count])
+    );
+
+    // 2. Calculate totalMinutes per project from TaskWork
+    const tasksInProjects = await Task.find({
+      project_id: { $in: projectIds },
+    })
+      .select("_id project_id")
+      .lean();
+
+    const taskToProjectMap = new Map<string, string>();
+    const allTaskIds = tasksInProjects.map((t: any) => {
+      if (t.project_id) {
+        taskToProjectMap.set(t._id.toString(), t.project_id.toString());
+      }
+      return t._id;
+    });
+
+    const workSessions = await TaskWork.find({
+      taskId: { $in: allTaskIds },
+    })
+      .select("taskId totalMinutes")
+      .lean();
+
+    const projectMinutesMap = new Map<string, number>();
+    for (const ws of workSessions) {
+      const pId = taskToProjectMap.get(ws.taskId?.toString());
+      if (pId) {
+        projectMinutesMap.set(
+          pId,
+          (projectMinutesMap.get(pId) || 0) + (ws.totalMinutes || 0)
+        );
+      }
+    }
+
+    const projects = rawProjects.map((p: any) => {
+      const pIdStr = p._id.toString();
+      return {
+        ...p,
+        taskCount: taskCountMap.get(pIdStr) || 0,
+        totalMinutes: projectMinutesMap.get(pIdStr) || 0,
+      };
+    });
+
+    if (id && projects.length > 0) {
+      return NextResponse.json({
+        success: true,
+        data: projects[0],
+      });
+    }
 
     return NextResponse.json({
       success: true,
