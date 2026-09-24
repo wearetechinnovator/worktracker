@@ -8,8 +8,6 @@ import type { SettingsData } from '@/types/SettingsData';
 import { CustomTimePicker } from '@/components/TaskFormControls';
 import { toast } from '@/lib/toast';
 
-import './style.css';
-
 const defaultSettings: SettingsData = {
   punchInStartTime: '',
   punchInEndTime: '',

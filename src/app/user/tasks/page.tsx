@@ -57,6 +57,8 @@ interface Task {
   }>;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   status: 'To Do' | 'In Progress' | 'Paused' | 'Partially Done' | 'Partially Completed' | 'Review' | 'Completed';
+  task_status?: string;
+  task_assign_date?: string | Date | null;
   dueDate?: string;
   dueTime?: string;
   url?: string;
@@ -112,6 +114,8 @@ interface UserProfile {
 }
 
 
+// Employee task page: employees can work only while punched in.
+// View-only mode is enforced through PunchContext and the action guards below.
 export default function TasksPage() {
   const router = useRouter();
   const [user, setUser] = useState<UserProfile | null>();
@@ -135,7 +139,19 @@ export default function TasksPage() {
   const [selectedWorkId, setSelectedWorkId] = useState<string | null>(null);
   const [workNotes, setWorkNotes] = useState('');
   const [workLinks, setWorkLinks] = useState('');
+  const [workFiles, setWorkFiles] = useState<Array<{
+    name: string;
+    url: string;
+    size?: number;
+    type?: string;
+  }>>([]);
   const [completionStatus, setCompletionStatus] = useState<'partial' | 'full'>('full');
+  const [reviewingTask, setReviewingTask] = useState<Task | null>(null);
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [showReassignDialog, setShowReassignDialog] = useState(false);
+  const [reassignEmployeeId, setReassignEmployeeId] = useState('');
+  const [reviewReason, setReviewReason] = useState('');
+  const [processingReview, setProcessingReview] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Generated Mail Modal States
@@ -394,7 +410,16 @@ export default function TasksPage() {
         taskApi.fetchTasksApi(),
         fetch('/api/projects', { credentials: 'include', cache: 'no-store' }),
         fetch('/api/users/employees', { credentials: 'include', cache: 'no-store' }),
-        taskApi.getTaskWork(),
+        fetch('/api/task-work?limit=1000', {
+          credentials: 'include',
+          cache: 'no-store',
+        }).then(async (response) => {
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Failed to load task work');
+          }
+          return result;
+        }),
       ]);
       const projData = await projRes.json();
       const empData = await empRes.json();
@@ -665,19 +690,38 @@ export default function TasksPage() {
       setError(null);
       setSuccessMsg(null);
 
-      const hasNotes = workNotes.trim() !== '';
-      const hasLinks = stripHtml(workLinks) !== '';
-      const notes = hasNotes || hasLinks
-        ? `${workNotes}${hasNotes && hasLinks ? '\n\n' : ''}${workLinks}`
-        : undefined;
+      const cleanReason = stripHtml(workNotes).trim();
+
+      // Partial work MUST have a reason.
+      if (completionStatus === 'partial' && !cleanReason) {
+        toast.error('Please provide a reason before marking the task as partially done.');
+        return;
+      }
 
       const now = frozenEndTime || new Date();
-      const priorPausedMs = (selectedWorkId && pausedDurations[selectedWorkId]) || 0;
-      const effectiveEndTime = new Date(now.getTime() - priorPausedMs);
+      const priorPausedMs =
+        (selectedWorkId && pausedDurations[selectedWorkId]) || 0;
+
+      const effectiveEndTime = new Date(
+        now.getTime() - priorPausedMs
+      );
+
       const localTime = getLocalTimeValue(effectiveEndTime);
 
-      const result = await taskApi.endTaskWork(workId, { notes, localTime, isFullyCompleted: completionStatus === 'full' });
-      if (!result.success) throw new Error('Failed to end work');
+      const result = await taskApi.endTaskWork(workId, {
+        notes: workNotes.trim() || undefined,
+        links: workLinks
+          .split(/\n|,/)
+          .map((link) => link.trim())
+          .filter(Boolean),
+        files: workFiles,
+        localTime,
+        isFullyCompleted: completionStatus === 'full',
+      } as any);
+
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to end work');
+      }
 
       setSuccessMsg(result.message);
       setTimeout(() => setSuccessMsg(null), 4000);
@@ -696,6 +740,9 @@ export default function TasksPage() {
       setPauseStartTime(null);
       setWorkNotes('');
       setWorkLinks('');
+      setWorkFiles([]);
+      setCompletionStatus('full');
+
       await loadAllData();
 
       const empId = user?._id || user?.id;
@@ -709,8 +756,70 @@ export default function TasksPage() {
     }
   };
 
-  const openEndWorkDialog = (workId: string) => {
+  const handleWorkFilesChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const selectedFiles = Array.from(event.target.files || []);
+
+    if (!selectedFiles.length) return;
+
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+    const validFiles = selectedFiles.filter((file) => {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`${file.name} is larger than 10 MB and was skipped.`);
+        return false;
+      }
+      return true;
+    });
+
+    try {
+      const converted = await Promise.all(
+        validFiles.map(
+          (file) =>
+            new Promise<{
+              name: string;
+              url: string;
+              size: number;
+              type: string;
+            }>((resolve, reject) => {
+              const reader = new FileReader();
+
+              reader.onload = () =>
+                resolve({
+                  name: file.name,
+                  url: String(reader.result || ''),
+                  size: file.size,
+                  type: file.type || 'application/octet-stream',
+                });
+
+              reader.onerror = () =>
+                reject(new Error(`Failed to read ${file.name}`));
+
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+
+      setWorkFiles((prev) => [...prev, ...converted]);
+      event.target.value = '';
+    } catch (error) {
+      console.error('Failed to attach work files:', error);
+      toast.error('Failed to attach one or more files.');
+    }
+  };
+
+  const removeWorkFile = (index: number) => {
+    setWorkFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const openEndWorkDialog = (
+    workId: string,
+    status: 'partial' | 'full'
+  ) => {
     const now = new Date();
+
+    setCompletionStatus(status);
     setPauseStartTime(now);
     setFrozenEndTime(now);
     setCurrentTime(now);
@@ -732,6 +841,7 @@ export default function TasksPage() {
     setPauseStartTime(null);
     setWorkNotes('');
     setWorkLinks('');
+    setWorkFiles([]);
     setCompletionStatus('full');
     setCurrentTime(new Date());
   };
@@ -789,35 +899,96 @@ export default function TasksPage() {
     );
   };
 
+  const getWorkLoggedMinutes = (work: any) => {
+    const stored = Number(work?.totalMinutes);
+
+    if (Number.isFinite(stored) && stored > 0) {
+      return Math.floor(stored);
+    }
+
+    const start = getWorkDate(work?.startTime);
+    const end = getWorkDate(
+      work?.endTime ||
+      work?.pausedAt ||
+      work?.updatedAt ||
+      work?.createdAt
+    );
+
+    if (!start || !end) return 0;
+
+    const rawMinutes = Math.max(
+      0,
+      Math.floor((end.getTime() - start.getTime()) / 60000)
+    );
+
+    const pausedMinutes = Number(work?.totalPausedMinutes || 0);
+
+    return Math.max(
+      0,
+      rawMinutes - (
+        Number.isFinite(pausedMinutes)
+          ? pausedMinutes
+          : 0
+      )
+    );
+  };
+
   const getTaskProgress = (taskId: string) => {
     const taskIdStr = String(taskId);
 
-    const sessions = taskWorks.filter(
-      (work) =>
-        getTaskWorkId(work) === taskIdStr &&
-        work.status === 'Completed'
-    );
+    /*
+     * IMPORTANT:
+     * A partially completed work session is stored in TaskWork as:
+     *   status = "Completed"
+     *   isFullyCompleted = false
+     *
+     * Therefore we must NOT identify partial work using status alone.
+     */
+    const sessions = taskWorks.filter((work) => {
+      if (getTaskWorkId(work) !== taskIdStr) return false;
+
+      return (
+        work?.status === 'Completed' ||
+        work?.status === 'Paused'
+      );
+    });
 
     const totalMins = sessions.reduce(
-      (sum, session) => sum + Number(session.totalMinutes || 0),
+      (sum, session) => sum + getWorkLoggedMinutes(session),
       0
     );
 
     const activeWorkers = getActiveWorkersForTask(taskId);
+    const pausedWorkers = getPausedWorkersForTask(taskId);
 
     const formatMinutes = (minutes: number) => {
       const safeMinutes = Math.max(0, Math.floor(minutes));
+
+      if (safeMinutes < 1) {
+        return '<1m';
+      }
+
       const hours = Math.floor(safeMinutes / 60);
       const mins = safeMinutes % 60;
 
-      if (hours > 0) return `${hours}h ${mins}m`;
+      if (hours > 0) {
+        return `${hours}h ${mins}m`;
+      }
+
       return `${mins}m`;
     };
 
+    const hasFinishedSession = sessions.length > 0;
+
     return {
       totalMinutes: totalMins,
-      timeText: totalMins > 0 ? formatMinutes(totalMins) : null,
-      sessionCount: sessions.length,
+      timeText: hasFinishedSession
+        ? formatMinutes(totalMins)
+        : null,
+      sessionCount: sessions.filter(
+        (work) => work?.status === 'Completed'
+      ).length,
+      pausedCount: pausedWorkers.length,
       activeCount: activeWorkers.length,
     };
   };
@@ -840,13 +1011,29 @@ export default function TasksPage() {
     const currentUserId = (user._id || user.id)?.toString();
     if (!currentUserId) return false;
 
+    const currentTask = tasks.find((t) => String(t._id) === String(taskId));
+    // If the task itself is "To Do", "In Progress", or "Paused", the employee has active work to do!
+    if (currentTask) {
+      const currentStatus = currentTask.task_status || currentTask.status;
+      if (['To Do', 'In Progress', 'Paused'].includes(currentStatus)) {
+        return false;
+      }
+    }
+
+    const taskAssignDate = currentTask?.task_assign_date
+      ? new Date(currentTask.task_assign_date).getTime()
+      : 0;
+
     const mySessions = taskWorks
-      .filter(
-        (work) =>
-          getTaskWorkId(work) === String(taskId) &&
-          work.status === 'Completed' &&
-          getTaskWorkEmployeeId(work) === currentUserId
-      )
+      .filter((work) => {
+        const matchesTask = getTaskWorkId(work) === String(taskId);
+        const matchesEmployee = getTaskWorkEmployeeId(work) === currentUserId;
+        const isCompleted = work.status === 'Completed';
+        const workTime = new Date(work.updatedAt || work.createdAt || 0).getTime();
+        // If the task was assigned/reassigned after this work session, that past session does not complete the current assignment
+        const isAfterAssignDate = !taskAssignDate || workTime >= taskAssignDate - 2000;
+        return matchesTask && matchesEmployee && isCompleted && isAfterAssignDate;
+      })
       .sort(
         (a, b) =>
           new Date(b.updatedAt || b.createdAt || 0).getTime() -
@@ -885,6 +1072,10 @@ export default function TasksPage() {
   };
 
   const handleDelete = async (taskId: string) => {
+    if (!isAdmin) {
+      toast.error('Only administrators are permitted to delete tasks.');
+      return;
+    }
     if (isViewMode) {
       toast.error('You are currently in View-Only mode. Please punch in to delete tasks.');
       return;
@@ -907,13 +1098,140 @@ export default function TasksPage() {
   };
 
   const openEditModal = (task: Task) => {
+    if (!isAdmin) {
+      toast.error('Only administrators are permitted to edit tasks.');
+      return;
+    }
+
     setEditingTask(task);
     setShowModal(true);
   };
 
   const openCreateModal = () => {
+    if (!isAdmin && isViewMode) {
+      toast.error('Please punch in first to create a task.');
+      return;
+    }
+
     setEditingTask(null);
     setShowModal(true);
+  };
+
+  const getLatestReviewWork = (taskId: string) => {
+    return taskWorks
+      .filter(
+        (work: any) =>
+          getTaskWorkId(work) === String(taskId) &&
+          work.status === 'Completed'
+      )
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.updatedAt || b.createdAt || 0).getTime() -
+          new Date(a.updatedAt || a.createdAt || 0).getTime()
+      )[0] || null;
+  };
+
+  const openReviewDialog = (task: Task) => {
+    if (!isAdmin) return;
+
+    setReviewingTask(task);
+    setReviewReason('');
+    setReassignEmployeeId('');
+    setShowReassignDialog(false);
+    setShowReviewDialog(true);
+  };
+
+  const closeReviewDialogs = () => {
+    if (processingReview) return;
+
+    setShowReviewDialog(false);
+    setShowReassignDialog(false);
+    setReviewingTask(null);
+    setReviewReason('');
+    setReassignEmployeeId('');
+  };
+
+  const handleApproveReview = async () => {
+    if (!reviewingTask) return;
+
+    try {
+      setProcessingReview(true);
+      const result = await taskApi.reviewTask(
+        reviewingTask._id,
+        { action: 'approve' }
+      );
+
+      if (!result.success) {
+        throw new Error(
+          result.message || 'Failed to approve task review'
+        );
+      }
+
+      toast.success(
+        result.message || 'Task approved successfully'
+      );
+
+      setShowReviewDialog(false);
+      setReviewingTask(null);
+      await loadAllData();
+    } catch (err: any) {
+      toast.error(
+        err?.message || 'Failed to approve task review'
+      );
+    } finally {
+      setProcessingReview(false);
+    }
+  };
+
+  const openReassignDialog = () => {
+    if (!reviewingTask) return;
+
+    setShowReviewDialog(false);
+    setShowReassignDialog(true);
+  };
+
+  const handleReassignAfterReject = async () => {
+    if (!reviewingTask) return;
+
+    if (!reassignEmployeeId) {
+      toast.error('Please select an employee to reassign the task.');
+      return;
+    }
+
+    try {
+      setProcessingReview(true);
+
+      const result = await taskApi.reviewTask(
+        reviewingTask._id,
+        {
+          action: 'reject',
+          reassignTo: reassignEmployeeId,
+          reason: reviewReason.trim() || undefined,
+        }
+      );
+
+      if (!result.success) {
+        throw new Error(
+          result.message || 'Failed to reject and reassign task'
+        );
+      }
+
+      toast.success(
+        result.message || 'Task rejected and reassigned'
+      );
+
+      setShowReassignDialog(false);
+      setReviewingTask(null);
+      setReassignEmployeeId('');
+      setReviewReason('');
+      await loadAllData();
+    } catch (err: any) {
+      toast.error(
+        err?.message || 'Failed to reject and reassign task'
+      );
+    } finally {
+      setProcessingReview(false);
+    }
   };
 
   const filteredTasks = tasks.filter((task) => {
@@ -1591,26 +1909,29 @@ export default function TasksPage() {
                         )}
                       </td>
                       <td>
-                        {progress.totalMinutes > 0 ? (
+                        {progress.timeText || progress.sessionCount > 0 || progress.pausedCount > 0 ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <span style={{
                               fontSize: '0.74rem',
-                              color: '#047857',
+                              color: progress.pausedCount > 0 ? '#c2410c' : '#047857',
                               fontWeight: 750,
-                              background: '#ecfdf5',
+                              background: progress.pausedCount > 0 ? '#fff7ed' : '#ecfdf5',
                               padding: '2px 8px',
                               borderRadius: '4px',
-                              border: '1px solid #a7f3d0',
+                              border: progress.pausedCount > 0 ? '1px solid #fed7aa' : '1px solid #a7f3d0',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
                               width: 'fit-content'
                             }}>
-                              <Clock size={11} />
+                              {progress.pausedCount > 0 ? <PauseCircle size={11} /> : <Clock size={11} />}
                               {progress.timeText}
+                              {progress.pausedCount > 0 ? ' • Paused' : ''}
                             </span>
+
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                              {progress.sessionCount} session{progress.sessionCount !== 1 ? 's' : ''}
+                              {progress.sessionCount + progress.pausedCount} session{(progress.sessionCount + progress.pausedCount) !== 1 ? 's' : ''}
+                              {progress.pausedCount > 0 ? ` • ${progress.pausedCount} paused` : ''}
                             </span>
                           </div>
                         ) : progress.activeCount > 0 ? (
@@ -1741,22 +2062,60 @@ export default function TasksPage() {
                                             )}
                                             <span>Pause</span>
                                           </button>
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); openEndWorkDialog(activeWork._id); }}
-                                            disabled={processingTaskId === activeWork._id}
-                                            className="btn btn-danger"
+                                          <div
                                             style={{
                                               display: 'inline-flex',
                                               alignItems: 'center',
                                               gap: '4px',
-                                              padding: '10px 10px',
-                                              fontSize: '0.72rem'
+                                              border: '1px solid #ef444450',
+                                              borderRadius: '6px',
+                                              overflow: 'hidden',
+                                              background: '#fef2f2',
                                             }}
-                                            title="Complete Work Session"
+                                            title="End Work Session"
                                           >
-                                            <StopCircle size={12} />
-                                            {/* <span>Complete</span> */}
-                                          </button>
+                                            <StopCircle
+                                              size={13}
+                                              style={{
+                                                color: '#ef4444',
+                                                marginLeft: '8px',
+                                                flexShrink: 0,
+                                              }}
+                                            />
+                                            <select
+                                              defaultValue=""
+                                              disabled={processingTaskId === activeWork._id}
+                                              onClick={(e) => e.stopPropagation()}
+                                              onChange={(e) => {
+                                                e.stopPropagation();
+                                                const value = e.target.value;
+
+                                                if (value === 'full') {
+                                                  openEndWorkDialog(activeWork._id, 'full');
+                                                } else if (value === 'partial') {
+                                                  openEndWorkDialog(activeWork._id, 'partial');
+                                                }
+
+                                                e.currentTarget.value = '';
+                                              }}
+                                              style={{
+                                                border: 'none',
+                                                outline: 'none',
+                                                background: 'transparent',
+                                                color: '#dc2626',
+                                                fontSize: '0.72rem',
+                                                fontWeight: 700,
+                                                padding: '7px 8px 7px 4px',
+                                                cursor: 'pointer',
+                                              }}
+                                            >
+                                              <option value="" disabled>
+                                                End Work
+                                              </option>
+                                              <option value="full">Complete</option>
+                                              <option value="partial">Partially Done</option>
+                                            </select>
+                                          </div>
                                         </div>
                                       );
                                     } else {
@@ -1805,25 +2164,60 @@ export default function TasksPage() {
                                               )}
                                               <span>Resume</span>
                                             </button>
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                openEndWorkDialog(pausedWork._id);
-                                              }}
-                                              disabled={processingTaskId === pausedWork._id}
-                                              className="btn btn-danger"
+                                            <div
                                               style={{
                                                 display: 'inline-flex',
                                                 alignItems: 'center',
                                                 gap: '4px',
-                                                padding: '5px 10px',
-                                                fontSize: '0.72rem'
+                                                border: '1px solid #ef444450',
+                                                borderRadius: '6px',
+                                                overflow: 'hidden',
+                                                background: '#fef2f2',
                                               }}
-                                              title="Complete Work"
+                                              title="End Work Session"
                                             >
-                                              <StopCircle size={12} />
-                                              <span>Complete</span>
-                                            </button>
+                                              <StopCircle
+                                                size={13}
+                                                style={{
+                                                  color: '#ef4444',
+                                                  marginLeft: '8px',
+                                                  flexShrink: 0,
+                                                }}
+                                              />
+                                              <select
+                                                defaultValue=""
+                                                disabled={processingTaskId === pausedWork._id}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onChange={(e) => {
+                                                  e.stopPropagation();
+                                                  const value = e.target.value;
+
+                                                  if (value === 'full') {
+                                                    openEndWorkDialog(pausedWork._id, 'full');
+                                                  } else if (value === 'partial') {
+                                                    openEndWorkDialog(pausedWork._id, 'partial');
+                                                  }
+
+                                                  e.currentTarget.value = '';
+                                                }}
+                                                style={{
+                                                  border: 'none',
+                                                  outline: 'none',
+                                                  background: 'transparent',
+                                                  color: '#dc2626',
+                                                  fontSize: '0.72rem',
+                                                  fontWeight: 700,
+                                                  padding: '7px 8px 7px 4px',
+                                                  cursor: 'pointer',
+                                                }}
+                                              >
+                                                <option value="" disabled>
+                                                  End Work
+                                                </option>
+                                                <option value="full">Complete</option>
+                                                <option value="partial">Partially Done</option>
+                                              </select>
+                                            </div>
                                           </div>
                                         );
                                       }
@@ -1913,26 +2307,54 @@ export default function TasksPage() {
                                 </>
                               )}
 
-                              {/* Edit / Delete actions */}
-                              {(isAdmin || (user && task.createdBy?._id === user._id)) && (
-                                <>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); openEditModal(task); }}
-                                    className="btn btn-secondary"
-                                    style={{ padding: '4px 6px', fontSize: '0.75rem' }}
-                                    title="Edit"
-                                  >
-                                    <Edit size={12} />
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleDelete(task._id); }}
-                                    className="btn btn-danger"
-                                    style={{ padding: '4px 6px', fontSize: '0.75rem' }}
-                                    title="Delete"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                </>
+                              {/* Review / Edit / Delete actions */}
+                              {isAdmin && task.status === 'Review' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openReviewDialog(task);
+                                  }}
+                                  className="btn btn-primary"
+                                  style={{
+                                    padding: '4px 8px',
+                                    fontSize: '0.72rem',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                  }}
+                                  title="Review task"
+                                >
+                                  <CheckCircle2 size={12} />
+                                  Review
+                                </button>
+                              )}
+
+                              {isAdmin && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openEditModal(task);
+                                  }}
+                                  className="btn btn-secondary"
+                                  style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                                  title="Edit"
+                                >
+                                  <Edit size={12} />
+                                </button>
+                              )}
+
+                              {isAdmin && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(task._id);
+                                  }}
+                                  className="btn btn-danger"
+                                  style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                                  title="Delete"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
                               )}
                             </div>
                           ) : (
@@ -1987,15 +2409,704 @@ export default function TasksPage() {
         }}
       />
 
+
+      {/* Admin Review Dialog */}
+      {showReviewDialog && reviewingTask && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '20px',
+          }}
+          onClick={closeReviewDialogs}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: '680px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              position: 'relative',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(() => {
+              const reviewWork = getLatestReviewWork(reviewingTask._id);
+              const reasonText = reviewWork?.notes
+                ? stripHtml(reviewWork.notes)
+                : '';
+              const files = Array.isArray(reviewingTask.files)
+                ? reviewingTask.files
+                : [];
+              const links = Array.isArray(reviewingTask.urls)
+                ? reviewingTask.urls
+                : reviewingTask.url
+                  ? [reviewingTask.url]
+                  : [];
+
+              const formatMins = (mins?: number) => {
+                const safe = Math.max(0, Math.floor(mins || 0));
+                if (safe < 1) return '< 1m';
+                const h = Math.floor(safe / 60);
+                const rem = safe % 60;
+                if (h > 0) return `${h}h ${rem}m`;
+                return `${rem}m`;
+              };
+
+              const formatTime12H = (dVal?: string | Date | null) => {
+                if (!dVal) return '';
+                const dObj = new Date(dVal);
+                if (Number.isNaN(dObj.getTime())) return String(dVal);
+                return dObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+              };
+
+              const taskSessions = taskWorks.filter(
+                (w: any) => getTaskWorkId(w) === String(reviewingTask._id)
+              );
+              const totalMinsAcrossSessions = taskSessions.reduce(
+                (sum: number, w: any) => sum + (Number(w.totalMinutes) || 0),
+                0
+              );
+
+              const projectName = reviewingTask.projectId?.name || 'General';
+              const projectColor = reviewingTask.projectId?.color || '#3b82f6';
+              const sessionMinutes = reviewWork?.totalMinutes !== undefined ? reviewWork.totalMinutes : 0;
+              const pausedMinutes = reviewWork?.totalPausedMinutes || 0;
+
+              return (
+                <>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '18px',
+                    }}
+                  >
+                    <div>
+                      <h3
+                        style={{
+                          margin: 0,
+                          fontSize: '1.15rem',
+                          fontWeight: 800,
+                        }}
+                      >
+                        Task Review
+                      </h3>
+                      <p
+                        style={{
+                          margin: '5px 0 0',
+                          color: 'var(--text-secondary)',
+                          fontSize: '0.78rem',
+                        }}
+                      >
+                        {reviewingTask.task_id || reviewingTask._id} • {reviewingTask.title}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={closeReviewDialogs}
+                      className="btn"
+                      style={{
+                        padding: '6px',
+                        width: '32px',
+                        height: '32px',
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* Top Stats Cards: Status, Employee, Project, Priority */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(4, 1fr)',
+                      gap: '10px',
+                      marginBottom: '16px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid #ddd6fe',
+                        background: '#f5f3ff',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '0.65rem',
+                          color: '#6d28d9',
+                          fontWeight: 700,
+                          marginBottom: '3px',
+                        }}
+                      >
+                        STATUS
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: '0.82rem', color: '#6d28d9' }}>
+                        Waiting Review
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid #bfdbfe',
+                        background: '#eff6ff',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '0.65rem',
+                          color: '#1d4ed8',
+                          fontWeight: 700,
+                          marginBottom: '3px',
+                        }}
+                      >
+                        EMPLOYEE
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: '0.82rem', color: '#1e40af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {reviewingTask.assignedTo?.map((e: any) => e.name).join(', ') || 'Employee'}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-secondary)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '0.65rem',
+                          color: 'var(--text-muted)',
+                          fontWeight: 700,
+                          marginBottom: '3px',
+                        }}
+                      >
+                        PROJECT
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: projectColor, flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{projectName}</span>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-secondary)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '0.65rem',
+                          color: 'var(--text-muted)',
+                          fontWeight: 700,
+                          marginBottom: '3px',
+                        }}
+                      >
+                        PRIORITY
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: '0.82rem' }}>
+                        <span
+                          className="tag-badge"
+                          style={{
+                            ...getStatusBadgeStyles(reviewingTask.priority),
+                            fontSize: '0.7rem',
+                            padding: '1px 6px',
+                          }}
+                        >
+                          {reviewingTask.priority}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Work Duration Card */}
+                  <div
+                    style={{
+                      marginBottom: '16px',
+                      padding: '12px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #a7f3d0',
+                      background: '#ecfdf5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: '0.68rem',
+                          color: '#047857',
+                          fontWeight: 700,
+                          marginBottom: '3px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}
+                      >
+                        <Clock size={13} />
+                        WORK DURATION
+                      </div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#065f46' }}>
+                        {formatMins(sessionMinutes)}
+                        <span style={{ fontSize: '0.76rem', fontWeight: 500, color: '#047857', marginLeft: '8px' }}>
+                          (This Session)
+                        </span>
+                      </div>
+                      {totalMinsAcrossSessions > sessionMinutes && (
+                        <div style={{ fontSize: '0.73rem', color: '#047857', marginTop: '3px' }}>
+                          Total work on task: <strong>{formatMins(totalMinsAcrossSessions)}</strong> across {taskSessions.length} session{taskSessions.length > 1 ? 's' : ''}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#065f46' }}>
+                      {reviewWork?.startTime && (
+                        <div>
+                          <strong>Started:</strong> {formatTime12H(reviewWork.startTime)}
+                        </div>
+                      )}
+                      {reviewWork?.endTime && (
+                        <div>
+                          <strong>Ended:</strong> {formatTime12H(reviewWork.endTime)}
+                        </div>
+                      )}
+                      {pausedMinutes > 0 && (
+                        <div style={{ color: '#b45309', fontSize: '0.7rem' }}>
+                          Paused: {pausedMinutes}m
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Task Description */}
+                  {reviewingTask.description && (
+                    <div style={{ marginBottom: '16px' }}>
+                      <div
+                        style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          marginBottom: '6px',
+                        }}
+                      >
+                        Task Description
+                      </div>
+                      <div
+                        style={{
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '8px',
+                          padding: '10px 12px',
+                          maxHeight: '110px',
+                          overflowY: 'auto',
+                          background: 'var(--bg-secondary)',
+                          fontSize: '0.8rem',
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {stripHtml(reviewingTask.description)}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Employee Work Reason / Summary */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <div
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        marginBottom: '6px',
+                      }}
+                    >
+                      Employee Work Summary / Reason
+                    </div>
+
+                    <div
+                      style={{
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        minHeight: '60px',
+                        background: 'var(--bg-secondary)',
+                        fontSize: '0.82rem',
+                        lineHeight: 1.55,
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {reasonText || 'No reason / summary was provided.'}
+                    </div>
+                  </div>
+
+                  {/* Supporting Files */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <div
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        marginBottom: '6px',
+                      }}
+                    >
+                      Files ({files.length})
+                    </div>
+
+                    {files.length > 0 ? (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                          maxHeight: '120px',
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {files.map((file: any, index: number) => (
+                          <a
+                            key={`${file?.name || 'file'}-${index}`}
+                            href={file?.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '7px',
+                              padding: '8px 10px',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '7px',
+                              textDecoration: 'none',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.78rem',
+                              background: 'var(--bg-secondary)',
+                            }}
+                          >
+                            <Paperclip size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                            <span
+                              style={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {file?.name || `File ${index + 1}`}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontSize: '0.78rem',
+                        }}
+                      >
+                        No files attached.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* URL / Resource Links */}
+                  <div style={{ marginBottom: '22px' }}>
+                    <div
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        marginBottom: '6px',
+                      }}
+                    >
+                      Links ({links.length})
+                    </div>
+
+                    {links.length > 0 ? (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                          maxHeight: '100px',
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {links.map((link: any, index: number) => {
+                          const value =
+                            typeof link === 'string'
+                              ? link
+                              : String(link?.url || link?.link || '');
+
+                          if (!value) return null;
+
+                          return (
+                            <a
+                              key={`${value}-${index}`}
+                              href={value.startsWith('http') ? value : `https://${value}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '7px',
+                                padding: '8px 10px',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '7px',
+                                textDecoration: 'none',
+                                color: 'var(--accent-primary)',
+                                fontSize: '0.78rem',
+                                wordBreak: 'break-all',
+                                background: 'var(--bg-secondary)',
+                              }}
+                            >
+                              <LinkIcon size={14} style={{ flexShrink: 0 }} />
+                              {value}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontSize: '0.78rem',
+                        }}
+                      >
+                        No links attached.
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      gap: '10px',
+                      paddingTop: '8px',
+                      borderTop: '1px solid var(--border-color)',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={openReassignDialog}
+                      disabled={processingReview}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <RotateCcw size={14} />
+                      Reject & Reassign
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleApproveReview}
+                      disabled={processingReview}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      {processingReview ? (
+                        <Loader2 className="animate-spin" size={14} />
+                      ) : (
+                        <CheckCircle2 size={14} />
+                      )}
+                      Approve
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Reassign Dialog */}
+      {showReassignDialog && reviewingTask && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10001,
+            padding: '20px',
+          }}
+          onClick={closeReviewDialogs}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: '500px',
+              width: '100%',
+              position: 'relative',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '18px',
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
+                  Reassign Task
+                </h3>
+                <p
+                  style={{
+                    margin: '5px 0 0',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.78rem',
+                  }}
+                >
+                  {reviewingTask.title}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeReviewDialogs}
+                className="btn"
+                style={{
+                  padding: '6px',
+                  width: '32px',
+                  height: '32px',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label
+                className="form-label"
+                style={{
+                  display: 'block',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  marginBottom: '7px',
+                }}
+              >
+                Assign to employee *
+              </label>
+
+              <select
+                className="form-control"
+                value={reassignEmployeeId}
+                onChange={(e) => setReassignEmployeeId(e.target.value)}
+                disabled={processingReview}
+                style={{ width: '100%' }}
+              >
+                <option value="">Select employee</option>
+                {employees
+                  .filter((employee: any) => employee._id)
+                  .map((employee: any) => (
+                    <option key={employee._id} value={employee._id}>
+                      {employee.name || employee.full_name || employee.email}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label
+                className="form-label"
+                style={{
+                  display: 'block',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  marginBottom: '7px',
+                }}
+              >
+                Review / Reassign Reason (Optional)
+              </label>
+
+              <textarea
+                className="form-control"
+                rows={4}
+                value={reviewReason}
+                onChange={(e) => setReviewReason(e.target.value)}
+                placeholder="Explain what needs to be corrected..."
+                disabled={processingReview}
+                style={{
+                  width: '100%',
+                  resize: 'vertical',
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '10px',
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowReassignDialog(false);
+                  setShowReviewDialog(true);
+                }}
+                disabled={processingReview}
+              >
+                Back
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleReassignAfterReject}
+                disabled={processingReview || !reassignEmployeeId}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {processingReview ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <RotateCcw size={14} />
+                )}
+                Reject & Reassign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* End Work Dialog */}
       {showEndWorkDialog && (
         <div
           style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
+            inset: 0,
             background: 'rgba(0,0,0,0.7)',
             display: 'flex',
             alignItems: 'center',
@@ -2008,7 +3119,7 @@ export default function TasksPage() {
           <div
             className="card"
             style={{
-              maxWidth: '500px',
+              maxWidth: '560px',
               width: '100%',
               maxHeight: '90vh',
               overflow: 'auto',
@@ -2016,59 +3127,94 @@ export default function TasksPage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '20px',
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: '1.2rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
                 <StopCircle size={22} style={{ color: '#ef4444' }} />
                 End Work Session
               </h3>
+
               <button
                 onClick={closeEndWorkDialog}
                 className="btn"
-                style={{ padding: '6px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{
+                  padding: '6px',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
                 ✕
               </button>
             </div>
 
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-              Add status, notes or links related to your work before ending the session.
+            <p
+              style={{
+                fontSize: '0.85rem',
+                color: 'var(--text-secondary)',
+                marginBottom: '18px',
+              }}
+            >
+              Add the details for this work session before ending it.
             </p>
 
-
-
-            <div style={{ marginBottom: '20px' }}>
-              <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
-                Is this task fully completed? *
-              </label>
-              <div style={{ display: 'flex', gap: '16px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="completionStatus"
-                    value="full"
-                    checked={completionStatus === 'full'}
-                    onChange={() => setCompletionStatus('full')}
-                    style={{ cursor: 'pointer' }}
-                  />
-                  <span>Yes, Fully Completed</span>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="completionStatus"
-                    value="partial"
-                    checked={completionStatus === 'partial'}
-                    onChange={() => setCompletionStatus('partial')}
-                    style={{ cursor: 'pointer' }}
-                  />
-                  <span>No, Partially Done (Resume Later)</span>
-                </label>
-              </div>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                marginBottom: '18px',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                background: completionStatus === 'partial' ? '#fff7ed' : '#ecfdf5',
+                color: completionStatus === 'partial' ? '#c2410c' : '#047857',
+                border: completionStatus === 'partial'
+                  ? '1px solid #fed7aa'
+                  : '1px solid #a7f3d0',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+              }}
+            >
+              {completionStatus === 'partial' ? 'Partially Done' : 'Complete'}
             </div>
 
-            <div style={{ marginBottom: '16px' }}>
-              <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
-                Work Notes/Reason {completionStatus === 'partial' ? <span style={{ color: '#ef4444' }}>* (Required for partial completion)</span> : '(Optional)'}
+            {/* Reason */}
+            <div style={{ marginBottom: '18px' }}>
+              <label
+                className="form-label"
+                style={{
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  marginBottom: '8px',
+                  display: 'block',
+                }}
+              >
+                Reason / Work Summary{' '}
+                {completionStatus === 'partial' ? (
+                  <span style={{ color: '#ef4444' }}>
+                    * Required for Partially Done
+                  </span>
+                ) : (
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {' '}(Optional)
+                  </span>
+                )}
               </label>
 
               <CKEditorComponent
@@ -2076,29 +3222,163 @@ export default function TasksPage() {
                 onChange={(val) => setWorkNotes(val)}
               />
 
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                {completionStatus === 'partial' ? 'Explain why you are stopping and what work is left.' : 'Describe your progress, achievements, or any issues faced.'}
-              </p>
+              {completionStatus === 'partial' && (
+                <p
+                  style={{
+                    fontSize: '0.7rem',
+                    color: '#b45309',
+                    marginTop: '5px',
+                  }}
+                >
+                  Please explain why the task is not complete and what is
+                  remaining.
+                </p>
+              )}
             </div>
 
+            {/* Files */}
+            <div style={{ marginBottom: '18px' }}>
+              <label
+                className="form-label"
+                style={{
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  marginBottom: '8px',
+                  display: 'block',
+                }}
+              >
+                Supporting Files (Optional)
+              </label>
+
+              <div
+                style={{
+                  border: '1px dashed var(--border-color)',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  background: 'var(--bg-secondary)',
+                }}
+              >
+                <input
+                  type="file"
+                  multiple
+                  onChange={handleWorkFilesChange}
+                  style={{
+                    width: '100%',
+                    fontSize: '0.8rem',
+                  }}
+                />
+
+                <p
+                  style={{
+                    fontSize: '0.68rem',
+                    color: 'var(--text-muted)',
+                    margin: '6px 0 0',
+                  }}
+                >
+                  Maximum 10 MB per file.
+                </p>
+
+                {workFiles.length > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '7px',
+                      marginTop: '10px',
+                    }}
+                  >
+                    {workFiles.map((file, index) => (
+                      <div
+                        key={`${file.name}-${index}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '10px',
+                          padding: '8px 10px',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '7px',
+                          background: 'var(--bg-primary)',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            minWidth: 0,
+                          }}
+                        >
+                          <Paperclip size={14} />
+                          <span
+                            style={{
+                              fontSize: '0.78rem',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {file.name}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeWorkFile(index)}
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            cursor: 'pointer',
+                            color: '#ef4444',
+                            padding: '2px',
+                          }}
+                          title="Remove file"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Links */}
             <div style={{ marginBottom: '24px' }}>
-              <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
+              <label
+                className="form-label"
+                style={{
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  marginBottom: '8px',
+                  display: 'block',
+                }}
+              >
                 Related Links (Optional)
               </label>
+
               <textarea
                 className="form-control"
-                rows={4}
-                placeholder="e.g. https://github.com/pull/1, https://jira.com/task/123"
+                rows={3}
+                placeholder={
+                  'Add one link per line, e.g.\nhttps://github.com/...\nhttps://jira.com/...'
+                }
                 value={workLinks}
                 onChange={(e) => setWorkLinks(e.target.value)}
-                style={{ fontSize: '0.85rem', resize: 'vertical' }}
+                style={{
+                  fontSize: '0.85rem',
+                  resize: 'vertical',
+                }}
               />
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                Add relevant URLs (GitHub PRs, Jira tickets, design files, etc.)
-              </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: '12px',
+                justifyContent: 'flex-end',
+              }}
+            >
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -2107,12 +3387,28 @@ export default function TasksPage() {
               >
                 Cancel
               </button>
+
               <button
                 type="button"
                 className="btn btn-danger"
-                onClick={() => selectedWorkId && handleEndWork(selectedWorkId)}
-                disabled={!!processingTaskId || (completionStatus === 'partial' && !workNotes.trim())}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: (completionStatus === 'partial' && !workNotes.trim()) ? 0.6 : 1 }}
+                onClick={() =>
+                  selectedWorkId && handleEndWork(selectedWorkId)
+                }
+                disabled={
+                  !!processingTaskId ||
+                  (completionStatus === 'partial' &&
+                    !stripHtml(workNotes).trim())
+                }
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  opacity:
+                    completionStatus === 'partial' &&
+                    !stripHtml(workNotes).trim()
+                      ? 0.6
+                      : 1,
+                }}
               >
                 {processingTaskId ? (
                   <>

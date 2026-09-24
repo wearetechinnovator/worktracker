@@ -176,32 +176,6 @@ export function CustomDropdown({
             animation: 'fadeIn 0.15s ease',
           }}
         >
-          {actionButton && (
-            <div
-              onClick={() => {
-                setIsOpen(false);
-                actionButton.onClick();
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 10px',
-                borderRadius: '4px',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                color: 'var(--accent-primary)',
-                background: '#eff6ff',
-                cursor: 'pointer',
-                marginBottom: '4px',
-                border: '1px dashed rgba(59, 130, 246, 0.4)',
-              }}
-            >
-              <Plus size={14} />
-              <span>{actionButton.label}</span>
-            </div>
-          )}
-
           {options.map((opt) => {
             const isSelected = opt.value === value;
             return (
@@ -1143,6 +1117,7 @@ interface CustomFileAttachmentProps {
   files: FileAttachmentItem[];
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemove: (index: number) => void;
+  isRemovable?: (file: FileAttachmentItem, index: number) => boolean;
   style?: React.CSSProperties;
 }
 
@@ -1151,6 +1126,7 @@ export function CustomFileAttachment({
   files,
   onUpload,
   onRemove,
+  isRemovable,
   style,
 }: CustomFileAttachmentProps) {
   const [lightboxImage, setLightboxImage] = useState<FileAttachmentItem | null>(null);
@@ -1297,24 +1273,26 @@ export function CustomFileAttachment({
                 </span>
 
                 {/* Remove button */}
-                <button
-                  type="button"
-                  onClick={() => onRemove(idx)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                    padding: '0 2px',
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                  title="Remove file"
-                  onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-                >
-                  <X size={12} />
-                </button>
+                {(!isRemovable || isRemovable(file, idx)) && (
+                  <button
+                    type="button"
+                    onClick={() => onRemove(idx)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '0 2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                    title="Remove file"
+                    onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
               </div>
             );
           })}
@@ -1404,6 +1382,7 @@ interface CustomMultipleLinksProps {
   label?: string;
   links: string[];
   onChange: (links: string[]) => void;
+  isRemovable?: (link: string, index: number) => boolean;
   style?: React.CSSProperties;
 }
 
@@ -1411,6 +1390,7 @@ export function CustomMultipleLinks({
   label = 'URL / Resource Links',
   links = [],
   onChange,
+  isRemovable,
   style,
 }: CustomMultipleLinksProps) {
   const [inputUrl, setInputUrl] = useState('');
@@ -1555,24 +1535,26 @@ export function CustomMultipleLinks({
                 {link.replace(/^https?:\/\/(www\.)?/, '')}
               </a>
 
-              <button
-                type="button"
-                onClick={() => handleRemoveLink(idx)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '0 2px',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-                title="Remove link"
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-              >
-                <X size={12} />
-              </button>
+              {(!isRemovable || isRemovable(link, idx)) && (
+                <button
+                  type="button"
+                  onClick={() => handleRemoveLink(idx)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '0 2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  title="Remove link"
+                  onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
           ))}
         </div>

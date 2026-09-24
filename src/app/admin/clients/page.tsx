@@ -485,7 +485,7 @@ export default function ClientsPage() {
   }
 
   return (
-    <div style={{ display: 'grid', gap: '16px', paddingBottom: '30px' }}>
+    <div className="client-page" style={{ display: 'grid', gap: '16px', paddingBottom: '30px' }}>
 
       <section className="client-hero">
         <div>

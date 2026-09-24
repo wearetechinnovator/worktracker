@@ -56,6 +56,9 @@ export interface Task {
   urls?: string[];
   comments?: TaskComment[];
   
+  task_assign_date?: string | Date | null;
+  task_delay_reason?: string | null;
+  
   completion_date?: string;
   completion_time?: string;
   
@@ -67,7 +70,7 @@ export interface Task {
   } | string | number;
   modified_on?: string;
   
-  status: number; // 1 = active, 0 = inactive/deleted
+  status: any; // 1 = active, 0 = inactive/deleted, or status string in UI
 
   // Legacy / UI compatibility properties
   projectId?: any;

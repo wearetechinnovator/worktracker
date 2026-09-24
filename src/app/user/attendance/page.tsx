@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
 import PageShimmer from '@/components/PageShimmer';
-// import './style.css';
 
 interface AttendanceLog {
   _id: string;

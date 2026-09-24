@@ -16,7 +16,7 @@ import {
 } from "@/lib/clientApi";
 import { sanitizeNumericInput } from '@/lib/inputValidation';
 
-import './style.css';
+import '@/app/admin/clients/style.css';
 
 type ClientContact = {
   name: string;
@@ -426,7 +426,7 @@ export default function ClientsPage() {
   }
 
   return (
-    <div style={{ display: 'grid', gap: '14px', paddingBottom: '30px' }}>
+    <div className="client-page" style={{ display: 'grid', gap: '14px', paddingBottom: '30px' }}>
       
       <section className="client-hero">
         <div>

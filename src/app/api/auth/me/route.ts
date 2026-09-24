@@ -34,9 +34,18 @@ export async function GET() {
         email: user.email,
         phone_number: user.phone_number,
 
-        profile_picture: user.profile_picture,
+        profile_picture:
+          user.profile?.profile_picture || user.profile_picture || null,
         designation: user.designation,
         group: user.group,
+
+        gender: user.profile?.gender || user.gender || null,
+        property: {
+          name: user.property?.name || user.property_name || null,
+          logo: user.property?.logo || user.property_logo || null,
+          short_description:
+            user.property?.short_description || user.short_description || null,
+        },
 
         // Original DB value
         user_role: user.user_role,

@@ -104,6 +104,13 @@ export async function endTaskWork(
   workId: string,
   payload: {
     notes?: string;
+    links?: string[];
+    files?: Array<{
+      name: string;
+      url: string;
+      size?: number;
+      type?: string;
+    }>;
     localTime?: string;
     isFullyCompleted?: boolean;
   }
@@ -118,6 +125,36 @@ export async function endTaskWork(
       ...payload,
     }),
   });
+  return response.json();
+}
+
+export async function reviewTask(
+  taskId: string,
+  payload:
+    | {
+        action: 'approve';
+      }
+    | {
+        action: 'reject';
+        reassignTo: string;
+        reason?: string;
+      }
+) {
+  const response = await fetch(`/api/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      reviewAction: payload.action,
+      ...(payload.action === 'reject'
+        ? {
+            reassignTo: payload.reassignTo,
+            reviewReason: payload.reason,
+          }
+        : {}),
+    }),
+  });
+
   return response.json();
 }
 
@@ -154,5 +191,6 @@ export const taskApi = {
   pauseTaskWork,
   resumeTaskWork,
   endTaskWork,
+  reviewTask,
   getTaskWork
 };

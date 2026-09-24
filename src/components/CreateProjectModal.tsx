@@ -441,7 +441,7 @@ export default function CreateProjectModal({
               {/* Project Name Field */}
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-                  Project Name <span style={{ color: '#ef4444' }}>*</span>
+                  Project Name <span >*</span>
                 </label>
                 <div className="custom-input-group">
                   <span className="custom-input-addon">
@@ -765,36 +765,6 @@ export default function CreateProjectModal({
                               No clients match "{clientSearch}"
                             </div>
                           )}
-
-                          {/* Add Inline Client Trigger in Dropdown */}
-                          <div
-                            onClick={() => {
-                              setIsCreateClientModalOpen(true);
-                              setIsClientDropdownOpen(false);
-                            }}
-                            style={{
-                              padding: '9px 12px',
-                              marginTop: '4px',
-                              borderTop: '1px solid var(--border-color)',
-                              borderRadius: '8px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              cursor: 'pointer',
-                              color: 'var(--accent-primary)',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.08)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = 'transparent';
-                            }}
-                          >
-                            <Plus size={14} />
-                            <span>Add New Client...</span>
-                          </div>
                         </div>
                       </div>
                     )}
@@ -858,7 +828,7 @@ export default function CreateProjectModal({
                       }}
                     >
                       <Plus size={13} />
-                      <span>+ Add Employee</span>
+                      <span>Add Employee</span>
                     </button>
 
                     {employees.length > 0 && (

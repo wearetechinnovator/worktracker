@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
 import { currentUser } from "@/lib/auth";
+import { createGlobalLog } from "@/lib/globalLog";
 
 /* =========================================================
    GET EMPLOYEES
@@ -13,84 +14,106 @@ export async function GET() {
   try {
     await dbConnect();
 
-    const admin = await currentUser();
+    const admin =
+      await currentUser();
 
     if (!admin) {
       return NextResponse.json(
         {
           success: false,
-          message: "Authentication required",
+          message:
+            "Authentication required",
         },
         { status: 401 }
       );
     }
 
-    if (Number(admin.user_role) !== 1) {
+    if (
+      Number(admin.user_role) !== 1
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message: "Only admins can view employees",
+          message:
+            "Only admins can view employees",
         },
         { status: 403 }
       );
     }
 
-    const employees = await User.find({
-      user_role: 2,
+    const employees =
+      await User.find({
+        user_role: 2,
 
-      // Only employees created by this admin
-      created_by: admin._id,
-    })
-      .select(
-        [
-          "_id",
-          "full_name",
-          "email",
-          "phone_number",
-          "designation",
-          "role_id",
-          "group",
-          "profile_picture",
-          "status",
-          "isVerify",
-          "created_by",
-          "settings_id",
-        ].join(" ")
-      )
-      .sort({ createdAt: -1 })
-      .lean();
-
-    const data = employees.map(
-      (employee: any) => ({
-        ...employee,
-
-        _id: String(employee._id),
-
-        role_id: employee.role_id
-          ? String(employee.role_id)
-          : null,
-
-        settings_id: employee.settings_id
-          ? String(employee.settings_id)
-          : null,
-
-        created_by: employee.created_by
-          ? String(employee.created_by)
-          : null,
-
-        name:
-          employee.full_name ||
-          "Unknown User",
-
-        role:
-          employee.designation ||
-          "Employee",
-
-        userType: "employee",
-
-        avatarColor: "#3b82f6",
+        created_by:
+          admin._id,
       })
-    );
+        .select(
+          [
+            "_id",
+            "full_name",
+            "email",
+            "phone_number",
+            "designation",
+            "role_id",
+            "group",
+            "profile_picture",
+            "status",
+            "isVerify",
+            "created_by",
+            "settings_id",
+          ].join(" ")
+        )
+        .sort({
+          createdAt: -1,
+        })
+        .lean();
+
+    const data =
+      employees.map(
+        (employee: any) => ({
+          ...employee,
+
+          _id: String(
+            employee._id
+          ),
+
+          role_id:
+            employee.role_id
+              ? String(
+                  employee.role_id
+                )
+              : null,
+
+          settings_id:
+            employee.settings_id
+              ? String(
+                  employee.settings_id
+                )
+              : null,
+
+          created_by:
+            employee.created_by
+              ? String(
+                  employee.created_by
+                )
+              : null,
+
+          name:
+            employee.full_name ||
+            "Unknown User",
+
+          role:
+            employee.designation ||
+            "Employee",
+
+          userType:
+            "employee",
+
+          avatarColor:
+            "#3b82f6",
+        })
+      );
 
     return NextResponse.json({
       success: true,
@@ -105,7 +128,8 @@ export async function GET() {
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to load employees",
+        message:
+          "Failed to load employees",
       },
       { status: 500 }
     );
@@ -122,19 +146,27 @@ export async function POST(
   try {
     await dbConnect();
 
-    const admin = await currentUser();
+    const admin =
+      await currentUser();
 
     if (!admin) {
       return NextResponse.json(
         {
           success: false,
-          message: "Authentication required",
+          message:
+            "Authentication required",
         },
         { status: 401 }
       );
     }
 
-    if (Number(admin.user_role) !== 1) {
+    /* -------------------------
+       ADMIN ONLY
+    ------------------------- */
+
+    if (
+      Number(admin.user_role) !== 1
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -145,9 +177,9 @@ export async function POST(
       );
     }
 
-    /* =====================================================
-       ADMIN SETTINGS REQUIRED
-    ===================================================== */
+    /* -------------------------
+       SETTINGS REQUIRED
+    ------------------------- */
 
     if (!admin.settings_id) {
       return NextResponse.json(
@@ -160,7 +192,8 @@ export async function POST(
       );
     }
 
-    const body = await request.json();
+    const body =
+      await request.json();
 
     const name = String(
       body.name || ""
@@ -176,17 +209,22 @@ export async function POST(
       body.password || ""
     ).trim();
 
-    const designation = String(
-      body.designation ||
-      body.role ||
-      "Employee"
-    ).trim();
+    const designation =
+      String(
+        body.designation ||
+          body.role ||
+          "Employee"
+      ).trim();
 
-    /* =====================================================
+    /* -------------------------
        VALIDATION
-    ===================================================== */
+    ------------------------- */
 
-    if (!name || !email || !password) {
+    if (
+      !name ||
+      !email ||
+      !password
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -197,9 +235,9 @@ export async function POST(
       );
     }
 
-    /* =====================================================
-       CHECK EMAIL
-    ===================================================== */
+    /* -------------------------
+       EMAIL CHECK
+    ------------------------- */
 
     const existingUser =
       await User.findOne({
@@ -217,26 +255,38 @@ export async function POST(
       );
     }
 
-    /* =====================================================
+    /* -------------------------
+       PASSWORD
+    ------------------------- */
+
+    const hashedPassword =
+      await bcrypt.hash(
+        password,
+        10
+      );
+
+    const normalizedEmail =
+      String(email)
+        .toLowerCase()
+        .trim();
+
+    const normalizedName =
+      String(name).trim();
+
+    /* -------------------------
        CREATE EMPLOYEE
-    ===================================================== */
-    const hashedPassword = await bcrypt.hash(
-      password,
-      10
-    );
-    const normalizedEmail = String(email)
-      .toLowerCase()
-      .trim();
-    const normalizedName = String(name)
-      .toLowerCase()
-      .trim();
+    ------------------------- */
+
     const employee =
       await User.create({
-        full_name: normalizedName,
-        email: normalizedEmail,
+        full_name:
+          normalizedName,
 
+        email:
+          normalizedEmail,
 
-        password: hashedPassword,
+        password:
+          hashedPassword,
 
         designation,
 
@@ -247,21 +297,27 @@ export async function POST(
           body.group || null,
 
         phone_number:
-          body.phone_number || null,
+          body.phone_number ||
+          null,
 
         profile_picture:
-          body.profile_picture || null,
+          body.profile_picture ||
+          null,
 
         // 2 = Employee
         user_role: 2,
 
+        /* -------------------------
+           SAME ADMIN SETTINGS
+        ------------------------- */
 
         settings_id:
           admin.settings_id,
 
-        /*
-         * Ownership
-         */
+        /* -------------------------
+           OWNERSHIP
+        ------------------------- */
+
         created_by:
           admin._id,
 
@@ -274,8 +330,70 @@ export async function POST(
       });
 
     /* =====================================================
-       RESPONSE
+       GLOBAL LOG - CREATE EMPLOYEE
     ===================================================== */
+
+    await createGlobalLog({
+      actorId:
+        String(admin._id),
+
+      action: "CREATE",
+
+      entityType: "User",
+
+      entityId:
+        String(employee._id),
+
+      targetUserId:
+        String(employee._id),
+
+      description:
+        `Created employee "${employee.full_name}"`,
+
+      information: {
+        full_name:
+          employee.full_name,
+
+        email:
+          employee.email,
+
+        designation:
+          employee.designation,
+
+        role_id:
+          employee.role_id
+            ? String(
+                employee.role_id
+              )
+            : null,
+
+        group:
+          employee.group,
+
+        phone_number:
+          employee.phone_number,
+
+        user_role:
+          employee.user_role,
+
+        settings_id:
+          employee.settings_id
+            ? String(
+                employee.settings_id
+              )
+            : null,
+
+        status:
+          employee.status,
+
+        isVerify:
+          employee.isVerify,
+      },
+    });
+
+    /* -------------------------
+       RESPONSE DATA
+    ------------------------- */
 
     const data = {
       _id: String(
@@ -299,12 +417,16 @@ export async function POST(
 
       role_id:
         employee.role_id
-          ? String(employee.role_id)
+          ? String(
+              employee.role_id
+            )
           : null,
 
       settings_id:
         employee.settings_id
-          ? String(employee.settings_id)
+          ? String(
+              employee.settings_id
+            )
           : null,
 
       role:
@@ -330,7 +452,9 @@ export async function POST(
         "employee",
 
       created_by:
-        String(employee.created_by),
+        String(
+          employee.created_by
+        ),
 
       avatarColor:
         "#3b82f6",
@@ -339,11 +463,15 @@ export async function POST(
     return NextResponse.json(
       {
         success: true,
+
         message:
           "Employee created successfully",
+
         data,
       },
-      { status: 201 }
+      {
+        status: 201,
+      }
     );
   } catch (error) {
     console.error(
@@ -386,6 +514,10 @@ export async function PATCH(
       );
     }
 
+    /* -------------------------
+       ADMIN ONLY
+    ------------------------- */
+
     if (
       Number(
         loggedInUser.user_role
@@ -417,17 +549,47 @@ export async function PATCH(
       );
     }
 
+    /* -------------------------
+       BODY
+    ------------------------- */
+
     const body =
       await req.json();
+
+    /* =====================================================
+       GET OLD EMPLOYEE
+       Used for audit information
+    ===================================================== */
+
+    const oldEmployee =
+      await User.findOne({
+        _id: id,
+
+        user_role: 2,
+
+        created_by:
+          loggedInUser._id,
+      }).lean();
+
+    if (!oldEmployee) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Employee not found or you do not have access",
+        },
+        { status: 404 }
+      );
+    }
 
     const updateData: Record<
       string,
       unknown
     > = {};
 
-    /* =====================================================
+    /* -------------------------
        FULL NAME
-    ===================================================== */
+    ------------------------- */
 
     if (
       body.full_name !==
@@ -439,18 +601,16 @@ export async function PATCH(
         ).trim();
     }
 
-    /* =====================================================
+    /* -------------------------
        EMAIL
-    ===================================================== */
+    ------------------------- */
 
     if (
       body.email !==
       undefined
     ) {
       const email =
-        String(
-          body.email
-        )
+        String(body.email)
           .trim()
           .toLowerCase();
 
@@ -465,6 +625,7 @@ export async function PATCH(
               /[.*+?^${}()|[\]\\]/g,
               "\\$&"
             )}$`,
+
             $options: "i",
           },
         });
@@ -484,9 +645,9 @@ export async function PATCH(
         email;
     }
 
-    /* =====================================================
+    /* -------------------------
        DESIGNATION
-    ===================================================== */
+    ------------------------- */
 
     if (
       body.designation !==
@@ -498,35 +659,33 @@ export async function PATCH(
         ).trim();
     }
 
-    /* =====================================================
+    /* -------------------------
        ROLE
-    ===================================================== */
+    ------------------------- */
 
     if (
       body.role_id !==
       undefined
     ) {
       updateData.role_id =
-        body.role_id ||
-        null;
+        body.role_id || null;
     }
 
-    /* =====================================================
+    /* -------------------------
        GROUP
-    ===================================================== */
+    ------------------------- */
 
     if (
       body.group !==
       undefined
     ) {
       updateData.group =
-        body.group ||
-        null;
+        body.group || null;
     }
 
-    /* =====================================================
+    /* -------------------------
        PHONE
-    ===================================================== */
+    ------------------------- */
 
     if (
       body.phone_number !==
@@ -537,23 +696,34 @@ export async function PATCH(
         null;
     }
 
-    /* =====================================================
+    /* -------------------------
+       PROFILE PICTURE
+    ------------------------- */
+
+    if (
+      body.profile_picture !==
+      undefined
+    ) {
+      updateData.profile_picture =
+        body.profile_picture ||
+        null;
+    }
+
+    /* -------------------------
        STATUS
-    ===================================================== */
+    ------------------------- */
 
     if (
       body.status !==
       undefined
     ) {
       updateData.status =
-        Boolean(
-          body.status
-        );
+        Boolean(body.status);
     }
 
-    /* =====================================================
+    /* -------------------------
        WORK MODE
-       ===================================================== */
+    ------------------------- */
 
     if (
       body.workMode !==
@@ -563,9 +733,9 @@ export async function PATCH(
         body.workMode;
     }
 
-    /* =====================================================
+    /* -------------------------
        PASSWORD
-    ===================================================== */
+    ------------------------- */
 
     if (
       body.password?.trim()
@@ -577,16 +747,15 @@ export async function PATCH(
         );
     }
 
-    /* =====================================================
-       IMPORTANT:
-       settings_id IS NOT UPDATED HERE
-       ===================================================== */
+    /* -------------------------
+       MODIFIED BY
+    ------------------------- */
 
     updateData.modified_by =
       loggedInUser._id;
 
     /* =====================================================
-       UPDATE ONLY OWN EMPLOYEE
+       UPDATE
     ===================================================== */
 
     const employee =
@@ -596,10 +765,6 @@ export async function PATCH(
 
           user_role: 2,
 
-          /*
-           * Admin can update only
-           * employees created by them.
-           */
           created_by:
             loggedInUser._id,
         },
@@ -608,6 +773,7 @@ export async function PATCH(
         },
         {
           new: true,
+
           runValidators: true,
         }
       ).select(
@@ -641,10 +807,98 @@ export async function PATCH(
       );
     }
 
+    /* =====================================================
+       GLOBAL LOG - UPDATE EMPLOYEE
+    ===================================================== */
+
+    await createGlobalLog({
+      actorId:
+        String(
+          loggedInUser._id
+        ),
+
+      action: "UPDATE",
+
+      entityType: "User",
+
+      entityId:
+        String(employee._id),
+
+      targetUserId:
+        String(employee._id),
+
+      description:
+        `Updated employee "${employee.full_name}"`,
+
+      information: {
+        before: {
+          full_name:
+            oldEmployee.full_name,
+
+          email:
+            oldEmployee.email,
+
+          phone_number:
+            oldEmployee.phone_number,
+
+          designation:
+            oldEmployee.designation,
+
+          role_id:
+            oldEmployee.role_id
+              ? String(
+                  oldEmployee.role_id
+                )
+              : null,
+
+          group:
+            oldEmployee.group,
+
+          profile_picture:
+            oldEmployee.profile_picture,
+
+          status:
+            oldEmployee.status,
+        },
+
+        after: {
+          full_name:
+            employee.full_name,
+
+          email:
+            employee.email,
+
+          phone_number:
+            employee.phone_number,
+
+          designation:
+            employee.designation,
+
+          role_id:
+            employee.role_id
+              ? String(
+                  employee.role_id
+                )
+              : null,
+
+          group:
+            employee.group,
+
+          profile_picture:
+            employee.profile_picture,
+
+          status:
+            employee.status,
+        },
+      },
+    });
+
     return NextResponse.json({
       success: true,
+
       message:
         "Employee updated successfully",
+
       data: employee,
     });
   } catch (error) {
@@ -688,6 +942,10 @@ export async function DELETE(
       );
     }
 
+    /* -------------------------
+       ADMIN ONLY
+    ------------------------- */
+
     if (
       Number(
         loggedInUser.user_role
@@ -720,8 +978,8 @@ export async function DELETE(
     }
 
     /* =====================================================
-       FIND ONLY THIS ADMIN'S EMPLOYEE
-    ===================================================== */
+       FIND EMPLOYEE FIRST
+       ===================================================== */
 
     const employee =
       await User.findOne({
@@ -745,8 +1003,79 @@ export async function DELETE(
     }
 
     /* =====================================================
+       GLOBAL LOG - DELETE
+       ===================================================== */
+
+    await createGlobalLog({
+      actorId:
+        String(
+          loggedInUser._id
+        ),
+
+      action: "DELETE",
+
+      entityType: "User",
+
+      entityId:
+        String(employee._id),
+
+      targetUserId:
+        String(employee._id),
+
+      description:
+        `Deleted employee "${employee.full_name}"`,
+
+      information: {
+        full_name:
+          employee.full_name,
+
+        email:
+          employee.email,
+
+        phone_number:
+          employee.phone_number,
+
+        designation:
+          employee.designation,
+
+        role_id:
+          employee.role_id
+            ? String(
+                employee.role_id
+              )
+            : null,
+
+        group:
+          employee.group,
+
+        profile_picture:
+          employee.profile_picture,
+
+        settings_id:
+          employee.settings_id
+            ? String(
+                employee.settings_id
+              )
+            : null,
+
+        created_by:
+          employee.created_by
+            ? String(
+                employee.created_by
+              )
+            : null,
+
+        status:
+          employee.status,
+
+        isVerify:
+          employee.isVerify,
+      },
+    });
+
+    /* =====================================================
        DELETE
-    ===================================================== */
+       ===================================================== */
 
     await User.deleteOne({
       _id: id,
@@ -759,6 +1088,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
+
       message:
         "Employee deleted successfully",
 

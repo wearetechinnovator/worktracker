@@ -865,6 +865,7 @@ const [roles, setRoles] = useState<
 
           {/* Row 2: Job Title / Role & Default Project */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'start' }}>
+            
             <CustomDropdown
               label="Designation *"
               placeholder="Select Designation"

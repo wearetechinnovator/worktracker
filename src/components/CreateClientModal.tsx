@@ -381,7 +381,7 @@ export default function CreateClientModal({
                   className="form-label"
                   style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}
                 >
-                  Client / Company Name <span style={{ color: '#ef4444' }}>*</span>
+                  Client / Company Name <span >*</span>
                 </label>
                 <div className="custom-input-group">
                   <span className="custom-input-addon">
@@ -402,7 +402,7 @@ export default function CreateClientModal({
                   className="form-label"
                   style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}
                 >
-                  Primary Phone Number <span style={{ color: '#ef4444' }}>*</span>
+                  Primary Phone Number <span >*</span>
                 </label>
                 <div className="custom-input-group">
                   <span className="custom-input-addon">
@@ -428,7 +428,7 @@ export default function CreateClientModal({
                 className="form-label"
                 style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}
               >
-                General Emails (comma-separated) <span style={{ color: '#ef4444' }}>*</span>
+                General Emails (comma-separated) <span>*</span>
               </label>
               <div className="custom-input-group">
                 <span className="custom-input-addon">

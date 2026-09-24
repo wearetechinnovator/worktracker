@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import {
   X,
@@ -102,6 +102,29 @@ export function CreateTaskModal({
   const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
 
   const isAdmin = currentUser?.userType === 'admin';
+
+  const initialFilesSet = useMemo(() => {
+    if (!editingTask || !Array.isArray(editingTask.files)) return new Set<string>();
+    return new Set(
+      editingTask.files.map((f: any) => {
+        if (!f) return '';
+        if (typeof f === 'string') return f;
+        return f.url || (f as any).fileUrl || `${f.name}_${f.size || 0}`;
+      })
+    );
+  }, [editingTask]);
+
+  const initialUrlsSet = useMemo(() => {
+    if (!editingTask) return new Set<string>();
+    const existing = Array.isArray(editingTask.urls)
+      ? editingTask.urls
+      : (editingTask.url ? [editingTask.url] : []);
+    return new Set(
+      existing.map((u: any) =>
+        (typeof u === 'string' ? u : (u?.url || u?.link || '')).trim()
+      )
+    );
+  }, [editingTask]);
 
   // Fetch projects from API
   const fetchProjects = useCallback(async () => {
@@ -462,7 +485,7 @@ export function CreateTaskModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim() || !formData.projectId.trim()) {
+    if (isAdmin && (!formData.title.trim() || !formData.projectId.trim())) {
       setError('Please fill all required fields');
       return;
     }
@@ -471,42 +494,74 @@ export function CreateTaskModal({
       setSubmitting(true);
       setError(null);
 
-      const userId = currentUser?._id || currentUser?.id || currentUser?.email;
-      const safeAssignedTo = isAdmin ? formData.assignedTo : (userId ? [userId] : []);
+      let payload: any;
 
-      const payload = {
-        title: formData.title.trim(),
-        description: formData.description || '',
-        project_id: formData.projectId || undefined,
-        assign_to: safeAssignedTo,
-        created_by: userId,
-        priority: formData.priority,
-        task_status: formData.status,
-        files: formData.files,
-        urls: formData.urls,
-        comments: formData.comments ? [{ comment: formData.comments, user_id: userId, datetime: new Date().toISOString() }] : [],
-        completion_date: formData.dueDate || undefined,
-        completion_time: formData.dueTime || undefined,
-        task_assign_date: formData.task_assign_date || undefined,
-        task_delay_reason: formData.task_delay_reason ? (formData.task_delay_reason.trim() || undefined) : undefined,
-        status: 1,
+      if (!isAdmin && editingTask) {
+        // Non-admin employees can ONLY update description and add new files/links.
+        // Ensure existing files and links are strictly preserved.
+        const existingFiles = Array.isArray(editingTask.files) ? editingTask.files : [];
+        const existingUrls = Array.isArray(editingTask.urls)
+          ? editingTask.urls
+          : (editingTask.url ? [editingTask.url] : []);
 
-        // Backward compatibility properties
-        projectId: formData.projectId || undefined,
-        assignedTo: safeAssignedTo,
-        createdBy: userId,
-        dueDate: formData.dueDate || undefined,
-        dueTime: formData.dueTime || undefined,
+        const mergedFiles = [...existingFiles];
+        const existingFileKeys = new Set(
+          existingFiles.map((f: any) => f?.url || (f as any)?.fileUrl || `${f?.name}_${f?.size || 0}`)
+        );
+        for (const f of formData.files) {
+          const key = f?.url || (f as any)?.fileUrl || `${f?.name}_${f?.size || 0}`;
+          if (!existingFileKeys.has(key)) {
+            mergedFiles.push(f);
+          }
+        }
 
-        // Backward-compatible camelCase fields
-        // task_assign_date: formData.task_assign_date || undefined,
-        // task_delay_reason: formData.task_assign_date
-        //   ? (formData.task_delay_reason.trim() || undefined)
-        //   : undefined,
+        const mergedUrls = [...existingUrls];
+        const existingUrlSet = new Set(
+          existingUrls.map((u: any) => (typeof u === 'string' ? u : u?.url || u?.link || '').trim())
+        );
+        for (const u of formData.urls) {
+          if (!existingUrlSet.has(u.trim())) {
+            mergedUrls.push(u.trim());
+          }
+        }
 
-        url: formData.urls[0] || formData.url || undefined,
-        tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : []
-      };
+        payload = {
+          description: formData.description || '',
+          files: mergedFiles,
+          urls: mergedUrls,
+        };
+      } else {
+        const userId = currentUser?._id || currentUser?.id || currentUser?.email;
+        const safeAssignedTo = isAdmin ? formData.assignedTo : (userId ? [userId] : []);
+
+        payload = {
+          title: formData.title.trim(),
+          description: formData.description || '',
+          project_id: formData.projectId || undefined,
+          assign_to: safeAssignedTo,
+          created_by: userId,
+          priority: formData.priority,
+          task_status: formData.status,
+          files: formData.files,
+          urls: formData.urls,
+          comments: formData.comments ? [{ comment: formData.comments, user_id: userId, datetime: new Date().toISOString() }] : [],
+          completion_date: formData.dueDate || undefined,
+          completion_time: formData.dueTime || undefined,
+          task_assign_date: formData.task_assign_date || undefined,
+          task_delay_reason: formData.task_delay_reason ? (formData.task_delay_reason.trim() || undefined) : undefined,
+          status: 1,
+
+          // Backward compatibility properties
+          projectId: formData.projectId || undefined,
+          assignedTo: safeAssignedTo,
+          createdBy: userId,
+          dueDate: formData.dueDate || undefined,
+          dueTime: formData.dueTime || undefined,
+
+          url: formData.urls[0] || formData.url || undefined,
+          tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : []
+        };
+      }
 
       let savedTask: any = null;
 
@@ -783,12 +838,25 @@ export function CreateTaskModal({
 
             {/* Task Title */}
             <div className="form-group" style={{ marginBottom: '16px' }}>
-              <label className="form-label">Task Title *</label>
+              <label className="form-label">
+                Task Title *
+                {!isAdmin && editingTask && (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '8px', fontWeight: 500 }}>
+                    (Read-only for employee)
+                  </span>
+                )}
+              </label>
               <input
                 type="text"
                 className="form-control"
                 placeholder="e.g. Implement user authentication workflow"
                 value={formData.title}
+                disabled={!isAdmin && Boolean(editingTask)}
+                style={
+                  !isAdmin && editingTask
+                    ? { background: 'var(--bg-tertiary)', cursor: 'not-allowed', opacity: 0.85 }
+                    : {}
+                }
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               />
             </div>
@@ -809,12 +877,21 @@ export function CreateTaskModal({
                 files={formData.files}
                 onUpload={handleFileUpload}
                 onRemove={handleRemoveFile}
+                isRemovable={(file) => {
+                  if (isAdmin || !editingTask) return true;
+                  const key = file.url || (file as any).fileUrl || `${file.name}_${file.size || 0}`;
+                  return !initialFilesSet.has(key);
+                }}
               />
 
               <CustomMultipleLinks
                 label="URL / Resource Links"
                 links={formData.urls}
                 onChange={(newLinks) => setFormData({ ...formData, urls: newLinks, url: newLinks[0] || '' })}
+                isRemovable={(link) => {
+                  if (isAdmin || !editingTask) return true;
+                  return !initialUrlsSet.has(link.trim());
+                }}
               />
             </div>
 

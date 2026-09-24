@@ -958,7 +958,7 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
                           onClick={() => setActiveChannelId(dmId)}
                         >
                           <div className="chat-sidebar-item-left">
-                            <span className={`status-dot ${m.onlineStatus}`} />
+                            <span className={`chat-status-dot ${m.onlineStatus}`} />
                             <span className="chat-sidebar-item-name">{m.name}</span>
                           </div>
                           {unreadCounts[dmId] > 0 && (
@@ -985,7 +985,7 @@ export default function ChatWidget({ inline = false }: ChatWidgetProps) {
                 <div>
                   <div className="chat-body-header-title">
                     {currentChannel.isDm ? (
-                      <span className={`status-dot ${currentChannel.status}`} style={{ width: '10px', height: '10px' }} />
+                      <span className={`chat-status-dot ${currentChannel.status}`} style={{ width: '10px', height: '10px' }} />
                     ) : activeChannelId === '#announcements' ? (
                       <Lock size={14} style={{ color: 'var(--accent-secondary)' }} />
                     ) : (

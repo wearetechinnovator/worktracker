@@ -701,7 +701,20 @@ export default function Sidebar() {
 										onMouseLeave={handleItemMouseLeave}
 									>
 										<Activity size={17} />
-										<span>Activity Logs</span>
+										<span>Task Logs</span>
+									</Link>
+								</AnimateIcon>
+							)}
+							{isAdmin && (
+								<AnimateIcon animateOnHover>
+									<Link
+										href={`${basePath}/global-log`}
+										className={`sidebar-link ${pathname === `${basePath}/global-log` ? 'active' : ''}`}
+										onMouseEnter={(e) => handleItemMouseEnter('Activity Logs', e)}
+										onMouseLeave={handleItemMouseLeave}
+									>
+										<Activity size={17} />
+										<span>Global Logs</span>
 									</Link>
 								</AnimateIcon>
 							)}
@@ -722,16 +735,70 @@ export default function Sidebar() {
 								zIndex: 10,
 							}}
 						>
-							<div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: isCollapsed ? '8px' : '12px', padding: '0 4px', justifyContent: isCollapsed ? 'center' : 'flex-start' }}>
-								<div className="avatar" style={{ width: isCollapsed ? '32px' : '28px', height: isCollapsed ? '32px' : '28px', fontSize: '0.75rem', flexShrink: 0 }} title={user.name}>
-									{user.name?.split(' ').map((n: string) => n[0]).join('') || 'U'}
+							<div
+								style={{
+									display: 'flex',
+									alignItems: 'center',
+									gap: '8px',
+									marginBottom: isCollapsed ? '8px' : '12px',
+									padding: '0 4px',
+								}}
+							>
+								<div
+									className="avatar"
+									style={{
+										width: isCollapsed ? '32px' : '28px',
+										height: isCollapsed ? '32px' : '28px',
+										fontSize: '0.75rem',
+										flexShrink: 0,
+									}}
+									title={user.name}
+								>
+									{user.name
+										?.split(' ')
+										.map((n: string) => n[0])
+										.join('') || 'U'}
 								</div>
+
 								{!isCollapsed && (
-									<div style={{ overflow: 'hidden' }}>
-										<div style={{ fontWeight: 700, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
-										<div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.userType}</div>
+									<div
+										style={{
+											minWidth: 0,
+											flex: 1,
+											overflow: 'hidden',
+										}}
+									>
+										<div
+											style={{
+												fontWeight: 700,
+												fontSize: '0.8rem',
+												overflow: 'hidden',
+												textOverflow: 'ellipsis',
+												whiteSpace: 'nowrap',
+											}}
+										>
+											{user.name}
+										</div>
+
+										<div
+											style={{
+												fontSize: '0.7rem',
+												color: 'var(--text-muted)',
+												textTransform: 'capitalize',
+											}}
+										>
+											{user.userType}
+										</div>
 									</div>
 								)}
+
+								<Link
+									href={`${basePath}/profile`}
+									title="Profile"
+									className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+								>
+									<Settings size={16} />
+								</Link>
 							</div>
 
 							{(isAdmin) && (

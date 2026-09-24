@@ -210,34 +210,34 @@
 }
 
 /* Status Dots */
-.status-dot {
+.chat-status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.status-dot.online {
+.chat-status-dot.online {
   background: #22c55e;
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
 }
 
-.status-dot.wfh {
+.chat-status-dot.wfh {
   background: #8b5cf6;
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
 }
 
-.status-dot.sick_leave {
+.chat-status-dot.sick_leave {
   background: #ef4444;
   box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
 }
 
-.status-dot.leave {
+.chat-status-dot.leave {
   background: #f97316;
   box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2);
 }
 
-.status-dot.offline {
+.chat-status-dot.offline {
   background: #cbd5e1;
 }
 

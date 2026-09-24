@@ -22,8 +22,6 @@ import CreateProjectModal from '@/components/CreateProjectModal';
 import CreateTaskModal from '@/components/CreateTaskModal';
 import dynamic from 'next/dynamic';
 
-import './dashboard.css';
-
 
 // ======================================
 // ================ Types ===============
@@ -58,7 +56,30 @@ const DEFAULT_INLINE_PROJECTS: Project[] = [];
 
 export default function Dashboard() {
 	const router = useRouter();
-	const [user, setUser] = useState<any>([]);
+	const [user, setUser] = useState<any>(null);
+
+	useEffect(() => {
+		const loadCurrentUser = async () => {
+			try {
+				const response = await fetch('/api/auth/me', {
+					method: 'GET',
+					credentials: 'include',
+					cache: 'no-store',
+				});
+				const result = await response.json();
+				if (response.ok && result.success && result.user) {
+					setUser({
+						...result.user,
+						user_role: Number(result.user.user_role),
+						userType: Number(result.user.user_role) === 1 ? 'admin' : 'employee',
+					});
+				}
+			} catch (error) {
+				console.error('Failed to load user in dashboard:', error);
+			}
+		};
+		loadCurrentUser();
+	}, []);
 
 	// Data State initialized directly with inline data
 	const [employees, setEmployees] = useState<Employee[]>([]);
@@ -396,7 +417,7 @@ export default function Dashboard() {
 		<div>
 			{/* 3-Dot Settings Backdrop */}
 			{isKpiSettingsOpen && (
-				<div className="menu-backdrop" onClick={() => setIsKpiSettingsOpen(false)} />
+				<div className="fixed inset-0 z-[1050] bg-transparent" onClick={() => setIsKpiSettingsOpen(false)} />
 			)}
 
 			{error && (
@@ -407,16 +428,16 @@ export default function Dashboard() {
 			)}
 
 			{/* KPI Section Header with 3-Dot Settings Button */}
-			<div className="dashboard-section-header">
+			<div className="flex justify-between items-center mb-3.5">
 				<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-					<h2 className="dashboard-section-title">Admin Dashboard</h2>
+					<h2 className="text-[1.05rem] font-semibold text-[var(--text-primary)] m-0">Admin Dashboard</h2>
 				</div>
 
 				{/* 3-Dot Settings Menu Trigger */}
-				<div className="kpi-menu-container">
+				<div className="relative">
 					<button
 						type="button"
-						className="kpi-menu-btn"
+						className="w-[34px] h-[34px] inline-flex items-center justify-center rounded-[var(--border-radius-sm)] border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] shadow-sm cursor-pointer transition-all hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
 						onClick={() => setIsKpiSettingsOpen(!isKpiSettingsOpen)}
 						title="KPI Settings"
 					>
@@ -425,10 +446,10 @@ export default function Dashboard() {
 
 					{/* 3-Dot Settings Dropdown Menu */}
 					{isKpiSettingsOpen && (
-						<div className="kpi-dropdown-menu">
+						<div className="absolute top-[calc(100%+6px)] right-0 min-w-[150px] p-1.5 rounded-[var(--border-radius-md)] border border-[var(--border-color)] bg-[var(--bg-secondary)] shadow-lg z-[1100]">
 							<button
 								type="button"
-								className="kpi-dropdown-item"
+								className="w-full flex items-center gap-2 px-3 py-2 border-none bg-transparent rounded-[var(--border-radius-sm)] cursor-pointer text-[0.81rem] font-medium text-[var(--text-primary)] text-left transition-colors hover:bg-[var(--bg-tertiary)]"
 								onClick={() => {
 									setIsKpiSettingsOpen(false);
 									setIsEditWidgetsModalOpen(true);

@@ -5,12 +5,16 @@ import mongoose from "mongoose";
 import dbConnect from "@/lib/dbConnect";
 import Client from "@/models/Client";
 import { currentUser } from "@/lib/auth";
+import { createGlobalLog } from "@/lib/globalLog";
 
 /* =========================================================
    USER ID HELPER
    ========================================================= */
 
-function getUserId(user: { qd_id?: unknown; _id?: unknown }): string | null {
+function getUserId(user: {
+  qd_id?: unknown;
+  _id?: unknown;
+}): string | null {
   const userId = user?.qd_id ?? user?._id;
 
   if (userId === undefined || userId === null || userId === "") {
@@ -43,16 +47,7 @@ function getClientLookup(id: string) {
    PROJECT ID NORMALIZER
    ========================================================= */
 
-/**
- * Client schema:
- *
- * projects: [String]
- *
- * Therefore project IDs MUST remain strings.
- */
-function normalizeProjectIds(
-  projects: unknown
-): string[] {
+function normalizeProjectIds(projects: unknown): string[] {
   if (!Array.isArray(projects)) {
     return [];
   }
@@ -78,17 +73,27 @@ function normalizeProjectIds(
     .filter(Boolean);
 }
 
+/* =========================================================
+   PHONE HELPERS
+   ========================================================= */
+
 function normalizePhone(value: unknown) {
-  return String(value || '').replace(/\D/g, '');
+  return String(value || "").replace(/\D/g, "");
 }
 
 function hasSamePhone(client: any, phone: string) {
   const target = normalizePhone(phone);
+
   if (!target) return false;
 
-  return normalizePhone(client.phone) === target ||
+  return (
+    normalizePhone(client.phone) === target ||
     (Array.isArray(client.contact_members) &&
-      client.contact_members.some((contact: any) => normalizePhone(contact?.phone) === target));
+      client.contact_members.some(
+        (contact: any) =>
+          normalizePhone(contact?.phone) === target
+      ))
+  );
 }
 
 /* =========================================================
@@ -105,8 +110,12 @@ export async function GET(req: Request) {
     await dbConnect();
 
     const { searchParams } = new URL(req.url);
+
     const id = searchParams.get("id");
-    const paramUserId = searchParams.get("userId") || searchParams.get("created_by");
+
+    const paramUserId =
+      searchParams.get("userId") ||
+      searchParams.get("created_by");
 
     const user = await currentUser();
 
@@ -116,7 +125,9 @@ export async function GET(req: Request) {
           getUserId(user),
           user?._id ? String(user._id) : null,
           user?.qd_id ? String(user.qd_id) : null,
-          paramUserId ? String(paramUserId).trim() : null,
+          paramUserId
+            ? String(paramUserId).trim()
+            : null,
         ].filter(Boolean) as string[]
       )
     );
@@ -138,7 +149,9 @@ export async function GET(req: Request) {
        ------------------------- */
 
     if (id) {
-      const client = await Client.findOne(getClientLookup(id)).lean();
+      const client = await Client.findOne(
+        getClientLookup(id)
+      ).lean();
 
       if (!client) {
         return NextResponse.json(
@@ -152,8 +165,10 @@ export async function GET(req: Request) {
         );
       }
 
-      // Verify client ownership by created_by user ID
-      const isOwner = userIds.includes(String(client.created_by || ""));
+      const isOwner = userIds.includes(
+        String(client.created_by || "")
+      );
+
       if (!isOwner) {
         return NextResponse.json(
           {
@@ -173,11 +188,13 @@ export async function GET(req: Request) {
     }
 
     /* -------------------------
-       GET CLIENTS FILTERED BY USER ID
+       GET CLIENTS FILTERED
        ------------------------- */
 
     const clients = await Client.find({
-      created_by: { $in: userIds },
+      created_by: {
+        $in: userIds,
+      },
     })
       .sort({
         created_on: -1,
@@ -227,8 +244,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Authentication required",
+          message: "Authentication required",
         },
         {
           status: 401,
@@ -241,15 +257,6 @@ export async function POST(req: Request) {
        ------------------------- */
 
     const createdBy = getUserId(user);
-
-    console.log(
-      "CLIENT CREATOR USER:",
-      {
-        qd_id: user?.qd_id,
-        mongoId: user?._id,
-        createdBy,
-      }
-    );
 
     if (createdBy === null) {
       return NextResponse.json(
@@ -268,8 +275,7 @@ export async function POST(req: Request) {
        REQUEST BODY
        ------------------------- */
 
-    const body =
-      await req.json();
+    const body = await req.json();
 
     /* -------------------------
        CLIENT NAME
@@ -283,8 +289,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Client name is required",
+          message: "Client name is required",
         },
         {
           status: 400,
@@ -296,66 +301,62 @@ export async function POST(req: Request) {
        EMAILS
        ------------------------- */
 
-    const emails =
-      Array.isArray(body.emails)
-        ? body.emails
-            .map(
-              (email: unknown) =>
-                String(email).trim()
-            )
-            .filter(Boolean)
-        : [];
+    const emails = Array.isArray(body.emails)
+      ? body.emails
+          .map((email: unknown) =>
+            String(email).trim()
+          )
+          .filter(Boolean)
+      : [];
 
     /* -------------------------
        CONTACTS
        ------------------------- */
 
-    const contacts =
-      Array.isArray(body.contacts)
-        ? body.contacts
-            .filter(
-              (contact: any) =>
-                contact &&
-                typeof contact ===
-                  "object"
-            )
-            .map(
-              (contact: any) => ({
-                name: String(
-                  contact.name || ""
-                ).trim(),
+    const contacts = Array.isArray(body.contacts)
+      ? body.contacts
+          .filter(
+            (contact: any) =>
+              contact &&
+              typeof contact === "object"
+          )
+          .map((contact: any) => ({
+            name: String(
+              contact.name || ""
+            ).trim(),
 
-                email: String(
-                  contact.email || ""
-                ).trim(),
+            email: String(
+              contact.email || ""
+            ).trim(),
 
-                phone: String(
-                  contact.phone || ""
-                ).trim(),
+            phone: String(
+              contact.phone || ""
+            ).trim(),
 
-                designation:
-                  String(
-                    contact.designation ||
-                      ""
-                  ).trim(),
+            designation: String(
+              contact.designation || ""
+            ).trim(),
 
-                label: String(
-                  contact.label || ""
-                ).trim(),
-              })
-            )
-        : [];
+            label: String(
+              contact.label || ""
+            ).trim(),
+          }))
+      : [];
 
     /* -------------------------
-       PRIMARY PHONE & EMAILS VALIDATION
+       PRIMARY PHONE
        ------------------------- */
 
-    const primaryPhone = String(body.phone || "").trim();
+    const primaryPhone = String(
+      body.phone || ""
+    ).trim();
+
     if (!primaryPhone) {
       return NextResponse.json(
         {
           success: false,
-          message: "Primary phone number is required",
+          message:
+            "Primary phone number is required",
         },
         {
           status: 400,
@@ -365,16 +366,10 @@ export async function POST(req: Request) {
 
     if (!/^\d{10,20}$/.test(primaryPhone)) {
       return NextResponse.json(
-        { success: false, message: "Phone number must contain only numbers and be 10-20 digits long" },
-        { status: 400 }
-      );
-    }
-
-    if (emails.length === 0) {
-      return NextResponse.json(
         {
           success: false,
-          message: "At least one client email address is required",
+          message:
+            "Phone number must contain only numbers and be 10-20 digits long",
         },
         {
           status: 400,
@@ -382,21 +377,49 @@ export async function POST(req: Request) {
       );
     }
 
+    /* -------------------------
+       DUPLICATE PHONE CHECK
+       ------------------------- */
+
     const phoneCandidates = await Client.find({
       $or: [
-        { phone: { $exists: true, $ne: '' } },
-        { 'contact_members.phone': { $exists: true, $ne: '' } },
+        {
+          phone: {
+            $exists: true,
+            $ne: "",
+          },
+        },
+        {
+          "contact_members.phone": {
+            $exists: true,
+            $ne: "",
+          },
+        },
       ],
-    }).select('name phone contact_members').lean();
+    })
+      .select(
+        "name phone contact_members"
+      )
+      .lean();
 
-    const duplicatePhoneClient = phoneCandidates.find((client: any) => hasSamePhone(client, primaryPhone));
+    const duplicatePhoneClient =
+      phoneCandidates.find(
+        (client: any) =>
+          hasSamePhone(
+            client,
+            primaryPhone
+          )
+      );
+
     if (duplicatePhoneClient) {
       return NextResponse.json(
         {
           success: false,
           message: `A client (${duplicatePhoneClient.name}) with this phone number already exists. Duplicate phone numbers cannot be added.`,
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
@@ -405,15 +428,31 @@ export async function POST(req: Request) {
        ------------------------- */
 
     const emailRegexes = emails.map(
-      (e: string) => new RegExp(`^${e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
+      (e: string) =>
+        new RegExp(
+          `^${e.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          )}$`,
+          "i"
+        )
     );
 
-    const existingDuplicate = await Client.findOne({
-      $or: [
-        { email: { $in: emailRegexes } },
-        { "contact_members.email": { $in: emailRegexes } },
-      ],
-    }).lean();
+    const existingDuplicate =
+      await Client.findOne({
+        $or: [
+          {
+            email: {
+              $in: emailRegexes,
+            },
+          },
+          {
+            "contact_members.email": {
+              $in: emailRegexes,
+            },
+          },
+        ],
+      }).lean();
 
     if (existingDuplicate) {
       return NextResponse.json(
@@ -427,19 +466,15 @@ export async function POST(req: Request) {
       );
     }
 
-    /**
-     * Client schema doesn't have
-     * a separate phone field.
-     *
-     * Store primary phone inside
-     * contact_members.
-     */
+    /* -------------------------
+       PRIMARY PHONE INTO CONTACT
+       ------------------------- */
+
     if (
       primaryPhone &&
       !contacts.some(
         (contact: any) =>
-          contact.phone ===
-          primaryPhone
+          contact.phone === primaryPhone
       )
     ) {
       contacts.unshift({
@@ -468,8 +503,7 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             success: false,
-            message:
-              "Invalid qd_id",
+            message: "Invalid qd_id",
           },
           {
             status: 400,
@@ -492,11 +526,6 @@ export async function POST(req: Request) {
         body.projects
       );
 
-    console.log(
-      "CLIENT PROJECT IDS:",
-      projects
-    );
-
     /* -------------------------
        CREATE
        ------------------------- */
@@ -509,13 +538,11 @@ export async function POST(req: Request) {
 
         qd_id: qdId,
 
-        // Client schema is [String]
         projects,
 
-        duration:
-          String(
-            body.duration || ""
-          ).trim(),
+        duration: String(
+          body.duration || ""
+        ).trim(),
 
         contract_start_date:
           body.contract_start_date ||
@@ -531,27 +558,18 @@ export async function POST(req: Request) {
 
         phone: primaryPhone,
 
-        address:
-          String(
-            body.address || ""
-          ).trim(),
+        address: String(
+          body.address || ""
+        ).trim(),
 
-        contact_members:
-          contacts,
-
-        /* -------------------------
-           CREATOR
-           ------------------------- */
+        contact_members: contacts,
 
         created_by: createdBy,
+
         created_on: new Date(),
 
-        /* -------------------------
-           NEW CLIENT HAS NOT
-           BEEN MODIFIED
-           ------------------------- */
-
         modified_by: null,
+
         modified_on: null,
 
         status:
@@ -559,6 +577,37 @@ export async function POST(req: Request) {
             ? Number(body.status)
             : 1,
       });
+
+    /* =====================================================
+       GLOBAL LOG - CREATE CLIENT
+       ===================================================== */
+
+    await createGlobalLog({
+      actorId: String(user._id),
+
+      action: "CREATE",
+
+      entityType: "Client",
+
+      entityId: String(client._id),
+
+      description: `Created client "${client.name}"`,
+
+      information: {
+        id: client.id,
+        name: client.name,
+        email: client.email,
+        phone: client.phone,
+        address: client.address,
+        projects: client.projects,
+        duration: client.duration,
+        contract_start_date:
+          client.contract_start_date,
+        contract_end_date:
+          client.contract_end_date,
+        status: client.status,
+      },
+    });
 
     return NextResponse.json(
       {
@@ -577,13 +626,7 @@ export async function POST(req: Request) {
       error
     );
 
-    /* -------------------------
-       DUPLICATE ID
-       ------------------------- */
-
-    if (
-      error?.code === 11000
-    ) {
+    if (error?.code === 11000) {
       return NextResponse.json(
         {
           success: false,
@@ -626,8 +669,7 @@ export async function PATCH(req: Request) {
        AUTH
        ------------------------- */
 
-    const user =
-      await currentUser();
+    const user = await currentUser();
 
     if (!user) {
       return NextResponse.json(
@@ -647,15 +689,6 @@ export async function PATCH(req: Request) {
        ------------------------- */
 
     const modifiedBy = getUserId(user);
-
-    console.log(
-      "CLIENT MODIFIER USER:",
-      {
-        qd_id: user?.qd_id,
-        mongoId: user?._id,
-        modifiedBy,
-      }
-    );
 
     if (modifiedBy === null) {
       return NextResponse.json(
@@ -694,11 +727,32 @@ export async function PATCH(req: Request) {
     }
 
     /* -------------------------
+       GET OLD CLIENT
+       ------------------------- */
+
+    const oldClient =
+      await Client.findOne(
+        getClientLookup(id)
+      ).lean();
+
+    if (!oldClient) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Client not found",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    /* -------------------------
        BODY
        ------------------------- */
 
-    const body =
-      await req.json();
+    const body = await req.json();
 
     const updateData: Record<
       string,
@@ -709,9 +763,7 @@ export async function PATCH(req: Request) {
        NAME
        ------------------------- */
 
-    if (
-      body.name !== undefined
-    ) {
+    if (body.name !== undefined) {
       const name = String(
         body.name
       ).trim();
@@ -737,33 +789,74 @@ export async function PATCH(req: Request) {
        ------------------------- */
 
     if (body.emails !== undefined) {
-      const parsedEmails = Array.isArray(body.emails)
-        ? body.emails
-            .map((email: unknown) => String(email).trim())
-            .filter(Boolean)
-        : [];
+      const parsedEmails =
+        Array.isArray(body.emails)
+          ? body.emails
+              .map((email: unknown) =>
+                String(email).trim()
+              )
+              .filter(Boolean)
+          : [];
 
       if (parsedEmails.length > 0) {
-        const emailRegexes = parsedEmails.map(
-          (e: string) => new RegExp(`^${e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
-        );
+        const emailRegexes =
+          parsedEmails.map(
+            (e: string) =>
+              new RegExp(
+                `^${e.replace(
+                  /[.*+?^${}()|[\]\\]/g,
+                  "\\$&"
+                )}$`,
+                "i"
+              )
+          );
 
-        const excludeConditions: Record<string, any>[] = [{ id: { $ne: id } }];
-        if (mongoose.Types.ObjectId.isValid(id)) {
-          excludeConditions.push({ _id: { $ne: new mongoose.Types.ObjectId(id) } });
+        const excludeConditions: Record<
+          string,
+          any
+        >[] = [
+          {
+            id: {
+              $ne: id,
+            },
+          },
+        ];
+
+        if (
+          mongoose.Types.ObjectId.isValid(
+            id
+          )
+        ) {
+          excludeConditions.push({
+            _id: {
+              $ne:
+                new mongoose.Types.ObjectId(
+                  id
+                ),
+            },
+          });
         }
 
-        const duplicateClient = await Client.findOne({
-          $and: [
-            ...excludeConditions,
-            {
-              $or: [
-                { email: { $in: emailRegexes } },
-                { "contact_members.email": { $in: emailRegexes } },
-              ],
-            },
-          ],
-        }).lean();
+        const duplicateClient =
+          await Client.findOne({
+            $and: [
+              ...excludeConditions,
+              {
+                $or: [
+                  {
+                    email: {
+                      $in: emailRegexes,
+                    },
+                  },
+                  {
+                    "contact_members.email": {
+                      $in: emailRegexes,
+                    },
+                  },
+                ],
+              },
+            ],
+          }).lean();
 
         if (duplicateClient) {
           return NextResponse.json(
@@ -778,16 +871,15 @@ export async function PATCH(req: Request) {
         }
       }
 
-      updateData.email = parsedEmails;
+      updateData.email =
+        parsedEmails;
     }
 
     /* -------------------------
        ADDRESS
        ------------------------- */
 
-    if (
-      body.address !== undefined
-    ) {
+    if (body.address !== undefined) {
       updateData.address =
         String(
           body.address || ""
@@ -798,68 +890,115 @@ export async function PATCH(req: Request) {
        PHONE
        ------------------------- */
 
-    if (
-      body.phone !== undefined
-    ) {
-      const phone =
-        String(
-          body.phone || ""
-        ).trim();
+    if (body.phone !== undefined) {
+      const phone = String(
+        body.phone || ""
+      ).trim();
 
       if (!phone) {
         return NextResponse.json(
-          { success: false, message: "Primary phone number is required" },
-          { status: 400 }
+          {
+            success: false,
+            message:
+              "Primary phone number is required",
+          },
+          {
+            status: 400,
+          }
         );
       }
 
       if (!/^\d{10,20}$/.test(phone)) {
         return NextResponse.json(
-          { success: false, message: "Phone number must contain only numbers and be 10-20 digits long" },
-          { status: 400 }
+          {
+            success: false,
+            message:
+              "Phone number must contain only numbers and be 10-20 digits long",
+          },
+          {
+            status: 400,
+          }
         );
       }
 
-      const phoneExclusions: Record<string, any>[] = [{ id: { $ne: id } }];
-      if (mongoose.Types.ObjectId.isValid(id)) {
-        phoneExclusions.push({ _id: { $ne: new mongoose.Types.ObjectId(id) } });
+      const phoneExclusions: Record<
+        string,
+        any
+      >[] = [
+        {
+          id: {
+            $ne: id,
+          },
+        },
+      ];
+
+      if (
+        mongoose.Types.ObjectId.isValid(
+          id
+        )
+      ) {
+        phoneExclusions.push({
+          _id: {
+            $ne:
+              new mongoose.Types.ObjectId(
+                id
+              ),
+          },
+        });
       }
 
-      const phoneCandidates = await Client.find({
-        $and: [
-          ...phoneExclusions,
-          {
-            $or: [
-              { phone: { $exists: true, $ne: '' } },
-              { 'contact_members.phone': { $exists: true, $ne: '' } },
-            ],
-          },
-        ],
-      }).select('name phone contact_members').lean();
+      const phoneCandidates =
+        await Client.find({
+          $and: [
+            ...phoneExclusions,
+            {
+              $or: [
+                {
+                  phone: {
+                    $exists: true,
+                    $ne: "",
+                  },
+                },
+                {
+                  "contact_members.phone": {
+                    $exists: true,
+                    $ne: "",
+                  },
+                },
+              ],
+            },
+          ],
+        })
+          .select(
+            "name phone contact_members"
+          )
+          .lean();
 
-      const duplicatePhoneClient = phoneCandidates.find((client: any) => hasSamePhone(client, phone));
+      const duplicatePhoneClient =
+        phoneCandidates.find(
+          (client: any) =>
+            hasSamePhone(
+              client,
+              phone
+            )
+        );
+
       if (duplicatePhoneClient) {
         return NextResponse.json(
           {
             success: false,
             message: `Another client (${duplicatePhoneClient.name}) with this phone number already exists.`,
           },
-          { status: 400 }
+          {
+            status: 400,
+          }
         );
       }
 
       updateData.phone = phone;
 
-      /**
-       * Keep primary phone
-       * inside contact_members.
-       *
-       * Only do this if contacts
-       * were not separately supplied.
-       */
       if (
-        body.contacts ===
-        undefined
+        body.contacts === undefined
       ) {
         updateData.contact_members =
           [
@@ -878,13 +1017,9 @@ export async function PATCH(req: Request) {
        CONTACTS
        ------------------------- */
 
-    if (
-      body.contacts !== undefined
-    ) {
+    if (body.contacts !== undefined) {
       const contacts =
-        Array.isArray(
-          body.contacts
-        )
+        Array.isArray(body.contacts)
           ? body.contacts
               .filter(
                 (contact: any) =>
@@ -893,9 +1028,7 @@ export async function PATCH(req: Request) {
                     "object"
               )
               .map(
-                (
-                  contact: any
-                ) => ({
+                (contact: any) => ({
                   name: String(
                     contact.name ||
                       ""
@@ -992,8 +1125,7 @@ export async function PATCH(req: Request) {
       undefined
     ) {
       if (!body.qd_id) {
-        updateData.qd_id =
-          null;
+        updateData.qd_id = null;
       } else if (
         !mongoose.Types.ObjectId.isValid(
           body.qd_id
@@ -1026,9 +1158,7 @@ export async function PATCH(req: Request) {
       undefined
     ) {
       updateData.status =
-        Number(
-          body.status
-        );
+        Number(body.status);
     }
 
     /* -------------------------
@@ -1067,6 +1197,54 @@ export async function PATCH(req: Request) {
         }
       );
     }
+
+    /* =====================================================
+       GLOBAL LOG - UPDATE CLIENT
+       ===================================================== */
+
+    await createGlobalLog({
+      actorId: String(user._id),
+
+      action: "UPDATE",
+
+      entityType: "Client",
+
+      entityId: String(client._id),
+
+      description: `Updated client "${client.name}"`,
+
+      information: {
+        before: {
+          id: oldClient.id,
+          name: oldClient.name,
+          email: oldClient.email,
+          phone: oldClient.phone,
+          address: oldClient.address,
+          projects: oldClient.projects,
+          duration: oldClient.duration,
+          contract_start_date:
+            oldClient.contract_start_date,
+          contract_end_date:
+            oldClient.contract_end_date,
+          status: oldClient.status,
+        },
+
+        after: {
+          id: client.id,
+          name: client.name,
+          email: client.email,
+          phone: client.phone,
+          address: client.address,
+          projects: client.projects,
+          duration: client.duration,
+          contract_start_date:
+            client.contract_start_date,
+          contract_end_date:
+            client.contract_end_date,
+          status: client.status,
+        },
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -1152,11 +1330,11 @@ export async function DELETE(
     }
 
     /* -------------------------
-       DELETE
+       GET CLIENT FIRST
        ------------------------- */
 
     const client =
-      await Client.findOneAndDelete(
+      await Client.findOne(
         getClientLookup(id)
       );
 
@@ -1172,6 +1350,51 @@ export async function DELETE(
         }
       );
     }
+
+    /* =====================================================
+       GLOBAL LOG - DELETE CLIENT
+       ===================================================== */
+
+    await createGlobalLog({
+      actorId: String(user._id),
+
+      action: "DELETE",
+
+      entityType: "Client",
+
+      entityId: String(client._id),
+
+      description: `Deleted client "${client.name}"`,
+
+      information: {
+        id: client.id,
+        name: client.name,
+        email: client.email,
+        phone: client.phone,
+        address: client.address,
+        contact_members:
+          client.contact_members,
+        projects: client.projects,
+        duration: client.duration,
+        contract_start_date:
+          client.contract_start_date,
+        contract_end_date:
+          client.contract_end_date,
+        created_by:
+          client.created_by,
+        created_on:
+          client.created_on,
+        status: client.status,
+      },
+    });
+
+    /* -------------------------
+       DELETE
+       ------------------------- */
+
+    await Client.findOneAndDelete(
+      getClientLookup(id)
+    );
 
     return NextResponse.json({
       success: true,

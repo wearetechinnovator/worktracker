@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import { currentUser } from "@/lib/auth";
 import Designation from "@/models/Designation";
+import { createGlobalLog } from "@/lib/globalLog";
+
 
 export async function GET(request: Request) {
   try {
@@ -21,53 +23,101 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const queryId = searchParams.get("adminId") || searchParams.get("created_by") || searchParams.get("id");
-    const fetchAll = searchParams.get("all") === "true";
 
-    // Determine owner/creator ID based on role
+    const queryId =
+      searchParams.get("adminId") ||
+      searchParams.get("created_by") ||
+      searchParams.get("id");
+
+    const fetchAll =
+      searchParams.get("all") === "true";
+
+    /* -------------------------
+       DETERMINE OWNER
+       ------------------------- */
+
     let creatorId =
       Number(user.user_role) === 1
         ? user._id
         : user.created_by || user._id;
 
-    if (queryId && Number(user.user_role) === 1) {
+    if (
+      queryId &&
+      Number(user.user_role) === 1
+    ) {
       creatorId = queryId;
     }
+
+    /* -------------------------
+       FILTER
+       ------------------------- */
 
     const filter: any = {
       status: 1,
     };
 
-    if (!fetchAll || Number(user.user_role) !== 1) {
+    if (
+      !fetchAll ||
+      Number(user.user_role) !== 1
+    ) {
       filter.created_by = creatorId;
     }
 
-    const designations = await Designation.find(filter)
-      .select("_id name short_desc created_by")
-      .sort({ name: 1 })
-      .lean();
+    /* -------------------------
+       FETCH
+       ------------------------- */
+
+    const designations =
+      await Designation.find(filter)
+        .select(
+          "_id name short_desc created_by"
+        )
+        .sort({
+          name: 1,
+        })
+        .lean();
 
     return NextResponse.json({
       success: true,
-      data: designations.map((item: any) => ({
-        _id: String(item._id),
-        name: item.name,
-        short_desc: item.short_desc || "",
-        created_by: item.created_by ? String(item.created_by) : null,
-      })),
+
+      data: designations.map(
+        (item: any) => ({
+          _id: String(item._id),
+
+          name: item.name,
+
+          short_desc:
+            item.short_desc || "",
+
+          created_by:
+            item.created_by
+              ? String(item.created_by)
+              : null,
+        })
+      ),
     });
   } catch (error) {
-    console.error("GET /api/designations Error:", error);
+    console.error(
+      "GET /api/designations Error:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to load designations",
+        message:
+          "Failed to load designations",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
+
+/* =========================================================
+   CREATE DESIGNATION
+   ========================================================= */
 
 export async function POST(request: Request) {
   try {
@@ -79,168 +129,370 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "Authentication required",
+          message:
+            "Authentication required",
         },
-        { status: 401 }
+        {
+          status: 401,
+        }
       );
     }
 
-    // Only admin can create designations
-    if (Number(user.user_role) !== 1) {
+    /* -------------------------
+       ADMIN ONLY
+       ------------------------- */
+
+    if (
+      Number(user.user_role) !== 1
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message: "Only admins can create designations",
+          message:
+            "Only admins can create designations",
         },
-        { status: 403 }
+        {
+          status: 403,
+        }
       );
     }
 
-    const body = await request.json();
+    /* -------------------------
+       BODY
+       ------------------------- */
 
-    const name = String(body.name || "").trim();
-    const shortDesc = String(body.short_desc || "").trim();
+    const body =
+      await request.json();
+
+    const name = String(
+      body.name || ""
+    ).trim();
+
+    const shortDesc = String(
+      body.short_desc || ""
+    ).trim();
 
     if (!name) {
       return NextResponse.json(
         {
           success: false,
-          message: "Designation name is required",
+          message:
+            "Designation name is required",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
-    // Check if designation already exists FOR THIS ADMIN
-    const existingDesignation = await Designation.findOne({
-      created_by: user._id,
-      name: {
-        $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-        $options: "i",
-      },
-    });
+    /* -------------------------
+       DUPLICATE CHECK
+       ------------------------- */
+
+    const existingDesignation =
+      await Designation.findOne({
+        created_by: user._id,
+
+        name: {
+          $regex: `^${name.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          )}$`,
+
+          $options: "i",
+        },
+      });
 
     if (existingDesignation) {
       return NextResponse.json(
         {
           success: false,
-          message: "Designation already exists",
+          message:
+            "Designation already exists",
         },
-        { status: 409 }
+        {
+          status: 409,
+        }
       );
     }
 
-    const designation = await Designation.create({
-      name,
-      short_desc: shortDesc,
-      created_by: user._id,
-      modified_by: user._id,
-      status: 1,
+    /* -------------------------
+       CREATE
+       ------------------------- */
+
+    const designation =
+      await Designation.create({
+        name,
+
+        short_desc: shortDesc,
+
+        created_by: user._id,
+
+        modified_by: user._id,
+
+        status: 1,
+      });
+
+    /* =====================================================
+       GLOBAL LOG - CREATE
+       ===================================================== */
+
+    await createGlobalLog({
+      actorId: String(user._id),
+
+      action: "CREATE",
+
+      entityType: "Designation",
+
+      entityId:
+        String(designation._id),
+
+      description:
+        `Created designation "${designation.name}"`,
+
+      information: {
+        name: designation.name,
+
+        short_desc:
+          designation.short_desc || "",
+
+        created_by:
+          String(
+            designation.created_by
+          ),
+
+        status:
+          designation.status,
+      },
     });
+
+    /* -------------------------
+       RESPONSE
+       ------------------------- */
 
     return NextResponse.json(
       {
         success: true,
-        message: "Designation created successfully",
+
+        message:
+          "Designation created successfully",
+
         data: {
-          _id: String(designation._id),
-          name: designation.name,
-          short_desc: designation.short_desc || "",
-          created_by: String(designation.created_by),
+          _id: String(
+            designation._id
+          ),
+
+          name:
+            designation.name,
+
+          short_desc:
+            designation.short_desc ||
+            "",
+
+          created_by:
+            String(
+              designation.created_by
+            ),
         },
       },
-      { status: 201 }
+      {
+        status: 201,
+      }
     );
   } catch (error: any) {
-    console.error("POST /api/designations Error:", error);
+    console.error(
+      "POST /api/designations Error:",
+      error
+    );
+
+    /* -------------------------
+       DUPLICATE ID
+       ------------------------- */
 
     if (error?.code === 11000) {
       return NextResponse.json(
         {
           success: false,
-          message: "Designation already exists",
+          message:
+            "Designation already exists",
         },
-        { status: 409 }
+        {
+          status: 409,
+        }
       );
     }
 
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to create designation",
+        message:
+          "Failed to create designation",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
 
-export async function DELETE(request: Request) {
+/* =========================================================
+   DELETE DESIGNATION
+   ========================================================= */
+
+export async function DELETE(
+  request: Request
+) {
   try {
     await dbConnect();
 
-    const user = await currentUser();
+    const user =
+      await currentUser();
 
     if (!user) {
       return NextResponse.json(
         {
           success: false,
-          message: "Authentication required",
+          message:
+            "Authentication required",
         },
-        { status: 401 }
+        {
+          status: 401,
+        }
       );
     }
 
-    if (Number(user.user_role) !== 1) {
+    /* -------------------------
+       ADMIN ONLY
+       ------------------------- */
+
+    if (
+      Number(user.user_role) !== 1
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message: "Only admins can delete designations",
+          message:
+            "Only admins can delete designations",
         },
-        { status: 403 }
+        {
+          status: 403,
+        }
       );
     }
 
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
+    /* -------------------------
+       DESIGNATION ID
+       ------------------------- */
+
+    const { searchParams } =
+      new URL(request.url);
+
+    const id =
+      searchParams.get("id");
 
     if (!id) {
       return NextResponse.json(
         {
           success: false,
-          message: "Designation ID is required",
+          message:
+            "Designation ID is required",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
-    const deleted = await Designation.findOneAndDelete({
-      _id: id,
-      created_by: user._id,
-    });
+    /* -------------------------
+       FIND DESIGNATION FIRST
+       ------------------------- */
 
-    if (!deleted) {
+    const designation =
+      await Designation.findOne({
+        _id: id,
+
+        created_by: user._id,
+      });
+
+    if (!designation) {
       return NextResponse.json(
         {
           success: false,
-          message: "Designation not found or not owned by you",
+          message:
+            "Designation not found or not owned by you",
         },
-        { status: 404 }
+        {
+          status: 404,
+        }
       );
     }
 
+    /* =====================================================
+       GLOBAL LOG - DELETE
+       ===================================================== */
+
+    await createGlobalLog({
+      actorId: String(user._id),
+
+      action: "DELETE",
+
+      entityType: "Designation",
+
+      entityId:
+        String(designation._id),
+
+      description:
+        `Deleted designation "${designation.name}"`,
+
+      information: {
+        name: designation.name,
+
+        short_desc:
+          designation.short_desc || "",
+
+        created_by:
+          String(
+            designation.created_by
+          ),
+
+        status:
+          designation.status,
+      },
+    });
+
+    /* -------------------------
+       DELETE
+       ------------------------- */
+
+    await Designation.deleteOne({
+      _id: designation._id,
+    });
+
+    /* -------------------------
+       RESPONSE
+       ------------------------- */
+
     return NextResponse.json({
       success: true,
-      message: "Designation deleted successfully",
+
+      message:
+        "Designation deleted successfully",
     });
   } catch (error) {
-    console.error("DELETE /api/designations Error:", error);
+    console.error(
+      "DELETE /api/designations Error:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to delete designation",
+        message:
+          "Failed to delete designation",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }

@@ -53,16 +53,14 @@ export async function syncTaskStatus(taskId: string | mongoose.Types.ObjectId) {
       if (completedSessions.length > 0) {
         const latestSession = completedSessions[0];
         if (latestSession.isFullyCompleted) {
-          parentTask.task_status = 'Completed';
-          if (!parentTask.completion_date) {
-            parentTask.completion_date = new Date();
-            parentTask.completion_time = new Date();
+          if (parentTask.task_status !== 'Completed') {
+            parentTask.task_status = 'Review';
           }
         } else {
           parentTask.task_status = 'Partially Done';
         }
       } else {
-        if (['In Progress', 'Paused', 'Partially Completed', 'Partially Done', 'Completed'].includes(parentTask.task_status)) {
+        if (['In Progress', 'Paused', 'Partially Completed', 'Partially Done', 'Review', 'Completed'].includes(parentTask.task_status)) {
           parentTask.task_status = 'To Do';
         }
       }
@@ -92,15 +90,13 @@ export async function syncTaskStatus(taskId: string | mongoose.Types.ObjectId) {
       }
 
       if (allAssigneesCompleted && anyWorkDone) {
-        parentTask.task_status = 'Completed';
-        if (!parentTask.completion_date) {
-          parentTask.completion_date = new Date();
-          parentTask.completion_time = new Date();
+        if (parentTask.task_status !== 'Completed') {
+          parentTask.task_status = 'Review';
         }
       } else if (anyWorkDone) {
         parentTask.task_status = 'Partially Done';
       } else {
-        if (['In Progress', 'Paused', 'Partially Completed', 'Partially Done', 'Completed'].includes(parentTask.task_status)) {
+        if (['In Progress', 'Paused', 'Partially Completed', 'Partially Done', 'Review', 'Completed'].includes(parentTask.task_status)) {
           parentTask.task_status = 'To Do';
         }
       }

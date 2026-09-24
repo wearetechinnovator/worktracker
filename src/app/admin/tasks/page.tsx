@@ -30,6 +30,8 @@ import dynamic from 'next/dynamic';
 import { toast } from '@/lib/toast';
 import { taskApi } from '@/lib/taskApi';
 import TaskDetailsModal from '@/components/TaskDetailsModal';
+import { usePunch } from '@/context/PunchContext';
+import ViewModeBanner from '@/components/ViewModeBanner';
 
 const CKEditorComponent = dynamic(
   () => import('@/components/CKEditorWrapper'),
@@ -55,6 +57,8 @@ interface Task {
   }>;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   status: 'To Do' | 'In Progress' | 'Paused' | 'Partially Done' | 'Partially Completed' | 'Review' | 'Completed';
+  task_status?: string;
+  task_assign_date?: string | Date | null;
   dueDate?: string;
   dueTime?: string;
   url?: string;
@@ -105,18 +109,21 @@ interface UserProfile {
   name?: string;
   email?: string;
   userType?: string;
-  user_role?: number;
   Project?: string;
+  user_role?: number;
 }
 
 
+// Admin task page: the same role-aware page is used here.
+// Admins can view all managed task work and do not require punch-in.
 export default function TasksPage() {
   const router = useRouter();
   const [user, setUser] = useState<UserProfile | null>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const isAdmin = Number(user?.user_role) === 1 || user?.userType === 'admin';
+  const isAdmin = Number(user?.user_role) === 1;
+  const { isViewMode } = usePunch();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -133,6 +140,12 @@ export default function TasksPage() {
   const [workNotes, setWorkNotes] = useState('');
   const [workLinks, setWorkLinks] = useState('');
   const [completionStatus, setCompletionStatus] = useState<'partial' | 'full'>('full');
+  const [reviewingTask, setReviewingTask] = useState<Task | null>(null);
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [showReassignDialog, setShowReassignDialog] = useState(false);
+  const [reassignEmployeeId, setReassignEmployeeId] = useState('');
+  const [reviewReason, setReviewReason] = useState('');
+  const [processingReview, setProcessingReview] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Generated Mail Modal States
@@ -156,6 +169,10 @@ export default function TasksPage() {
 
   const handleAddComment = async (taskId: string) => {
     if (!newCommentText.trim() || !user) return;
+    if (isViewMode) {
+      toast.error('You are currently in View-Only mode. Please punch in to add comments.');
+      return;
+    }
     setSubmittingComment(true);
     try {
       const result = await taskApi.addTaskComment(taskId, {
@@ -344,7 +361,7 @@ export default function TasksPage() {
 
 
 
-  // Authenticate user
+  // Authenticate user from the DB-backed session
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
@@ -387,7 +404,16 @@ export default function TasksPage() {
         taskApi.fetchTasksApi(),
         fetch('/api/projects', { credentials: 'include', cache: 'no-store' }),
         fetch('/api/users/employees', { credentials: 'include', cache: 'no-store' }),
-        taskApi.getTaskWork(),
+        fetch('/api/task-work?limit=1000', {
+          credentials: 'include',
+          cache: 'no-store',
+        }).then(async (response) => {
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Failed to load task work');
+          }
+          return result;
+        }),
       ]);
       const projData = await projRes.json();
       const empData = await empRes.json();
@@ -545,6 +571,10 @@ export default function TasksPage() {
 
   const handleStartWork = async (taskId: string) => {
     if (!user) return;
+    if (isViewMode) {
+      toast.error('You are currently in View-Only mode. Please punch in to start work on tasks.');
+      return;
+    }
     try {
       setProcessingTaskId(taskId);
       setError(null);
@@ -778,35 +808,96 @@ export default function TasksPage() {
     );
   };
 
+  const getWorkLoggedMinutes = (work: any) => {
+    const stored = Number(work?.totalMinutes);
+
+    if (Number.isFinite(stored) && stored > 0) {
+      return Math.floor(stored);
+    }
+
+    const start = getWorkDate(work?.startTime);
+    const end = getWorkDate(
+      work?.endTime ||
+      work?.pausedAt ||
+      work?.updatedAt ||
+      work?.createdAt
+    );
+
+    if (!start || !end) return 0;
+
+    const rawMinutes = Math.max(
+      0,
+      Math.floor((end.getTime() - start.getTime()) / 60000)
+    );
+
+    const pausedMinutes = Number(work?.totalPausedMinutes || 0);
+
+    return Math.max(
+      0,
+      rawMinutes - (
+        Number.isFinite(pausedMinutes)
+          ? pausedMinutes
+          : 0
+      )
+    );
+  };
+
   const getTaskProgress = (taskId: string) => {
     const taskIdStr = String(taskId);
 
-    const sessions = taskWorks.filter(
-      (work) =>
-        getTaskWorkId(work) === taskIdStr &&
-        work.status === 'Completed'
-    );
+    /*
+     * IMPORTANT:
+     * A partially completed work session is stored in TaskWork as:
+     *   status = "Completed"
+     *   isFullyCompleted = false
+     *
+     * Therefore we must NOT identify partial work using status alone.
+     */
+    const sessions = taskWorks.filter((work) => {
+      if (getTaskWorkId(work) !== taskIdStr) return false;
+
+      return (
+        work?.status === 'Completed' ||
+        work?.status === 'Paused'
+      );
+    });
 
     const totalMins = sessions.reduce(
-      (sum, session) => sum + Number(session.totalMinutes || 0),
+      (sum, session) => sum + getWorkLoggedMinutes(session),
       0
     );
 
     const activeWorkers = getActiveWorkersForTask(taskId);
+    const pausedWorkers = getPausedWorkersForTask(taskId);
 
     const formatMinutes = (minutes: number) => {
       const safeMinutes = Math.max(0, Math.floor(minutes));
+
+      if (safeMinutes < 1) {
+        return '<1m';
+      }
+
       const hours = Math.floor(safeMinutes / 60);
       const mins = safeMinutes % 60;
 
-      if (hours > 0) return `${hours}h ${mins}m`;
+      if (hours > 0) {
+        return `${hours}h ${mins}m`;
+      }
+
       return `${mins}m`;
     };
 
+    const hasFinishedSession = sessions.length > 0;
+
     return {
       totalMinutes: totalMins,
-      timeText: totalMins > 0 ? formatMinutes(totalMins) : null,
-      sessionCount: sessions.length,
+      timeText: hasFinishedSession
+        ? formatMinutes(totalMins)
+        : null,
+      sessionCount: sessions.filter(
+        (work) => work?.status === 'Completed'
+      ).length,
+      pausedCount: pausedWorkers.length,
       activeCount: activeWorkers.length,
     };
   };
@@ -829,13 +920,29 @@ export default function TasksPage() {
     const currentUserId = (user._id || user.id)?.toString();
     if (!currentUserId) return false;
 
+    const currentTask = tasks.find((t) => String(t._id) === String(taskId));
+    // If the task itself is "To Do", "In Progress", or "Paused", the employee has active work to do!
+    if (currentTask) {
+      const currentStatus = currentTask.task_status || currentTask.status;
+      if (['To Do', 'In Progress', 'Paused'].includes(currentStatus)) {
+        return false;
+      }
+    }
+
+    const taskAssignDate = currentTask?.task_assign_date
+      ? new Date(currentTask.task_assign_date).getTime()
+      : 0;
+
     const mySessions = taskWorks
-      .filter(
-        (work) =>
-          getTaskWorkId(work) === String(taskId) &&
-          work.status === 'Completed' &&
-          getTaskWorkEmployeeId(work) === currentUserId
-      )
+      .filter((work) => {
+        const matchesTask = getTaskWorkId(work) === String(taskId);
+        const matchesEmployee = getTaskWorkEmployeeId(work) === currentUserId;
+        const isCompleted = work.status === 'Completed';
+        const workTime = new Date(work.updatedAt || work.createdAt || 0).getTime();
+        // If the task was assigned/reassigned after this work session, that past session does not complete the current assignment
+        const isAfterAssignDate = !taskAssignDate || workTime >= taskAssignDate - 2000;
+        return matchesTask && matchesEmployee && isCompleted && isAfterAssignDate;
+      })
       .sort(
         (a, b) =>
           new Date(b.updatedAt || b.createdAt || 0).getTime() -
@@ -874,6 +981,10 @@ export default function TasksPage() {
   };
 
   const handleDelete = async (taskId: string) => {
+    if (isViewMode) {
+      toast.error('You are currently in View-Only mode. Please punch in to delete tasks.');
+      return;
+    }
     const task = tasks.find(t => t._id === taskId);
     const taskTitle = task?.title || 'Task';
     if (!confirm(`Are you sure you want to delete "${taskTitle}"?`)) return;
@@ -892,13 +1003,140 @@ export default function TasksPage() {
   };
 
   const openEditModal = (task: Task) => {
+    if (!isAdmin && isViewMode) {
+      toast.error('Please punch in first to edit a task.');
+      return;
+    }
+
     setEditingTask(task);
     setShowModal(true);
   };
 
   const openCreateModal = () => {
+    if (!isAdmin && isViewMode) {
+      toast.error('Please punch in first to create a task.');
+      return;
+    }
+
     setEditingTask(null);
     setShowModal(true);
+  };
+
+  const getLatestReviewWork = (taskId: string) => {
+    return taskWorks
+      .filter(
+        (work: any) =>
+          getTaskWorkId(work) === String(taskId) &&
+          work.status === 'Completed'
+      )
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.updatedAt || b.createdAt || 0).getTime() -
+          new Date(a.updatedAt || a.createdAt || 0).getTime()
+      )[0] || null;
+  };
+
+  const openReviewDialog = (task: Task) => {
+    if (!isAdmin) return;
+
+    setReviewingTask(task);
+    setReviewReason('');
+    setReassignEmployeeId('');
+    setShowReassignDialog(false);
+    setShowReviewDialog(true);
+  };
+
+  const closeReviewDialogs = () => {
+    if (processingReview) return;
+
+    setShowReviewDialog(false);
+    setShowReassignDialog(false);
+    setReviewingTask(null);
+    setReviewReason('');
+    setReassignEmployeeId('');
+  };
+
+  const handleApproveReview = async () => {
+    if (!reviewingTask) return;
+
+    try {
+      setProcessingReview(true);
+      const result = await taskApi.reviewTask(
+        reviewingTask._id,
+        { action: 'approve' }
+      );
+
+      if (!result.success) {
+        throw new Error(
+          result.message || 'Failed to approve task review'
+        );
+      }
+
+      toast.success(
+        result.message || 'Task approved successfully'
+      );
+
+      setShowReviewDialog(false);
+      setReviewingTask(null);
+      await loadAllData();
+    } catch (err: any) {
+      toast.error(
+        err?.message || 'Failed to approve task review'
+      );
+    } finally {
+      setProcessingReview(false);
+    }
+  };
+
+  const openReassignDialog = () => {
+    if (!reviewingTask) return;
+
+    setShowReviewDialog(false);
+    setShowReassignDialog(true);
+  };
+
+  const handleReassignAfterReject = async () => {
+    if (!reviewingTask) return;
+
+    if (!reassignEmployeeId) {
+      toast.error('Please select an employee to reassign the task.');
+      return;
+    }
+
+    try {
+      setProcessingReview(true);
+
+      const result = await taskApi.reviewTask(
+        reviewingTask._id,
+        {
+          action: 'reject',
+          reassignTo: reassignEmployeeId,
+          reason: reviewReason.trim() || undefined,
+        }
+      );
+
+      if (!result.success) {
+        throw new Error(
+          result.message || 'Failed to reject and reassign task'
+        );
+      }
+
+      toast.success(
+        result.message || 'Task rejected and reassigned'
+      );
+
+      setShowReassignDialog(false);
+      setReviewingTask(null);
+      setReassignEmployeeId('');
+      setReviewReason('');
+      await loadAllData();
+    } catch (err: any) {
+      toast.error(
+        err?.message || 'Failed to reject and reassign task'
+      );
+    } finally {
+      setProcessingReview(false);
+    }
   };
 
   const filteredTasks = tasks.filter((task) => {
@@ -1000,33 +1238,33 @@ export default function TasksPage() {
   const getStatusBadgeStyles = (status: string) => {
     switch (status) {
       case 'Completed':
-        return { color: '#047857' };
+        return { background: '#ecfdf5', color: '#047857', border: '1px solid #10b98130' };
       case 'In Progress':
-        return { color: '#1d4ed8' };
+        return { background: '#eff6ff', color: '#1d4ed8', border: '1px solid #3b82f630' };
       case 'Paused':
-        return { color: '#b45309' };
+        return { background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' };
       case 'Partially Done':
       case 'Partially Completed':
-        return { color: '#c2410c' };
+        return { background: '#fff7ed', color: '#c2410c', border: '1px solid #f9731630' };
       case 'Review':
-        return { color: '#6d28d9' };
+        return { background: '#f5f3ff', color: '#6d28d9', border: '1px solid #8b5cf630' };
       case 'To Do':
       default:
-        return { color: '#374151' };
+        return { background: '#f3f4f6', color: '#374151', border: '1px solid #9ca3af30' };
     }
   };
 
   const getPriorityBadgeStyles = (priority: string) => {
     switch (priority) {
       case 'Urgent':
-        return { color: '#b91c1c', };
+        return { background: '#fef2f2', color: '#b91c1c', border: '1px solid #ef444430' };
       case 'High':
-        return { color: '#c2410c', };
+        return { background: '#fff7ed', color: '#c2410c', border: '1px solid #f9731630' };
       case 'Medium':
-        return { color: '#b45309', };
+        return { background: '#fffbeb', color: '#b45309', border: '1px solid #f59e0b30' };
       case 'Low':
       default:
-        return { color: '#15803d' };
+        return { background: '#f0fdf4', color: '#15803d', border: '1px solid #22c55e30' };
     }
   };
 
@@ -1089,6 +1327,7 @@ export default function TasksPage() {
 
   return (
     <div>
+      <ViewModeBanner />
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
@@ -1121,7 +1360,7 @@ export default function TasksPage() {
         <div className="card" style={{ borderLeft: '4px solid #10b981', marginBottom: '20px', background: '#ecfdf5' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <CheckCircle2 style={{ color: '#10b981' }} />
-            <p style={{ color: '#065f46', fontWeight: 400 }}>{successMsg}</p>
+            <p style={{ color: '#065f46', fontWeight: 700 }}>{successMsg}</p>
           </div>
         </div>
       )}
@@ -1304,6 +1543,8 @@ export default function TasksPage() {
           </div>
         </div>
       </div>
+
+      {/* Tasks Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table className="data-table" style={{ margin: 0, width: '100%' }}>
@@ -1329,7 +1570,7 @@ export default function TasksPage() {
                   <td colSpan={10} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-secondary)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                       <CheckSquare size={40} style={{ color: 'var(--text-muted)' }} />
-                      <div style={{ fontWeight: 400, fontSize: '1rem' }}>No tasks found</div>
+                      <div style={{ fontWeight: 700, fontSize: '1rem' }}>No tasks found</div>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
                         {tasks.length === 0 ? 'Create your first task to get started' : 'Try adjusting your filters'}
                       </p>
@@ -1372,9 +1613,9 @@ export default function TasksPage() {
                             : undefined,
                       }}
                     >
-                      <td style={{ whiteSpace: 'nowrap', verticalAlign: 'middle', }}>
+                      <td style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>
                         {task.task_id ? (
-                          <span style={{ fontWeight: 400, fontSize: '0.76rem' }}>
+                          <span style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '0.76rem' }}>
                             {task.task_id}
                           </span>
                         ) : (
@@ -1384,7 +1625,7 @@ export default function TasksPage() {
                       <td>
                         <div
                           className="task-title-link"
-                          style={{ fontWeight: 400, fontSize: '0.9rem', color: 'var(--text-primary)' }}
+                          style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-primary)' }}
                           title="Click to view task details & work logs"
                         >
                           {task.title}
@@ -1395,11 +1636,19 @@ export default function TasksPage() {
                             dangerouslySetInnerHTML={{ __html: task.description }}
                           />
                         )}
+                        {(task.comments || task.commentsList?.length) && (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '4px' }}>
+                            <MessageSquare size={11} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                            <span style={{ maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {task.comments || task.commentsList?.[0]?.content}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td>
                         {task.projectId ? (
-                          <span className="tag-badge" style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
-                            <Folder size={12} style={{ color: task.projectId.color }} />
+                          <span className="tag-badge" style={{ backgroundColor: `${task.projectId.color}15`, color: task.projectId.color, borderColor: `${task.projectId.color}30`, display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
+                            <Folder size={10} style={{ color: task.projectId.color }} />
                             {task.projectId.name}
                           </span>
                         ) : task.Project ? (
@@ -1418,16 +1667,16 @@ export default function TasksPage() {
                           </span>
                           {isSomeoneWorking && (
                             <span className="tag-badge" style={{
+                              background: '#ecfdf5',
+                              color: '#047857',
+                              borderColor: '#10b98140',
                               fontSize: '0.66rem',
                               fontWeight: 750,
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
                               padding: '2px 6px',
-                              width: 'fit-content',
-                              background: '#ecfdf5',
-                              color: '#047857',
-                              borderColor: '#10b98140',
+                              width: 'fit-content'
                             }}>
                               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} className="animate-pulse" />
                               <span>Working Now</span>
@@ -1435,16 +1684,16 @@ export default function TasksPage() {
                           )}
                           {!isSomeoneWorking && isSomeonePaused && (
                             <span className="tag-badge" style={{
+                              background: '#fef3c7',
+                              color: '#b45309',
+                              borderColor: '#fde68a',
                               fontSize: '0.66rem',
                               fontWeight: 750,
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
                               padding: '2px 6px',
-                              width: 'fit-content',
-                              background: '#fef3c7',
-                              color: '#b45309',
-                              borderColor: '#fde68a',
+                              width: 'fit-content'
                             }}>
                               <PauseCircle size={10} style={{ color: '#d97706' }} />
                               <span>
@@ -1460,7 +1709,7 @@ export default function TasksPage() {
                         </div>
                       </td>
                       <td>
-                        <span className="tag-badge" style={{ ...getPriorityBadgeStyles(task.priority), fontWeight: 400, fontSize: '0.72rem' }}>
+                        <span className="tag-badge" style={{ ...getPriorityBadgeStyles(task.priority), fontWeight: 700, fontSize: '0.72rem' }}>
                           {task.priority}
                         </span>
                       </td>
@@ -1470,7 +1719,7 @@ export default function TasksPage() {
                             <div
                               className="avatar"
                               style={{
-                                
+                                backgroundColor: task.createdBy.avatarColor || '#7f56d9',
                                 width: '24px',
                                 height: '24px',
                                 fontSize: '0.62rem',
@@ -1531,7 +1780,7 @@ export default function TasksPage() {
                                   key={empIdStr || eIdx}
                                   className="avatar"
                                   style={{
-                                    
+                                    backgroundColor: emp.avatarColor || '#3b82f6',
                                     width: '24px',
                                     height: '24px',
                                     fontSize: '0.62rem',
@@ -1540,7 +1789,11 @@ export default function TasksPage() {
                                       ? '2px solid #10b981'
                                       : isWorkerPaused
                                         ? '2px solid #f59e0b'
-                                        : undefined,
+                                        : isEmpDone
+                                          ? '2px solid #047857'
+                                          : isEmpPartial
+                                            ? '2px solid #f97316'
+                                            : '2px solid var(--bg-primary)',
                                     boxShadow: isWorkerActive
                                       ? '0 0 6px #10b98180'
                                       : isWorkerPaused
@@ -1561,26 +1814,29 @@ export default function TasksPage() {
                         )}
                       </td>
                       <td>
-                        {progress.totalMinutes > 0 ? (
+                        {progress.timeText || progress.sessionCount > 0 || progress.pausedCount > 0 ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <span style={{
                               fontSize: '0.74rem',
-                              color: '#047857',
+                              color: progress.pausedCount > 0 ? '#c2410c' : '#047857',
                               fontWeight: 750,
-                              background: '#ecfdf5',
+                              background: progress.pausedCount > 0 ? '#fff7ed' : '#ecfdf5',
                               padding: '2px 8px',
                               borderRadius: '4px',
-                              border: '1px solid #a7f3d0',
+                              border: progress.pausedCount > 0 ? '1px solid #fed7aa' : '1px solid #a7f3d0',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
                               width: 'fit-content'
                             }}>
-                              <Clock size={11} />
+                              {progress.pausedCount > 0 ? <PauseCircle size={11} /> : <Clock size={11} />}
                               {progress.timeText}
+                              {progress.pausedCount > 0 ? ' • Paused' : ''}
                             </span>
+
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                              {progress.sessionCount} session{progress.sessionCount !== 1 ? 's' : ''}
+                              {progress.sessionCount + progress.pausedCount} session{(progress.sessionCount + progress.pausedCount) !== 1 ? 's' : ''}
+                              {progress.pausedCount > 0 ? ` • ${progress.pausedCount} paused` : ''}
                             </span>
                           </div>
                         ) : progress.activeCount > 0 ? (
@@ -1588,10 +1844,10 @@ export default function TasksPage() {
                             <span
                               className="tag-badge"
                               style={{
-                                // background: '#ecfdf5',
-                                // color: '#047857',
-                                // borderColor: '#10b98140',
-                                // fontSize: '0.7rem',
+                                background: '#ecfdf5',
+                                color: '#047857',
+                                borderColor: '#10b98140',
+                                fontSize: '0.7rem',
                                 fontWeight: 750,
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1617,7 +1873,7 @@ export default function TasksPage() {
                           </div>
                         ) : (
                           <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                            -
+                            No time logged
                           </span>
                         )}
                       </td>
@@ -1699,7 +1955,7 @@ export default function TasksPage() {
                                               display: 'inline-flex',
                                               alignItems: 'center',
                                               gap: '4px',
-                                              padding: '7px 10px',
+                                              padding: '5px 10px',
                                               fontSize: '0.72rem'
                                             }}
                                             title="Pause Work"
@@ -1709,7 +1965,7 @@ export default function TasksPage() {
                                             ) : (
                                               <PauseCircle size={12} />
                                             )}
-                                            {/* <span>Pause</span> */}
+                                            <span>Pause</span>
                                           </button>
                                           <button
                                             onClick={(e) => { e.stopPropagation(); openEndWorkDialog(activeWork._id); }}
@@ -1719,7 +1975,7 @@ export default function TasksPage() {
                                               display: 'inline-flex',
                                               alignItems: 'center',
                                               gap: '4px',
-                                              padding: '6px 10px',
+                                              padding: '10px 10px',
                                               fontSize: '0.72rem'
                                             }}
                                             title="Complete Work Session"
@@ -1786,13 +2042,13 @@ export default function TasksPage() {
                                                 display: 'inline-flex',
                                                 alignItems: 'center',
                                                 gap: '4px',
-                                                padding: '10px 10px',
+                                                padding: '5px 10px',
                                                 fontSize: '0.72rem'
                                               }}
                                               title="Complete Work"
                                             >
                                               <StopCircle size={12} />
-                                              {/* <span>Complete</span> */}
+                                              <span>Complete</span>
                                             </button>
                                           </div>
                                         );
@@ -1850,7 +2106,7 @@ export default function TasksPage() {
                                                 color: '#065f46',
                                                 fontSize: '0.68rem',
                                                 padding: '2px 6px',
-                                                fontWeight: 400,
+                                                fontWeight: 700,
                                                 border: '1px solid #10b98130',
                                               }}
                                             >
@@ -1865,7 +2121,7 @@ export default function TasksPage() {
                                               display: 'inline-flex',
                                               alignItems: 'center',
                                               gap: '4px',
-                                              padding: '10px 10px',
+                                              padding: '5px 10px',
                                               fontSize: '0.72rem'
                                             }}
                                           >
@@ -1883,26 +2139,54 @@ export default function TasksPage() {
                                 </>
                               )}
 
-                              {/* Edit / Delete actions */}
+                              {/* Review / Edit / Delete actions */}
+                              {isAdmin && task.status === 'Review' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openReviewDialog(task);
+                                  }}
+                                  className="btn btn-primary"
+                                  style={{
+                                    padding: '4px 8px',
+                                    fontSize: '0.72rem',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                  }}
+                                  title="Review task"
+                                >
+                                  <CheckCircle2 size={12} />
+                                  Review
+                                </button>
+                              )}
+
+                              {(isAdmin || canManageTask(task)) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openEditModal(task);
+                                  }}
+                                  className="btn btn-secondary"
+                                  style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                                  title="Edit"
+                                >
+                                  <Edit size={12} />
+                                </button>
+                              )}
+
                               {(isAdmin || (user && task.createdBy?._id === user._id)) && (
-                                <>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); openEditModal(task); }}
-                                    className="btn btn-secondary"
-                                    style={{ padding: '4px 6px', fontSize: '0.75rem' }}
-                                    title="Edit"
-                                  >
-                                    <Edit size={12} />
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleDelete(task._id); }}
-                                    className="btn btn-danger"
-                                    style={{ padding: '4px 6px', fontSize: '0.75rem' }}
-                                    title="Delete"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                </>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(task._id);
+                                  }}
+                                  className="btn btn-danger"
+                                  style={{ padding: '4px 6px', fontSize: '0.75rem' }}
+                                  title="Delete"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
                               )}
                             </div>
                           ) : (
@@ -1957,6 +2241,698 @@ export default function TasksPage() {
         }}
       />
 
+
+      {/* Admin Review Dialog */}
+      {showReviewDialog && reviewingTask && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '20px',
+          }}
+          onClick={closeReviewDialogs}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: '680px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              position: 'relative',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(() => {
+              const reviewWork = getLatestReviewWork(reviewingTask._id);
+              const reasonText = reviewWork?.notes
+                ? stripHtml(reviewWork.notes)
+                : '';
+              const files = Array.isArray(reviewingTask.files)
+                ? reviewingTask.files
+                : [];
+              const links = Array.isArray(reviewingTask.urls)
+                ? reviewingTask.urls
+                : reviewingTask.url
+                  ? [reviewingTask.url]
+                  : [];
+
+              const formatMins = (mins?: number) => {
+                const safe = Math.max(0, Math.floor(mins || 0));
+                if (safe < 1) return '< 1m';
+                const h = Math.floor(safe / 60);
+                const rem = safe % 60;
+                if (h > 0) return `${h}h ${rem}m`;
+                return `${rem}m`;
+              };
+
+              const formatTime12H = (dVal?: string | Date | null) => {
+                if (!dVal) return '';
+                const dObj = new Date(dVal);
+                if (Number.isNaN(dObj.getTime())) return String(dVal);
+                return dObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+              };
+
+              const taskSessions = taskWorks.filter(
+                (w: any) => getTaskWorkId(w) === String(reviewingTask._id)
+              );
+              const totalMinsAcrossSessions = taskSessions.reduce(
+                (sum: number, w: any) => sum + (Number(w.totalMinutes) || 0),
+                0
+              );
+
+              const projectName = reviewingTask.projectId?.name || 'General';
+              const projectColor = reviewingTask.projectId?.color || '#3b82f6';
+              const sessionMinutes = reviewWork?.totalMinutes !== undefined ? reviewWork.totalMinutes : 0;
+              const pausedMinutes = reviewWork?.totalPausedMinutes || 0;
+
+              return (
+                <>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '18px',
+                    }}
+                  >
+                    <div>
+                      <h3
+                        style={{
+                          margin: 0,
+                          fontSize: '1.15rem',
+                          fontWeight: 800,
+                        }}
+                      >
+                        Task Review
+                      </h3>
+                      <p
+                        style={{
+                          margin: '5px 0 0',
+                          color: 'var(--text-secondary)',
+                          fontSize: '0.78rem',
+                        }}
+                      >
+                        {reviewingTask.task_id || reviewingTask._id} • {reviewingTask.title}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={closeReviewDialogs}
+                      className="btn"
+                      style={{
+                        padding: '6px',
+                        width: '32px',
+                        height: '32px',
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* Top Stats Cards: Status, Employee, Project, Priority */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(4, 1fr)',
+                      gap: '10px',
+                      marginBottom: '16px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid #ddd6fe',
+                        background: '#f5f3ff',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '0.65rem',
+                          color: '#6d28d9',
+                          fontWeight: 700,
+                          marginBottom: '3px',
+                        }}
+                      >
+                        STATUS
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: '0.82rem', color: '#6d28d9' }}>
+                        Waiting Review
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid #bfdbfe',
+                        background: '#eff6ff',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '0.65rem',
+                          color: '#1d4ed8',
+                          fontWeight: 700,
+                          marginBottom: '3px',
+                        }}
+                      >
+                        EMPLOYEE
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: '0.82rem', color: '#1e40af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {reviewingTask.assignedTo?.map((e: any) => e.name).join(', ') || 'Employee'}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-secondary)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '0.65rem',
+                          color: 'var(--text-muted)',
+                          fontWeight: 700,
+                          marginBottom: '3px',
+                        }}
+                      >
+                        PROJECT
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: projectColor, flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{projectName}</span>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-secondary)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '0.65rem',
+                          color: 'var(--text-muted)',
+                          fontWeight: 700,
+                          marginBottom: '3px',
+                        }}
+                      >
+                        PRIORITY
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: '0.82rem' }}>
+                        <span
+                          className="tag-badge"
+                          style={{
+                            ...getPriorityBadgeStyles(reviewingTask.priority),
+                            fontSize: '0.7rem',
+                            padding: '1px 6px',
+                          }}
+                        >
+                          {reviewingTask.priority}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Work Duration Card */}
+                  <div
+                    style={{
+                      marginBottom: '16px',
+                      padding: '12px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #a7f3d0',
+                      background: '#ecfdf5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: '0.68rem',
+                          color: '#047857',
+                          fontWeight: 700,
+                          marginBottom: '3px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}
+                      >
+                        <Clock size={13} />
+                        WORK DURATION
+                      </div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#065f46' }}>
+                        {formatMins(sessionMinutes)}
+                        <span style={{ fontSize: '0.76rem', fontWeight: 500, color: '#047857', marginLeft: '8px' }}>
+                          (This Session)
+                        </span>
+                      </div>
+                      {totalMinsAcrossSessions > sessionMinutes && (
+                        <div style={{ fontSize: '0.73rem', color: '#047857', marginTop: '3px' }}>
+                          Total work on task: <strong>{formatMins(totalMinsAcrossSessions)}</strong> across {taskSessions.length} session{taskSessions.length > 1 ? 's' : ''}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#065f46' }}>
+                      {reviewWork?.startTime && (
+                        <div>
+                          <strong>Started:</strong> {formatTime12H(reviewWork.startTime)}
+                        </div>
+                      )}
+                      {reviewWork?.endTime && (
+                        <div>
+                          <strong>Ended:</strong> {formatTime12H(reviewWork.endTime)}
+                        </div>
+                      )}
+                      {pausedMinutes > 0 && (
+                        <div style={{ color: '#b45309', fontSize: '0.7rem' }}>
+                          Paused: {pausedMinutes}m
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Task Description */}
+                  {reviewingTask.description && (
+                    <div style={{ marginBottom: '16px' }}>
+                      <div
+                        style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          marginBottom: '6px',
+                        }}
+                      >
+                        Task Description
+                      </div>
+                      <div
+                        style={{
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '8px',
+                          padding: '10px 12px',
+                          maxHeight: '110px',
+                          overflowY: 'auto',
+                          background: 'var(--bg-secondary)',
+                          fontSize: '0.8rem',
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {stripHtml(reviewingTask.description)}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Employee Work Reason / Summary */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <div
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        marginBottom: '6px',
+                      }}
+                    >
+                      Employee Work Summary / Reason
+                    </div>
+
+                    <div
+                      style={{
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        minHeight: '60px',
+                        background: 'var(--bg-secondary)',
+                        fontSize: '0.82rem',
+                        lineHeight: 1.55,
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {reasonText || 'No reason / summary was provided.'}
+                    </div>
+                  </div>
+
+                  {/* Supporting Files */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <div
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        marginBottom: '6px',
+                      }}
+                    >
+                      Files ({files.length})
+                    </div>
+
+                    {files.length > 0 ? (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                          maxHeight: '120px',
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {files.map((file: any, index: number) => (
+                          <a
+                            key={`${file?.name || 'file'}-${index}`}
+                            href={file?.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '7px',
+                              padding: '8px 10px',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '7px',
+                              textDecoration: 'none',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.78rem',
+                              background: 'var(--bg-secondary)',
+                            }}
+                          >
+                            <Paperclip size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                            <span
+                              style={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {file?.name || `File ${index + 1}`}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontSize: '0.78rem',
+                        }}
+                      >
+                        No files attached.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* URL / Resource Links */}
+                  <div style={{ marginBottom: '22px' }}>
+                    <div
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        marginBottom: '6px',
+                      }}
+                    >
+                      Links ({links.length})
+                    </div>
+
+                    {links.length > 0 ? (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                          maxHeight: '100px',
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {links.map((link: any, index: number) => {
+                          const value =
+                            typeof link === 'string'
+                              ? link
+                              : String(link?.url || link?.link || '');
+
+                          if (!value) return null;
+
+                          return (
+                            <a
+                              key={`${value}-${index}`}
+                              href={value.startsWith('http') ? value : `https://${value}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '7px',
+                                padding: '8px 10px',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '7px',
+                                textDecoration: 'none',
+                                color: 'var(--accent-primary)',
+                                fontSize: '0.78rem',
+                                wordBreak: 'break-all',
+                                background: 'var(--bg-secondary)',
+                              }}
+                            >
+                              <LinkIcon size={14} style={{ flexShrink: 0 }} />
+                              {value}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontSize: '0.78rem',
+                        }}
+                      >
+                        No links attached.
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      gap: '10px',
+                      paddingTop: '8px',
+                      borderTop: '1px solid var(--border-color)',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={openReassignDialog}
+                      disabled={processingReview}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <RotateCcw size={14} />
+                      Reject & Reassign
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleApproveReview}
+                      disabled={processingReview}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      {processingReview ? (
+                        <Loader2 className="animate-spin" size={14} />
+                      ) : (
+                        <CheckCircle2 size={14} />
+                      )}
+                      Approve
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Reassign Dialog */}
+      {showReassignDialog && reviewingTask && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10001,
+            padding: '20px',
+          }}
+          onClick={closeReviewDialogs}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: '500px',
+              width: '100%',
+              position: 'relative',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '18px',
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
+                  Reassign Task
+                </h3>
+                <p
+                  style={{
+                    margin: '5px 0 0',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.78rem',
+                  }}
+                >
+                  {reviewingTask.title}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeReviewDialogs}
+                className="btn"
+                style={{
+                  padding: '6px',
+                  width: '32px',
+                  height: '32px',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label
+                className="form-label"
+                style={{
+                  display: 'block',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  marginBottom: '7px',
+                }}
+              >
+                Assign to employee *
+              </label>
+
+              <select
+                className="form-control"
+                value={reassignEmployeeId}
+                onChange={(e) => setReassignEmployeeId(e.target.value)}
+                disabled={processingReview}
+                style={{ width: '100%' }}
+              >
+                <option value="">Select employee</option>
+                {employees
+                  .filter((employee: any) => employee._id)
+                  .map((employee: any) => (
+                    <option key={employee._id} value={employee._id}>
+                      {employee.name || employee.full_name || employee.email}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label
+                className="form-label"
+                style={{
+                  display: 'block',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  marginBottom: '7px',
+                }}
+              >
+                Review / Reassign Reason (Optional)
+              </label>
+
+              <textarea
+                className="form-control"
+                rows={4}
+                value={reviewReason}
+                onChange={(e) => setReviewReason(e.target.value)}
+                placeholder="Explain what needs to be corrected..."
+                disabled={processingReview}
+                style={{
+                  width: '100%',
+                  resize: 'vertical',
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '10px',
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowReassignDialog(false);
+                  setShowReviewDialog(true);
+                }}
+                disabled={processingReview}
+              >
+                Back
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleReassignAfterReject}
+                disabled={processingReview || !reassignEmployeeId}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {processingReview ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <RotateCcw size={14} />
+                )}
+                Reject & Reassign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* End Work Dialog */}
       {showEndWorkDialog && (
         <div
@@ -1987,7 +2963,7 @@ export default function TasksPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 400, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <StopCircle size={22} style={{ color: '#ef4444' }} />
                 End Work Session
               </h3>
@@ -2117,10 +3093,7 @@ export default function TasksPage() {
           isCopiedAllUrls={isCopiedAllUrls}
           isDownloadingZip={isDownloadingZip}
           onClose={closeTaskDetailsModal}
-          onEdit={() => {
-            closeTaskDetailsModal();
-            openEditModal(selectedTaskForDetails);
-          }}
+          onEdit={() => openEditModal(selectedTaskForDetails)}
           onDelete={() => handleDelete(selectedTaskForDetails._id)}
           onAddComment={() => handleAddComment(selectedTaskForDetails._id)}
           onCommentChange={setNewCommentText}
@@ -2176,7 +3149,7 @@ export default function TasksPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 400, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Mail size={20} style={{ color: 'var(--accent-primary)' }} />
                 Generated Daily Work Mail
               </h3>

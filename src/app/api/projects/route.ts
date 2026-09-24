@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
-
+import { createGlobalLog } from "@/lib/globalLog";
 import dbConnect from "@/lib/dbConnect";
 import Project from "@/models/Project";
 import User from "@/models/User";
@@ -48,10 +48,10 @@ export async function POST(req: Request) {
 
     const validProjectUserIds = Array.isArray(project_users)
       ? await User.find({
-          _id: { $in: project_users.filter((id: string) => mongoose.Types.ObjectId.isValid(id)) },
-          user_role: 2,
-          created_by: user._id,
-        }).distinct("_id")
+        _id: { $in: project_users.filter((id: string) => mongoose.Types.ObjectId.isValid(id)) },
+        user_role: 2,
+        created_by: user._id,
+      }).distinct("_id")
       : [];
 
     const project = await Project.create({
@@ -71,6 +71,27 @@ export async function POST(req: Request) {
 
       modified_by: null,
       status: status ?? true,
+    });
+    await createGlobalLog({
+      actorId: String(user._id),
+
+      action: "CREATE",
+
+      entityType: "Project",
+
+      entityId: String(project._id),
+
+      description: `Created project "${project.name}"`,
+
+      information: {
+        name: project.name,
+        short_description: project.short_description,
+        project_users: project.project_users,
+        client: project.client,
+        start_date: project.start_date,
+        end_date: project.end_date,
+        created_by: project.created_by,
+      },
     });
 
     return NextResponse.json(
@@ -295,10 +316,10 @@ export async function PATCH(req: Request) {
 
     const validProjectUserIds = Array.isArray(body.project_users)
       ? await User.find({
-          _id: { $in: body.project_users.filter((memberId: string) => mongoose.Types.ObjectId.isValid(memberId)) },
-          user_role: 2,
-          created_by: user._id,
-        }).distinct("_id")
+        _id: { $in: body.project_users.filter((memberId: string) => mongoose.Types.ObjectId.isValid(memberId)) },
+        user_role: 2,
+        created_by: user._id,
+      }).distinct("_id")
       : undefined;
 
     if (validProjectUserIds !== undefined) {
@@ -323,7 +344,23 @@ export async function PATCH(req: Request) {
         { status: 404 }
       );
     }
+    await createGlobalLog({
+      actorId: user._id.toString(),
+      action: "UPDATE",
+      entityType: "Project",
+      entityId: project._id.toString(),
 
+      description: `Updated project "${project.name}"`,
+
+      information: {
+        name: project.name,
+        short_description: project.short_description,
+        project_users: project.project_users,
+        client: project.client,
+        start_date: project.start_date,
+        end_date: project.end_date,
+      },
+    });
     return NextResponse.json({
       success: true,
       message: "Project updated successfully",
@@ -385,7 +422,23 @@ export async function DELETE(req: Request) {
         { status: 404 }
       );
     }
+    await createGlobalLog({
+      actorId: user._id.toString(),
+      action: "DELETE",
+      entityType: "Project",
+      entityId: deletedProject._id.toString(),
 
+      description: `Deleted project "${deletedProject.name}"`,
+
+      information: {
+        name: deletedProject.name,
+        short_description: deletedProject.short_description,
+        project_users: deletedProject.project_users,
+        client: deletedProject.client,
+        start_date: deletedProject.start_date,
+        end_date: deletedProject.end_date,
+      },
+    });
     return NextResponse.json({
       success: true,
       message: "Project deleted successfully",

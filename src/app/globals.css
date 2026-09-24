@@ -105,12 +105,14 @@ a {
   text-decoration: none;
 }
 
-button,
-input,
-select,
-textarea {
-  font-family: inherit;
-  color: inherit;
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font-family: inherit;
+    color: inherit;
+  }
 }
 
 /* Loading and progressive-image primitives */
@@ -458,16 +460,14 @@ textarea {
 
   /* Compact Cards & Controls on Mobile */
   .card {
-    padding: 12px 14px !important;
-    margin-bottom: 12px !important;
+    padding: 12px 14px;
+    margin-bottom: 12px;
   }
 
   /* Responsive Horizontal Touch Scrolling Tables */
   .table-container,
   .table-responsive,
-  .card-table-wrapper,
-  div[style*="overflowX"],
-  div[style*="overflow-x"] {
+  .card-table-wrapper {
     width: 100% !important;
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
@@ -483,10 +483,14 @@ textarea {
      Do not target arbitrary inline styles globally. */
 
   /* Buttons & Touch Targets */
-  .btn,
   .form-control {
-    font-size: 0.82rem !important;
-    min-height: 38px !important;
+    font-size: 0.82rem;
+    min-height: 38px;
+  }
+
+  .btn:not(.btn-sm):not(.btn-icon):not([class*="h-"]):not([class*="p-"]) {
+    font-size: 0.82rem;
+    min-height: 38px;
   }
 }
 
@@ -966,7 +970,22 @@ textarea {
   }
 }
 
-/* Status Badges */
+/* Status Badges & Alerts */
+.alert-success {
+  padding: 12px 16px;
+  margin: 10px 0;
+  border: 1px solid #a7f3d0;
+  border-radius: var(--border-radius-md);
+  background-color: #ecfdf5;
+  color: #047857;
+  font-size: 0.84rem;
+  font-weight: 500;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .badge-status {
   font-size: 0.7rem;
   font-weight: 400;

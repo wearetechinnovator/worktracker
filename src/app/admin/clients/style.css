@@ -1,3 +1,6 @@
+/* Scoped Styles for Clients Directory */
+
+.client-page .client-hero,
 .client-hero {
     display: flex;
     justify-content: space-between;
@@ -12,7 +15,7 @@
         var(--bg-secondary);
 }
 
-.hero-eyebrow {
+.client-page .hero-eyebrow {
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.11em;
@@ -20,25 +23,25 @@
     font-weight: 700;
 }
 
-.hero-title {
+.client-page .hero-title {
     font-size: 1.45rem;
     font-weight: 800;
     margin-top: 4px;
 }
 
-.hero-copy {
+.client-page .hero-copy {
     margin-top: 4px;
     color: var(--text-secondary);
     max-width: 560px;
 }
 
-.summary-grid {
+.client-page .summary-grid {
     display: grid;
     gap: 10px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.summary-card {
+.client-page .summary-card {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-md);
@@ -47,7 +50,7 @@
     gap: 5px;
 }
 
-.summary-icon {
+.client-page .summary-icon {
     width: 24px;
     height: 24px;
     border-radius: 7px;
@@ -57,22 +60,22 @@
     color: var(--accent-primary);
 }
 
-.summary-label {
+.client-page .summary-label {
     color: var(--text-secondary);
     font-size: 0.72rem;
 }
 
-.summary-value {
+.client-page .summary-value {
     font-size: 1.22rem;
     font-weight: 780;
 }
 
-.control-bar {
+.client-page .control-bar {
     display: flex;
     padding: 10px;
 }
 
-.search-box {
+.client-page .search-box {
     border: 1px solid var(--border-color);
     background: var(--bg-secondary);
     border-radius: var(--border-radius-sm);
@@ -84,7 +87,7 @@
     height: 36px;
 }
 
-.search-box input {
+.client-page .search-box input {
     border: none;
     background: transparent;
     outline: none;
@@ -92,13 +95,13 @@
     color: var(--text-primary);
 }
 
-.client-grid {
+.client-page .client-grid {
     display: grid;
     gap: 12px;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 }
 
-.client-card {
+.client-page .client-card {
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -108,7 +111,7 @@
     background: var(--bg-secondary);
 }
 
-.client-card-header {
+.client-page .client-card-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -117,7 +120,7 @@
     padding-bottom: 10px;
 }
 
-.client-avatar {
+.client-page .client-avatar {
     width: 34px;
     height: 34px;
     background: var(--bg-tertiary);
@@ -132,18 +135,18 @@
     flex-shrink: 0;
 }
 
-.client-title {
+.client-page .client-title {
     font-size: 0.95rem;
     font-weight: 800;
     color: var(--text-primary);
 }
 
-.client-meta {
+.client-page .client-meta {
     font-size: 0.68rem;
     color: var(--text-secondary);
 }
 
-.btn-icon {
+.client-page .btn-icon {
     background: transparent;
     border: 1px solid var(--border-color);
     padding: 5px;
@@ -153,32 +156,32 @@
     display: inline-flex;
 }
 
-.btn-icon:hover {
+.client-page .btn-icon:hover {
     background: var(--bg-tertiary);
 }
 
-.btn-danger-text {
+.client-page .btn-danger-text {
     color: #ef4444;
     border-color: rgba(239, 68, 68, 0.2);
 }
 
-.btn-danger-text:hover {
+.client-page .btn-danger-text:hover {
     background: #fee2e2;
 }
 
-.client-card-body {
+.client-page .client-card-body {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
 
-.info-section {
+.client-page .info-section {
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
 
-.section-label {
+.client-page .section-label {
     font-size: 0.7rem;
     font-weight: 700;
     color: var(--text-muted);
@@ -186,14 +189,14 @@
     letter-spacing: 0.5px;
 }
 
-.projects-badges-list {
+.client-page .projects-badges-list {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    marginTop: 4px;
+    margin-top: 4px;
 }
 
-.project-badge {
+.client-page .project-badge {
     font-size: 0.68rem;
     font-weight: 700;
     padding: 2px 8px;
@@ -202,7 +205,7 @@
     white-space: nowrap;
 }
 
-.projects-select-list {
+.client-page .projects-select-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -214,7 +217,7 @@
     background: var(--bg-secondary);
 }
 
-.project-select-row {
+.client-page .project-select-row {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -222,21 +225,17 @@
     cursor: pointer;
 }
 
-.color-dot {
+.client-page .color-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
     display: inline-block;
 }
-/* Add this to your existing style.css (imported by the Clients page).
-   Everything else in the redesign reuses classes/tokens you already have
-   (.btn, .card, .form-control, .summary-*, .search-box, var(--*) tokens),
-   this is the only new rule needed. */
 
-.clients-table-row {
-  transition: background-color 0.12s ease;
+.client-page .clients-table-row {
+    transition: background-color 0.12s ease;
 }
 
-.clients-table-row:hover {
-  background-color: var(--bg-tertiary);
+.client-page .clients-table-row:hover {
+    background-color: var(--bg-tertiary);
 }
