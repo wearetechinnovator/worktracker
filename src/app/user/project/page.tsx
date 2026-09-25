@@ -427,9 +427,22 @@ export default function ProjectsPage() {
   }, [user, workProjId, workEmpId]);
 
   useEffect(() => {
-    if (user) {
+    if (!user) return;
+    fetchData();
+
+    const handleRefresh = () => {
       fetchData();
-    }
+    };
+
+    window.addEventListener('worktracker-refresh', handleRefresh);
+    window.addEventListener('tasks-updated', handleRefresh);
+    window.addEventListener('projects-updated', handleRefresh);
+
+    return () => {
+      window.removeEventListener('worktracker-refresh', handleRefresh);
+      window.removeEventListener('tasks-updated', handleRefresh);
+      window.removeEventListener('projects-updated', handleRefresh);
+    };
   }, [user, fetchData]);
 
   // --- Project Actions ---

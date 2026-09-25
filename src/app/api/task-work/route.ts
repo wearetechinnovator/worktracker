@@ -490,6 +490,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    /*
+     * A fully completed task is locked until the admin reviews it.
+     * Reassigned tasks are reset to To Do, so the new employee can work.
+     */
+    if (
+      (action === "start" || action === "resume") &&
+      ["Review", "Completed"].includes(String(task.task_status))
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            task.task_status === "Review"
+              ? "This task is waiting for admin review."
+              : "This task has already been completed.",
+        },
+        { status: 400 }
+      );
+    }
+
     const now = new Date();
     const current = timeNow();
 
@@ -837,14 +857,26 @@ export async function POST(request: NextRequest) {
 
       await syncTaskStatus(task._id);
 
+      /*
+       * Fully completed work must wait for admin approval.
+       * Partial work is finished for this session but remains
+       * available for future work.
+       */
+      task.task_status = work.isFullyCompleted
+        ? "Review"
+        : "Partially Done";
+      task.modified_by = employee._id;
+      task.modified_on = now;
+      await task.save();
+
       if (work.isFullyCompleted) {
         await createGlobalLog({
           actorId: String(employee._id),
-          action: "REVIEW",
+          action: "REQUEST",
           entityType: "Task",
           entityId: String(task._id),
           targetUserId: task.created_by ? String(task.created_by) : null,
-          description: `Task "${task.title}" submitted for review by ${employee.full_name || employee.name || "Employee"}`,
+          description: `Task "${task.title}" submitted for admin review by ${employee.full_name || employee.name || "Employee"}`,
           information: {
             task_id: task.task_id,
             task_title: task.title,

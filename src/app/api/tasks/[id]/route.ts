@@ -244,22 +244,29 @@ export async function PATCH(
     }
 
     /* =====================================================
-       ACCESS FILTER - ONLY ADMIN CAN EDIT TASKS
+       ACCESS FILTER
+       - Admin: tasks created by this admin
+       - Employee: tasks created by them OR assigned to them
+       The employee-specific field restrictions are enforced below.
     ===================================================== */
 
-    if (Number(user.user_role) !== 1) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Employees are not permitted to edit tasks. Only admins can edit tasks.",
-        },
-        { status: 403 }
-      );
-    }
+    const isAdminUser =
+      Number(user.user_role) === 1;
 
-    const accessFilter = {
-      created_by: user._id,
-    };
+    const accessFilter = isAdminUser
+      ? {
+          created_by: user._id,
+        }
+      : {
+          $or: [
+            {
+              created_by: user._id,
+            },
+            {
+              assign_to: user._id,
+            },
+          ],
+        };
 
     /* =====================================================
        GET OLD TASK
@@ -516,12 +523,6 @@ export async function PATCH(
         );
       }
 
-      if (existingTask.project_id) {
-        await Project.findByIdAndUpdate(existingTask.project_id, {
-          $addToSet: { project_users: reassignedEmployee._id },
-        });
-      }
-
       await createGlobalLog({
         actorId: String(user._id),
         action: "REJECT",
@@ -606,9 +607,6 @@ export async function PATCH(
      * description and add files. They cannot change assignment,
      * project, title, priority, status, or remove existing files.
      */
-    const isAdminUser =
-      Number(user.user_role) === 1;
-
     const isAssignedEmployee =
       !isAdminUser &&
       String(existingTask.created_by) !== String(user._id) &&

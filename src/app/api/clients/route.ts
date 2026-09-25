@@ -289,7 +289,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "Client name is required",
+          message: "Please enter client/company name.",
         },
         {
           status: 400,
@@ -308,6 +308,35 @@ export async function POST(req: Request) {
           )
           .filter(Boolean)
       : [];
+
+    if (emails.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Please enter at least one email address.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const invalidEmail = emails.find(
+      (email: string) => !emailPattern.test(email)
+    );
+
+    if (invalidEmail) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Please enter a valid email address: ${invalidEmail}`,
+        },
+        {
+          status: 400,
+        }
+      );
+    }
 
     /* -------------------------
        CONTACTS
@@ -343,6 +372,67 @@ export async function POST(req: Request) {
           }))
       : [];
 
+    const invalidContact = contacts.find(
+      (contact: any) => {
+        const hasAnyValue =
+          contact.name ||
+          contact.email ||
+          contact.phone ||
+          contact.designation ||
+          contact.label;
+
+        return hasAnyValue && !contact.name;
+      }
+    );
+
+    if (invalidContact) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Please enter contact name.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const invalidContactEmail = contacts.find(
+      (contact: any) =>
+        contact.email &&
+        !emailPattern.test(contact.email)
+    );
+
+    if (invalidContactEmail) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Please enter a valid contact email address: ${invalidContactEmail.email}`,
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const invalidContactPhone = contacts.find(
+      (contact: any) =>
+        contact.phone &&
+        !/^\d{10,20}$/.test(contact.phone)
+    );
+
+    if (invalidContactPhone) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Contact phone number must contain only numbers and be 10-20 digits long.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
     /* -------------------------
        PRIMARY PHONE
        ------------------------- */
@@ -356,7 +446,7 @@ export async function POST(req: Request) {
         {
           success: false,
           message:
-            "Primary phone number is required",
+            "Please enter primary phone number.",
         },
         {
           status: 400,
@@ -369,7 +459,7 @@ export async function POST(req: Request) {
         {
           success: false,
           message:
-            "Phone number must contain only numbers and be 10-20 digits long",
+            "Phone number must contain only numbers and be 10-20 digits long.",
         },
         {
           status: 400,
@@ -773,7 +863,7 @@ export async function PATCH(req: Request) {
           {
             success: false,
             message:
-              "Client name is required",
+              "Please enter client/company name.",
           },
           {
             status: 400,
@@ -789,6 +879,8 @@ export async function PATCH(req: Request) {
        ------------------------- */
 
     if (body.emails !== undefined) {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
       const parsedEmails =
         Array.isArray(body.emails)
           ? body.emails
@@ -797,6 +889,34 @@ export async function PATCH(req: Request) {
               )
               .filter(Boolean)
           : [];
+
+      if (parsedEmails.length === 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Please enter at least one email address.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      const invalidEmail = parsedEmails.find(
+        (email: string) => !emailPattern.test(email)
+      );
+
+      if (invalidEmail) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Please enter a valid email address: ${invalidEmail}`,
+          },
+          {
+            status: 400,
+          }
+        );
+      }
 
       if (parsedEmails.length > 0) {
         const emailRegexes =
@@ -900,7 +1020,7 @@ export async function PATCH(req: Request) {
           {
             success: false,
             message:
-              "Primary phone number is required",
+              "Please enter primary phone number.",
           },
           {
             status: 400,

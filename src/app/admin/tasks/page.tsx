@@ -145,6 +145,13 @@ export default function TasksPage() {
   const [showReassignDialog, setShowReassignDialog] = useState(false);
   const [reassignEmployeeId, setReassignEmployeeId] = useState('');
   const [reviewReason, setReviewReason] = useState('');
+  const [reassignFiles, setReassignFiles] = useState<Array<{
+    name: string;
+    url: string;
+    size?: number;
+    type?: string;
+  }>>([]);
+  const [reassignLinks, setReassignLinks] = useState('');
   const [processingReview, setProcessingReview] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -1036,12 +1043,70 @@ export default function TasksPage() {
       )[0] || null;
   };
 
+  const handleReassignFilesChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const selectedFiles = Array.from(event.target.files || []);
+    if (!selectedFiles.length) return;
+
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+    const validFiles = selectedFiles.filter((file) => {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`${file.name} is larger than 10 MB and was skipped.`);
+        return false;
+      }
+      return true;
+    });
+
+    try {
+      const converted = await Promise.all(
+        validFiles.map(
+          (file) =>
+            new Promise<{
+              name: string;
+              url: string;
+              size: number;
+              type: string;
+            }>((resolve, reject) => {
+              const reader = new FileReader();
+
+              reader.onload = () =>
+                resolve({
+                  name: file.name,
+                  url: String(reader.result || ''),
+                  size: file.size,
+                  type: file.type || 'application/octet-stream',
+                });
+
+              reader.onerror = () =>
+                reject(new Error(`Failed to read ${file.name}`));
+
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+
+      setReassignFiles((prev) => [...prev, ...converted]);
+      event.target.value = '';
+    } catch (error) {
+      console.error('Failed to attach reassignment files:', error);
+      toast.error('Failed to attach one or more files.');
+    }
+  };
+
+  const removeReassignFile = (index: number) => {
+    setReassignFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const openReviewDialog = (task: Task) => {
     if (!isAdmin) return;
 
     setReviewingTask(task);
     setReviewReason('');
     setReassignEmployeeId('');
+    setReassignFiles([]);
+    setReassignLinks('');
     setShowReassignDialog(false);
     setShowReviewDialog(true);
   };
@@ -1054,6 +1119,8 @@ export default function TasksPage() {
     setReviewingTask(null);
     setReviewReason('');
     setReassignEmployeeId('');
+    setReassignFiles([]);
+    setReassignLinks('');
   };
 
   const handleApproveReview = async () => {
@@ -1112,6 +1179,11 @@ export default function TasksPage() {
           action: 'reject',
           reassignTo: reassignEmployeeId,
           reason: reviewReason.trim() || undefined,
+          files: reassignFiles,
+          links: reassignLinks
+            .split(/\n|,/)
+            .map((link) => link.trim())
+            .filter(Boolean),
         }
       );
 
@@ -1129,6 +1201,8 @@ export default function TasksPage() {
       setReviewingTask(null);
       setReassignEmployeeId('');
       setReviewReason('');
+      setReassignFiles([]);
+      setReassignLinks('');
       await loadAllData();
     } catch (err: any) {
       toast.error(
@@ -1137,6 +1211,19 @@ export default function TasksPage() {
     } finally {
       setProcessingReview(false);
     }
+  };
+
+  // Always show the newest created task first.
+  // Prefer created_on, then createdAt, with task ID number as a stable fallback.
+  const getTaskCreatedTimestamp = (task: Task) => {
+    const createdValue = (task as any).created_on || (task as any).createdAt;
+    const timestamp = createdValue ? new Date(createdValue).getTime() : 0;
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  };
+
+  const getTaskNumber = (task: Task) => {
+    const match = String(task.task_id || '').match(/(\d+)$/);
+    return match ? Number(match[1]) : 0;
   };
 
   const filteredTasks = tasks.filter((task) => {
@@ -1154,18 +1241,16 @@ export default function TasksPage() {
     }
 
     // 2. Status Filter
-    if (filterStatus === 'all') {
-      // Show all including Completed
+    if (!filterStatus || filterStatus === 'all') {
+      // Show all tasks including Completed - do not hide or auto-delete completed tasks
     } else if (filterStatus === 'Completed') {
       if (task.status !== 'Completed' && !isTaskFullyCompletedByMe(task._id)) return false;
+    } else if (filterStatus === 'Active') {
+      if (task.status === 'Completed' || (!isAdmin && isTaskFullyCompletedByMe(task._id))) return false;
     } else if (filterStatus === 'Partially Done' || filterStatus === 'Partially Completed') {
       if (task.status !== 'Partially Done' && task.status !== 'Partially Completed') return false;
     } else if (filterStatus) {
       if (task.status !== filterStatus) return false;
-    } else {
-      // Default: show all active (non-completed) tasks for this user
-      if (task.status === 'Completed') return false;
-      if (!isAdmin && isTaskFullyCompletedByMe(task._id)) return false;
     }
 
     // 3. Priority Filter
@@ -1268,8 +1353,22 @@ export default function TasksPage() {
     }
   };
 
+  const sortedFilteredTasks = [...filteredTasks].sort((a, b) => {
+    const timeDiff = getTaskCreatedTimestamp(b) - getTaskCreatedTimestamp(a);
+
+    if (timeDiff !== 0) {
+      return timeDiff;
+    }
+
+    // If creation timestamps are missing/equal, keep newer task numbers first.
+    return getTaskNumber(b) - getTaskNumber(a);
+  });
+
   const ITEMS_PER_PAGE = 10;
-  const paginatedTasks = filteredTasks.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const paginatedTasks = sortedFilteredTasks.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const renderPagination = (totalItems: number, itemsPerPage: number, page: number, onPageChange: (p: number) => void) => {
     const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -1452,8 +1551,8 @@ export default function TasksPage() {
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
-              <option value="">Active Tasks (Default)</option>
-              <option value="all">All Tasks (Inc. Completed)</option>
+              <option value="">All Tasks (Default)</option>
+              <option value="Active">Active Tasks Only</option>
               <option value="To Do">To Do</option>
               <option value="In Progress">In Progress</option>
               <option value="Paused">Paused</option>
@@ -2072,25 +2171,17 @@ export default function TasksPage() {
                                               }}
                                             >
                                               <CheckCircle2 size={12} />
-                                              Done by You
+                                              Done
                                             </span>
-                                            {task.status !== 'Completed' && (
-                                              <button
-                                                onClick={(e) => { e.stopPropagation(); handleStartWork(task._id); }}
-                                                disabled={processingTaskId === task._id}
-                                                className="btn btn-secondary"
+                                            {task.status !== 'Completed' && task.status !== 'Review' && (
+                                              <span
                                                 style={{
-                                                  display: 'inline-flex',
-                                                  alignItems: 'center',
-                                                  gap: '4px',
-                                                  padding: '4px 8px',
-                                                  fontSize: '0.7rem'
+                                                  color: 'var(--text-muted)',
+                                                  fontSize: '0.7rem',
                                                 }}
-                                                title="Resume or log more work"
                                               >
-                                                <Play size={11} />
-                                                <span>Resume</span>
-                                              </button>
+                                                Awaiting review
+                                              </span>
                                             )}
                                           </div>
                                         );
@@ -2203,7 +2294,7 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {renderPagination(filteredTasks.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
+      {renderPagination(sortedFilteredTasks.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
 
       {/* Create/Edit Modal */}
       <CreateTaskModal
@@ -2790,7 +2881,7 @@ export default function TasksPage() {
           <div
             className="card"
             style={{
-              maxWidth: '500px',
+              maxWidth: '650px',
               width: '100%',
               position: 'relative',
             }}
@@ -2862,6 +2953,221 @@ export default function TasksPage() {
                     </option>
                   ))}
               </select>
+            </div>
+
+            {/* Existing + new files */}
+            <div style={{ marginBottom: '18px' }}>
+              <label
+                className="form-label"
+                style={{
+                  display: 'block',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  marginBottom: '7px',
+                }}
+              >
+                Task Files
+              </label>
+
+              {Array.isArray(reviewingTask.files) && reviewingTask.files.length > 0 ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    marginBottom: '10px',
+                  }}
+                >
+                  {reviewingTask.files.map((file: any, index: number) => (
+                    <div
+                      key={`existing-reassign-file-${index}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '7px 9px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '7px',
+                        fontSize: '0.75rem',
+                      }}
+                    >
+                      <Paperclip size={13} />
+                      <span
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {file?.name || `File ${index + 1}`}
+                      </span>
+                      <span
+                        style={{
+                          marginLeft: 'auto',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.68rem',
+                        }}
+                      >
+                        Existing
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p
+                  style={{
+                    margin: '0 0 10px',
+                    color: 'var(--text-muted)',
+                    fontSize: '0.74rem',
+                  }}
+                >
+                  No existing files.
+                </p>
+              )}
+
+              <input
+                type="file"
+                multiple
+                onChange={handleReassignFilesChange}
+                disabled={processingReview}
+                style={{
+                  width: '100%',
+                  fontSize: '0.78rem',
+                }}
+              />
+
+              {reassignFiles.length > 0 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    marginTop: '8px',
+                  }}
+                >
+                  {reassignFiles.map((file, index) => (
+                    <div
+                      key={`new-reassign-file-${index}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        padding: '7px 9px',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '7px',
+                        background: '#eff6ff',
+                        fontSize: '0.75rem',
+                      }}
+                    >
+                      <span
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {file.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeReassignFile(index)}
+                        disabled={processingReview}
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          color: '#dc2626',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Existing + new links */}
+            <div style={{ marginBottom: '18px' }}>
+              <label
+                className="form-label"
+                style={{
+                  display: 'block',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  marginBottom: '7px',
+                }}
+              >
+                Task Links
+              </label>
+
+              {(() => {
+                const existingLinks = Array.isArray(reviewingTask.urls)
+                  ? reviewingTask.urls
+                  : reviewingTask.url
+                    ? [reviewingTask.url]
+                    : [];
+
+                return existingLinks.length > 0 ? (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                      marginBottom: '10px',
+                    }}
+                  >
+                    {existingLinks.map((link: any, index: number) => (
+                      <a
+                        key={`existing-reassign-link-${index}`}
+                        href={typeof link === 'string' ? link : link?.url || link?.link || '#'}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '7px',
+                          padding: '7px 9px',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '7px',
+                          fontSize: '0.75rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <LinkIcon size={13} />
+                        {typeof link === 'string' ? link : link?.url || link?.link || ''}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p
+                    style={{
+                      margin: '0 0 10px',
+                      color: 'var(--text-muted)',
+                      fontSize: '0.74rem',
+                    }}
+                  >
+                    No existing links.
+                  </p>
+                );
+              })()}
+
+              <textarea
+                className="form-control"
+                rows={3}
+                value={reassignLinks}
+                onChange={(e) => setReassignLinks(e.target.value)}
+                disabled={processingReview}
+                placeholder="Add new links, one per line..."
+                style={{
+                  width: '100%',
+                  resize: 'vertical',
+                  fontSize: '0.8rem',
+                }}
+              />
             </div>
 
             <div style={{ marginBottom: '20px' }}>

@@ -553,6 +553,47 @@ export async function POST(
       project_id ||
       projectId;
 
+    const isEmployee = Number(user.user_role) !== 1;
+
+    if (isEmployee) {
+      if (!finalProjectId || !mongoose.Types.ObjectId.isValid(finalProjectId)) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Project is required. You must select an assigned project to create a task.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      // Verify that the employee is assigned to this project
+      const userObjectId = mongoose.Types.ObjectId.isValid(user._id)
+        ? new mongoose.Types.ObjectId(String(user._id))
+        : null;
+
+      const assignedProject = await Project.findOne({
+        _id: finalProjectId,
+        $or: [
+          ...(userObjectId ? [{ project_users: userObjectId }] : []),
+          { project_users: String(user._id) },
+        ],
+      });
+
+      if (!assignedProject) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "You are not assigned to this project and cannot create tasks in it.",
+          },
+          {
+            status: 403,
+          }
+        );
+      }
+    }
+
     /* =====================================================
        ASSIGNMENT
     ===================================================== */
@@ -749,11 +790,6 @@ export async function POST(
         taskData
       );
 
-    if (finalProjectId && validAssignedTo.length > 0) {
-      await Project.findByIdAndUpdate(finalProjectId, {
-        $addToSet: { project_users: { $in: validAssignedTo } },
-      });
-    }
 
     /* =====================================================
        EXISTING TASK LOG

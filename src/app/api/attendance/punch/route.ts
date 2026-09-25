@@ -271,8 +271,8 @@ function ensureAttendanceDate(
   const sourceDate =
     attendance.punch_in_on
       ? new Date(
-          attendance.punch_in_on
-        )
+        attendance.punch_in_on
+      )
       : fallbackDate;
 
   const attendanceDate =
@@ -361,7 +361,7 @@ function validatePunchRequirements(
    */
   if (
     settings?.[
-      `${prefix}GeoRequired`
+    `${prefix}GeoRequired`
     ] &&
     (!Array.isArray(geo) ||
       geo.length === 0)
@@ -376,7 +376,7 @@ function validatePunchRequirements(
    */
   if (
     settings?.[
-      `${prefix}IpRequired`
+    `${prefix}IpRequired`
     ] &&
     !ip
   ) {
@@ -390,11 +390,11 @@ function validatePunchRequirements(
    */
   if (
     settings?.[
-      `${prefix}BrowserRequired`
+    `${prefix}BrowserRequired`
     ] &&
     (!browser ||
       browser ===
-        "Unknown Browser")
+      "Unknown Browser")
   ) {
     errors.push(
       "Browser information is required."
@@ -406,7 +406,7 @@ function validatePunchRequirements(
    */
   if (
     settings?.[
-      `${prefix}SystemIdRequired`
+    `${prefix}SystemIdRequired`
     ] &&
     !systemId
   ) {
@@ -426,16 +426,13 @@ export async function GET() {
   try {
     await dbConnect();
 
-    const user =
-      await currentUser();
+    const user = await currentUser();
 
     if (!user) {
       return NextResponse.json(
         {
           success: false,
-
-          message:
-            "Authentication required",
+          message: "Authentication required",
         },
         {
           status: 401,
@@ -448,13 +445,11 @@ export async function GET() {
      *
      * This also supports overnight shifts.
      */
-    const activeAttendance =
-      await getOpenAttendance(
-        user._id
-      );
+    const activeAttendance = await getOpenAttendance(
+      user._id
+    );
 
-    const today =
-      getAttendanceDate();
+    const today = getAttendanceDate();
 
     /*
      * Check for any pending attendance request for today.
@@ -468,6 +463,24 @@ export async function GET() {
         .sort({ createdAt: -1 })
         .lean();
 
+    /*
+     * Check for the latest rejected attendance request for today.
+     *
+     * IMPORTANT:
+     * Keep this separate from pendingRequest because a rejected
+     * request must NOT disable Punch In / Punch Out.
+     */
+    const rejectedRequest =
+      await AttendanceRequest.findOne({
+        employee_id: user._id,
+        status: "Rejected",
+      })
+        .sort({
+          reviewed_at: -1,
+          createdAt: -1,
+        })
+        .lean();
+
     if (activeAttendance) {
       /*
        * Old record safety.
@@ -475,12 +488,8 @@ export async function GET() {
        * If attendance_date is missing,
        * repair it before returning it.
        */
-      if (
-        !activeAttendance.attendance_date
-      ) {
-        ensureAttendanceDate(
-          activeAttendance
-        );
+      if (!activeAttendance.attendance_date) {
+        ensureAttendanceDate(activeAttendance);
 
         try {
           await activeAttendance.save();
@@ -499,13 +508,17 @@ export async function GET() {
 
         canPunchIn: false,
 
-        canPunchOut: !pendingRequest || pendingRequest.request_type !== "punchOut",
+        canPunchOut:
+          !pendingRequest ||
+          pendingRequest.request_type !== "punchOut",
 
-        attendance:
-          activeAttendance,
+        attendance: activeAttendance,
 
         pendingRequest:
           pendingRequest || null,
+
+        rejectedRequest:
+          rejectedRequest || null,
 
         viewMode: false,
       });
@@ -518,16 +531,10 @@ export async function GET() {
       await Attendance.findOne({
         user_id: user._id,
 
-        attendance_date:
-          today,
+        attendance_date: today,
       }).sort({
         punch_in_on: -1,
       });
-
-    const isCompletedToday = Boolean(
-      todayAttendance?.punch_in_on &&
-      todayAttendance?.punch_out_on
-    );
 
     const isAdmin =
       Number(user.user_role) === 1;
@@ -538,7 +545,8 @@ export async function GET() {
       isPunchedIn: false,
 
       canPunchIn:
-        !pendingRequest || pendingRequest.request_type !== "punchIn",
+        !pendingRequest ||
+        pendingRequest.request_type !== "punchIn",
 
       canPunchOut: false,
 
@@ -547,6 +555,9 @@ export async function GET() {
 
       pendingRequest:
         pendingRequest || null,
+
+      rejectedRequest:
+        rejectedRequest || null,
 
       viewMode: !isAdmin,
     });
@@ -670,7 +681,7 @@ export async function POST(
      */
     const effectiveUserId =
       isAdmin &&
-      targetUserId
+        targetUserId
         ? targetUserId
         : user._id;
 
@@ -1206,8 +1217,8 @@ export async function POST(
         const originalPunchInDate =
           openAttendance.punch_in_on
             ? new Date(
-                openAttendance.punch_in_on
-              )
+              openAttendance.punch_in_on
+            )
             : now;
 
         openAttendance.attendance_date =
@@ -1468,10 +1479,9 @@ export async function POST(
           success: false,
 
           message:
-            `Attendance validation failed: ${
-              validationErrors.join(
-                ", "
-              )
+            `Attendance validation failed: ${validationErrors.join(
+              ", "
+            )
             }`,
 
           errors:

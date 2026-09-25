@@ -30,21 +30,38 @@ export default function AttendanceRequestsPanel() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Rejection modal state
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<AttendanceRequest | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectError, setRejectError] = useState<string | null>(null);
+
   const loadRequests = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
+
       const response = await fetch('/api/attendance/requests', {
         credentials: 'include',
         cache: 'no-store',
       });
+
       const result = await response.json();
+
       if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Failed to load attendance requests.');
+        throw new Error(
+          result.message || 'Failed to load attendance requests.'
+        );
       }
+
       setRequests(Array.isArray(result.data) ? result.data : []);
     } catch (requestError: unknown) {
-      setError(getErrorMessage(requestError, 'Failed to load attendance requests.'));
+      setError(
+        getErrorMessage(
+          requestError,
+          'Failed to load attendance requests.'
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -54,53 +71,195 @@ export default function AttendanceRequestsPanel() {
     loadRequests();
   }, [loadRequests]);
 
-  const reviewRequest = async (request: AttendanceRequest, action: 'approve' | 'reject') => {
-    let rejectionReason = '';
-    if (action === 'reject') {
-      rejectionReason = window.prompt('Enter a rejection reason:')?.trim() || '';
-      if (!rejectionReason) return;
-    }
+  const closeRejectModal = () => {
+    if (processingId) return;
 
+    setShowRejectModal(false);
+    setSelectedRequest(null);
+    setRejectionReason('');
+    setRejectError(null);
+  };
+
+  const openRejectModal = (request: AttendanceRequest) => {
+    if (processingId) return;
+
+    setSelectedRequest(request);
+    setRejectionReason('');
+    setRejectError(null);
+    setShowRejectModal(true);
+  };
+
+  const reviewRequest = async (
+    request: AttendanceRequest,
+    action: 'approve' | 'reject',
+    reason = ''
+  ) => {
     try {
       setProcessingId(request._id);
       setError(null);
-      const response = await fetch(`/api/attendance/request/${request._id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ action, rejectionReason }),
-      });
+
+      const response = await fetch(
+        `/api/attendance/request/${request._id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            action,
+            rejectionReason: reason,
+          }),
+        }
+      );
+
       const result = await response.json();
+
       if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Failed to review attendance request.');
+        throw new Error(
+          result.message ||
+            'Failed to review attendance request.'
+        );
       }
+
       await loadRequests();
-      window.dispatchEvent(new CustomEvent('worktracker-refresh'));
+
+      window.dispatchEvent(
+        new CustomEvent('worktracker-refresh')
+      );
+
+      if (action === 'reject') {
+        setShowRejectModal(false);
+        setSelectedRequest(null);
+        setRejectionReason('');
+        setRejectError(null);
+      }
     } catch (requestError: unknown) {
-      setError(getErrorMessage(requestError, 'Failed to review attendance request.'));
+      const message = getErrorMessage(
+        requestError,
+        'Failed to review attendance request.'
+      );
+
+      if (action === 'reject') {
+        setRejectError(message);
+      } else {
+        setError(message);
+      }
     } finally {
       setProcessingId(null);
     }
   };
 
+  const handleRejectSubmit = async () => {
+    const reason = rejectionReason.trim();
+
+    if (!reason) {
+      setRejectError('Please enter a rejection reason.');
+      return;
+    }
+
+    if (!selectedRequest) return;
+
+    await reviewRequest(
+      selectedRequest,
+      'reject',
+      reason
+    );
+  };
+
   return (
-    <div className="card" style={{ marginTop: '20px', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '12px' }}>
+    <div
+      className="card"
+      style={{
+        marginTop: '20px',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+          borderBottom: '1px solid var(--border-color)',
+          paddingBottom: '12px',
+          marginBottom: '12px',
+        }}
+      >
         <div>
-          <h3 className="card-title" style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '4px' }}>Attendance Requests</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.76rem', margin: 0 }}>Review employee requests submitted outside the configured punch window.</p>
+          <h3
+            className="card-title"
+            style={{
+              fontSize: '1.05rem',
+              fontWeight: 800,
+              marginBottom: '4px',
+            }}
+          >
+            Attendance Requests
+          </h3>
+
+          <p
+            style={{
+              color: 'var(--text-muted)',
+              fontSize: '0.76rem',
+              margin: 0,
+            }}
+          >
+            Review employee requests submitted outside the configured
+            punch window.
+          </p>
         </div>
-        <button className="btn btn-secondary" type="button" onClick={loadRequests} disabled={loading} style={{ gap: '6px' }}>
-          {loading ? <Loader2 size={13} className="animate-spin" /> : <Clock3 size={13} />}
+
+        <button
+          className="btn btn-secondary"
+          type="button"
+          onClick={loadRequests}
+          disabled={loading}
+          style={{ gap: '6px' }}
+        >
+          {loading ? (
+            <Loader2
+              size={13}
+              className="animate-spin"
+            />
+          ) : (
+            <Clock3 size={13} />
+          )}
           Refresh
         </button>
       </div>
 
-      {error && <p style={{ color: '#b91c1c', fontSize: '0.8rem', marginBottom: '12px' }}>{error}</p>}
+      {error && (
+        <p
+          style={{
+            color: '#b91c1c',
+            fontSize: '0.8rem',
+            marginBottom: '12px',
+          }}
+        >
+          {error}
+        </p>
+      )}
+
       {loading ? (
-        <p style={{ color: 'var(--text-muted)', padding: '18px 0', textAlign: 'center' }}>Loading requests...</p>
+        <p
+          style={{
+            color: 'var(--text-muted)',
+            padding: '18px 0',
+            textAlign: 'center',
+          }}
+        >
+          Loading requests...
+        </p>
       ) : requests.length === 0 ? (
-        <p style={{ color: 'var(--text-muted)', padding: '18px 0', textAlign: 'center' }}>No attendance requests found.</p>
+        <p
+          style={{
+            color: 'var(--text-muted)',
+            padding: '18px 0',
+            textAlign: 'center',
+          }}
+        >
+          No attendance requests found.
+        </p>
       ) : (
         <div className="data-table-container">
           <table className="data-table">
@@ -114,37 +273,342 @@ export default function AttendanceRequestsPanel() {
                 <th>Review</th>
               </tr>
             </thead>
+
             <tbody>
               {requests.map((request) => {
-                const isPending = request.status === 'Pending';
-                const isProcessing = processingId === request._id;
+                const isPending =
+                  request.status === 'Pending';
+
+                const isProcessing =
+                  processingId === request._id;
+
                 return (
                   <tr key={request._id}>
                     <td>
-                      <strong>{request.employee_id?.full_name || 'Unknown employee'}</strong>
-                      <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{request.employee_id?.email || ''}</div>
+                      <strong>
+                        {request.employee_id?.full_name ||
+                          'Unknown employee'}
+                      </strong>
+
+                      <div
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontSize: '0.72rem',
+                        }}
+                      >
+                        {request.employee_id?.email || ''}
+                      </div>
                     </td>
-                    <td>{request.request_type === 'punchIn' ? 'Punch In' : 'Punch Out'}</td>
-                    <td>{request.attendance_date}<div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{new Date(request.requested_punch_at).toLocaleTimeString()}</div></td>
-                    <td style={{ maxWidth: '220px', whiteSpace: 'normal' }}>{request.reason}</td>
-                    <td>{request.status}{request.rejection_reason ? <div style={{ color: '#b91c1c', fontSize: '0.72rem' }}>{request.rejection_reason}</div> : null}</td>
+
+                    <td>
+                      {request.request_type === 'punchIn'
+                        ? 'Punch In'
+                        : 'Punch Out'}
+                    </td>
+
+                    <td>
+                      {request.attendance_date}
+
+                      <div
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontSize: '0.72rem',
+                        }}
+                      >
+                        {new Date(
+                          request.requested_punch_at
+                        ).toLocaleTimeString()}
+                      </div>
+                    </td>
+
+                    <td
+                      style={{
+                        maxWidth: '220px',
+                        whiteSpace: 'normal',
+                      }}
+                    >
+                      {request.reason}
+                    </td>
+
+                    <td>
+                      {request.status}
+
+                      {request.rejection_reason ? (
+                        <div
+                          style={{
+                            color: '#b91c1c',
+                            fontSize: '0.72rem',
+                          }}
+                        >
+                          {request.rejection_reason}
+                        </div>
+                      ) : null}
+                    </td>
+
                     <td>
                       {isPending ? (
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button className="btn btn-primary" type="button" onClick={() => reviewRequest(request, 'approve')} disabled={isProcessing} title="Approve request" style={{ padding: '6px 8px' }}>
-                            {isProcessing ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: '6px',
+                          }}
+                        >
+                          <button
+                            className="btn btn-primary"
+                            type="button"
+                            onClick={() =>
+                              reviewRequest(
+                                request,
+                                'approve'
+                              )
+                            }
+                            disabled={isProcessing}
+                            title="Approve request"
+                            style={{
+                              padding: '6px 8px',
+                            }}
+                          >
+                            {isProcessing ? (
+                              <Loader2
+                                size={13}
+                                className="animate-spin"
+                              />
+                            ) : (
+                              <Check size={13} />
+                            )}
                           </button>
-                          <button className="btn btn-secondary" type="button" onClick={() => reviewRequest(request, 'reject')} disabled={isProcessing} title="Reject request" style={{ padding: '6px 8px', color: '#b91c1c' }}>
+
+                          <button
+                            className="btn btn-secondary"
+                            type="button"
+                            onClick={() =>
+                              openRejectModal(request)
+                            }
+                            disabled={
+                              Boolean(processingId)
+                            }
+                            title="Reject request"
+                            style={{
+                              padding: '6px 8px',
+                              color: '#b91c1c',
+                            }}
+                          >
                             <X size={13} />
                           </button>
                         </div>
-                      ) : <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Reviewed</span>}
+                      ) : (
+                        <span
+                          style={{
+                            color: 'var(--text-muted)',
+                            fontSize: '0.75rem',
+                          }}
+                        >
+                          Reviewed
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Reject Reason Modal */}
+      {showRejectModal && selectedRequest && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reject-attendance-title"
+          onClick={closeRejectModal}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            background: 'rgba(0, 0, 0, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <div
+            className="card"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              padding: '22px',
+              position: 'relative',
+              boxShadow:
+                '0 20px 50px rgba(0,0,0,0.25)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: '12px',
+                marginBottom: '18px',
+              }}
+            >
+              <div>
+                <h3
+                  id="reject-attendance-title"
+                  style={{
+                    margin: 0,
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                  }}
+                >
+                  Reject Attendance Request
+                </h3>
+
+                <p
+                  style={{
+                    margin: '6px 0 0',
+                    color: 'var(--text-muted)',
+                    fontSize: '0.78rem',
+                  }}
+                >
+                  {selectedRequest.employee_id
+                    ?.full_name ||
+                    'Unknown employee'}{' '}
+                  ·{' '}
+                  {selectedRequest.request_type ===
+                  'punchIn'
+                    ? 'Punch In'
+                    : 'Punch Out'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeRejectModal}
+                disabled={Boolean(processingId)}
+                aria-label="Close"
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            <label
+              htmlFor="attendance-rejection-reason"
+              style={{
+                display: 'block',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                marginBottom: '7px',
+              }}
+            >
+              Rejection Reason <span style={{ color: '#dc2626' }}>*</span>
+            </label>
+
+            <textarea
+              id="attendance-rejection-reason"
+              value={rejectionReason}
+              onChange={(event) => {
+                setRejectionReason(event.target.value);
+                if (rejectError) {
+                  setRejectError(null);
+                }
+              }}
+              placeholder="Enter the reason for rejecting this request..."
+              rows={5}
+              autoFocus
+              disabled={Boolean(processingId)}
+              style={{
+                width: '100%',
+                resize: 'vertical',
+                minHeight: '120px',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                padding: '11px 12px',
+                fontSize: '0.84rem',
+                outline: 'none',
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                boxSizing: 'border-box',
+              }}
+            />
+
+            {rejectError && (
+              <p
+                style={{
+                  margin: '7px 0 0',
+                  color: '#b91c1c',
+                  fontSize: '0.76rem',
+                }}
+              >
+                {rejectError}
+              </p>
+            )}
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '8px',
+                marginTop: '18px',
+              }}
+            >
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={closeRejectModal}
+                disabled={Boolean(processingId)}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={handleRejectSubmit}
+                disabled={
+                  Boolean(processingId) ||
+                  !rejectionReason.trim()
+                }
+                style={{
+                  background: '#dc2626',
+                  borderColor: '#dc2626',
+                  color: '#fff',
+                  minWidth: '125px',
+                }}
+              >
+                {processingId ? (
+                  <>
+                    <Loader2
+                      size={14}
+                      className="animate-spin"
+                    />
+                    Rejecting...
+                  </>
+                ) : (
+                  <>
+                    <X size={14} />
+                    Reject Request
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

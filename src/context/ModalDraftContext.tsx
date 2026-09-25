@@ -124,18 +124,21 @@ export function ModalDraftProvider({ children }: { children: React.ReactNode }) 
     .filter((d) => d.isMinimized !== false)
     .sort((a, b) => b.updatedAt - a.updatedAt);
 
+  const contextValue = React.useMemo(
+    () => ({
+      drafts,
+      saveDraft,
+      getDraft,
+      clearDraft,
+      setModalOpenState,
+      restoreModal,
+      minimizedDrafts,
+    }),
+    [drafts, saveDraft, getDraft, clearDraft, setModalOpenState, restoreModal, minimizedDrafts]
+  );
+
   return (
-    <ModalDraftContext.Provider
-      value={{
-        drafts,
-        saveDraft,
-        getDraft,
-        clearDraft,
-        setModalOpenState,
-        restoreModal,
-        minimizedDrafts,
-      }}
-    >
+    <ModalDraftContext.Provider value={contextValue}>
       {children}
     </ModalDraftContext.Provider>
   );

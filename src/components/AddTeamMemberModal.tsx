@@ -571,16 +571,53 @@ const [roles, setRoles] = useState<
     onClose();
   };
 
+  const validateForm = () => {
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const trimmedDesignation = designation.trim();
+
+    if (!trimmedName) {
+      setError("Please enter full name.");
+      return false;
+    }
+
+    if (!trimmedEmail) {
+      setError("Please enter email address.");
+      return false;
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(trimmedEmail)) {
+      setError("Please enter a valid email address.");
+      return false;
+    }
+
+    if (mode === "add" && !trimmedPassword) {
+      setError("Please enter password.");
+      return false;
+    }
+
+    if (mode === "add" && trimmedPassword.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return false;
+    }
+
+
+
+    if (!trimmedDesignation) {
+      setError("Please select a designation.");
+      return false;
+    }
+
+    setError(null);
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (
-      !name.trim() ||
-      !email.trim() ||
-      (mode === "add" && !password.trim()) ||
-      !designation.trim()
-    ) {
-      setError("Please fill all required fields");
+    if (!validateForm()) {
       return;
     }
 
@@ -841,7 +878,7 @@ const [roles, setRoles] = useState<
             </div>
 
             <CustomDropdown
-              label="Role *"
+              label="Role"
               placeholder="Select Role"
               value={roleId}
               options={roles

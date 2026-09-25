@@ -220,17 +220,47 @@ export async function POST(
        VALIDATION
     ------------------------- */
 
-    if (
-      !name ||
-      !email ||
-      !password
-    ) {
+    if (!name) {
       return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Name, email and password are required",
-        },
+        { success: false, message: "Please enter full name." },
+        { status: 400 }
+      );
+    }
+
+    if (!email) {
+      return NextResponse.json(
+        { success: false, message: "Please enter email address." },
+        { status: 400 }
+      );
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+      return NextResponse.json(
+        { success: false, message: "Please enter a valid email address." },
+        { status: 400 }
+      );
+    }
+
+    if (!password) {
+      return NextResponse.json(
+        { success: false, message: "Please enter password." },
+        { status: 400 }
+      );
+    }
+
+    if (password.length < 6) {
+      return NextResponse.json(
+        { success: false, message: "Password must be at least 6 characters." },
+        { status: 400 }
+      );
+    }
+
+  
+
+    if (!designation) {
+      return NextResponse.json(
+        { success: false, message: "Please select a designation." },
         { status: 400 }
       );
     }
@@ -630,6 +660,21 @@ export async function PATCH(
           },
         });
 
+      if (!email) {
+        return NextResponse.json(
+          { success: false, message: "Please enter email address." },
+          { status: 400 }
+        );
+      }
+
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(email)) {
+        return NextResponse.json(
+          { success: false, message: "Please enter a valid email address." },
+          { status: 400 }
+        );
+      }
+
       if (existingEmployee) {
         return NextResponse.json(
           {
@@ -641,8 +686,7 @@ export async function PATCH(
         );
       }
 
-      updateData.email =
-        email;
+      updateData.email = email;
     }
 
     /* -------------------------
@@ -653,10 +697,17 @@ export async function PATCH(
       body.designation !==
       undefined
     ) {
-      updateData.designation =
-        String(
-          body.designation
-        ).trim();
+      const designation =
+        String(body.designation).trim();
+
+      if (!designation) {
+        return NextResponse.json(
+          { success: false, message: "Please select a designation." },
+          { status: 400 }
+        );
+      }
+
+      updateData.designation = designation;
     }
 
     /* -------------------------
@@ -667,8 +718,9 @@ export async function PATCH(
       body.role_id !==
       undefined
     ) {
-      updateData.role_id =
-        body.role_id || null;
+   
+
+      updateData.role_id = body.role_id;
     }
 
     /* -------------------------
@@ -740,9 +792,18 @@ export async function PATCH(
     if (
       body.password?.trim()
     ) {
+      const newPassword = body.password.trim();
+
+      if (newPassword.length < 6) {
+        return NextResponse.json(
+          { success: false, message: "Password must be at least 6 characters." },
+          { status: 400 }
+        );
+      }
+
       updateData.password =
         await bcrypt.hash(
-          body.password.trim(),
+          newPassword,
           12
         );
     }

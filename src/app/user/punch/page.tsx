@@ -59,6 +59,7 @@ export default function PunchPage() {
     canPunchOut, 
     attendance, 
     pendingRequest,
+    rejectedRequest,
     loading: ctxLoading, 
     punchIn: ctxPunchIn, 
     punchOut: ctxPunchOut, 
@@ -342,6 +343,52 @@ export default function PunchPage() {
                 onChange={(e) => setCustomTime(e.target.value)}
               />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rejected Request Alert */}
+      {rejectedRequest && !pendingRequest && (
+        <div
+          className="card"
+          style={{
+            borderLeft: '4px solid #dc2626',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+            marginBottom: '20px',
+            background: '#fef2f2',
+          }}
+        >
+          <AlertCircle
+            style={{
+              color: '#dc2626',
+              flexShrink: 0,
+              marginTop: '2px',
+            }}
+          />
+
+          <div>
+            <p style={{ color: '#991b1b', fontWeight: 700, margin: 0 }}>
+              {rejectedRequest.request_type === 'punchIn' ? 'Punch In' : 'Punch Out'} Request Rejected
+            </p>
+
+            <p style={{ color: '#b91c1c', fontSize: '0.78rem', margin: '4px 0 0', lineHeight: 1.5 }}>
+              Your request for <strong>{rejectedRequest.attendance_date}</strong> was rejected by the admin.
+            </p>
+
+            <div style={{ marginTop: '9px', padding: '9px 11px', borderRadius: '8px', background: 'rgba(220, 38, 38, 0.08)' }}>
+              <div style={{ color: '#991b1b', fontSize: '0.72rem', fontWeight: 700, marginBottom: '3px' }}>
+                Admin's Reason
+              </div>
+              <div style={{ color: '#7f1d1d', fontSize: '0.8rem', lineHeight: 1.5 }}>
+                {rejectedRequest.rejection_reason || 'No rejection reason was provided.'}
+              </div>
+            </div>
+
+            <p style={{ color: '#991b1b', fontSize: '0.72rem', margin: '8px 0 0' }}>
+              You can submit a new request if required.
+            </p>
           </div>
         </div>
       )}

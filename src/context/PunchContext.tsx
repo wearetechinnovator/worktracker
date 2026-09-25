@@ -1,21 +1,92 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { punchService, PunchStatus, AttendanceData } from '@/lib/punchService';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from 'react';
 
+import {
+  punchService,
+  PunchStatus,
+  AttendanceData,
+} from '@/lib/punchService';
+export interface AttendanceRequestData {
+  _id: string;
+
+  attendance_date: string;
+
+  request_type: 'punchIn' | 'punchOut';
+
+  reason: string;
+
+  requested_punch_at: string | Date;
+
+  status: 'Pending' | 'Approved' | 'Rejected';
+
+  rejection_reason?: string | null;
+
+  reviewed_at?: string | Date | null;
+}
 interface PunchContextType {
   isPunchedIn: boolean;
   canPunchIn: boolean;
   canPunchOut: boolean;
   isViewMode: boolean;
+
   attendance: AttendanceData | null;
+
   pendingRequest?: any;
+
+  rejectedRequest?: {
+    _id: string;
+    attendance_date: string;
+    request_type: 'punchIn' | 'punchOut';
+    reason: string;
+    requested_punch_at: string | Date;
+    status: 'Pending' | 'Approved' | 'Rejected';
+    rejection_reason?: string | null;
+    reviewed_at?: string | Date | null;
+  } | null;
+
   loading: boolean;
   user: any;
-  punchIn: (meta?: { reason?: string; geo?: any[]; systemId?: string }) => Promise<void>;
-  punchOut: (meta?: { reason?: string; geo?: any[]; systemId?: string }) => Promise<void>;
-  togglePunch: (meta?: { reason?: string; geo?: any[]; systemId?: string }) => Promise<void>;
-  requestPunch: (requestType: 'punchIn' | 'punchOut', reason: string, meta?: { geo?: any[]; systemId?: string }) => Promise<any>;
+
+  punchIn: (
+    meta?: {
+      reason?: string;
+      geo?: any[];
+      systemId?: string;
+    }
+  ) => Promise<void>;
+
+  punchOut: (
+    meta?: {
+      reason?: string;
+      geo?: any[];
+      systemId?: string;
+    }
+  ) => Promise<void>;
+
+  togglePunch: (
+    meta?: {
+      reason?: string;
+      geo?: any[];
+      systemId?: string;
+    }
+  ) => Promise<void>;
+
+  requestPunch: (
+    requestType: 'punchIn' | 'punchOut',
+    reason: string,
+    meta?: {
+      geo?: any[];
+      systemId?: string;
+    }
+  ) => Promise<any>;
+
   refreshPunch: () => Promise<void>;
 }
 
@@ -24,10 +95,17 @@ const PunchContext = createContext<PunchContextType>({
   canPunchIn: true,
   canPunchOut: false,
   isViewMode: false,
+
   attendance: null,
+
   pendingRequest: null,
+
+  // IMPORTANT
+  rejectedRequest: null,
+
   loading: true,
   user: null,
+
   punchIn: async () => {},
   punchOut: async () => {},
   togglePunch: async () => {},
@@ -35,12 +113,23 @@ const PunchContext = createContext<PunchContextType>({
   refreshPunch: async () => {},
 });
 
-export function PunchProvider({ children }: { children: React.ReactNode }) {
+export function PunchProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [user, setUser] = useState<any>(null);
-  const [punchState, setPunchState] = useState<PunchStatus>(() => punchService.getPunchStatus());
+
+  const [punchState, setPunchState] = useState<PunchStatus>(() =>
+    punchService.getPunchStatus()
+  );
+
   const [loading, setLoading] = useState(true);
 
-  // Fetch current user details
+  // =========================================================
+  // FETCH CURRENT USER
+  // =========================================================
+
   const fetchUser = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/me', {
@@ -48,7 +137,9 @@ export function PunchProvider({ children }: { children: React.ReactNode }) {
         credentials: 'include',
         cache: 'no-store',
       });
+
       const data = await res.json();
+
       if (res.ok && data.success && data.user) {
         setUser(data.user);
       } else {
@@ -59,17 +150,28 @@ export function PunchProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Refresh punch state from DB
+  // =========================================================
+  // REFRESH PUNCH STATE
+  // =========================================================
+
   const refreshPunch = useCallback(async () => {
     try {
       const latest = await punchService.fetchPunchStatus();
+
       setPunchState(latest);
     } catch (err) {
-      console.error('Failed to refresh punch status:', err);
+      console.error(
+        'Failed to refresh punch status:',
+        err
+      );
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // =========================================================
+  // INITIAL LOAD + EVENTS
+  // =========================================================
 
   useEffect(() => {
     fetchUser();
@@ -83,44 +185,109 @@ export function PunchProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    window.addEventListener('punch-status-changed', handlePunchChanged);
-    window.addEventListener('punchStateChanged', refreshPunch);
-    window.addEventListener('focus', refreshPunch);
+    window.addEventListener(
+      'punch-status-changed',
+      handlePunchChanged
+    );
+
+    window.addEventListener(
+      'punchStateChanged',
+      refreshPunch
+    );
+
+    window.addEventListener(
+      'focus',
+      refreshPunch
+    );
 
     return () => {
-      window.removeEventListener('punch-status-changed', handlePunchChanged);
-      window.removeEventListener('punchStateChanged', refreshPunch);
-      window.removeEventListener('focus', refreshPunch);
+      window.removeEventListener(
+        'punch-status-changed',
+        handlePunchChanged
+      );
+
+      window.removeEventListener(
+        'punchStateChanged',
+        refreshPunch
+      );
+
+      window.removeEventListener(
+        'focus',
+        refreshPunch
+      );
     };
   }, [fetchUser, refreshPunch]);
 
-  // Determine view-only mode:
-  // Admins (user_role === 1) are never in view-only mode.
-  // Regular employees (user_role === 2) are in View Mode if they are NOT punched in.
-  const isAdmin = user && Number(user.user_role) === 1;
-  const isViewMode = Boolean(user && !isAdmin && !punchState.isPunchedIn);
+  // =========================================================
+  // VIEW MODE
+  // =========================================================
 
-  const punchIn = async (meta?: { reason?: string; geo?: any[]; systemId?: string }) => {
+  const isAdmin =
+    user && Number(user.user_role) === 1;
+
+  const isViewMode = Boolean(
+    user &&
+      !isAdmin &&
+      !punchState.isPunchedIn
+  );
+
+  // =========================================================
+  // PUNCH IN
+  // =========================================================
+
+  const punchIn = async (
+    meta?: {
+      reason?: string;
+      geo?: any[];
+      systemId?: string;
+    }
+  ) => {
     setLoading(true);
+
     try {
-      const updated = await punchService.punchIn(meta);
+      const updated =
+        await punchService.punchIn(meta);
+
       setPunchState(updated);
     } finally {
       setLoading(false);
     }
   };
 
-  const punchOut = async (meta?: { reason?: string; geo?: any[]; systemId?: string }) => {
+  // =========================================================
+  // PUNCH OUT
+  // =========================================================
+
+  const punchOut = async (
+    meta?: {
+      reason?: string;
+      geo?: any[];
+      systemId?: string;
+    }
+  ) => {
     setLoading(true);
+
     try {
-      const updated = await punchService.punchOut(meta);
+      const updated =
+        await punchService.punchOut(meta);
+
       setPunchState(updated);
     } finally {
       setLoading(false);
     }
   };
 
-  const togglePunch = async (meta?: { reason?: string; geo?: any[]; systemId?: string }) => {
+  // =========================================================
+  // TOGGLE PUNCH
+  // =========================================================
+
+  const togglePunch = async (
+    meta?: {
+      reason?: string;
+      geo?: any[];
+      systemId?: string;
+    }
+  ) => {
     if (punchState.isPunchedIn) {
       await punchOut(meta);
     } else {
@@ -128,27 +295,62 @@ export function PunchProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // =========================================================
+  // REQUEST PUNCH
+  // =========================================================
+
   const requestPunch = async (
     requestType: 'punchIn' | 'punchOut',
     reason: string,
-    meta?: { geo?: any[]; systemId?: string }
+    meta?: {
+      geo?: any[];
+      systemId?: string;
+    }
   ) => {
-    const res = await punchService.requestPunch(requestType, reason, meta);
+    const res =
+      await punchService.requestPunch(
+        requestType,
+        reason,
+        meta
+      );
+
     await refreshPunch();
+
     return res;
   };
+
+  // =========================================================
+  // PROVIDER
+  // =========================================================
 
   return (
     <PunchContext.Provider
       value={{
-        isPunchedIn: punchState.isPunchedIn,
-        canPunchIn: punchState.canPunchIn,
-        canPunchOut: punchState.canPunchOut,
+        isPunchedIn:
+          punchState.isPunchedIn,
+
+        canPunchIn:
+          punchState.canPunchIn,
+
+        canPunchOut:
+          punchState.canPunchOut,
+
         isViewMode,
-        attendance: punchState.attendance,
-        pendingRequest: punchState.pendingRequest,
+
+        attendance:
+          punchState.attendance,
+
+        pendingRequest:
+          punchState.pendingRequest,
+
+      
+        rejectedRequest:
+          punchState.rejectedRequest ?? null,
+
         loading,
+
         user,
+
         punchIn,
         punchOut,
         togglePunch,

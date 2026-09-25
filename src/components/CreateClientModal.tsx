@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Building2,
   Phone,
@@ -69,8 +69,16 @@ export default function CreateClientModal({
   const draftKey = 'create-client';
   const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
 
+  const hasInitializedRef = useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) {
+      hasInitializedRef.current = false;
+      return;
+    }
+
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
       setError(null);
       setModalOpenState(draftKey, true);
 
@@ -188,28 +196,95 @@ export default function CreateClientModal({
       .filter(Boolean);
 
     if (!name.trim()) {
-      setError("Client name is required");
+      const msg = "Please enter client/company name.";
+      setError(msg);
+      
       return;
     }
 
     if (!phone.trim()) {
-      setError("Primary phone number is required");
+      const msg = "Please enter primary phone number.";
+      setError(msg);
+      
       return;
     }
 
     if (!/^\d{10,20}$/.test(phone.trim())) {
-      setError("Phone number must contain only numbers and be 10-20 digits long");
+      const msg = "Phone number must contain only numbers and be 10-20 digits long.";
+      setError(msg);
+      
       return;
     }
 
     if (parsedEmails.length === 0) {
-      setError("At least one valid email address is required");
+      const msg = "Please enter at least one email address.";
+      setError(msg);
+      
+      return;
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const invalidEmail = parsedEmails.find(
+      (email) => !emailPattern.test(email)
+    );
+
+    if (invalidEmail) {
+      const msg = `Please enter a valid email address: ${invalidEmail}`;
+      setError(msg);
+      
       return;
     }
 
     try {
       setSubmitting(true);
       setError(null);
+
+    const incompleteContactIndex = contacts.findIndex((contact) => {
+      const hasAnyValue =
+        (contact.name || "").trim() ||
+        (contact.email || "").trim() ||
+        (contact.phone || "").trim() ||
+        (contact.designation || "").trim() ||
+        (contact.label || "").trim();
+
+      return hasAnyValue && !(contact.name || "").trim();
+    });
+
+    if (incompleteContactIndex !== -1) {
+      const msg = `Please enter contact name for Contact #${incompleteContactIndex + 1}.`;
+      setError(msg);
+      
+      setSubmitting(false);
+      return;
+    }
+
+    const invalidContactEmail = contacts.findIndex(
+      (contact) =>
+        (contact.email || "").trim() &&
+        !emailPattern.test((contact.email || "").trim())
+    );
+
+    if (invalidContactEmail !== -1) {
+      const msg = `Please enter a valid email address for Contact #${invalidContactEmail + 1}.`;
+      setError(msg);
+      
+      setSubmitting(false);
+      return;
+    }
+
+    const invalidContactPhone = contacts.findIndex(
+      (contact) =>
+        (contact.phone || "").trim() &&
+        !/^\d{10,20}$/.test((contact.phone || "").trim())
+    );
+
+    if (invalidContactPhone !== -1) {
+      const msg = `Please enter a valid phone number for Contact #${invalidContactPhone + 1}.`;
+      setError(msg);
+      
+      setSubmitting(false);
+      return;
+    }
 
     const validContacts = contacts.filter(
       (contact) =>
@@ -334,6 +409,7 @@ export default function CreateClientModal({
           {/* Form Body */}
           <form
             onSubmit={handleSubmit}
+            noValidate
             style={{
               display: 'flex',
               flexDirection: 'column',

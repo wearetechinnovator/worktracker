@@ -138,6 +138,13 @@ export async function reviewTask(
         action: 'reject';
         reassignTo: string;
         reason?: string;
+        files?: Array<{
+          name: string;
+          url: string;
+          size?: number;
+          type?: string;
+        }>;
+        links?: string[];
       }
 ) {
   const response = await fetch(`/api/tasks/${taskId}`, {
@@ -150,8 +157,37 @@ export async function reviewTask(
         ? {
             reassignTo: payload.reassignTo,
             reviewReason: payload.reason,
+            files: payload.files,
+            urls: payload.links,
           }
         : {}),
+    }),
+  });
+
+  return response.json();
+}
+
+export async function updateReassignedTask(
+  taskId: string,
+  payload: {
+    description: string;
+    files: Array<{
+      name: string;
+      url: string;
+      size?: number;
+      type?: string;
+    }>;
+    links: string[];
+  }
+) {
+  const response = await fetch(`/api/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      description: payload.description,
+      files: payload.files,
+      urls: payload.links,
     }),
   });
 
@@ -192,5 +228,6 @@ export const taskApi = {
   resumeTaskWork,
   endTaskWork,
   reviewTask,
+  updateReassignedTask,
   getTaskWork
 };

@@ -32,6 +32,7 @@ interface CustomDropdownProps {
     onClick: () => void;
   };
   style?: React.CSSProperties;
+  disabled?: boolean;
 }
 
 export function CustomDropdown({
@@ -42,6 +43,7 @@ export function CustomDropdown({
   onChange,
   actionButton,
   style,
+  disabled = false,
 }: CustomDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -95,19 +97,21 @@ export function CustomDropdown({
       {/* Trigger button */}
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        disabled={disabled}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
         style={{
           width: '100%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '7px 12px',
-          background: 'var(--bg-secondary)',
+          background: disabled ? 'var(--bg-tertiary, #f1f5f9)' : 'var(--bg-secondary)',
           border: isOpen ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
           borderRadius: 'var(--border-radius-sm)',
           fontSize: '0.8rem',
           color: selectedOption ? 'var(--text-primary)' : 'var(--text-muted)',
-          cursor: 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.7 : 1,
           boxShadow: isOpen ? '0 0 0 2px rgba(59, 130, 246, 0.15)' : 'none',
           transition: 'all 0.15s ease',
           textAlign: 'left',

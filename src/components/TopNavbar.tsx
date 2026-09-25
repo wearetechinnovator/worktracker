@@ -18,6 +18,7 @@ import CreateClientModal from '@/components/CreateClientModal';
 import CreateTaskModal from '@/components/CreateTaskModal';
 import PunchRequestModal from '@/components/PunchRequestModal';
 import { punchService } from '@/lib/punchService';
+import { toast } from '@/lib/toast';
 
 export default function TopNavbar() {
   const pathname = usePathname();
@@ -784,6 +785,10 @@ export default function TopNavbar() {
         }
 
         if (type === 'task') {
+          if (!isAdmin && projects.length === 0) {
+            toast.error('You are not assigned to any project. You cannot create a task.');
+            return;
+          }
           setIsTaskModalOpen(
             true
           );
@@ -1001,6 +1006,11 @@ export default function TopNavbar() {
                   <button
                     type="button"
                     onClick={() => {
+                      if (!isAdmin && projects.length === 0) {
+                        toast.error('You are not assigned to any project. You cannot create a task.');
+                        return;
+                      }
+
                       setIsTaskModalOpen(
                         true
                       );
@@ -1361,6 +1371,11 @@ export default function TopNavbar() {
                       'You are currently in View-Only mode because you are punched out. Please punch in first to create tasks.'
                     );
 
+                    return;
+                  }
+
+                  if (projects.length === 0) {
+                    toast.error('You are not assigned to any project. You cannot create a task.');
                     return;
                   }
 

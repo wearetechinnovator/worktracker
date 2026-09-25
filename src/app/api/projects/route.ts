@@ -140,18 +140,15 @@ export async function GET(req: Request) {
       // Admin: projects created by this admin
       query = { created_by: user._id };
     } else {
-      // Employee:
-      // 1. Projects where user is in project_users
-      // 2. OR projects where tasks are assigned to this user
-      const assignedTaskProjectIds = await Task.find({
-        assign_to: user._id,
-        project_id: { $ne: null },
-      }).distinct("project_id");
+      // Employee: ONLY projects where user is explicitly assigned as a project member (project_users)
+      const userObjectId = mongoose.Types.ObjectId.isValid(user._id)
+        ? new mongoose.Types.ObjectId(String(user._id))
+        : null;
 
       query = {
         $or: [
-          { project_users: user._id },
-          { _id: { $in: assignedTaskProjectIds } },
+          ...(userObjectId ? [{ project_users: userObjectId }] : []),
+          { project_users: String(user._id) },
         ],
       };
     }
@@ -164,13 +161,38 @@ export async function GET(req: Request) {
 
     const projectIds = rawProjects.map((p: any) => p._id);
 
-    // 1. Calculate taskCount per project from Task collection
+    const projectObjectIds = projectIds
+      .map((id: any) => {
+        try {
+          return mongoose.Types.ObjectId.isValid(id)
+            ? new mongoose.Types.ObjectId(String(id))
+            : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+    const projectStrings = projectIds.map((id: any) => String(id));
+    const allProjectMatchingIds = Array.from(new Set([...projectObjectIds, ...projectStrings]));
+
+    // 1. Calculate active taskCount per project from Task collection (exclude completed and soft-deleted tasks)
     const taskCounts = await Task.aggregate([
-      { $match: { project_id: { $in: projectIds } } },
-      { $group: { _id: "$project_id", count: { $sum: 1 } } },
+      {
+        $match: {
+          project_id: { $in: allProjectMatchingIds },
+          status: { $nin: [0, "0", "Completed", "completed"] },
+          task_status: { $nin: ["Completed", "completed", "Done", "done"] },
+        },
+      },
+      {
+        $group: {
+          _id: { $toString: "$project_id" },
+          count: { $sum: 1 },
+        },
+      },
     ]);
     const taskCountMap = new Map(
-      taskCounts.map((tc: any) => [tc._id.toString(), tc.count])
+      taskCounts.map((tc: any) => [String(tc._id), Number(tc.count) || 0])
     );
 
     // 2. Calculate totalMinutes per project from TaskWork

@@ -12,6 +12,7 @@ import {
   Download,
   ExternalLink,
   FileText,
+  Folder,
   Link as LinkIcon,
   Loader2,
   MessageSquare,
@@ -41,13 +42,13 @@ export interface TaskDetailsTask {
   }>;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   status:
-    | 'To Do'
-    | 'In Progress'
-    | 'Paused'
-    | 'Partially Done'
-    | 'Partially Completed'
-    | 'Review'
-    | 'Completed';
+  | 'To Do'
+  | 'In Progress'
+  | 'Paused'
+  | 'Partially Done'
+  | 'Partially Completed'
+  | 'Review'
+  | 'Completed';
   dueDate?: string;
   dueTime?: string;
   url?: string;
@@ -125,6 +126,20 @@ const formatDate = (value?: string, withTime = false) => {
     day: 'numeric',
     year: 'numeric',
     ...(withTime ? { hour: 'numeric', minute: '2-digit' } : {}),
+  });
+};
+
+const formatDateTime = (value?: string | Date | null) => {
+  if (!value) return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
   });
 };
 
@@ -208,8 +223,6 @@ export default function TaskDetailsModal({
     { id: 'details' as const, label: 'Details', icon: FileText, count: undefined },
     { id: 'updates' as const, label: 'Updates', icon: MessageSquare, count: updateCount || undefined },
     { id: 'work' as const, label: 'Work Logs', icon: Clock3, count: sessions.length || undefined },
-    { id: 'files' as const, label: 'Files', icon: Paperclip, count: task.files?.length || undefined },
-    { id: 'links' as const, label: 'Links', icon: LinkIcon, count: links.length || undefined },
   ];
 
   const renderComposer = () => (
@@ -263,7 +276,7 @@ export default function TaskDetailsModal({
         )}
       </div>
 
-      {task.comments || task.commentsList?.length ? (
+      {(task.comments || task.commentsList?.length) ? (
         <div className="td-timeline">
           {task.comments && (
             <div className="td-timeline-item">
@@ -333,13 +346,7 @@ export default function TaskDetailsModal({
             );
           })}
         </div>
-      ) : (
-        <div className="td-empty">
-          <MessageSquare size={24} />
-          <strong>No updates yet</strong>
-          <span>Add the first progress update below.</span>
-        </div>
-      )}
+      ) : null}
 
       {renderComposer()}
     </div>
@@ -382,11 +389,11 @@ export default function TaskDetailsModal({
                 </span>
                 <div>
                   <strong>{session.employeeId?.name || 'Unknown Employee'}</strong>
-                  <span>{session.date || 'Work session'}</span>
+                  <span>{session.date ? formatDate(session.date) : 'Work session'}</span>
                 </div>
               </div>
               <div className="td-session-meta">
-                <span>{session.startTime || '—'} – {session.endTime || 'Active'}</span>
+                <span>{formatDateTime(session.startTime)} – {session.endTime ? formatDateTime(session.endTime) : 'Active'}</span>
                 <span className="td-mini-status">
                   {session.status === 'Completed' ? (session.isFullyCompleted ? 'Completed' : 'Partial') : 'In Progress'}
                 </span>
@@ -408,39 +415,44 @@ export default function TaskDetailsModal({
     </div>
   );
 
-  const renderFiles = () => (
-    <div className="td-section-stack">
-      <div className="td-section-heading">
-        <div>
-          <span className="td-eyebrow">Attachments</span>
-          <h3>Task files</h3>
-        </div>
-        {!!task.files?.length && (
-          <button type="button" className="td-ghost-btn" onClick={onDownloadAllFiles} disabled={isDownloadingZip}>
+  const renderFiles = () => {
+    if (!task.files?.length) return null;
+
+    return (
+      <section className="td-inline-section">
+        <div className="td-inline-heading">
+          <div className="td-inline-title">
+            <Paperclip size={15} />
+            <h4>Files</h4>
+          </div>
+          <button
+            type="button"
+            className="td-ghost-btn"
+            onClick={onDownloadAllFiles}
+            disabled={isDownloadingZip}
+          >
             {isDownloadingZip ? <Loader2 size={14} className="td-spin" /> : <Archive size={14} />}
             {isDownloadingZip ? 'Preparing ZIP…' : 'Download all'}
           </button>
-        )}
-      </div>
-      {!task.files?.length ? (
-        <div className="td-empty">
-          <Paperclip size={24} />
-          <strong>No files attached</strong>
-          <span>Files added to this task will appear here.</span>
         </div>
-      ) : (
+
         <div className="td-file-grid">
           {task.files.map((file, index) => {
-            const isImage = file.type?.startsWith('image/') || /\.(png|jpg|jpeg|webp|svg|gif)$/i.test(file.name);
+            const isImage =
+              file.type?.startsWith('image/') ||
+              /\.(png|jpg|jpeg|webp|svg|gif)$/i.test(file.name);
+
             return (
               <div className="td-file-card" key={`${file.name}-${index}`}>
                 <button type="button" className="td-file-preview" onClick={() => onViewFile(file)}>
                   {isImage ? <img src={file.url} alt={file.name} /> : <FileText size={22} />}
                 </button>
+
                 <div className="td-file-info">
                   <strong title={file.name}>{file.name}</strong>
                   <span>{formatBytes(file.size) || file.type || 'Attachment'}</span>
                 </div>
+
                 <button
                   type="button"
                   className="td-icon-action"
@@ -453,42 +465,41 @@ export default function TaskDetailsModal({
             );
           })}
         </div>
-      )}
-    </div>
-  );
+      </section>
+    );
+  };
 
-  const renderLinks = () => (
-    <div className="td-section-stack">
-      <div className="td-section-heading">
-        <div>
-          <span className="td-eyebrow">Resources</span>
-          <h3>Task links</h3>
-        </div>
-        {!!links.length && (
+  const renderLinks = () => {
+    if (!links.length) return null;
+
+    return (
+      <section className="td-inline-section">
+        <div className="td-inline-heading">
+          <div className="td-inline-title">
+            <LinkIcon size={15} />
+            <h4>Links</h4>
+          </div>
+
           <button type="button" className="td-ghost-btn" onClick={onCopyAllUrls}>
             {isCopiedAllUrls ? <Check size={14} /> : <Copy size={14} />}
             {isCopiedAllUrls ? 'Copied' : 'Copy all'}
           </button>
-        )}
-      </div>
-      {!links.length ? (
-        <div className="td-empty">
-          <LinkIcon size={24} />
-          <strong>No links attached</strong>
-          <span>Useful URLs for this task will appear here.</span>
         </div>
-      ) : (
+
         <div className="td-link-list">
           {links.map((url, index) => {
             const fullUrl = url.startsWith('http') ? url : `https://${url}`;
             const copied = copiedUrlIndex === index;
+
             return (
               <div className="td-link-card" key={`${url}-${index}`}>
                 <span className="td-link-icon"><LinkIcon size={17} /></span>
+
                 <div className="td-link-content">
                   <strong>{url}</strong>
                   <span>{fullUrl}</span>
                 </div>
+
                 <div className="td-link-actions">
                   <a
                     href={fullUrl}
@@ -498,6 +509,7 @@ export default function TaskDetailsModal({
                   >
                     <ExternalLink size={14} /> Open
                   </a>
+
                   <button
                     type="button"
                     className="td-icon-action"
@@ -511,9 +523,36 @@ export default function TaskDetailsModal({
             );
           })}
         </div>
-      )}
-    </div>
+      </section>
+    );
+  };
+
+  const renderDetails = () => (
+    <section className="td-details-card">
+      <div className="td-section-heading">
+        <div>
+          <span className="td-eyebrow">Information</span>
+          <h3>Details</h3>
+        </div>
+      </div>
+
+      <div className="td-details-grid">
+        {task.dueDate && (
+          <div className="td-detail-item">
+            <span>Due date</span>
+            <strong className="td-muted-value">{formatDate(task.dueDate, true)}</strong>
+          </div>
+        )}
+        {task.createdAt && (
+          <div className="td-detail-item">
+            <span>Created</span>
+            <strong className="td-muted-value">{formatDateTime(task.createdAt)}</strong>
+          </div>
+        )}
+      </div>
+    </section>
   );
+
 
   return (
     <div className="td-overlay" onClick={onClose}>
@@ -526,48 +565,38 @@ export default function TaskDetailsModal({
           <div className="td-header-top">
             <div className="td-header-left">
               <div className="td-kicker">
-                <span className="td-chip td-number">#{task._id.slice(-4)}</span>
+                <span className="td-chip td-number">{task.task_id || 'TASK'}</span>
+                <h2 className="td-title">{task.title}</h2>
+
+                {(task.projectId?.name || task.Project) && (
+                  <span className="td-chip td-project">
+                    <Folder size={15} />
+                    {task.projectId?.name || task.Project}
+                  </span>
+                )}
+
                 <span
                   className="td-chip"
                   style={{
                     background: priority.bg,
                     color: priority.color,
-                    borderColor: priority.border,
+                    border: `1px solid ${priority.border}`,
                   }}
                 >
                   {task.priority}
                 </span>
-                {(task.projectId?.name || task.Project) && (
-                  <span className="td-chip td-project">
-                    <span className="td-project-dot" />
-                    {task.projectId?.name || task.Project}
-                  </span>
-                )}
+
                 <span
                   className="td-chip"
                   style={{
                     background: status.bg,
                     color: status.color,
-                    borderColor: status.border,
+                    border: `1px solid ${status.border}`,
                   }}
                 >
                   {task.status}
                 </span>
               </div>
-              <div>
-                {task.task_id && <div className="td-eyebrow">{task.task_id}</div>}
-                <h2 className="td-title">{task.title}</h2>
-              </div>
-              {task.description ? (
-                <div
-                  className="td-description-preview"
-                  dangerouslySetInnerHTML={{
-                    __html: task.description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
-                  }}
-                />
-              ) : (
-                <div className="td-description-preview">No description added for this task.</div>
-              )}
             </div>
             <div className="td-header-actions">
               {isAdmin && onEdit && (
@@ -614,83 +643,40 @@ export default function TaskDetailsModal({
           <main className="td-main">
             {tab === 'details' && (
               <div className="td-section-stack">
-                <div className="td-section-heading">
-                  <div>
-                    <span className="td-eyebrow">Overview</span>
-                    <h3>Task description</h3>
+                <section className="td-overview-section">
+                  <div className="td-section-heading">
+                    <div>
+                      <span className="td-eyebrow">Overview</span>
+                      <h3>Description</h3>
+                    </div>
                   </div>
-                </div>
-                <div className="td-description">
-                  {task.description ? (
-                    <div dangerouslySetInnerHTML={{ __html: task.description }} />
-                  ) : (
-                    <span style={{ color: '#94a3b8' }}>No description added for this task.</span>
-                  )}
-                </div>
-                {renderUpdates()}
+
+                  <div className="td-description">
+                    {task.description ? (
+                      <div dangerouslySetInnerHTML={{ __html: task.description }} />
+                    ) : (
+                      <span style={{ color: '#94a3b8' }}>No description added for this task.</span>
+                    )}
+                  </div>
+                </section>
+
+                {renderFiles()}
+                {renderLinks()}
+                {renderDetails()}
               </div>
             )}
+
             {tab === 'updates' && renderUpdates()}
             {tab === 'work' && renderWorkLogs()}
-            {tab === 'files' && renderFiles()}
-            {tab === 'links' && renderLinks()}
           </main>
 
           <aside className="td-sidebar">
             <div className="td-card td-sidebar-card">
               <div className="td-sidebar-title">
-                <CheckCircle2 size={16} />
-                Task information
-              </div>
-              <div className="td-info-list">
-                <div className="td-info-row">
-                  <span className="td-info-label">Status</span>
-                  <span
-                    className="td-chip"
-                    style={{
-                      background: status.bg,
-                      color: status.color,
-                      borderColor: status.border,
-                    }}
-                  >
-                    {task.status}
-                  </span>
-                </div>
-                <div className="td-info-row">
-                  <span className="td-info-label">Priority</span>
-                  <span
-                    className="td-chip"
-                    style={{
-                      background: priority.bg,
-                      color: priority.color,
-                      borderColor: priority.border,
-                    }}
-                  >
-                    {task.priority}
-                  </span>
-                </div>
-                <div className="td-info-row">
-                  <span className="td-info-label">Due date</span>
-                  <span className="td-info-value">
-                    <span className="td-due">
-                      <Calendar size={13} />
-                      {task.dueDate ? formatDate(task.dueDate) : 'No due date'}
-                    </span>
-                    {task.dueTime && <span className="td-due-time">{task.dueTime}</span>}
-                  </span>
-                </div>
-                <div className="td-info-row">
-                  <span className="td-info-label">Created</span>
-                  <span className="td-info-value">{formatDate(task.createdAt, true)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="td-card td-sidebar-card">
-              <div className="td-sidebar-title">
                 <Users size={16} />
                 Assignees
               </div>
+
               <div className="td-info-list">
                 <div>
                   <div className="td-info-label" style={{ marginBottom: 7 }}>Assigned by</div>
@@ -706,6 +692,7 @@ export default function TaskDetailsModal({
                     </strong>
                   </div>
                 </div>
+
                 <div>
                   <div className="td-info-label" style={{ marginBottom: 7 }}>Assigned to</div>
                   {task.assignedTo?.length ? (
@@ -726,26 +713,6 @@ export default function TaskDetailsModal({
                     <span style={{ fontSize: 11, color: '#94a3b8' }}>Unassigned</span>
                   )}
                 </div>
-              </div>
-            </div>
-
-            <div className="td-card td-sidebar-card">
-              <div className="td-sidebar-title">
-                <Activity size={16} />
-                Work progress
-                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#64748b' }}>
-                  {totalTime}
-                </span>
-              </div>
-              <div className="td-progress">
-                <div
-                  className="td-progress-fill"
-                  style={{ width: sessions.length ? '65%' : '0%' }}
-                />
-              </div>
-              <div className="td-progress-meta">
-                <span>{sessions.length} logged sessions</span>
-                <span>{totalMinutes ? `${totalMinutes} min` : 'No time logged'}</span>
               </div>
             </div>
           </aside>

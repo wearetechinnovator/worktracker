@@ -98,10 +98,12 @@ export function CreateTaskModal({
     tags: '',
   });
 
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
+
   const draftKey = editingTask ? `edit-task-${editingTask._id || 'unknown'}` : 'create-task';
   const { saveDraft, getDraft, clearDraft, setModalOpenState } = useModalDraft();
 
-  const isAdmin = currentUser?.userType === 'admin';
+  const isAdmin = currentUser?.userType === 'admin' || Number(currentUser?.user_role) === 1;
 
   const initialFilesSet = useMemo(() => {
     if (!editingTask || !Array.isArray(editingTask.files)) return new Set<string>();
@@ -128,6 +130,7 @@ export function CreateTaskModal({
 
   // Fetch projects from API
   const fetchProjects = useCallback(async () => {
+    setIsLoadingProjects(true);
     try {
       const response = await fetch('/api/projects', { credentials: 'include', cache: 'no-store' });
       const result = await response.json();
@@ -142,6 +145,8 @@ export function CreateTaskModal({
         return list;
       }
     } catch {
+    } finally {
+      setIsLoadingProjects(false);
     }
 
     setProjects([]);
@@ -285,7 +290,7 @@ export function CreateTaskModal({
       });
     }
 
-    const adminFlag = activeUser?.userType === 'admin';
+    const adminFlag = activeUser?.userType === 'admin' || Number(activeUser?.user_role) === 1;
     if (resourcesLoadedRef.current !== sessionKey) {
       resourcesLoadedRef.current = sessionKey;
       fetchProjects();
@@ -337,7 +342,7 @@ export function CreateTaskModal({
         setFormData({
           title: '',
           description: '',
-          projectId: initialProjectId || '',
+          projectId: initialProjectId || (!adminFlag && projects.length === 1 ? projects[0]._id : ''),
           assignedTo: !adminFlag && activeUser?._id ? [activeUser._id] : [],
           priority: 'Medium',
           status: 'To Do',
@@ -357,6 +362,12 @@ export function CreateTaskModal({
       setError(null);
     }
   }, [isOpen, editingTask, initialProjectId, projectsOptions, employeesList, propUser, fetchProjects, fetchEmployees, fetchClients, getDraft]);
+
+  useEffect(() => {
+    if (!isAdmin && !editingTask && !formData.projectId && projects.length === 1) {
+      setFormData((prev) => ({ ...prev, projectId: projects[0]._id }));
+    }
+  }, [projects, isAdmin, editingTask, formData.projectId]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -485,9 +496,37 @@ export function CreateTaskModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isAdmin && (!formData.title.trim() || !formData.projectId.trim())) {
-      setError('Please fill all required fields');
-      return;
+
+    if (!editingTask) {
+      if (!formData.projectId.trim()) {
+        setError('Please choose a project');
+        return;
+      }
+
+      if (!formData.title.trim()) {
+        setError('Task name is required');
+        return;
+      }
+
+      if (!isAdmin) {
+        if (projects.length === 0) {
+          setError('You are not assigned to any project and cannot create a task.');
+          return;
+        }
+
+        const isAssigned = projects.some(
+          (p) => String(p._id) === String(formData.projectId)
+        );
+        if (!isAssigned) {
+          setError('You are not assigned to this project and cannot create tasks in it.');
+          return;
+        }
+      }
+    } else {
+      if (isAdmin && (!formData.title.trim() || !formData.projectId.trim())) {
+        setError('Please fill all required fields');
+        return;
+      }
     }
 
     try {
@@ -647,7 +686,7 @@ export function CreateTaskModal({
           )}
 
           <form onSubmit={handleSubmit}>
-            {isAdmin && (
+            {isAdmin ? (
               <>
                 {/* Row 1: Choose Project, Contact Person, & Priority */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
@@ -706,10 +745,6 @@ export function CreateTaskModal({
                     value={formData.status}
                     options={[
                       { value: 'To Do', label: 'To Do', badgeBg: '#f1f5f9', badgeColor: '#475569' },
-                      // { value: 'In Progress', label: 'In Progress',  badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-                      // { value: 'Partially Completed', label: 'Partially Completed', badgeBg: '#fff7ed', badgeColor: '#c2410c' },
-                      // { value: 'Review', label: 'Review', badgeBg: '#faf5ff', badgeColor: '#7e22ce' },
-                      // { value: 'Completed', label: 'Completed', badgeBg: '#ecfdf5', badgeColor: '#047857' },
                     ]}
                     onChange={(val) => setFormData({ ...formData, status: val as any })}
                   />
@@ -762,7 +797,6 @@ export function CreateTaskModal({
                         setFormData((prev) => ({
                           ...prev,
                           task_assign_date: val,
-                          // Clear the reason when the assignment date is removed.
                           task_delay_reason: val
                             ? prev.task_delay_reason
                             : '',
@@ -833,13 +867,71 @@ export function CreateTaskModal({
                   onAddNewEmployeeClick={() => setIsEmployeeModalOpen(true)}
                 />
               </>
+            ) : (
+              /* =========================================================
+                 EMPLOYEE TASK CREATION: Project, Task Name, Description
+                 ========================================================= */
+              !editingTask && (
+                <>
+                  {!isLoadingProjects && projects.length === 0 && (
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        marginBottom: '16px',
+                        borderRadius: '8px',
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        color: '#991b1b',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                      }}
+                    >
+                      <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                      <div>
+                        <strong>No Project Assigned:</strong> You are not assigned to any project. You cannot create a task until an administrator assigns you to a project.
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <CustomDropdown
+                      label="Choose Project *"
+                      placeholder={
+                        isLoadingProjects
+                          ? 'Loading assigned projects...'
+                          : projects.length === 0
+                          ? 'No assigned project found'
+                          : 'Choose Project'
+                      }
+                      value={formData.projectId}
+                      disabled={projects.length === 0 || isLoadingProjects}
+                      options={[
+                        { value: '', label: 'Choose Project' },
+                        ...projects.map((p) => ({
+                          value: p._id,
+                          label: p.name,
+                          color: p.color || '#3b82f6',
+                        })),
+                      ]}
+                      onChange={(val) => setFormData((prev) => ({ ...prev, projectId: val }))}
+                    />
+                    {!isLoadingProjects && projects.length === 0 && (
+                      <span style={{ fontSize: '0.75rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                        You must be assigned to at least one project to create a task.
+                      </span>
+                    )}
+                  </div>
+                </>
+              )
             )}
 
 
             {/* Task Title */}
             <div className="form-group" style={{ marginBottom: '16px' }}>
               <label className="form-label">
-                Task Title *
+                Task Name *
                 {!isAdmin && editingTask && (
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '8px', fontWeight: 500 }}>
                     (Read-only for employee)
@@ -851,7 +943,7 @@ export function CreateTaskModal({
                 className="form-control"
                 placeholder="e.g. Implement user authentication workflow"
                 value={formData.title}
-                disabled={!isAdmin && Boolean(editingTask)}
+                disabled={(!isAdmin && Boolean(editingTask)) || (!isAdmin && !editingTask && (projects.length === 0 || isLoadingProjects))}
                 style={
                   !isAdmin && editingTask
                     ? { background: 'var(--bg-tertiary)', cursor: 'not-allowed', opacity: 0.85 }
@@ -915,19 +1007,6 @@ export function CreateTaskModal({
                     />
                   </div>
                 </div>
-
-                {/* <div>
-                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-                    Tags (comma separated)
-                  </label>
-                  <textarea
-                    className="form-control"
-                    style={{ minHeight: '62px', height: '62px', resize: 'vertical', fontSize: '0.8rem', padding: '8px 10px' }}
-                    value={formData.tags}
-                    onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                    placeholder="e.g., frontend, urgent, bug"
-                  />
-                </div> */}
               </div>
             )}
 
@@ -936,13 +1015,13 @@ export function CreateTaskModal({
                 type="button"
                 className="btn btn-secondary"
                 onClick={onClose}
-
               >
                 Cancel
               </button>
               <Button
                 type="submit"
                 loading={submitting}
+                disabled={!isAdmin && !editingTask && (projects.length === 0 || isLoadingProjects)}
                 className="btn btn-primary"
               >
                 {editingTask ? 'Update Task' : 'Create Task'}

@@ -1,3 +1,5 @@
+import { AttendanceRequestData } from "@/context/PunchContext";
+
 export interface AttendanceData {
   _id?: string;
 
@@ -53,7 +55,9 @@ export interface PunchStatus {
 
   attendance: AttendanceData | null;
 
-  pendingRequest?: any;
+  pendingRequest?: AttendanceRequestData | null;
+
+  rejectedRequest?: AttendanceRequestData | null;
 }
 
 const STORAGE_KEY = "worktracker_punch_state";
@@ -170,7 +174,7 @@ function createPunchError(
   const error =
     new Error(
       data?.message ||
-        fallbackMessage
+      fallbackMessage
     ) as PunchError;
 
   error.requiresRequest =
@@ -299,14 +303,13 @@ export const punchService = {
     ) {
       return {
         isPunchedIn: false,
-
         canPunchIn: true,
-
         canPunchOut: false,
-
         viewMode: true,
-
         attendance: null,
+
+        pendingRequest: null,
+        rejectedRequest: null,
       };
     }
 
@@ -336,10 +339,10 @@ export const punchService = {
 
           viewMode:
             parsed.viewMode !==
-            undefined
+              undefined
               ? Boolean(
-                  parsed.viewMode
-                )
+                parsed.viewMode
+              )
               : !parsed.isPunchedIn,
 
           attendance:
@@ -419,28 +422,28 @@ export const punchService = {
 
           canPunchIn:
             data.canPunchIn !==
-            undefined
+              undefined
               ? Boolean(
-                  data.canPunchIn
-                )
+                data.canPunchIn
+              )
               : !data.isPunchedIn,
 
           canPunchOut:
             data.canPunchOut !==
-            undefined
+              undefined
               ? Boolean(
-                  data.canPunchOut
-                )
+                data.canPunchOut
+              )
               : Boolean(
-                  data.isPunchedIn
-                ),
+                data.isPunchedIn
+              ),
 
           viewMode:
             data.viewMode !==
-            undefined
+              undefined
               ? Boolean(
-                  data.viewMode
-                )
+                data.viewMode
+              )
               : !data.isPunchedIn,
 
           attendance:
@@ -448,6 +451,8 @@ export const punchService = {
 
           pendingRequest:
             data.pendingRequest || null,
+          rejectedRequest:
+            data.rejectedRequest || null,
         };
 
         /*
@@ -643,10 +648,10 @@ export const punchService = {
 
           viewMode:
             data.viewMode !==
-            undefined
+              undefined
               ? Boolean(
-                  data.viewMode
-                )
+                data.viewMode
+              )
               : true,
 
           attendance:
@@ -748,7 +753,7 @@ export const punchService = {
       ) {
         throw new Error(
           data.message ||
-            "Failed to submit attendance request."
+          "Failed to submit attendance request."
         );
       }
 
@@ -829,17 +834,17 @@ export const punchService = {
     }
 
     const emptyStatus: PunchStatus =
-      {
-        isPunchedIn: false,
+    {
+      isPunchedIn: false,
 
-        canPunchIn: true,
+      canPunchIn: true,
 
-        canPunchOut: false,
+      canPunchOut: false,
 
-        viewMode: true,
+      viewMode: true,
 
-        attendance: null,
-      };
+      attendance: null,
+    };
 
     /*
      * Explicitly dispatch because
