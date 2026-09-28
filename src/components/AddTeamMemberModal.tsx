@@ -251,6 +251,17 @@ const [roles, setRoles] = useState<
 
         setFetchedProjects(projects);
 
+        // If editing and project is not yet set, check if this employee belongs to any project
+        if (mode === 'edit' && employee?._id) {
+          const found = projectData.find((p: any) =>
+            Array.isArray(p.project_users) &&
+            p.project_users.some((u: any) => String(u?._id || u) === String(employee._id))
+          );
+          if (found?.name) {
+            setProject((prev) => prev || found.name);
+          }
+        }
+
         console.log(
           'Loaded backend projects for employee form:',
           projects
@@ -320,6 +331,7 @@ const [roles, setRoles] = useState<
         avatarColor?: string;
         userType?: 'admin' | 'employee';
         Project?: string;
+        project?: string;
         password?: string;
         role_id?: string;
         roleId?: string;
@@ -330,7 +342,7 @@ const [roles, setRoles] = useState<
       setPassword(String(emp.password ?? 'password123'));
       setDesignation(String(emp.designation ?? emp.role ?? ''));
       setRoleId(String(emp.role_id ?? emp.roleId ?? ''));
-      setProject(String(emp.Project ?? ''));
+      setProject(String(emp.Project ?? emp.project ?? ''));
       setGroup(String(emp.group ?? ''));
       setStatus(
         typeof emp.status === 'boolean'
@@ -654,6 +666,7 @@ const [roles, setRoles] = useState<
             group: group || null,
             status,
             workMode,
+            Project: project.trim(),
           }),
         });
 
@@ -692,6 +705,7 @@ const [roles, setRoles] = useState<
           group: group.trim() || null,
           status: status === "Active",
           workMode,
+          Project: project.trim(),
         };
 
         // Password only update if user entered a new one
@@ -928,7 +942,13 @@ const [roles, setRoles] = useState<
                   ? "No projects found"
                   : "Select Project"
               }
-              value={project ?? ''}
+              value={
+                allProjectOptions.find(
+                  (p) =>
+                    p.name.toLowerCase() === (project ?? '').toLowerCase() ||
+                    p._id === project
+                )?.name ?? (project ?? '')
+              }
               options={allProjectOptions.map((p) => ({
                 value: p.name,
                 label: p.name,

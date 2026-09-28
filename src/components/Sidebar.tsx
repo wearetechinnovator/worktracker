@@ -535,7 +535,7 @@ export default function Sidebar() {
 									>
 										<div className="sidebar-group-title">
 											<LogIn />
-											<span>Time & Attendance</span>
+											<span>Attendance Master</span>
 										</div>
 										<ChevronDown
 											size={14}

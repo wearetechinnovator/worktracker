@@ -244,6 +244,29 @@ async function getOpenAttendance(
 }
 
 /**
+ * Find an approved attendance request that is still an allowance.
+ * Approval does NOT perform the punch action. The employee must click
+ * Punch In / Punch Out after approval. The request is consumed only when
+ * that actual punch action succeeds.
+ */
+async function getApprovedAllowance(
+  userId: any,
+  attendanceDate: string,
+  requestType: "punchIn" | "punchOut"
+) {
+  return AttendanceRequest.findOne({
+    employee_id: userId,
+    attendance_date: attendanceDate,
+    request_type: requestType,
+    status: "Approved",
+    used_at: null,
+  }).sort({
+    reviewed_at: -1,
+    createdAt: -1,
+  });
+}
+
+/**
  * Make sure an old attendance document
  * has attendance_date.
  *
@@ -481,6 +504,28 @@ export async function GET() {
         })
         .lean();
 
+    const approvedPunchInRequest =
+      await AttendanceRequest.findOne({
+        employee_id: user._id,
+        attendance_date: today,
+        request_type: "punchIn",
+        status: "Approved",
+        used_at: null,
+      })
+        .sort({ reviewed_at: -1, createdAt: -1 })
+        .lean();
+
+    const approvedPunchOutRequest =
+      await AttendanceRequest.findOne({
+        employee_id: user._id,
+        attendance_date: activeAttendance?.attendance_date || today,
+        request_type: "punchOut",
+        status: "Approved",
+        used_at: null,
+      })
+        .sort({ reviewed_at: -1, createdAt: -1 })
+        .lean();
+
     if (activeAttendance) {
       /*
        * Old record safety.
@@ -520,6 +565,9 @@ export async function GET() {
         rejectedRequest:
           rejectedRequest || null,
 
+        approvedRequest:
+          approvedPunchOutRequest || null,
+
         viewMode: false,
       });
     }
@@ -539,16 +587,31 @@ export async function GET() {
     const isAdmin =
       Number(user.user_role) === 1;
 
+    /*
+     * IMPORTANT:
+     * If today's attendance is already completed (Punch In + Punch Out),
+     * the employee must NOT be allowed to Punch In again on the same day.
+     * This state must come from the server because the UI may otherwise
+     * open the request modal again.
+     */
+    const isAlreadyPunchedOutToday = Boolean(
+      todayAttendance?.punch_in_on &&
+      todayAttendance?.punch_out_on
+    );
+
     return NextResponse.json({
       success: true,
 
       isPunchedIn: false,
 
       canPunchIn:
-        !pendingRequest ||
-        pendingRequest.request_type !== "punchIn",
+        !isAlreadyPunchedOutToday &&
+        (!pendingRequest ||
+          pendingRequest.request_type !== "punchIn"),
 
       canPunchOut: false,
+
+      isAlreadyPunchedOutToday,
 
       attendance:
         todayAttendance || null,
@@ -558,6 +621,9 @@ export async function GET() {
 
       rejectedRequest:
         rejectedRequest || null,
+
+      approvedRequest:
+        approvedPunchInRequest || null,
 
       viewMode: !isAdmin,
     });
@@ -928,7 +994,13 @@ export async function POST(
 
             canPunchOut: false,
 
-            requiresRequest: true,
+            /*
+             * This is NOT a requestable situation.
+             * The employee has already completed today's attendance.
+             * Do not set requiresRequest=true, otherwise the frontend
+             * will incorrectly open the Admin Approval modal again.
+             */
+            requiresRequest: false,
 
             requestType:
               "punchIn",
@@ -949,6 +1021,15 @@ export async function POST(
         );
       }
 
+      const approvedPunchInRequest =
+        !isAdmin
+          ? await getApprovedAllowance(
+              effectiveUserId,
+              attendanceDate,
+              "punchIn"
+            )
+          : null;
+
       /*
        * ---------------------------------------------------
        * Punch In time window.
@@ -964,7 +1045,7 @@ export async function POST(
           settings.punchInEndTime
         );
 
-      if (!punchInAllowed) {
+      if (!punchInAllowed && !approvedPunchInRequest) {
         return NextResponse.json(
           {
             success: false,
@@ -1124,6 +1205,21 @@ export async function POST(
         }
       );
 
+      if (approvedPunchInRequest) {
+        await AttendanceRequest.updateOne(
+          {
+            _id: approvedPunchInRequest._id,
+            status: "Approved",
+            used_at: null,
+          },
+          {
+            $set: {
+              used_at: new Date(),
+            },
+          }
+        );
+      }
+
       return NextResponse.json({
         success: true,
 
@@ -1241,6 +1337,15 @@ export async function POST(
         );
       }
 
+      const approvedPunchOutRequest =
+        !isAdmin
+          ? await getApprovedAllowance(
+              effectiveUserId,
+              String(openAttendance.attendance_date),
+              "punchOut"
+            )
+          : null;
+
       /*
        * ---------------------------------------------------
        * Punch Out time window.
@@ -1256,7 +1361,7 @@ export async function POST(
           settings.punchOutEndTime
         );
 
-      if (!punchOutAllowed) {
+      if (!punchOutAllowed && !approvedPunchOutRequest) {
         return NextResponse.json(
           {
             success: false,
@@ -1369,6 +1474,21 @@ export async function POST(
        */
       await openAttendance.save();
 
+      if (approvedPunchOutRequest) {
+        await AttendanceRequest.updateOne(
+          {
+            _id: approvedPunchOutRequest._id,
+            status: "Approved",
+            used_at: null,
+          },
+          {
+            $set: {
+              used_at: new Date(),
+            },
+          }
+        );
+      }
+
       /*
        * Debug information.
        */
@@ -1400,7 +1520,7 @@ export async function POST(
 
         isPunchedIn: false,
 
-        canPunchIn: true,
+        canPunchIn: false,
 
         canPunchOut: false,
 

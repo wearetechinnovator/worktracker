@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import mongoose from "mongoose";
 
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
+import Project from "@/models/Project";
 import { currentUser } from "@/lib/auth";
 import { createGlobalLog } from "@/lib/globalLog";
 
@@ -41,6 +43,12 @@ export async function GET() {
       );
     }
 
+    const adminProjects = await Project.find({
+      created_by: admin._id,
+    })
+      .select("name project_users")
+      .lean();
+
     const employees =
       await User.find({
         user_role: 2,
@@ -62,6 +70,7 @@ export async function GET() {
             "isVerify",
             "created_by",
             "settings_id",
+            "workMode",
           ].join(" ")
         )
         .sort({
@@ -71,48 +80,61 @@ export async function GET() {
 
     const data =
       employees.map(
-        (employee: any) => ({
-          ...employee,
+        (employee: any) => {
+          const foundProj = adminProjects.find((p: any) =>
+            Array.isArray(p.project_users) &&
+            p.project_users.some(
+              (u: any) => String(u?._id || u) === String(employee._id)
+            )
+          );
+          const employeeProject = foundProj ? foundProj.name : null;
 
-          _id: String(
-            employee._id
-          ),
+          return {
+            ...employee,
 
-          role_id:
-            employee.role_id
-              ? String(
-                  employee.role_id
-                )
-              : null,
+            _id: String(
+              employee._id
+            ),
 
-          settings_id:
-            employee.settings_id
-              ? String(
-                  employee.settings_id
-                )
-              : null,
+            Project: employeeProject,
+            workMode: employee.workMode || "Hybrid",
 
-          created_by:
-            employee.created_by
-              ? String(
-                  employee.created_by
-                )
-              : null,
+            role_id:
+              employee.role_id
+                ? String(
+                    employee.role_id
+                  )
+                : null,
 
-          name:
-            employee.full_name ||
-            "Unknown User",
+            settings_id:
+              employee.settings_id
+                ? String(
+                    employee.settings_id
+                  )
+                : null,
 
-          role:
-            employee.designation ||
-            "Employee",
+            created_by:
+              employee.created_by
+                ? String(
+                    employee.created_by
+                  )
+                : null,
 
-          userType:
-            "employee",
+            name:
+              employee.full_name ||
+              "Unknown User",
 
-          avatarColor:
-            "#3b82f6",
-        })
+            role:
+              employee.designation ||
+              "Employee",
+
+            userType:
+              "employee",
+
+            avatarColor:
+              "#3b82f6",
+          };
+        }
       );
 
     return NextResponse.json({
@@ -307,6 +329,10 @@ export async function POST(
        CREATE EMPLOYEE
     ------------------------- */
 
+    const projectName = (body.Project || body.project)
+      ? String(body.Project || body.project).trim()
+      : null;
+
     const employee =
       await User.create({
         full_name:
@@ -325,6 +351,8 @@ export async function POST(
 
         group:
           body.group || null,
+
+        workMode: body.workMode || "Hybrid",
 
         phone_number:
           body.phone_number ||
@@ -358,6 +386,22 @@ export async function POST(
 
         isVerify: true,
       });
+
+    if (projectName) {
+      const targetProj = await Project.findOne({
+        created_by: admin._id,
+        $or: [
+          { name: { $regex: `^${projectName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" } },
+          ...(mongoose.Types.ObjectId.isValid(projectName) ? [{ _id: projectName }] : []),
+        ],
+      });
+      if (targetProj) {
+        await Project.updateOne(
+          { _id: targetProj._id },
+          { $addToSet: { project_users: employee._id } }
+        );
+      }
+    }
 
     /* =====================================================
        GLOBAL LOG - CREATE EMPLOYEE
@@ -786,6 +830,46 @@ export async function PATCH(
     }
 
     /* -------------------------
+       PROJECT (Stored in Project.project_users)
+    ------------------------- */
+
+    let assignedProjectName: string | null = null;
+
+    if (
+      body.Project !== undefined ||
+      body.project !== undefined
+    ) {
+      const projName = String(body.Project ?? body.project ?? "").trim();
+
+      if (projName) {
+        const targetProj = await Project.findOne({
+          created_by: loggedInUser._id,
+          $or: [
+            { name: { $regex: `^${projName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" } },
+            ...(mongoose.Types.ObjectId.isValid(projName) ? [{ _id: projName }] : []),
+          ],
+        });
+
+        if (targetProj) {
+          assignedProjectName = targetProj.name;
+          await Project.updateOne(
+            { _id: targetProj._id },
+            { $addToSet: { project_users: id } }
+          );
+          await Project.updateMany(
+            { _id: { $ne: targetProj._id }, created_by: loggedInUser._id },
+            { $pull: { project_users: id } }
+          );
+        }
+      } else {
+        await Project.updateMany(
+          { created_by: loggedInUser._id },
+          { $pull: { project_users: id } }
+        );
+      }
+    }
+
+    /* -------------------------
        PASSWORD
     ------------------------- */
 
@@ -852,6 +936,7 @@ export async function PATCH(
           "isVerify",
           "status",
           "created_by",
+          "workMode",
           "createdAt",
           "updatedAt",
         ].join(" ")
@@ -954,13 +1039,26 @@ export async function PATCH(
       },
     });
 
+    const employeeData = employee.toObject ? employee.toObject() : employee;
+    if (assignedProjectName !== null) {
+      employeeData.Project = assignedProjectName;
+    } else if (body.Project === "" || body.project === "") {
+      employeeData.Project = null;
+    } else {
+      const existingProj = await Project.findOne({
+        created_by: loggedInUser._id,
+        project_users: id,
+      }).select("name").lean();
+      employeeData.Project = existingProj ? existingProj.name : null;
+    }
+
     return NextResponse.json({
       success: true,
 
       message:
         "Employee updated successfully",
 
-      data: employee,
+      data: employeeData,
     });
   } catch (error) {
     console.error(

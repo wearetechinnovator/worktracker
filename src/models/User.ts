@@ -123,6 +123,12 @@ const userSchema = new Schema(
       default: null,
     },
 
+    workMode: {
+      type: String,
+      default: "Hybrid",
+      trim: true,
+    },
+
     created_by: {
       type: Schema.Types.ObjectId,
       ref: "User",

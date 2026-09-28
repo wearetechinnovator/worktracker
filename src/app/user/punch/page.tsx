@@ -2,11 +2,26 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, LogIn, LogOut, CheckCircle2, AlertCircle, Calendar, Users } from 'lucide-react';
+import { Clock, LogIn, LogOut, CheckCircle2, AlertCircle, Calendar, Users, History, XCircle } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
 import PunchRequestModal from '@/components/PunchRequestModal';
 import { punchService } from '@/lib/punchService';
 import { usePunch } from '@/context/PunchContext';
+
+interface AttendanceRequestHistory {
+  _id: string;
+  attendance_date: string;
+  request_type: 'punchIn' | 'punchOut';
+  reason: string;
+  requested_punch_at: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  reviewed_at?: string | null;
+  rejection_reason?: string | null;
+  reviewed_by?: {
+    full_name?: string;
+    email?: string;
+  } | null;
+}
 
 interface PunchData {
   isPunchedIn?: boolean;
@@ -53,20 +68,20 @@ const DEFAULT_DEMO_USER = {
 
 export default function PunchPage() {
   const router = useRouter();
-  const { 
-    isPunchedIn, 
-    canPunchIn, 
-    canPunchOut, 
-    attendance, 
+  const {
+    isPunchedIn,
+    canPunchIn,
+    canPunchOut,
+    attendance,
     pendingRequest,
     rejectedRequest,
-    loading: ctxLoading, 
-    punchIn: ctxPunchIn, 
-    punchOut: ctxPunchOut, 
+    loading: ctxLoading,
+    punchIn: ctxPunchIn,
+    punchOut: ctxPunchOut,
     refreshPunch,
-    user 
+    user
   } = usePunch();
-  
+
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +91,10 @@ export default function PunchPage() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [isPreparingReport, setIsPreparingReport] = useState(false);
   const [locationStatus, setLocationStatus] = useState<string>('');
+
+  // Attendance request activity
+  const [requestHistory, setRequestHistory] = useState<AttendanceRequestHistory[]>([]);
+  const [requestHistoryLoading, setRequestHistoryLoading] = useState(false);
 
   // Punch Request Modal State
   const [isPunchRequestModalOpen, setIsPunchRequestModalOpen] = useState(false);
@@ -106,6 +125,16 @@ export default function PunchPage() {
     return `${hours}:${minutes}`;
   };
 
+  // Refresh server punch state periodically so an admin approval
+  // becomes available without automatically executing the punch.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshPunch().catch(() => { });
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [refreshPunch]);
+
   // Update current time every second
   useEffect(() => {
     const updateTime = () => {
@@ -127,9 +156,63 @@ export default function PunchPage() {
             setEmployeesList(json.data);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [user]);
+
+  // Load this employee's request history so the employee can see
+  // exactly when a request was submitted and how the admin responded.
+  useEffect(() => {
+    if (!user || user.userType === 'admin') return;
+
+    const loadRequestHistory = async () => {
+      try {
+        setRequestHistoryLoading(true);
+
+        const response = await fetch('/api/attendance/requests', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        const raw = await response.text();
+
+        if (!raw.trim()) {
+          throw new Error('Empty attendance request response.');
+        }
+
+        const json = JSON.parse(raw);
+
+        if (response.ok && json.success && Array.isArray(json.data)) {
+          setRequestHistory(json.data);
+        }
+      } catch (historyError) {
+        console.error('Failed to load attendance request history:', historyError);
+      } finally {
+        setRequestHistoryLoading(false);
+      }
+    };
+
+    loadRequestHistory();
+  }, [user, pendingRequest, rejectedRequest]);
+
+  const formatRequestDateTime = (value?: string | null) => {
+    if (!value) return '-';
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
 
   const formatTimeTo12Hour = (time24: string) => {
     if (!time24) return '';
@@ -180,8 +263,7 @@ export default function PunchPage() {
   const submitPunch = async (action: 'punchIn' | 'punchOut') => {
     if (pendingRequest) {
       setError(
-        `You already have a ${
-          pendingRequest.request_type === 'punchIn' ? 'Punch In' : 'Punch Out'
+        `You already have a ${pendingRequest.request_type === 'punchIn' ? 'Punch In' : 'Punch Out'
         } request pending admin approval.`
       );
       return;
@@ -242,11 +324,11 @@ export default function PunchPage() {
     return <PageShimmer variant="punch" />;
   }
 
-  const today = new Date().toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
   });
 
   return (
@@ -259,10 +341,10 @@ export default function PunchPage() {
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
           {today}
         </p>
-        <div style={{ 
-          fontSize: '2rem', 
-          fontWeight: 700, 
-          color: 'var(--accent-primary)', 
+        <div style={{
+          fontSize: '2rem',
+          fontWeight: 700,
+          color: 'var(--accent-primary)',
           marginTop: '12px',
           fontFamily: 'monospace'
         }}>
@@ -271,11 +353,11 @@ export default function PunchPage() {
       </div>
 
       {error && (
-        <div className="card" style={{ 
-          borderLeft: '4px solid #ef4444', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '12px', 
+        <div className="card" style={{
+          borderLeft: '4px solid #ef4444',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
           marginBottom: '20px',
           background: '#fef2f2'
         }}>
@@ -285,13 +367,13 @@ export default function PunchPage() {
       )}
 
       {successMsg && (
-        <div className="card" style={{ 
-          borderLeft: '4px solid #10b981', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '12px', 
-          marginBottom: '20px', 
-          background: '#ecfdf5' 
+        <div className="card" style={{
+          borderLeft: '4px solid #10b981',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '20px',
+          background: '#ecfdf5'
         }}>
           <CheckCircle2 style={{ color: '#10b981' }} />
           <p style={{ color: '#065f46', fontWeight: 700 }}>{successMsg}</p>
@@ -347,96 +429,13 @@ export default function PunchPage() {
         </div>
       )}
 
-      {/* Rejected Request Alert */}
-      {rejectedRequest && !pendingRequest && (
-        <div
-          className="card"
-          style={{
-            borderLeft: '4px solid #dc2626',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '12px',
-            marginBottom: '20px',
-            background: '#fef2f2',
-          }}
-        >
-          <AlertCircle
-            style={{
-              color: '#dc2626',
-              flexShrink: 0,
-              marginTop: '2px',
-            }}
-          />
-
-          <div>
-            <p style={{ color: '#991b1b', fontWeight: 700, margin: 0 }}>
-              {rejectedRequest.request_type === 'punchIn' ? 'Punch In' : 'Punch Out'} Request Rejected
-            </p>
-
-            <p style={{ color: '#b91c1c', fontSize: '0.78rem', margin: '4px 0 0', lineHeight: 1.5 }}>
-              Your request for <strong>{rejectedRequest.attendance_date}</strong> was rejected by the admin.
-            </p>
-
-            <div style={{ marginTop: '9px', padding: '9px 11px', borderRadius: '8px', background: 'rgba(220, 38, 38, 0.08)' }}>
-              <div style={{ color: '#991b1b', fontSize: '0.72rem', fontWeight: 700, marginBottom: '3px' }}>
-                Admin's Reason
-              </div>
-              <div style={{ color: '#7f1d1d', fontSize: '0.8rem', lineHeight: 1.5 }}>
-                {rejectedRequest.rejection_reason || 'No rejection reason was provided.'}
-              </div>
-            </div>
-
-            <p style={{ color: '#991b1b', fontSize: '0.72rem', margin: '8px 0 0' }}>
-              You can submit a new request if required.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Pending Request Alert */}
-      {pendingRequest && (
-        <div className="card" style={{ 
-          borderLeft: '4px solid #f59e0b', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '12px', 
-          marginBottom: '20px', 
-          background: '#fffbeb' 
-        }}>
-          <Clock style={{ color: '#d97706', flexShrink: 0 }} />
-          <div>
-            <p style={{ color: '#92400e', fontWeight: 700, margin: 0 }}>
-              {pendingRequest.request_type === 'punchIn' ? 'Punch In' : 'Punch Out'} Request Pending Admin Approval
-            </p>
-            <p style={{ color: '#b45309', fontSize: '0.78rem', margin: '2px 0 0 0' }}>
-              Submitted on {pendingRequest.attendance_date}. Reason: &quot;{pendingRequest.reason}&quot;. Your attendance will update once reviewed.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Shift Completed / Punched Out Banner */}
-      {attendance?.checkOut && !isPunchedIn && !pendingRequest && (
-        <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid #3b82f6', background: '#eff6ff', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <CheckCircle2 style={{ color: '#3b82f6', flexShrink: 0 }} />
-          <div>
-            <p style={{ fontWeight: 700, color: '#1e40af', fontSize: '0.85rem', margin: 0 }}>
-              Punched Out for Today
-            </p>
-            <p style={{ color: '#1d4ed8', fontSize: '0.78rem', margin: '2px 0 0 0' }}>
-              You punched out at <b>{attendance.checkOut}</b>. If you need to punch in again, click <b>PUNCH IN</b> to submit a request to your admin.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Punch Buttons */}
       <div className="card" style={{ marginBottom: '24px' }}>
         <h3 className="card-title" style={{ marginBottom: '20px' }}>Today&apos;s Attendance</h3>
-        
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: '1fr 1fr', 
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
           gap: '20px',
           marginBottom: '24px'
         }}>
@@ -504,9 +503,9 @@ export default function PunchPage() {
         </div>
 
         {/* Status Info */}
-        <div style={{ 
-          background: 'var(--bg-secondary)', 
-          padding: '16px', 
+        <div style={{
+          background: 'var(--bg-secondary)',
+          padding: '16px',
           borderRadius: '8px',
           fontSize: '0.85rem'
         }}>
@@ -527,73 +526,302 @@ export default function PunchPage() {
         </div>
       </div>
 
-      {/* Current Status */}
-      {attendance && (
-        <div className="card">
-          <h3 className="card-title" style={{ marginBottom: '16px' }}>Today's Record</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
+      {/* Attendance Request Activity Log */}
+      {user?.userType !== 'admin' && (
+        <div
+          className="card"
+          style={{
+            marginBottom: '24px',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              marginBottom: '16px',
+            }}
+          >
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                Status
-              </div>
-              <div style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>
-                {attendance.status || 'Present'}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                Check In
-              </div>
-              <div style={{ fontWeight: 700 }}>
-                {attendance.checkIn || '-'}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                Check Out
-              </div>
-              <div style={{ fontWeight: 700 }}>
-                {attendance.checkOut || '-'}
-              </div>
+              <h3
+                className="card-title"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '4px',
+                }}
+              >
+                <History
+                  size={18}
+                  style={{ color: 'var(--accent-primary)' }}
+                />
+                Attendance Request History
+              </h3>
+
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '0.75rem',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                See when you requested Punch In/Out and when the admin responded.
+              </p>
             </div>
           </div>
 
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: '1fr 1fr', 
-            gap: '16px', 
-            borderTop: '1px solid var(--border-color)', 
-            paddingTop: '14px',
-            fontSize: '0.8rem'
-          }}>
-            <div>
-              <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                Check In Details
-              </div>
-              <div style={{ color: 'var(--text-secondary)' }}>
-                <div>• <strong>IP Address:</strong> {attendance.punch_in_ip || '-'}</div>
-                <div>• <strong>Browser:</strong> {attendance.punch_in_browser || '-'}</div>
-                {attendance.punch_in_geo && attendance.punch_in_geo.length >= 2 && (
-                  <div>• <strong>Geo Coordinates:</strong> {attendance.punch_in_geo[0]}, {attendance.punch_in_geo[1]}</div>
-                )}
-              </div>
+          {requestHistoryLoading ? (
+            <div
+              style={{
+                padding: '24px 0',
+                textAlign: 'center',
+                color: 'var(--text-secondary)',
+                fontSize: '0.8rem',
+              }}
+            >
+              Loading request history...
             </div>
+          ) : requestHistory.length === 0 ? (
+            <div
+              style={{
+                padding: '22px',
+                borderRadius: '10px',
+                background: 'var(--bg-secondary)',
+                textAlign: 'center',
+                color: 'var(--text-secondary)',
+                fontSize: '0.8rem',
+              }}
+            >
+              No attendance requests yet.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}
+            >
+              {requestHistory.map((request) => {
+                const isApproved = request.status === 'Approved';
+                const isRejected = request.status === 'Rejected';
 
-            <div>
-              <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                Check Out Details
-              </div>
-              <div style={{ color: 'var(--text-secondary)' }}>
-                <div>• <strong>IP Address:</strong> {attendance.punch_out_ip || '-'}</div>
-                <div>• <strong>Browser:</strong> {attendance.punch_out_browser || '-'}</div>
-                {attendance.punch_out_geo && attendance.punch_out_geo.length >= 2 && (
-                  <div>• <strong>Geo Coordinates:</strong> {attendance.punch_out_geo[0]}, {attendance.punch_out_geo[1]}</div>
-                )}
-              </div>
+                return (
+                  <div
+                    key={request._id}
+                    style={{
+                      position: 'relative',
+                      padding: '13px 14px 13px 18px',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border-color)',
+                      background: isApproved
+                        ? '#f0fdf4'
+                        : isRejected
+                          ? '#fef2f2'
+                          : '#fffbeb',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: '4px',
+                        background: isApproved
+                          ? '#10b981'
+                          : isRejected
+                            ? '#ef4444'
+                            : '#f59e0b',
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: '12px',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontWeight: 800,
+                            fontSize: '0.84rem',
+                            color: 'var(--text-primary)',
+                          }}
+                        >
+                          {request.request_type === 'punchIn'
+                            ? 'Punch In Request'
+                            : 'Punch Out Request'}
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: '4px',
+                            fontSize: '0.72rem',
+                            color: 'var(--text-secondary)',
+                          }}
+                        >
+                          Requested on{' '}
+                          <strong>
+                            {formatRequestDateTime(
+                              request.requested_punch_at
+                            )}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <span
+                        style={{
+                          padding: '4px 9px',
+                          borderRadius: '999px',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          background: isApproved
+                            ? '#dcfce7'
+                            : isRejected
+                              ? '#fee2e2'
+                              : '#fef3c7',
+                          color: isApproved
+                            ? '#047857'
+                            : isRejected
+                              ? '#b91c1c'
+                              : '#b45309',
+                        }}
+                      >
+                        {request.status}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: '10px',
+                        padding: '9px 10px',
+                        borderRadius: '7px',
+                        background: 'rgba(255,255,255,0.7)',
+                        fontSize: '0.75rem',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      <strong>Reason:</strong>{' '}
+                      {request.reason || 'No reason provided.'}
+                    </div>
+
+                    {request.status === 'Pending' && (
+                      <div
+                        style={{
+                          marginTop: '9px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          color: '#b45309',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                        }}
+                      >
+                        <Clock size={13} />
+                        Waiting for admin response
+                      </div>
+                    )}
+
+                    {request.status === 'Approved' && (
+                      <div
+                        style={{
+                          marginTop: '9px',
+                          paddingTop: '9px',
+                          borderTop: '1px solid #bbf7d0',
+                          color: '#047857',
+                          fontSize: '0.72rem',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontWeight: 800,
+                          }}
+                        >
+                          <CheckCircle2 size={14} />
+                          Admin approved this request
+                        </div>
+
+                        <div style={{ marginTop: '4px' }}>
+                          Responded on{' '}
+                          <strong>
+                            {formatRequestDateTime(request.reviewed_at)}
+                          </strong>
+                          {request.reviewed_by?.full_name
+                            ? ` by ${request.reviewed_by.full_name}`
+                            : ''}
+                        </div>
+                      </div>
+                    )}
+
+                    {request.status === 'Rejected' && (
+                      <div
+                        style={{
+                          marginTop: '9px',
+                          paddingTop: '9px',
+                          borderTop: '1px solid #fecaca',
+                          color: '#b91c1c',
+                          fontSize: '0.72rem',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontWeight: 800,
+                          }}
+                        >
+                          <XCircle size={14} />
+                          Admin rejected this request
+                        </div>
+
+                        <div style={{ marginTop: '4px' }}>
+                          Responded on{' '}
+                          <strong>
+                            {formatRequestDateTime(request.reviewed_at)}
+                          </strong>
+                          {request.reviewed_by?.full_name
+                            ? ` by ${request.reviewed_by.full_name}`
+                            : ''}
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: '7px',
+                            padding: '8px 9px',
+                            borderRadius: '7px',
+                            background: '#fff',
+                            color: '#7f1d1d',
+                          }}
+                        >
+                          <strong>Admin's Reason:</strong>{' '}
+                          {request.rejection_reason ||
+                            'No rejection reason was provided.'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          </div>
+          )}
         </div>
       )}
+
+
+
+
 
       {showReportModal && (
         <div className="modal-overlay" onClick={() => setShowReportModal(false)}>
@@ -633,16 +861,7 @@ export default function PunchPage() {
         </div>
       )}
 
-      {/* Back to Dashboard */}
-      <div style={{ textAlign: 'center', marginTop: '24px' }}>
-        <button
-          onClick={() => router.push('/')}
-          className="btn btn-secondary"
-          disabled={processing}
-        >
-          Back to Dashboard
-        </button>
-      </div>
+
 
       {/* Punch Request Modal */}
       <PunchRequestModal
@@ -656,8 +875,7 @@ export default function PunchPage() {
         onSuccess={async () => {
           await refreshPunch();
           setSuccessMsg(
-            `${
-              punchRequestType === 'punchIn' ? 'Punch In' : 'Punch Out'
+            `${punchRequestType === 'punchIn' ? 'Punch In' : 'Punch Out'
             } request submitted to admin successfully.`
           );
         }}

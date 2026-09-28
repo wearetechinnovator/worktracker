@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { 
-  Clock, Plus, Calendar, Edit3, Trash2, ArrowLeft, 
+import {
+  Clock, Plus, Calendar, Edit3, Trash2, ArrowLeft,
   Search, AlertCircle, Loader2, Users, Mail
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
@@ -104,7 +104,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
     try {
       setLoading(true);
       setError(null);
-      
+
       const [projRes, empRes] = await Promise.all([
         fetch('/api/projects', { credentials: 'include', cache: 'no-store' }),
         fetch('/api/users/employees', { credentials: 'include', cache: 'no-store' })
@@ -147,7 +147,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
       setEditProjDesc(proj.short_description || '');
       setEditProjColor('#6366f1');
       setEditProjMembers(Array.isArray(proj.project_users) ? proj.project_users.map((m: any) => typeof m === 'string' ? m : m._id) : []);
-      
+
       if (user.userType === 'employee') {
         setLogEmpId(user._id);
       } else if (empsList.length > 0) {
@@ -314,11 +314,11 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
 
   // Filter logs locally
   const filteredEntries = entries.filter((entry) => {
-    const matchesSearch = 
+    const matchesSearch =
       entry.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (entry.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       entry.employeeName.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesDate = dateFilter ? entry.date === dateFilter : true;
     return matchesSearch && matchesDate;
   });
@@ -340,17 +340,9 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
 
   return (
     <div>
-      {/* Top Breadcrumb Nav */}
-      <div style={{ marginBottom: '16px' }} className="no-print">
-        <Link href="/" className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', gap: '6px' }}>
-          <ArrowLeft size={14} />
-          <span>Back to Dashboard</span>
-        </Link>
-      </div>
-
       {/* Main Grid Layout */}
       <div className="dashboard-grid">
-        
+
         {/* Left Column: Project Header & Work Logs list */}
         <div className="col-8">
           <div className="card" style={{ height: '100%' }}>
@@ -382,22 +374,22 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
             {/* Filter Search */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderTop: '1px solid var(--border-color)', marginTop: '16px', paddingTop: '16px', marginBottom: '12px' }}>
               <h2 className="card-title">Work Logs ({filteredEntries.length})</h2>
-              
+
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                   <Search size={14} style={{ position: 'absolute', left: '8px', color: 'var(--text-muted)' }} />
-                  <input 
-                    type="text" 
-                    placeholder="Search logs/members..." 
-                    className="form-control" 
+                  <input
+                    type="text"
+                    placeholder="Search logs/members..."
+                    className="form-control"
                     style={{ paddingLeft: '28px', width: '180px', height: '28px', fontSize: '0.75rem' }}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
-                <input 
-                  type="date" 
-                  className="form-control" 
+                <input
+                  type="date"
+                  className="form-control"
                   style={{ width: '120px', height: '28px', fontSize: '0.75rem', padding: '2px 6px' }}
                   value={dateFilter}
                   onChange={(e) => setDateFilter(e.target.value)}
@@ -425,7 +417,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
                       <div className="avatar" style={{ backgroundColor: entry.employeeAvatarColor, width: '28px', height: '28px', fontSize: '0.7rem', flexShrink: 0 }}>
                         {entry.employeeName.split(' ').map((n) => n[0]).join('')}
                       </div>
-                      
+
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>{entry.employeeName}</span>
@@ -470,12 +462,12 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
 
         {/* Right Column: Project stats & members summary */}
         <div className="col-4" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          
+
           {/* Card: Stats Summary */}
           <div className="card">
             <div className="project-color-banner" style={{ backgroundColor: project.color, height: '4px', borderRadius: '2px', marginBottom: '12px' }} />
             <h3 className="card-title" style={{ marginBottom: '12px' }}>Project Tracker</h3>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px' }}>
                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>Total Hours Tracked</span>
@@ -532,9 +524,9 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
             <form onSubmit={handleEditProjectSubmit}>
               <div className="form-group">
                 <label className="form-label">Project / Project Name *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   required
                   value={editProjName}
                   onChange={(e) => setEditProjName(e.target.value)}
@@ -543,8 +535,8 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
 
               <div className="form-group">
                 <label className="form-label">Description (Optional)</label>
-                <textarea 
-                  className="form-control" 
+                <textarea
+                  className="form-control"
                   value={editProjDesc}
                   onChange={(e) => setEditProjDesc(e.target.value)}
                 />
@@ -555,7 +547,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '10px' }}>
                   {allEmployees.map(emp => (
                     <label key={emp._id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', cursor: 'pointer' }}>
-                      <input 
+                      <input
                         type="checkbox"
                         checked={editProjMembers.includes(emp._id)}
                         onChange={() => handleMemberSelectToggle(emp._id)}
@@ -590,7 +582,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
             <form onSubmit={handleAddLogSubmit}>
               <div className="form-group">
                 <label className="form-label">Logging Member *</label>
-                <select 
+                <select
                   className="form-control"
                   required
                   value={logEmpId}
@@ -609,9 +601,9 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
 
               <div className="form-group">
                 <label className="form-label">What work was performed? *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   required
                   placeholder="e.g. Coded sidebar layouts"
                   value={logTitle}
@@ -621,9 +613,9 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
 
               <div className="form-group">
                 <label className="form-label">Date *</label>
-                <input 
-                  type="date" 
-                  className="form-control" 
+                <input
+                  type="date"
+                  className="form-control"
                   required
                   value={logDate}
                   onChange={(e) => setLogDate(e.target.value)}
@@ -633,9 +625,9 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Start Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
+                  <input
+                    type="time"
+                    className="form-control"
                     required
                     value={logStart}
                     onChange={(e) => setLogStart(e.target.value)}
@@ -643,9 +635,9 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
                 </div>
                 <div className="form-group">
                   <label className="form-label">End Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
+                  <input
+                    type="time"
+                    className="form-control"
                     required
                     value={logEnd}
                     onChange={(e) => setLogEnd(e.target.value)}
@@ -655,8 +647,8 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
 
               <div className="form-group">
                 <label className="form-label">Session Notes (Optional)</label>
-                <textarea 
-                  className="form-control" 
+                <textarea
+                  className="form-control"
                   placeholder="Details, status, updates..."
                   value={logDesc}
                   onChange={(e) => setLogDesc(e.target.value)}
@@ -693,7 +685,7 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
             <form onSubmit={handleEditLogSubmit}>
               <div className="form-group">
                 <label className="form-label">Logging Member *</label>
-                <select 
+                <select
                   className="form-control"
                   required
                   value={logEmpId}
@@ -712,9 +704,9 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
 
               <div className="form-group">
                 <label className="form-label">What work was performed? *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   required
                   value={logTitle}
                   onChange={(e) => setLogTitle(e.target.value)}
@@ -723,9 +715,9 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
 
               <div className="form-group">
                 <label className="form-label">Date *</label>
-                <input 
-                  type="date" 
-                  className="form-control" 
+                <input
+                  type="date"
+                  className="form-control"
                   required
                   value={logDate}
                   onChange={(e) => setLogDate(e.target.value)}
@@ -735,9 +727,9 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Start Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
+                  <input
+                    type="time"
+                    className="form-control"
                     required
                     value={logStart}
                     onChange={(e) => setLogStart(e.target.value)}
@@ -745,9 +737,9 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
                 </div>
                 <div className="form-group">
                   <label className="form-label">End Time *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
+                  <input
+                    type="time"
+                    className="form-control"
                     required
                     value={logEnd}
                     onChange={(e) => setLogEnd(e.target.value)}
@@ -757,8 +749,8 @@ export default function ProjectDetail({ params }: ProjectPageProps) {
 
               <div className="form-group">
                 <label className="form-label">Session Notes (Optional)</label>
-                <textarea 
-                  className="form-control" 
+                <textarea
+                  className="form-control"
                   value={logDesc}
                   onChange={(e) => setLogDesc(e.target.value)}
                 />

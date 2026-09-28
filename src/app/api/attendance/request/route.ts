@@ -9,21 +9,13 @@ import Notification from "@/models/Notification";
 import { currentUser } from "@/lib/auth";
 
 function getClientIp(req: Request): string {
-  const forwardedFor =
-    req.headers.get("x-forwarded-for");
-
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0].trim();
-  }
-
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  if (forwardedFor) return forwardedFor.split(",")[0].trim();
   return req.headers.get("x-real-ip") || "127.0.0.1";
 }
 
 function getClientBrowser(req: Request): string {
-  return (
-    req.headers.get("user-agent") ||
-    "Unknown Browser"
-  );
+  return req.headers.get("user-agent") || "Unknown Browser";
 }
 
 function getAttendanceDate(date = new Date()): string {
@@ -35,6 +27,25 @@ function getAttendanceDate(date = new Date()): string {
   }).format(date);
 }
 
+async function getUserSettings(user: any) {
+  const adminId = user.created_by;
+  if (!adminId) return null;
+
+  if (user.settings_id) {
+    const direct = await Settings.findOne({
+      _id: user.settings_id,
+      owner_user_id: adminId,
+      status: 1,
+    });
+    if (direct) return direct;
+  }
+
+  return Settings.findOne({
+    owner_user_id: adminId,
+    status: 1,
+  });
+}
+
 export async function POST(req: Request) {
   try {
     await dbConnect();
@@ -43,10 +54,7 @@ export async function POST(req: Request) {
 
     if (!user) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Authentication required",
-        },
+        { success: false, message: "Authentication required" },
         { status: 401 }
       );
     }
@@ -55,113 +63,61 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Only employees can submit attendance requests.",
+          message: "Only employees can submit attendance requests.",
         },
         { status: 403 }
       );
     }
 
-    const body =
-      await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({}));
+    const requestType = body.requestType;
+    const reason = String(body.reason || "").trim();
+    const geo = Array.isArray(body.geo) ? body.geo : [];
+    const systemId = body.systemId || null;
 
-    const requestType =
-      body.requestType;
-
-    const reason =
-      String(body.reason || "").trim();
-
-    const geo =
-      Array.isArray(body.geo)
-        ? body.geo
-        : [];
-
-    const systemId =
-      body.systemId || null;
-
-    if (
-      requestType !== "punchIn" &&
-      requestType !== "punchOut"
-    ) {
+    if (requestType !== "punchIn" && requestType !== "punchOut") {
       return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Invalid request type.",
-        },
+        { success: false, message: "Invalid request type." },
         { status: 400 }
       );
     }
 
     if (!reason) {
       return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Reason is required.",
-        },
+        { success: false, message: "Reason is required." },
         { status: 400 }
       );
     }
 
-    /*
-     * Resolve employee's admin account.
-     */
-    let admin = user.created_by
-      ? await User.findById(user.created_by)
+    const admin = user.created_by
+      ? await User.findOne({ _id: user.created_by, user_role: 1, status: true })
       : null;
-
-    if (!admin || Number(admin.user_role) !== 1) {
-      admin = await User.findOne({ user_role: 1, status: true });
-    }
 
     if (!admin) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "No active admin account was found.",
-        },
+        { success: false, message: "No active admin account was found." },
         { status: 400 }
       );
     }
 
-    /*
-     * Employees inherit attendance settings from their admin.
-     */
-    const settings =
-      (user.settings_id
-        ? await Settings.findOne({
-          _id: user.settings_id,
-          owner_user_id: admin._id,
-          status: 1,
-        })
-        : null) ||
-      (await Settings.findOne({
-        owner_user_id: admin._id,
-        status: 1,
-      })) ||
-      (await Settings.findOne({
-        owner_user_id: admin._id,
-      }));
+    const settings = await getUserSettings(user);
 
     if (!settings) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Attendance settings were not found.",
-        },
+        { success: false, message: "Attendance settings were not found." },
         { status: 400 }
       );
     }
 
-    let openAttendance = null;
+    const now = new Date();
+    const attendanceDate = getAttendanceDate(now);
 
     /*
-     * Don't allow Punch In request if employee already has an active punch-in
-     * or has already completed attendance today.
+     * A request is an ALLOWANCE only.
+     * It never creates or changes Attendance.
      */
     if (requestType === "punchIn") {
-      openAttendance = await Attendance.findOne({
+      const openAttendance = await Attendance.findOne({
         user_id: user._id,
         punch_in_on: { $ne: null },
         punch_out_on: null,
@@ -176,21 +132,29 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
+
+      const todayAttendance = await Attendance.findOne({
+        user_id: user._id,
+        attendance_date: attendanceDate,
+      });
+
+      if (todayAttendance?.punch_in_on) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "You have already punched in for today.",
+          },
+          { status: 400 }
+        );
+      }
     }
 
-    /*
-     * Punch Out request requires an active punch-in.
-     */
     if (requestType === "punchOut") {
-      openAttendance = await Attendance.findOne({
+      const openAttendance = await Attendance.findOne({
         user_id: user._id,
-        punch_in_on: {
-          $ne: null,
-        },
+        punch_in_on: { $ne: null },
         punch_out_on: null,
-      }).sort({
-        punch_in_on: -1,
-      });
+      }).sort({ punch_in_on: -1 });
 
       if (!openAttendance) {
         return NextResponse.json(
@@ -203,14 +167,6 @@ export async function POST(req: Request) {
       }
     }
 
-    const attendanceDate =
-      requestType === "punchOut" && openAttendance?.attendance_date
-        ? String(openAttendance.attendance_date)
-        : getAttendanceDate();
-
-    /*
-     * Check for existing pending request.
-     */
     const existingPending = await AttendanceRequest.findOne({
       employee_id: user._id,
       attendance_date: attendanceDate,
@@ -228,31 +184,41 @@ export async function POST(req: Request) {
       );
     }
 
-    const request =
-      await AttendanceRequest.create({
-        employee_id: user._id,
-        admin_id: admin._id,
+    const existingApproved = await AttendanceRequest.findOne({
+      employee_id: user._id,
+      attendance_date: attendanceDate,
+      request_type: requestType,
+      status: "Approved",
+      used_at: null,
+    });
 
-        attendance_date: attendanceDate,
+    if (existingApproved) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Your request has already been approved. Please click the Punch button to complete the action.",
+          data: existingApproved,
+        },
+        { status: 409 }
+      );
+    }
 
-        request_type: requestType,
-
-        reason,
-
-        requested_at: new Date(),
-
-        requested_punch_at: new Date(),
-
-        ip: getClientIp(req),
-
-        browser: getClientBrowser(req),
-
-        geo,
-
-        systemid: systemId,
-
-        status: "Pending",
-      });
+    const request = await AttendanceRequest.create({
+      employee_id: user._id,
+      admin_id: admin._id,
+      attendance_date: attendanceDate,
+      request_type: requestType,
+      reason,
+      requested_at: now,
+      requested_punch_at: now,
+      ip: getClientIp(req),
+      browser: getClientBrowser(req),
+      geo,
+      systemid: systemId,
+      status: "Pending",
+      used_at: null,
+    });
 
     try {
       await Notification.create({
@@ -270,28 +236,24 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: true,
-        message:
-          `${requestType === "punchIn"
-            ? "Punch In"
-            : "Punch Out"
-          } request sent to admin successfully.`,
-
+        message: `${requestType === "punchIn" ? "Punch In" : "Punch Out"} request sent to admin successfully. Approval only gives you permission; you must click the Punch button after approval to complete the action.`,
         data: request,
       },
       { status: 201 }
     );
   } catch (error: unknown) {
-    console.error(
-      "POST /api/attendance/request error:",
-      error
-    );
+    console.error("POST /api/attendance/request error:", error);
 
-    if (typeof error === "object" && error !== null && "code" in error && error.code === 11000) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === 11000
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "You already have a pending request for this action.",
+          message: "You already have a pending or approved attendance allowance for this action.",
         },
         { status: 409 }
       );

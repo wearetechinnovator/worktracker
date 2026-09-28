@@ -317,7 +317,7 @@ export default function Dashboard() {
 			icon: Users,
 			iconBg: '#eff6ff',
 			iconColor: '#3b82f6',
-			value: '22',
+			value: '00',
 			infoTooltip: 'Total tracked work hours across all active team members.',
 			rows: [
 				{ label: 'Tracked', value: '', dotColor: '#3b82f6' },
@@ -330,7 +330,7 @@ export default function Dashboard() {
 			icon: TrendingUp,
 			iconBg: '#ecfdf5',
 			iconColor: '#10b981',
-			value: '22',
+			value: '00',
 			infoTooltip: 'Percentage of high-value focused time vs administrative overhead.',
 			rows: [
 				{ label: 'Focused', value: '', dotColor: '#10b981' },
@@ -853,7 +853,7 @@ export default function Dashboard() {
 								textAlign: 'center'
 							}}>
 								<div style={{ fontSize: '1.4rem', fontWeight: 400, color: '#0f172a', lineHeight: '1' }}>
-									{projects.length || 2}
+									0
 								</div>
 								<div style={{ fontSize: '0.68rem', fontWeight: 400, color: '#94a3b8', marginTop: '2px' }}>
 									Total

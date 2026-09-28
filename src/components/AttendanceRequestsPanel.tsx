@@ -2,8 +2,9 @@
 
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Clock3, Loader2, X } from 'lucide-react';
+import { CustomDatePicker, CustomDropdown } from '@/components/TaskFormControls';
 
 type AttendanceRequest = {
   _id: string;
@@ -14,6 +15,7 @@ type AttendanceRequest = {
   status: 'Pending' | 'Approved' | 'Rejected';
   rejection_reason?: string | null;
   employee_id?: {
+    _id?: string;
     full_name?: string;
     email?: string;
     designation?: string;
@@ -29,6 +31,14 @@ export default function AttendanceRequestsPanel() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Filter states
+  const [filterEmployee, setFilterEmployee] = useState<string>('all');
+  const [filterDate, setFilterDate] = useState<string>('');
+  const [filterAction, setFilterAction] = useState<string>('all');
+  const [employeeList, setEmployeeList] = useState<
+    Array<{ _id: string; full_name?: string; email?: string }>
+  >([]);
 
   // Rejection modal state
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -70,6 +80,117 @@ export default function AttendanceRequestsPanel() {
   useEffect(() => {
     loadRequests();
   }, [loadRequests]);
+
+  useEffect(() => {
+    fetch('/api/users/employees')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data)) {
+          setEmployeeList(json.data);
+        }
+      })
+      .catch(() => { });
+  }, []);
+
+  const employeeOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; email?: string }>();
+
+    // From employee API
+    employeeList.forEach((emp) => {
+      const id = String(emp._id || emp.email || '');
+      if (id) {
+        map.set(id, {
+          id,
+          name: emp.full_name || emp.email || 'Employee',
+          email: emp.email,
+        });
+      }
+    });
+
+    // From loaded requests
+    requests.forEach((req) => {
+      const emp = req.employee_id;
+      if (emp) {
+        const id = String(emp._id || emp.email || emp.full_name || '');
+        if (id && !map.has(id)) {
+          map.set(id, {
+            id,
+            name: emp.full_name || emp.email || 'Employee',
+            email: emp.email,
+          });
+        }
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, [employeeList, requests]);
+
+  const employeeDropdownOptions = useMemo(() => {
+    return [
+      { value: 'all', label: 'All Employees' },
+      ...employeeOptions.map((emp) => ({
+        value: emp.id,
+        label: emp.name + (emp.email ? ` (${emp.email})` : ''),
+      })),
+    ];
+  }, [employeeOptions]);
+
+  const actionDropdownOptions = useMemo(
+    () => [
+      { value: 'all', label: 'All Actions' },
+      { value: 'punchIn', label: 'Punch In' },
+      { value: 'punchOut', label: 'Punch Out' },
+    ],
+    []
+  );
+
+  const hasActiveFilters =
+    filterEmployee !== 'all' ||
+    filterDate !== '' ||
+    filterAction !== 'all';
+
+  const resetFilters = () => {
+    setFilterEmployee('all');
+    setFilterDate('');
+    setFilterAction('all');
+  };
+
+  const filteredRequests = useMemo(() => {
+    return requests.filter((req) => {
+      // Employee filter
+      if (filterEmployee !== 'all') {
+        const empId = req.employee_id?._id ? String(req.employee_id._id).toLowerCase() : '';
+        const empEmail = req.employee_id?.email ? String(req.employee_id.email).toLowerCase() : '';
+        const empName = req.employee_id?.full_name ? String(req.employee_id.full_name).toLowerCase() : '';
+        const selected = filterEmployee.toLowerCase();
+
+        const matches =
+          (empId && empId === selected) ||
+          (empEmail && empEmail === selected) ||
+          (empName && empName === selected);
+
+        if (!matches) return false;
+      }
+
+      // Date filter
+      if (filterDate) {
+        const matchesDate =
+          req.attendance_date === filterDate ||
+          (Boolean(req.requested_punch_at) &&
+            String(req.requested_punch_at).startsWith(filterDate));
+        if (!matchesDate) return false;
+      }
+
+      // Action filter
+      if (filterAction !== 'all') {
+        if (req.request_type !== filterAction) return false;
+      }
+
+      return true;
+    });
+  }, [requests, filterEmployee, filterDate, filterAction]);
 
   const closeRejectModal = () => {
     if (processingId) return;
@@ -116,7 +237,7 @@ export default function AttendanceRequestsPanel() {
       if (!response.ok || !result.success) {
         throw new Error(
           result.message ||
-            'Failed to review attendance request.'
+          'Failed to review attendance request.'
         );
       }
 
@@ -170,7 +291,7 @@ export default function AttendanceRequestsPanel() {
       className="card"
       style={{
         marginTop: '20px',
-        overflow: 'hidden',
+        overflow: 'visible',
       }}
     >
       <div
@@ -228,6 +349,102 @@ export default function AttendanceRequestsPanel() {
         </button>
       </div>
 
+      {/* Filters Bar */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '12px',
+          alignItems: 'flex-end',
+          padding: '12px 14px',
+          background: 'var(--bg-secondary)',
+          borderRadius: 'var(--border-radius-sm, 6px)',
+          border: '1px solid var(--border-color)',
+          marginBottom: '16px',
+        }}
+      >
+        <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
+          <label
+            style={{
+              display: 'block',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              marginBottom: '5px',
+              color: 'var(--text-secondary)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.03em',
+            }}
+          >
+            Employee
+          </label>
+          <CustomDropdown
+            value={filterEmployee}
+            onChange={(val) => setFilterEmployee(val)}
+            options={employeeDropdownOptions}
+            placeholder="Select employee"
+          />
+        </div>
+
+        <div style={{ flex: '1 1 160px', minWidth: '160px' }}>
+          <label
+            style={{
+              display: 'block',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              marginBottom: '5px',
+              color: 'var(--text-secondary)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.03em',
+            }}
+          >
+            Date
+          </label>
+          <CustomDatePicker
+            value={filterDate}
+            onChange={(val) => setFilterDate(val)}
+            placeholder="Select date"
+          />
+        </div>
+
+        <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
+          <label
+            style={{
+              display: 'block',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              marginBottom: '5px',
+              color: 'var(--text-secondary)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.03em',
+            }}
+          >
+            Action
+          </label>
+          <CustomDropdown
+            value={filterAction}
+            onChange={(val) => setFilterAction(val)}
+            options={actionDropdownOptions}
+            placeholder="Select action"
+          />
+        </div>
+
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={resetFilters}
+            style={{
+              height: '36px',
+              fontSize: '0.78rem',
+              padding: '0 14px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Clear Filters
+          </button>
+        )}
+      </div>
+
       {error && (
         <p
           style={{
@@ -260,6 +477,30 @@ export default function AttendanceRequestsPanel() {
         >
           No attendance requests found.
         </p>
+      ) : filteredRequests.length === 0 ? (
+        <div
+          style={{
+            color: 'var(--text-muted)',
+            padding: '24px 0',
+            textAlign: 'center',
+          }}
+        >
+          <p style={{ margin: 0, fontSize: '0.85rem' }}>
+            No attendance requests match the selected filters.
+          </p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={resetFilters}
+            style={{
+              marginTop: '10px',
+              fontSize: '0.75rem',
+              padding: '4px 12px',
+            }}
+          >
+            Clear Filters
+          </button>
+        </div>
       ) : (
         <div className="data-table-container">
           <table className="data-table">
@@ -275,7 +516,7 @@ export default function AttendanceRequestsPanel() {
             </thead>
 
             <tbody>
-              {requests.map((request) => {
+              {filteredRequests.map((request) => {
                 const isPending =
                   request.status === 'Pending';
 
@@ -333,16 +574,7 @@ export default function AttendanceRequestsPanel() {
                     <td>
                       {request.status}
 
-                      {request.rejection_reason ? (
-                        <div
-                          style={{
-                            color: '#b91c1c',
-                            fontSize: '0.72rem',
-                          }}
-                        >
-                          {request.rejection_reason}
-                        </div>
-                      ) : null}
+
                     </td>
 
                     <td>
@@ -368,13 +600,15 @@ export default function AttendanceRequestsPanel() {
                               padding: '6px 8px',
                             }}
                           >
+                            Approve
                             {isProcessing ? (
                               <Loader2
                                 size={13}
                                 className="animate-spin"
                               />
                             ) : (
-                              <Check size={13} />
+                              
+                            <Check size={13} />
                             )}
                           </button>
 
@@ -393,7 +627,7 @@ export default function AttendanceRequestsPanel() {
                               color: '#b91c1c',
                             }}
                           >
-                            <X size={13} />
+                            Reject <X size={13} />
                           </button>
                         </div>
                       ) : (
@@ -403,7 +637,16 @@ export default function AttendanceRequestsPanel() {
                             fontSize: '0.75rem',
                           }}
                         >
-                          Reviewed
+                          {request.rejection_reason ? (
+                            <div
+                              style={{
+                                color: '#b91c1c',
+                                fontSize: '0.72rem',
+                              }}
+                            >
+                              {request.rejection_reason}
+                            </div>
+                          ) : '-'}
                         </span>
                       )}
                     </td>
@@ -480,7 +723,7 @@ export default function AttendanceRequestsPanel() {
                     'Unknown employee'}{' '}
                   ·{' '}
                   {selectedRequest.request_type ===
-                  'punchIn'
+                    'punchIn'
                     ? 'Punch In'
                     : 'Punch Out'}
                 </p>

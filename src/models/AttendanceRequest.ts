@@ -45,7 +45,6 @@ const attendanceRequestSchema = new Schema(
       default: Date.now,
     },
 
-    // Metadata captured when employee submitted request
     ip: {
       type: String,
       default: null,
@@ -89,6 +88,17 @@ const attendanceRequestSchema = new Schema(
       default: null,
       trim: true,
     },
+
+    /*
+     * Approval is only an allowance.
+     * This becomes non-null only after the employee actually clicks
+     * Punch In / Punch Out and the punch action succeeds.
+     */
+    used_at: {
+      type: Date,
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -96,7 +106,13 @@ const attendanceRequestSchema = new Schema(
   }
 );
 
-// Prevent duplicate pending requests for same employee/day/action
+/*
+ * Only one active request/allowance can exist for the same employee,
+ * date and action at a time.
+ *
+ * After an approved allowance is consumed, used_at is populated and
+ * a new request is still blocked by the Attendance record itself.
+ */
 attendanceRequestSchema.index(
   {
     employee_id: 1,
@@ -106,16 +122,14 @@ attendanceRequestSchema.index(
   {
     unique: true,
     partialFilterExpression: {
-      status: "Pending",
+      used_at: null,
+      status: { $in: ["Pending", "Approved"] },
     },
   }
 );
 
 const AttendanceRequest =
   mongoose.models.AttendanceRequest ||
-  mongoose.model(
-    "AttendanceRequest",
-    attendanceRequestSchema
-  );
+  mongoose.model("AttendanceRequest", attendanceRequestSchema);
 
 export default AttendanceRequest;

@@ -458,7 +458,7 @@ export default function AdminProfilePage() {
             marginBottom: 0,
           }}
         >
-          Manage your personal and property information.
+          Manage your personal and organisation information.
         </p>
       </div>
 
@@ -783,7 +783,7 @@ export default function AdminProfilePage() {
                   color: "var(--text-primary)",
                 }}
               >
-                Property Information
+                Organisation Information
               </h2>
               <p
                 style={{
@@ -792,7 +792,7 @@ export default function AdminProfilePage() {
                   margin: 0,
                 }}
               >
-                Information about your property or organization.
+                Information about your organization.
               </p>
             </div>
           </div>

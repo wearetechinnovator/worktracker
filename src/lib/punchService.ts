@@ -58,6 +58,7 @@ export interface PunchStatus {
   pendingRequest?: AttendanceRequestData | null;
 
   rejectedRequest?: AttendanceRequestData | null;
+  approvedRequest?: AttendanceRequestData | null;
 }
 
 const STORAGE_KEY = "worktracker_punch_state";
@@ -330,12 +331,14 @@ export const punchService = {
             ),
 
           canPunchIn:
-            !parsed.isPunchedIn,
+            parsed.canPunchIn !== undefined
+              ? Boolean(parsed.canPunchIn)
+              : !parsed.isPunchedIn,
 
           canPunchOut:
-            Boolean(
-              parsed.isPunchedIn
-            ),
+            parsed.canPunchOut !== undefined
+              ? Boolean(parsed.canPunchOut)
+              : Boolean(parsed.isPunchedIn),
 
           viewMode:
             parsed.viewMode !==
@@ -348,6 +351,15 @@ export const punchService = {
           attendance:
             parsed.attendance ||
             null,
+
+          pendingRequest:
+            parsed.pendingRequest || null,
+
+          rejectedRequest:
+            parsed.rejectedRequest || null,
+
+          approvedRequest:
+            parsed.approvedRequest || null,
         };
       } catch (error) {
         console.error(
@@ -453,6 +465,9 @@ export const punchService = {
             data.pendingRequest || null,
           rejectedRequest:
             data.rejectedRequest || null,
+
+          approvedRequest:
+            data.approvedRequest || null,
         };
 
         /*
@@ -642,20 +657,32 @@ export const punchService = {
         const status: PunchStatus = {
           isPunchedIn: false,
 
-          canPunchIn: true,
+          canPunchIn:
+            data.canPunchIn !== undefined
+              ? Boolean(data.canPunchIn)
+              : false,
 
-          canPunchOut: false,
+          canPunchOut:
+            data.canPunchOut !== undefined
+              ? Boolean(data.canPunchOut)
+              : false,
 
           viewMode:
-            data.viewMode !==
-              undefined
-              ? Boolean(
-                data.viewMode
-              )
+            data.viewMode !== undefined
+              ? Boolean(data.viewMode)
               : true,
 
           attendance:
             normalizedAttendance,
+
+          pendingRequest:
+            data.pendingRequest || null,
+
+          rejectedRequest:
+            data.rejectedRequest || null,
+
+          approvedRequest:
+            data.approvedRequest || null,
         };
 
         /*

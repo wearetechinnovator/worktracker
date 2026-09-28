@@ -26,6 +26,10 @@ export type EmployeeCardEmployee = {
 
     status?: boolean;
 
+    Project?: string | null;
+
+    workMode?: string | null;
+
     createdAt?: string;
     updatedAt?: string;
 
@@ -78,11 +82,11 @@ export default function EmployeeCard({
     return (
         <article
             className="card employee-card"
-            onClick={() => onOpenDetails(employee)}
+            // onClick={() => onOpenDetails(employee)}
             style={{
                 padding: 0,
                 overflow: 'hidden',
-                cursor: 'pointer',
+                // cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
                 transition:
@@ -120,12 +124,12 @@ export default function EmployeeCard({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            
+
                             // border: '1px solid var(--border-color)',
                             color: 'black'
                         }}
                     >
-                        
+
                     </div>
 
                     <div style={{ minWidth: 0 }}>

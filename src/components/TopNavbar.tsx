@@ -38,6 +38,7 @@ export default function TopNavbar() {
   // =========================================================
 
   const [isPunchedIn, setIsPunchedIn] = useState(false);
+  const [canPunchIn, setCanPunchIn] = useState(false);
   const [canPunchOut, setCanPunchOut] = useState(false);
   const [pendingRequest, setPendingRequest] = useState<any>(null);
 
@@ -438,6 +439,10 @@ export default function TopNavbar() {
           nextPunchState.isPunchedIn
         );
 
+        setCanPunchIn(
+          nextPunchState.canPunchIn
+        );
+
         setCanPunchOut(
           nextPunchState.canPunchOut
         );
@@ -732,6 +737,10 @@ export default function TopNavbar() {
         punch.isPunchedIn
       );
 
+      setCanPunchIn(
+        punch.canPunchIn
+      );
+
       setCanPunchOut(
         punch.canPunchOut
       );
@@ -743,6 +752,25 @@ export default function TopNavbar() {
 
     loadPunchStatus();
   }, []);
+  useEffect(() => {
+    const refreshPunchState = async () => {
+      try {
+        const punch = await punchService.fetchPunchStatus();
+
+        setIsPunchedIn(punch.isPunchedIn);
+        setCanPunchIn(punch.canPunchIn);
+        setCanPunchOut(punch.canPunchOut);
+        setPendingRequest(punch.pendingRequest || null);
+      } catch {
+        // Keep the current UI state on a temporary network failure.
+      }
+    };
+
+    const interval = setInterval(refreshPunchState, 15000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   // =========================================================
   // INITIAL LOAD + EVENTS
   // =========================================================
@@ -802,6 +830,12 @@ export default function TopNavbar() {
             Boolean(
               e.detail.isPunchedIn
             )
+          );
+
+          setCanPunchIn(
+            e.detail.canPunchIn !== undefined
+              ? Boolean(e.detail.canPunchIn)
+              : !Boolean(e.detail.isPunchedIn)
           );
 
           setCanPunchOut(
@@ -1504,7 +1538,8 @@ export default function TopNavbar() {
               }
               disabled={
                 isPunching ||
-                Boolean(pendingRequest)
+                Boolean(pendingRequest) ||
+                (!isPunchedIn && !canPunchIn)
               }
               title={
                 isPunching
@@ -1517,7 +1552,9 @@ export default function TopNavbar() {
                       } request is pending admin approval`
                     : isPunchedIn
                       ? 'Punch Out'
-                      : 'Punch In'
+                      : canPunchIn
+                        ? 'Punch In'
+                        : 'Punch In unavailable for today'
               }
               style={{
                 display:
@@ -1536,29 +1573,37 @@ export default function TopNavbar() {
                   ? '#fef3c7'
                   : isPunchedIn
                     ? '#fff1f2'
-                    : '#ecfdf5',
+                    : canPunchIn
+                      ? '#ecfdf5'
+                      : '#f3f4f6',
                 color: pendingRequest
                   ? '#b45309'
                   : isPunchedIn
                     ? '#be123c'
-                    : '#047857',
+                    : canPunchIn
+                      ? '#047857'
+                      : '#6b7280',
                 border: pendingRequest
                   ? '1px solid #fde68a'
                   : isPunchedIn
                     ? '1px solid #fecdd3'
-                    : '1px solid #a7f3d0',
+                    : canPunchIn
+                      ? '1px solid #a7f3d0'
+                      : '1px solid #d1d5db',
                 fontSize:
                   '0.82rem',
                 fontWeight:
                   650,
                 cursor:
                   isPunching ||
-                  Boolean(pendingRequest)
+                  Boolean(pendingRequest) ||
+                  (!isPunchedIn && !canPunchIn)
                     ? 'not-allowed'
                     : 'pointer',
                 opacity:
                   isPunching ||
-                  Boolean(pendingRequest)
+                  Boolean(pendingRequest) ||
+                  (!isPunchedIn && !canPunchIn)
                     ? 0.7
                     : 1,
                 transition:
@@ -1574,10 +1619,12 @@ export default function TopNavbar() {
                       pendingRequest.request_type === 'punchIn'
                         ? 'Punch In'
                         : 'Punch Out'
-                    } (Pending)`
+                    } (Waiting for aprooval)`
                   : isPunchedIn
                     ? 'Punch Out'
-                    : 'Punch In'}
+                    : canPunchIn
+                      ? 'Punch In'
+                      : 'Completed Today'}
               </span>
             </button>
           )}
