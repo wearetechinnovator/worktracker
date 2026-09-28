@@ -13,6 +13,9 @@ import {
   Upload,
   Briefcase,
   AlertCircle,
+  LockKeyhole,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import PageShimmer from "@/components/PageShimmer";
 import { toast } from "@/lib/toast";
@@ -54,6 +57,14 @@ export default function AdminProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingTarget, setUploadingTarget] = useState<string | null>(null);
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const profileFileInputRef = useRef<HTMLInputElement | null>(null);
   const propertyLogoInputRef = useRef<HTMLInputElement | null>(null);
@@ -192,6 +203,74 @@ export default function AdminProfilePage() {
       toast.error(err.message || "Failed to upload image");
     } finally {
       setUploadingTarget(null);
+    }
+  };
+
+
+  /* =====================================================
+     CHANGE PASSWORD
+  ===================================================== */
+  const handleChangePassword = async () => {
+    if (!currentPassword.trim()) {
+      toast.error("Current password is required.");
+      return;
+    }
+
+    if (!newPassword.trim()) {
+      toast.error("New password is required.");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("New password and confirm password do not match.");
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      toast.error("New password must be different from your current password.");
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          change_password: true,
+          current_password: currentPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to change password");
+      }
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+
+      toast.success("Password changed successfully.");
+    } catch (error) {
+      console.error("Password change error:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to change password"
+      );
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -872,6 +951,184 @@ export default function AdminProfilePage() {
           </div>
         </section>
       </div>
+
+      {/* =================================================
+          CHANGE PASSWORD
+      ================================================= */}
+      <section className="card" style={{ padding: "20px", marginTop: "20px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            paddingBottom: "14px",
+            marginBottom: "16px",
+            borderBottom: "1px solid var(--border-color)",
+          }}
+        >
+          <div
+            style={{
+              width: "34px",
+              height: "34px",
+              borderRadius: "var(--border-radius-sm)",
+              background: "var(--bg-tertiary)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--accent-primary)",
+              flexShrink: 0,
+            }}
+          >
+            <LockKeyhole size={18} />
+          </div>
+          <div>
+            <h2
+              style={{
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                margin: 0,
+                color: "var(--text-primary)",
+              }}
+            >
+              Change Password
+            </h2>
+            <p
+              style={{
+                fontSize: "0.75rem",
+                color: "var(--text-muted)",
+                margin: 0,
+              }}
+            >
+              Update your account password securely.
+            </p>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: "14px",
+          }}
+        >
+          {[
+            {
+              id: "current-password",
+              label: "Current Password",
+              value: currentPassword,
+              setValue: setCurrentPassword,
+              show: showCurrentPassword,
+              setShow: setShowCurrentPassword,
+              placeholder: "Enter current password",
+            },
+            {
+              id: "new-password",
+              label: "New Password",
+              value: newPassword,
+              setValue: setNewPassword,
+              show: showNewPassword,
+              setShow: setShowNewPassword,
+              placeholder: "Minimum 8 characters",
+            },
+            {
+              id: "confirm-password",
+              label: "Confirm New Password",
+              value: confirmPassword,
+              setValue: setConfirmPassword,
+              show: showConfirmPassword,
+              setShow: setShowConfirmPassword,
+              placeholder: "Repeat new password",
+            },
+          ].map((field) => (
+            <div key={field.id} className="form-group" style={{ marginBottom: 0 }}>
+              <label
+                htmlFor={field.id}
+                className="form-label"
+                style={{
+                  fontWeight: 600,
+                  fontSize: "0.75rem",
+                  marginBottom: "6px",
+                }}
+              >
+                {field.label}
+              </label>
+
+              <div className="custom-input-group">
+                <span className="custom-input-addon">
+                  <LockKeyhole size={15} />
+                </span>
+
+                <input
+                  id={field.id}
+                  type={field.show ? "text" : "password"}
+                  value={field.value}
+                  onChange={(e) => field.setValue(e.target.value)}
+                  placeholder={field.placeholder}
+                  className="custom-input-control"
+                  autoComplete={
+                    field.id === "current-password"
+                      ? "current-password"
+                      : "new-password"
+                  }
+                />
+
+                <button
+                  type="button"
+                  onClick={() => field.setShow(!field.show)}
+                  aria-label={field.show ? "Hide password" : "Show password"}
+                  style={{
+                    border: 0,
+                    background: "transparent",
+                    color: "var(--text-muted)",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "0 10px",
+                  }}
+                >
+                  {field.show ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div
+          style={{
+            marginTop: "14px",
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleChangePassword}
+            disabled={changingPassword}
+            className="btn btn-secondary"
+            style={{
+              padding: "8px 16px",
+              fontSize: "0.8rem",
+              fontWeight: 600,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "7px",
+              cursor: changingPassword ? "not-allowed" : "pointer",
+            }}
+          >
+            {changingPassword ? (
+              <>
+                <Loader2 size={15} className="animate-spin" />
+                Changing...
+              </>
+            ) : (
+              <>
+                <LockKeyhole size={15} />
+                Change Password
+              </>
+            )}
+          </button>
+        </div>
+      </section>
 
       {/* =================================================
           SAVE BUTTON

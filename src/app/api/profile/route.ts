@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
@@ -108,6 +109,103 @@ export async function PATCH(req: Request) {
 
     const body = await req.json();
 
+    /* =====================================================
+       CHANGE PASSWORD
+    ===================================================== */
+
+    if (body.change_password === true) {
+      const currentPassword = String(body.current_password || "");
+      const newPassword = String(body.new_password || "");
+      const confirmPassword = String(body.confirm_password || "");
+
+      if (!currentPassword) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Current password is required",
+          },
+          { status: 400 }
+        );
+      }
+
+      if (!newPassword) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "New password is required",
+          },
+          { status: 400 }
+        );
+      }
+
+      if (newPassword.length < 8) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "New password must be at least 8 characters",
+          },
+          { status: 400 }
+        );
+      }
+
+      if (newPassword !== confirmPassword) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "New password and confirm password do not match",
+          },
+          { status: 400 }
+        );
+      }
+
+      if (currentPassword === newPassword) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "New password must be different from your current password",
+          },
+          { status: 400 }
+        );
+      }
+
+      if (!user.password) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Password is not configured for this account",
+          },
+          { status: 400 }
+        );
+      }
+
+      const passwordMatches = await bcrypt.compare(
+        currentPassword,
+        user.password
+      );
+
+      if (!passwordMatches) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Current password is incorrect",
+          },
+          { status: 400 }
+        );
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+      user.password = hashedPassword;
+      user.modified_by = user._id;
+
+      await user.save();
+
+      return NextResponse.json({
+        success: true,
+        message: "Password changed successfully",
+      });
+    }
+
     const fullName =
       body.full_name !== undefined
         ? cleanString(body.full_name)
@@ -122,6 +220,7 @@ export async function PATCH(req: Request) {
 
     const rawGender =
       body.gender !== undefined ? body.gender : body.profile?.gender;
+
     const gender =
       rawGender !== undefined ? cleanString(rawGender) : undefined;
 
@@ -129,6 +228,7 @@ export async function PATCH(req: Request) {
       body.profile_picture !== undefined
         ? body.profile_picture
         : body.profile?.profile_picture;
+
     const profilePicture =
       rawProfilePicture !== undefined
         ? cleanString(rawProfilePicture)
@@ -138,10 +238,7 @@ export async function PATCH(req: Request) {
        VALIDATION
     ===================================================== */
 
-    if (
-      fullName !== undefined &&
-      !fullName
-    ) {
+    if (fullName !== undefined && !fullName) {
       return NextResponse.json(
         {
           success: false,
@@ -234,7 +331,10 @@ export async function PATCH(req: Request) {
       }
     }
 
-    // Direct property field aliases
+    /* =====================================================
+       DIRECT PROPERTY FIELD ALIASES
+    ===================================================== */
+
     if (body.property_name !== undefined || body.propertyName !== undefined) {
       const val = cleanString(body.property_name ?? body.propertyName);
       updateData["property.name"] = val;
@@ -251,7 +351,10 @@ export async function PATCH(req: Request) {
       body.short_description !== undefined ||
       body.shortDescription !== undefined
     ) {
-      const val = cleanString(body.short_description ?? body.shortDescription);
+      const val = cleanString(
+        body.short_description ?? body.shortDescription
+      );
+
       updateData["property.short_description"] = val;
       updateData.short_description = val;
     }
@@ -260,20 +363,19 @@ export async function PATCH(req: Request) {
        UPDATE
     ===================================================== */
 
-    const updatedUser =
-      await User.findByIdAndUpdate(
-        user._id,
-        {
-          $set: {
-            ...updateData,
-            modified_by: user._id,
-          },
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      {
+        $set: {
+          ...updateData,
+          modified_by: user._id,
         },
-        {
-          new: true,
-          runValidators: true,
-        }
-      );
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
     if (!updatedUser) {
       return NextResponse.json(

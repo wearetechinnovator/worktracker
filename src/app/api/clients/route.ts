@@ -339,6 +339,31 @@ export async function POST(req: Request) {
     }
 
     /* -------------------------
+       CONTRACT DATE VALIDATION
+       ------------------------- */
+
+    const contractStartDate = body.contract_start_date
+      ? String(body.contract_start_date).trim()
+      : null;
+
+    const contractEndDate = body.contract_end_date
+      ? String(body.contract_end_date).trim()
+      : null;
+
+    if (contractStartDate && contractEndDate && contractEndDate < contractStartDate) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Contract end date cannot be before the contract start date.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    /* -------------------------
        CONTACTS
        ------------------------- */
 
@@ -850,6 +875,45 @@ export async function PATCH(req: Request) {
     > = {};
 
     /* -------------------------
+       CONTRACT DATE VALIDATION
+       ------------------------- */
+
+    const nextContractStartDate =
+      body.contract_start_date !== undefined
+        ? body.contract_start_date
+          ? String(body.contract_start_date).trim()
+          : null
+        : oldClient.contract_start_date
+          ? String(oldClient.contract_start_date).slice(0, 10)
+          : null;
+
+    const nextContractEndDate =
+      body.contract_end_date !== undefined
+        ? body.contract_end_date
+          ? String(body.contract_end_date).trim()
+          : null
+        : oldClient.contract_end_date
+          ? String(oldClient.contract_end_date).slice(0, 10)
+          : null;
+
+    if (
+      nextContractStartDate &&
+      nextContractEndDate &&
+      nextContractEndDate < nextContractStartDate
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Contract end date cannot be before the contract start date.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    /* -------------------------
        NAME
        ------------------------- */
 
@@ -1133,54 +1197,143 @@ export async function PATCH(req: Request) {
       }
     }
 
-    /* -------------------------
-       CONTACTS
-       ------------------------- */
+   /* -------------------------
+   CONTACT PERSON VALIDATION
+   ------------------------- */
 
-    if (body.contacts !== undefined) {
-      const contacts =
-        Array.isArray(body.contacts)
-          ? body.contacts
-              .filter(
-                (contact: any) =>
-                  contact &&
-                  typeof contact ===
-                    "object"
-              )
-              .map(
-                (contact: any) => ({
-                  name: String(
-                    contact.name ||
-                      ""
-                  ).trim(),
+const contacts = Array.isArray(body.contacts)
+  ? body.contacts
+      .filter(
+        (contact: any) =>
+          contact &&
+          typeof contact === "object"
+      )
+      .map((contact: any) => ({
+        name: String(contact.name || "").trim(),
+        email: String(contact.email || "").trim(),
+        phone: String(contact.phone || "").trim(),
+        designation: String(contact.designation || "").trim(),
+        label: String(contact.label || "").trim(),
+      }))
+      // completely empty contact rows remove
+      .filter(
+        (contact: any) =>
+          contact.name ||
+          contact.email ||
+          contact.phone ||
+          contact.designation ||
+          contact.label
+      )
+  : [];
 
-                  email: String(
-                    contact.email ||
-                      ""
-                  ).trim(),
+/* CONTACT NAME */
 
-                  phone: String(
-                    contact.phone ||
-                      ""
-                  ).trim(),
+const invalidContactName = contacts.find(
+  (contact: any) => !contact.name
+);
 
-                  designation:
-                    String(
-                      contact.designation ||
-                        ""
-                    ).trim(),
-
-                  label: String(
-                    contact.label ||
-                      ""
-                  ).trim(),
-                })
-              )
-          : [];
-
-      updateData.contact_members =
-        contacts;
+if (invalidContactName) {
+  return NextResponse.json(
+    {
+      success: false,
+      message: "Please enter contact person name.",
+    },
+    {
+      status: 400,
     }
+  );
+}
+
+/* CONTACT EMAIL */
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const invalidContactEmail = contacts.find(
+  (contact: any) =>
+    contact.email &&
+    !emailPattern.test(contact.email)
+);
+
+if (invalidContactEmail) {
+  return NextResponse.json(
+    {
+      success: false,
+      message: `Please enter a valid contact email address: ${invalidContactEmail.email}`,
+    },
+    {
+      status: 400,
+    }
+  );
+}
+
+/* CONTACT PHONE */
+
+const invalidContactPhone = contacts.find(
+  (contact: any) =>
+    contact.phone &&
+    !/^\d{10,20}$/.test(contact.phone)
+);
+
+if (invalidContactPhone) {
+  return NextResponse.json(
+    {
+      success: false,
+      message:
+        "Contact phone number must contain only numbers and be 10-20 digits long.",
+    },
+    {
+      status: 400,
+    }
+  );
+}
+
+/* DUPLICATE CONTACT EMAILS INSIDE SAME CLIENT */
+
+const contactEmails = contacts
+  .map((contact: any) => contact.email.toLowerCase())
+  .filter(Boolean);
+
+const duplicateContactEmail =
+  contactEmails.find(
+    (email: string, index: number) =>
+      contactEmails.indexOf(email) !== index
+  );
+
+if (duplicateContactEmail) {
+  return NextResponse.json(
+    {
+      success: false,
+      message:
+        `Duplicate contact email is not allowed: ${duplicateContactEmail}`,
+    },
+    {
+      status: 400,
+    }
+  );
+}
+
+/* DUPLICATE CONTACT PHONES INSIDE SAME CLIENT */
+
+const contactPhones = contacts
+  .map((contact: any) => contact.phone)
+  .filter(Boolean);
+
+const duplicateContactPhone =
+  contactPhones.find(
+    (phone: string, index: number) =>
+      contactPhones.indexOf(phone) !== index
+  );
+
+if (duplicateContactPhone) {
+  return NextResponse.json(
+    {
+      success: false,
+      message:
+        `Duplicate contact phone number is not allowed: ${duplicateContactPhone}`,
+    },
+    {
+      status: 400,
+    }
+  );
+}
 
     /* -------------------------
        DURATION

@@ -7,9 +7,31 @@ import TaskWork from "@/models/TaskWork";
 import TaskLog from "@/models/TaskLog";
 import User from "@/models/User";
 import { syncTaskStatus } from "@/lib/taskStatusHelper";
-import { createGlobalLog } from "@/lib/globalLog";
 
 type Action = "start" | "pause" | "resume" | "complete";
+
+type WorkFile = {
+  name: string;
+  url: string;
+  size?: number;
+  type?: string;
+};
+
+function normalizeFiles(files: unknown): WorkFile[] {
+  if (!Array.isArray(files)) return [];
+  return files.filter((file: any) => file && typeof file === "object" && String(file.name || "").trim() && String(file.url || "").trim()).map((file: any) => ({
+    name: String(file.name).trim(),
+    url: String(file.url).trim(),
+    size: Number.isFinite(Number(file.size)) ? Number(file.size) : 0,
+    type: String(file.type || "").trim() || "application/octet-stream",
+  }));
+}
+
+function normalizeLinks(links: unknown): string[] {
+  if (!Array.isArray(links)) return [];
+  return links.map((link: unknown) => String(link || "").trim()).filter(Boolean);
+}
+
 
 function idOf(value: any) {
   return value?._id?.toString?.() || value?.toString?.();
@@ -77,14 +99,6 @@ function calculateWorkedMinutes(work: any, end: Date) {
   }
 
   return Math.max(0, totalMinutes);
-}
-
-function stripHtmlText(value: unknown) {
-  return String(value || "")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 async function getEmployee() {
@@ -322,19 +336,13 @@ export async function GET(request: Request) {
             ? new Date(w.pausedAt)
             : w.endTime
               ? new Date(w.endTime)
-              : w.updatedAt
-                ? new Date(w.updatedAt)
-                : w.createdAt
-                  ? new Date(w.createdAt)
-                  : new Date();
+              : new Date();
 
         w.totalMinutes = calculateWorkedMinutes(
           {
             ...w,
-            // A completed record includes both:
-            //   isFullyCompleted=true  -> fully completed
-            //   isFullyCompleted=false -> partially done
-            // Both are real finished work sessions.
+            // A completed/partially-done session is no longer
+            // inside a live pause, so calculate against endTime.
             status:
               w.status === "Paused"
                 ? "Paused"
@@ -343,6 +351,9 @@ export async function GET(request: Request) {
           calculationEnd
         );
       }
+
+      w.files = Array.isArray(w.files) ? w.files : [];
+      w.links = Array.isArray(w.links) ? w.links : [];
 
       return {
         ...w,
@@ -403,26 +414,9 @@ export async function POST(request: NextRequest) {
     const taskId = body.taskId?.toString();
     const workId = body.workId?.toString();
 
-    const workNotes =
-      typeof body.notes === "string"
-        ? body.notes
-        : "";
-
-    const workLinks = Array.isArray(body.links)
-      ? body.links
-          .map((link: unknown) => String(link || "").trim())
-          .filter(Boolean)
-      : [];
-
-    const workFiles = Array.isArray(body.files)
-      ? body.files.filter(
-          (file: any) =>
-            file &&
-            typeof file === "object" &&
-            String(file.name || "").trim() &&
-            String(file.url || "").trim()
-        )
-      : [];
+    const workNotes = typeof body.notes === "string" ? body.notes : "";
+    const workLinks = normalizeLinks(body.links);
+    const workFiles = normalizeFiles(body.files);
 
     if (
       ![
@@ -490,26 +484,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    /*
-     * A fully completed task is locked until the admin reviews it.
-     * Reassigned tasks are reset to To Do, so the new employee can work.
-     */
-    if (
-      (action === "start" || action === "resume") &&
-      ["Review", "Completed"].includes(String(task.task_status))
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            task.task_status === "Review"
-              ? "This task is waiting for admin review."
-              : "This task has already been completed.",
-        },
-        { status: 400 }
-      );
-    }
-
     const now = new Date();
     const current = timeNow();
 
@@ -555,6 +529,9 @@ export async function POST(request: NextRequest) {
               current.time
           ),
           status: "In Progress",
+          notes: "",
+          files: [],
+          links: [],
           totalMinutes: 0,
           totalPausedMinutes: 0,
           isFullyCompleted: false,
@@ -707,25 +684,6 @@ export async function POST(request: NextRequest) {
 
     // COMPLETE / PARTIALLY DONE
     if (action === "complete") {
-      const isFullyCompleted = Boolean(
-        body.isFullyCompleted
-      );
-
-      // A partial completion must always explain why the employee
-      // is stopping and what remains to be done.
-      if (
-        !isFullyCompleted &&
-        !stripHtmlText(workNotes)
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              "A reason is required when marking work as partially done.",
-          },
-          { status: 400 }
-        );
-      }
       if (work.status === "Completed") {
         return NextResponse.json({
           success: true,
@@ -783,67 +741,50 @@ export async function POST(request: NextRequest) {
       work.totalMinutes =
         totalMinutes;
 
-      work.notes =
-        workNotes ||
-        work.notes ||
-        "";
+      work.notes = workNotes || work.notes || "";
+
+      // Save attachments on this exact work session.
+      work.files = workFiles;
+      work.links = workLinks;
+
+      // Keep the existing Task-level Files/Links behavior too.
+      const existingTaskFiles = Array.isArray(task.files) ? task.files : [];
+      const existingTaskUrls = Array.isArray(task.urls) ? task.urls : [];
+
+      const existingFileKeys = new Set(
+        existingTaskFiles.map((file: any) => `${String(file?.name || "")}|${String(file?.url || "")}`)
+      );
+
+      for (const file of workFiles) {
+        const key = `${file.name}|${file.url}`;
+        if (!existingFileKeys.has(key)) {
+          existingTaskFiles.push(file);
+          existingFileKeys.add(key);
+        }
+      }
+
+      for (const link of workLinks) {
+        if (!existingTaskUrls.includes(link)) existingTaskUrls.push(link);
+      }
+
+      task.files = existingTaskFiles;
+      task.urls = existingTaskUrls;
+
+      await task.save();
 
       /*
        * false = Partially Done
        * true  = Fully Completed
        */
       work.isFullyCompleted =
-        isFullyCompleted;
+        Boolean(
+          body.isFullyCompleted
+        );
 
       work.status = "Completed";
       work.updatedAt = now;
 
       await work.save();
-
-      /*
-       * End-work attachments belong to the task itself so they can
-       * be viewed later from the task details Files / Links tabs.
-       */
-      if (workFiles.length > 0) {
-        const existingFiles = Array.isArray(task.files)
-          ? task.files
-          : [];
-
-        task.files = [
-          ...existingFiles,
-          ...workFiles,
-        ];
-      }
-
-      if (workLinks.length > 0) {
-        const existingUrls = Array.isArray(task.urls)
-          ? task.urls
-          : [];
-
-        task.urls = [
-          ...existingUrls,
-          ...workLinks.filter(
-            (link: string) =>
-              !existingUrls.some(
-                (existing: any) =>
-                  String(existing) === link
-              )
-          ),
-        ];
-
-        if (!task.url && task.urls.length > 0) {
-          task.url = task.urls[0];
-        }
-      }
-
-      if (
-        workFiles.length > 0 ||
-        workLinks.length > 0
-      ) {
-        task.modified_by = employee._id;
-        task.modified_on = now;
-        await task.save();
-      }
 
       await TaskLog.create({
         task_id: task._id,
@@ -857,44 +798,11 @@ export async function POST(request: NextRequest) {
 
       await syncTaskStatus(task._id);
 
-      /*
-       * Fully completed work must wait for admin approval.
-       * Partial work is finished for this session but remains
-       * available for future work.
-       */
-      task.task_status = work.isFullyCompleted
-        ? "Review"
-        : "Partially Done";
-      task.modified_by = employee._id;
-      task.modified_on = now;
-      await task.save();
-
-      if (work.isFullyCompleted) {
-        await createGlobalLog({
-          actorId: String(employee._id),
-          action: "REQUEST",
-          entityType: "Task",
-          entityId: String(task._id),
-          targetUserId: task.created_by ? String(task.created_by) : null,
-          description: `Task "${task.title}" submitted for admin review by ${employee.full_name || employee.name || "Employee"}`,
-          information: {
-            task_id: task.task_id,
-            task_title: task.title,
-            work_id: String(work._id),
-            totalMinutes: work.totalMinutes,
-            notes: work.notes,
-            files_count: workFiles.length,
-            links_count: workLinks.length,
-            submitted_at: now,
-          },
-        });
-      }
-
       return NextResponse.json({
         success: true,
         message:
           work.isFullyCompleted
-            ? "Task submitted for admin review"
+            ? "Work completed successfully"
             : "Work marked as partially done",
         data: work,
       });

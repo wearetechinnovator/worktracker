@@ -352,7 +352,7 @@ export default function TaskDetailsModal({
     </div>
   );
 
-  const renderWorkLogs = () => (
+ const renderWorkLogs = () => (
     <div className="td-section-stack">
       <div className="td-section-heading">
         <div>
@@ -389,11 +389,11 @@ export default function TaskDetailsModal({
                 </span>
                 <div>
                   <strong>{session.employeeId?.name || 'Unknown Employee'}</strong>
-                  <span>{session.date ? formatDate(session.date) : 'Work session'}</span>
+                  <span>{session.date || 'Work session'}</span>
                 </div>
               </div>
               <div className="td-session-meta">
-                <span>{formatDateTime(session.startTime)} – {session.endTime ? formatDateTime(session.endTime) : 'Active'}</span>
+                <span>{session.startTime || '—'} – {session.endTime || 'Active'}</span>
                 <span className="td-mini-status">
                   {session.status === 'Completed' ? (session.isFullyCompleted ? 'Completed' : 'Partial') : 'In Progress'}
                 </span>
@@ -407,6 +407,194 @@ export default function TaskDetailsModal({
               </div>
               {session.notes && (
                 <div className="td-session-notes" dangerouslySetInnerHTML={{ __html: session.notes }} />
+              )}
+
+              {Array.isArray(session.files) && session.files.length > 0 && (
+                <div
+                  style={{
+                    marginTop: '10px',
+                    padding: '10px',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    background: 'var(--bg-tertiary)',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      marginBottom: '8px',
+                    }}
+                  >
+                    <Paperclip size={14} />
+                    Files ({session.files.length})
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                    }}
+                  >
+                    {session.files.map((file: any, index: number) => {
+                      const fileName = file?.name || `File ${index + 1}`;
+                      const fileUrl = file?.url || '';
+                      const isImage =
+                        file?.type?.startsWith('image/') ||
+                        /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(fileName);
+
+                      return (
+                        <div
+                          key={`work-file-${session._id}-${index}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '7px 8px',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '7px',
+                            background: 'var(--bg-primary)',
+                          }}
+                        >
+                          {isImage && fileUrl ? (
+                            <img
+                              src={fileUrl}
+                              alt={fileName}
+                              style={{
+                                width: '34px',
+                                height: '34px',
+                                objectFit: 'cover',
+                                borderRadius: '5px',
+                                border: '1px solid var(--border-color)',
+                              }}
+                            />
+                          ) : (
+                            <FileText size={17} />
+                          )}
+
+                          <span
+                            title={fileName}
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              fontSize: '0.75rem',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {fileName}
+                          </span>
+
+                          {fileUrl && (
+                            <>
+                              <button
+                                type="button"
+                                className="td-icon-action"
+                                onClick={() => onViewFile(file)}
+                                title="View file"
+                              >
+                                <ExternalLink size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                className="td-icon-action"
+                                onClick={() => onDownloadFile(file)}
+                                title="Download file"
+                              >
+                                <Download size={14} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {Array.isArray(session.links) && session.links.length > 0 && (
+                <div
+                  style={{
+                    marginTop: '10px',
+                    padding: '10px',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    background: 'var(--bg-tertiary)',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      marginBottom: '8px',
+                    }}
+                  >
+                    <LinkIcon size={14} />
+                    Related Links ({session.links.length})
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '5px',
+                    }}
+                  >
+                    {session.links.map((link: any, index: number) => {
+                      const href =
+                        typeof link === 'string'
+                          ? link
+                          : link?.url || link?.link || '';
+                      const safeHref = href
+                        ? /^https?:\/\//i.test(href)
+                          ? href
+                          : `https://${href}`
+                        : '';
+
+                      if (!safeHref) return null;
+
+                      return (
+                        <a
+                          key={`work-link-${session._id}-${index}`}
+                          href={safeHref}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '7px',
+                            padding: '7px 8px',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '7px',
+                            fontSize: '0.75rem',
+                            color: 'var(--accent-primary)',
+                            textDecoration: 'none',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <LinkIcon size={14} style={{ flexShrink: 0 }} />
+                          <span
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {href}
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
           ))}
@@ -717,22 +905,6 @@ export default function TaskDetailsModal({
             </div>
           </aside>
         </div>
-
-        <footer className="td-footer">
-          <div className="td-footer-left">
-            {(task.projectId?._id || task.Project) && (
-              <span style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span className="td-project-dot" />
-                Project: <strong style={{ color: '#0f172a' }}>{task.projectId?.name || task.Project}</strong>
-              </span>
-            )}
-          </div>
-          <div className="td-footer-right">
-            <button type="button" className="td-view-btn" onClick={onClose}>
-              Close
-            </button>
-          </div>
-        </footer>
       </div>
     </div>
   );

@@ -1,5 +1,33 @@
 import mongoose, { Schema } from "mongoose";
 
+const taskWorkFileSchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    url: {
+      type: String,
+      required: true,
+    },
+
+    size: {
+      type: Number,
+      default: 0,
+    },
+
+    type: {
+      type: String,
+      default: "application/octet-stream",
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
 const taskWorkSchema = new Schema(
   {
     taskId: {
@@ -44,6 +72,18 @@ const taskWorkSchema = new Schema(
       default: "",
     },
 
+    // Employee uploaded files
+    files: {
+      type: [taskWorkFileSchema],
+      default: [],
+    },
+
+    // Employee submitted links
+    links: {
+      type: [String],
+      default: [],
+    },
+
     totalMinutes: {
       type: Number,
       default: 0,
@@ -85,6 +125,8 @@ taskWorkSchema.index({
   employeeId: 1,
   status: 1,
 });
+
+
 
 const TaskWork =
   mongoose.models.TaskWork ||

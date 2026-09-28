@@ -139,6 +139,12 @@ export default function TasksPage() {
   const [selectedWorkId, setSelectedWorkId] = useState<string | null>(null);
   const [workNotes, setWorkNotes] = useState('');
   const [workLinks, setWorkLinks] = useState('');
+  const [workFiles, setWorkFiles] = useState<Array<{
+    name: string;
+    url: string;
+    size?: number;
+    type?: string;
+  }>>([]);
   const [completionStatus, setCompletionStatus] = useState<'partial' | 'full'>('full');
   const [reviewingTask, setReviewingTask] = useState<Task | null>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
@@ -691,21 +697,36 @@ export default function TasksPage() {
       setError(null);
       setSuccessMsg(null);
 
-      const hasNotes = workNotes.trim() !== '';
-      const hasLinks = stripHtml(workLinks) !== '';
-      const notes = hasNotes || hasLinks
-        ? `${workNotes}${hasNotes && hasLinks ? '\n\n' : ''}${workLinks}`
-        : undefined;
+      const cleanReason = stripHtml(workNotes).trim();
+
+      if (completionStatus === 'partial' && !cleanReason) {
+        toast.error('Please provide a reason before marking the task as partially done.');
+        return;
+      }
+
+      const links = workLinks
+        .split(/\n|,/)
+        .map((link) => link.trim())
+        .filter(Boolean);
 
       const now = frozenEndTime || new Date();
       const priorPausedMs = (selectedWorkId && pausedDurations[selectedWorkId]) || 0;
       const effectiveEndTime = new Date(now.getTime() - priorPausedMs);
       const localTime = getLocalTimeValue(effectiveEndTime);
 
-      const result = await taskApi.endTaskWork(workId, { notes, localTime, isFullyCompleted: completionStatus === 'full' });
-      if (!result.success) throw new Error('Failed to end work');
+      const result = await taskApi.endTaskWork(workId, {
+        notes: workNotes.trim() || undefined,
+        links,
+        files: workFiles,
+        localTime,
+        isFullyCompleted: completionStatus === 'full',
+      });
 
-      setSuccessMsg(result.message);
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to end work');
+      }
+
+      setSuccessMsg(result.message || 'Work session ended successfully.');
       setTimeout(() => setSuccessMsg(null), 4000);
 
       if (selectedWorkId) {
@@ -722,6 +743,9 @@ export default function TasksPage() {
       setPauseStartTime(null);
       setWorkNotes('');
       setWorkLinks('');
+      setWorkFiles([]);
+      setCompletionStatus('full');
+
       await loadAllData();
 
       const empId = user?._id || user?.id;
@@ -730,9 +754,66 @@ export default function TasksPage() {
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
+      toast.error(err instanceof Error ? err.message : 'Failed to end work');
     } finally {
       setProcessingTaskId(null);
     }
+  };
+
+  const handleWorkFilesChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const selectedFiles = Array.from(event.target.files || []);
+    if (!selectedFiles.length) return;
+
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+    const validFiles = selectedFiles.filter((file) => {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`${file.name} is larger than 10 MB and was skipped.`);
+        return false;
+      }
+      return true;
+    });
+
+    try {
+      const converted = await Promise.all(
+        validFiles.map(
+          (file) =>
+            new Promise<{
+              name: string;
+              url: string;
+              size: number;
+              type: string;
+            }>((resolve, reject) => {
+              const reader = new FileReader();
+
+              reader.onload = () =>
+                resolve({
+                  name: file.name,
+                  url: String(reader.result || ''),
+                  size: file.size,
+                  type: file.type || 'application/octet-stream',
+                });
+
+              reader.onerror = () =>
+                reject(new Error(`Failed to read ${file.name}`));
+
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+
+      setWorkFiles((prev) => [...prev, ...converted]);
+      event.target.value = '';
+    } catch (error) {
+      console.error('Failed to attach work files:', error);
+      toast.error('Failed to attach one or more files.');
+    }
+  };
+
+  const removeWorkFile = (index: number) => {
+    setWorkFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const openEndWorkDialog = (workId: string) => {
@@ -741,6 +822,9 @@ export default function TasksPage() {
     setFrozenEndTime(now);
     setCurrentTime(now);
     setSelectedWorkId(workId);
+    setWorkNotes('');
+    setWorkLinks('');
+    setWorkFiles([]);
     setShowEndWorkDialog(true);
   };
 
@@ -758,6 +842,7 @@ export default function TasksPage() {
     setPauseStartTime(null);
     setWorkNotes('');
     setWorkLinks('');
+    setWorkFiles([]);
     setCompletionStatus('full');
     setCurrentTime(new Date());
   };
@@ -2875,6 +2960,8 @@ export default function TasksPage() {
             justifyContent: 'center',
             zIndex: 10001,
             padding: '20px',
+            overflowX: 'hidden',
+            overflowY: 'auto',
           }}
           onClick={closeReviewDialogs}
         >
@@ -2884,6 +2971,9 @@ export default function TasksPage() {
               maxWidth: '650px',
               width: '100%',
               position: 'relative',
+              maxHeight: 'calc(100vh - 40px)',
+              overflowY: 'auto',
+              overflowX: 'hidden',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -3330,6 +3420,74 @@ export default function TasksPage() {
 
               <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {completionStatus === 'partial' ? 'Explain why you are stopping and what work is left.' : 'Describe your progress, achievements, or any issues faced.'}
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
+                Work Files (Optional)
+              </label>
+
+              <label
+                htmlFor="work-file-upload"
+                className="btn btn-secondary"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  marginBottom: '10px',
+                }}
+              >
+                <Paperclip size={15} />
+                Attach Files
+              </label>
+              <input
+                id="work-file-upload"
+                type="file"
+                multiple
+                onChange={handleWorkFilesChange}
+                style={{ display: 'none' }}
+              />
+
+              {workFiles.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {workFiles.map((file, index) => (
+                    <div
+                      key={`${file.name}-${index}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px',
+                        padding: '9px 10px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        background: 'var(--bg-tertiary)',
+                      }}
+                    >
+                      <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <FileText size={15} />
+                        <span style={{ fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {file.name}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => removeWorkFile(index)}
+                        style={{ padding: '4px', flexShrink: 0 }}
+                        title="Remove file"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                Maximum 10 MB per file. Files will be saved with this work session and added to the task attachments.
               </p>
             </div>
 

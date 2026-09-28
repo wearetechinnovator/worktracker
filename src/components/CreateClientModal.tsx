@@ -312,7 +312,7 @@ export default function CreateClientModal({
 
     if (!res.success) {
       const errMsg = res.message || "Failed to create client";
-      setError(errMsg);
+      // setError(errMsg);
       toast.error(errMsg);
       setSubmitting(false);
       return;
@@ -352,7 +352,7 @@ export default function CreateClientModal({
       "Error occurred while creating client.";
 
     setError(errorMessage);
-    toast.error(errorMessage);
+    // toast.error(errorMessage);
   } finally {
     setSubmitting(false);
   }

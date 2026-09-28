@@ -2585,7 +2585,7 @@ export default function TasksPage() {
                                 </button>
                               )}
 
-                              {!isAdmin && canManageTask(task) && (
+                              {/* {!isAdmin && canManageTask(task) && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -2597,7 +2597,7 @@ export default function TasksPage() {
                                 >
                                   <Edit size={12} />
                                 </button>
-                              )}
+                              )} */}
 
                               {isAdmin && (
                                 <button
