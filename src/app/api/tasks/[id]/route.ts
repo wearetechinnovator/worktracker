@@ -11,8 +11,8 @@ import { createInitialTaskLogs } from "@/lib/taskLog";
 import { createGlobalLog } from "@/lib/globalLog";
 
 /* =========================================================
-   TIME HELPER
-   ========================================================= */
+  TIME HELPER
+  ========================================================= */
 
 function toTimeDate(value: unknown) {
   if (!value) return null;
@@ -41,8 +41,8 @@ function toTimeDate(value: unknown) {
 }
 
 /* =========================================================
-   GET ALL TASKS
-   ========================================================= */
+  GET ALL TASKS
+  ========================================================= */
 
 export async function GET(req: Request) {
   try {
@@ -82,9 +82,9 @@ export async function GET(req: Request) {
     const priority =
       searchParams.get("priority");
 
-    /* =====================================================
-       FILTER
-    ===================================================== */
+  /* =====================================================
+    FILTER
+  ===================================================== */
 
     const filter: Record<
       string,
@@ -118,9 +118,9 @@ export async function GET(req: Request) {
       ];
     }
 
-    /* =====================================================
-       PROJECT FILTER
-    ===================================================== */
+  /* =====================================================
+      PROJECT FILTER
+  ===================================================== */
 
     if (
       projectId &&
