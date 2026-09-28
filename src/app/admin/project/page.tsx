@@ -961,22 +961,7 @@ export default function ProjectsPage() {
             )}
           </div>
 
-          {/* Sidebar Tip */}
-          <div style={{
-            border: '1px solid var(--border-color)',
-            borderRadius: '10px',
-            padding: '10px 12px',
-            background: 'var(--bg-tertiary)',
-            marginTop: '16px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 400, fontSize: '0.74rem', color: 'var(--accent-primary)', marginBottom: '3px' }}>
-              <Lightbulb size={13} />
-              <span>Tip</span>
-            </div>
-            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0, lineHeight: '1.35' }}>
-              Projects help you organize and track all your work efficiently.
-            </p>
-          </div>
+          
         </div>
 
         {/* Right column detail panel */}
@@ -1205,11 +1190,11 @@ export default function ProjectsPage() {
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button className="btn btn-secondary" onClick={() => setEditMode(true)}>
                           <Edit3 size={14} />
-                          <span>Edit Info</span>
+                          {/* <span>Edit Info</span> */}
                         </button>
                         <button className="btn btn-danger" onClick={handleDeleteDept}>
                           <Trash2 size={14} />
-                          <span>Delete</span>
+                          {/* <span>Delete</span> */}
                         </button>
                       </div>
                     )}

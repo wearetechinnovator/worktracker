@@ -345,7 +345,7 @@ export default function Sidebar() {
 				{user && (
 					<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
 						<div className="avatar" style={{ width: '28px', height: '28px', fontSize: '0.72rem', fontWeight: 700 }}>
-							{user.name?.split(' ').map((n: string) => n[0]).join('') || 'U'}
+							{/* {user.name?.split(' ').map((n: string) => n[0]).join('') || 'U'} */}
 						</div>
 					</div>
 				)}
@@ -752,12 +752,12 @@ export default function Sidebar() {
 										fontSize: '0.75rem',
 										flexShrink: 0,
 									}}
-									title={user.name}
+									// title={user.name}
 								>
-									{user.name
+									{/* {user.name
 										?.split(' ')
 										.map((n: string) => n[0])
-										.join('') || 'U'}
+										.join('') || 'U'} */}
 								</div>
 
 								{!isCollapsed && (

@@ -997,7 +997,7 @@ a {
 }
 
 .badge-status.active {
-  background: var(--status-active-bg);
+  /* background: var(--status-active-bg); */
   color: var(--status-active-text);
 }
 
@@ -1191,9 +1191,7 @@ a {
   text-transform: uppercase;
 }
 
-.avatar:not(:has(img)) {
-  color: transparent !important;
-}
+
 
 .client-avatar {
   background-image: url('/user-circles-set.png') !important;

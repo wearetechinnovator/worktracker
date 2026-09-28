@@ -40,7 +40,7 @@ export default function AddTeamMemberModal({
   const [group, setGroup] = useState('');
   const [status, setStatus] = useState(mode === 'add' ? 'Active' : employee?.status || 'Active');
   const [workMode, setWorkMode] = useState(mode === 'add' ? 'Hybrid' : employee?.workMode || 'Hybrid');
-  const [avatarColor, setAvatarColor] = useState(employee?.avatarColor || '#3b82f6');
+  const [avatarColor, setAvatarColor] = useState(employee?.avatarColor);
   const [userType, setUserType] = useState<'admin' | 'employee'>(employee?.userType || 'employee');
   type Designation = {
     _id: string;
@@ -632,7 +632,6 @@ const [roles, setRoles] = useState<
         Project: project.trim(),
         status,
         workMode,
-        avatarColor,
         userType,
       };
 
@@ -923,7 +922,7 @@ const [roles, setRoles] = useState<
             />
 
             <CustomDropdown
-              label="Default Project"
+              label="Project"
               placeholder={
                 fetchedProjects.length === 0
                   ? "No projects found"

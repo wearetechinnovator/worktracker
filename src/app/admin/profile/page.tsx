@@ -791,7 +791,7 @@ export default function AdminProfilePage() {
                 </div>
 
                 <div style={{ flex: 1, display: "flex", gap: "6px" }}>
-                  <div className="custom-input-group" style={{ flex: 1 }}>
+                  {/* <div className="custom-input-group" style={{ flex: 1 }}>
                     <span className="custom-input-addon">
                       <ImageIcon size={15} />
                     </span>
@@ -805,7 +805,7 @@ export default function AdminProfilePage() {
                       placeholder="Property logo URL or click Upload"
                       className="custom-input-control"
                     />
-                  </div>
+                  </div> */}
 
                   <button
                     type="button"

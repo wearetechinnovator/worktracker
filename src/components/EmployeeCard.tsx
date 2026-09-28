@@ -125,19 +125,7 @@ export default function EmployeeCard({
                             color: 'black'
                         }}
                     >
-                        {employee.profile_picture ? (
-                            <img
-                                src={employee.profile_picture}
-                                alt={employeeName}
-                                style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    objectFit: 'cover',
-                                }}
-                            />
-                        ) : (
-                            initials
-                        )}
+                        
                     </div>
 
                     <div style={{ minWidth: 0 }}>
@@ -224,7 +212,7 @@ export default function EmployeeCard({
                 style={{
                     padding: '11px 16px',
                     borderTop: '1px solid var(--border-color)',
-                    borderBottom: '1px solid var(--border-color)',
+                    // borderBottom: '1px solid var(--border-color)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '8px',
@@ -283,87 +271,6 @@ export default function EmployeeCard({
                         </span>
                     </div>
                 )}
-            </div>
-
-            {/* Attendance */}
-            <div
-                onClick={(event) => event.stopPropagation()}
-                style={{ padding: '13px 16px 14px' }}
-            >
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '8px',
-                    }}
-                >
-                    <span
-                        style={{
-                            fontSize: '0.56rem',
-                            fontWeight: 800,
-                            color: 'var(--text-muted)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em',
-                        }}
-                    >
-                        Attendance access
-                    </span>
-                </div>
-
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: '7px',
-                    }}
-                ><AnimateIcon animateOnHover>
-                        <button
-                            type="button"
-                            className="btn"
-                            onClick={() =>
-                                onTogglePunchOverride(employee._id, 'allowPunchIn')
-                            }
-                            style={{
-                                minHeight: '30px',
-                                padding: '5px 8px',
-                                borderRadius: '7px',
-                                fontSize: '0.62rem',
-                                fontWeight: 750,
-                                background: allowPunchIn ? '#dcfce7' : '#15803d',
-                                color: allowPunchIn ? '#15803d' : '#dcfce7',
-                                border: '1px solid #86efac',
-                                width: '100%'
-                            }}
-                        >
-                            <LogIn size={17} />
-                            {allowPunchIn ? '✓ In Allowed' : 'Allow In'}
-                        </button>
-                    </AnimateIcon>
-<AnimateIcon animateOnHover>
-                    <button
-                        type="button"
-                        className="btn"
-                        onClick={() =>
-                            onTogglePunchOverride(employee._id, 'allowPunchOut')
-                        }
-                        style={{
-                            minHeight: '30px',
-                            padding: '5px 8px',
-                            borderRadius: '7px',
-                            fontSize: '0.62rem',
-                            fontWeight: 750,
-                            background: allowPunchOut ? '#fee2e2' : '#b91c1c',
-                            color: allowPunchOut ? '#b91c1c' : '#fee2e2',
-                            border: '1px solid #fca5a5',
-                            width: '100%'
-                        }}
-                    >
-                          <LogOut size={17} />
-                        {allowPunchOut ? '✓ Out Allowed' : 'Allow Out'}
-                    </button>
-                    </AnimateIcon>
-                </div>
             </div>
 
             {/* Footer */}
@@ -447,7 +354,7 @@ export default function EmployeeCard({
                             width: '32px',
                             height: '32px',
                             borderRadius: '8px',
-                            backgroundColor: '#cdfe9c',
+                            // backgroundColor: '#cdfe9c',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -463,12 +370,13 @@ export default function EmployeeCard({
                             aria-label={`Delete ${employeeName}`}
                             onClick={() => onDelete(employee._id)}
                             style={{
-                                width: '32px',
-                                height: '32px',
+                                width: '28px',
+                                height: '28px',
                                 borderRadius: '8px',
-                                backgroundColor: '#f38686',
+                                backgroundColor: '#cb0000ff',
                                 display: 'inline-flex',
                                 alignItems: 'center',
+                                color: '#ffffffff',
                                 justifyContent: 'center',
                             }}
                         >

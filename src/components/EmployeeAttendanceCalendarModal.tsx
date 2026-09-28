@@ -263,14 +263,14 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
             <div
               className="avatar"
               style={{
-                backgroundColor: employee.avatarColor ?? '#3b82f6',
+                // backgroundColor: employee.avatarColor,
                 width: '42px',
                 height: '42px',
                 fontSize: '1.1rem',
                 fontWeight: 800,
               }}
             >
-              {employeeInitials}
+
             </div>
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
@@ -287,49 +287,7 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
           <button className="modal-close" onClick={onClose} style={{ fontSize: '1.4rem' }}>&times;</button>
         </div>
 
-        {/* Admin Punch Override Controls */}
-        {isAdmin && todayAttendance !== undefined && (
-          <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '12px 14px', borderRadius: '8px', marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>1-Day Admin Punch Override</div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Grant temporal authorization to bypass schedule restrictions for today.</div>
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
-                className="btn"
-                disabled={submittingOverride}
-                style={{
-                  fontSize: '0.75rem',
-                  padding: '5px 10px',
-                  fontWeight: 700,
-                  background: todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#dcfce7' : 'var(--bg-primary)',
-                  color: todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#15803d' : 'var(--text-primary)',
-                  border: '1px solid ' + (todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '#86efac' : 'var(--border-color)'),
-                }}
-                onClick={() => handleToggleOverride('allowPunchIn')}
-              >
-                {todayAttendance?.allowPunchInDate === new Date().toISOString().split('T')[0] ? '✓ In Allowed' : 'Allow Punch In'}
-              </button>
-              <button
-                type="button"
-                className="btn"
-                disabled={submittingOverride}
-                style={{
-                  fontSize: '0.75rem',
-                  padding: '5px 10px',
-                  fontWeight: 700,
-                  background: todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#fee2e2' : 'var(--bg-primary)',
-                  color: todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#b91c1c' : 'var(--text-primary)',
-                  border: '1px solid ' + (todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '#fca5a5' : 'var(--border-color)'),
-                }}
-                onClick={() => handleToggleOverride('allowPunchOut')}
-              >
-                {todayAttendance?.allowPunchOutDate === new Date().toISOString().split('T')[0] ? '✓ Out Allowed' : 'Allow Punch Out'}
-              </button>
-            </div>
-          </div>
-        )}
+       
 
         {/* Month Navigator & Summary Stats */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', margin: '18px 0' }}>
@@ -361,16 +319,13 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
 
           {/* Monthly Stats Pills */}
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <div style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', padding: '5px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <CheckCircle2 size={14} style={{ color: '#10b981' }} />
+            <div style={{ background: '#007940ff', color: '#ffffffff', padding: '5px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>Present: {totalPresent}</span>
             </div>
-            <div style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', padding: '5px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <XCircle size={14} style={{ color: '#ef4444' }} />
+            <div style={{ background: '#d92a2aff', color: '#ffffffff', padding: '5px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>Absent: {totalAbsent}</span>
             </div>
-            <div style={{ background: '#fff7ed', color: '#9a3412', border: '1px solid #ffedd5', padding: '5px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <AlertTriangle size={14} style={{ color: '#f97316' }} />
+            <div style={{ background: '#d8c84eff', color: '#ffffffff', padding: '5px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>On Leave: {totalOnLeave}</span>
             </div>
           </div>
@@ -527,10 +482,6 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
                       ) : (
                         <span />
                       )}
-
-                      <span style={{ fontSize: '0.62rem', color: 'var(--accent-primary)', fontWeight: 650 }}>
-                        Details &rarr;
-                      </span>
                     </div>
                   </div>
                 );
