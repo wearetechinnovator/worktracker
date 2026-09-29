@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import './TaskDetailsModal.css';
+import { formatTimeTo12H } from '@/lib/time';
 
 export interface TaskDetailsTask {
   _id: string;
@@ -125,7 +126,7 @@ const formatDate = (value?: string, withTime = false) => {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
-    ...(withTime ? { hour: 'numeric', minute: '2-digit' } : {}),
+    ...(withTime ? { hour: 'numeric', minute: '2-digit', hour12: true } : {}),
   });
 };
 
@@ -140,6 +141,7 @@ const formatDateTime = (value?: string | Date | null) => {
     hour: 'numeric',
     minute: '2-digit',
     second: '2-digit',
+    hour12: true,
   });
 };
 
@@ -393,7 +395,7 @@ export default function TaskDetailsModal({
                 </div>
               </div>
               <div className="td-session-meta">
-                <span>{session.startTime || '—'} – {session.endTime || 'Active'}</span>
+                <span>{session.startTime ? formatTimeTo12H(session.startTime) : '—'} – {session.endTime ? formatTimeTo12H(session.endTime) : (session.status === 'Paused' ? 'Paused' : 'Active')}</span>
                 <span className="td-mini-status">
                   {session.status === 'Completed' ? (session.isFullyCompleted ? 'Completed' : 'Partial') : 'In Progress'}
                 </span>
@@ -725,10 +727,13 @@ export default function TaskDetailsModal({
       </div>
 
       <div className="td-details-grid">
-        {task.dueDate && (
+        {(task.dueDate || task.dueTime) && (
           <div className="td-detail-item">
-            <span>Due date</span>
-            <strong className="td-muted-value">{formatDate(task.dueDate, true)}</strong>
+            <span>Due date & time</span>
+            <strong className="td-muted-value">
+              {task.dueDate ? formatDate(task.dueDate) : ''}
+              {task.dueTime ? ` at ${formatTimeTo12H(task.dueTime)}` : ''}
+            </strong>
           </div>
         )}
         {task.createdAt && (

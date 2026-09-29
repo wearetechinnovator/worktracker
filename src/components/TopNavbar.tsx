@@ -766,9 +766,9 @@ export default function TopNavbar() {
       }
     };
 
-    const interval = setInterval(refreshPunchState, 15000);
-
-    return () => clearInterval(interval);
+    // const interval = setInterval(refreshPunchState, 15000);
+    
+    // return () => clearInterval(interval);
   }, []);
 
   // =========================================================

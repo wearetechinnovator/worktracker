@@ -33,9 +33,14 @@ const taskSchema = new Schema(
   {
     task_id: {
       type: String,
-      unique: true,
-      sparse: true,
       index: true,
+    },
+
+    admin_id: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      index: true,
+      default: null,
     },
 
     title: {
@@ -212,6 +217,11 @@ const taskSchema = new Schema(
     timestamps: true,
 
   }
+);
+
+taskSchema.index(
+  { admin_id: 1, task_id: 1 },
+  { unique: true, sparse: true }
 );
 
 delete (mongoose.models as any).Task;

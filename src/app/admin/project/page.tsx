@@ -5,7 +5,7 @@ import {
   Folder, FolderPlus, Plus, Search, Edit3, Trash2, Clock,
   AlertCircle, Users, Briefcase, Mail, FileBarChart, Lightbulb, HelpCircle, Sparkles, GripVertical
 } from 'lucide-react';
-import { formatMinutesToDuration } from '@/lib/time';
+import { formatMinutesToDuration, formatTimeTo12H } from '@/lib/time';
 import PageShimmer from '@/components/PageShimmer';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { toast } from '@/lib/toast';
@@ -426,8 +426,8 @@ export default function ProjectsPage() {
             employeeRole: empObj.designation || empObj.role || 'Member',
             title: taskDisplayTitle,
             date: ws.date ? new Date(ws.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recent',
-            startTime: ws.startTime ? new Date(ws.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '',
-            endTime: ws.endTime ? new Date(ws.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : (ws.status === 'Paused' ? 'Paused' : 'Active'),
+            startTime: ws.startTime ? formatTimeTo12H(ws.startTime) : '',
+            endTime: ws.endTime ? formatTimeTo12H(ws.endTime) : (ws.status === 'Paused' ? 'Paused' : 'Active'),
             actualTime: duration,
             description: ws.notes || taskObj.description || '',
             status: ws.status === 'Completed' ? (ws.isFullyCompleted !== false ? 'Completed' : 'Partially Done') : ws.status,
@@ -447,7 +447,7 @@ export default function ProjectsPage() {
           }
           if (new Date(ws.createdAt || ws.date) > new Date(existing.createdAt)) {
             existing.date = ws.date ? new Date(ws.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : existing.date;
-            existing.endTime = ws.endTime ? new Date(ws.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : existing.endTime;
+            existing.endTime = ws.endTime ? formatTimeTo12H(ws.endTime) : existing.endTime;
             existing.createdAt = ws.createdAt || ws.date;
             if (ws.notes) existing.description = ws.notes;
           }

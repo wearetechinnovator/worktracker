@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+import { comparePassword } from "@/lib/encryption";
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
 import Session from "@/models/Session";
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const passwordMatched = await bcrypt.compare(
+    const passwordMatched = await comparePassword(
       password,
       user.password
     );

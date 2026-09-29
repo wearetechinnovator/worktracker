@@ -3,16 +3,16 @@ import mongoose from "mongoose";
 
 import dbConnect from "@/lib/dbConnect";
 import Task from "@/models/Task";
+import TaskWork from "@/models/TaskWork";
 import Project from "@/models/Project";
 import User from "@/models/User";
-import Settings from "@/models/Settings";
 import { currentUser } from "@/lib/auth";
-import { createInitialTaskLogs } from "@/lib/taskLog";
 import { createGlobalLog } from "@/lib/globalLog";
+import { sendTaskAssignedMail } from "@/lib/mailer";
 
 /* =========================================================
-  TIME HELPER
-  ========================================================= */
+   TIME HELPER
+   ========================================================= */
 
 function toTimeDate(value: unknown) {
   if (!value) return null;
@@ -25,10 +25,9 @@ function toTimeDate(value: unknown) {
 
   if (/^\d{2}:\d{2}(:\d{2})?$/.test(text)) {
     return new Date(
-      `1970-01-01T${
-        text.length === 5
-          ? `${text}:00`
-          : text
+      `1970-01-01T${text.length === 5
+        ? `${text}:00`
+        : text
       }`
     );
   }
@@ -41,15 +40,27 @@ function toTimeDate(value: unknown) {
 }
 
 /* =========================================================
-  GET ALL TASKS
-  ========================================================= */
+   GET TASK
+   ========================================================= */
 
-export async function GET(req: Request) {
+export async function GET(
+  req: Request,
+  {
+    params,
+  }: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
+) {
   try {
     await dbConnect();
 
     const user =
       await currentUser();
+
+    const { id } =
+      await params;
 
     if (!user) {
       return NextResponse.json(
@@ -64,129 +75,59 @@ export async function GET(req: Request) {
       );
     }
 
-    const { searchParams } =
-      new URL(req.url);
-
-    const projectId =
-      searchParams.get("project_id") ||
-      searchParams.get("projectId");
-
-    const assignTo =
-      searchParams.get("assign_to") ||
-      searchParams.get("assignedTo");
-
-    const taskStatus =
-      searchParams.get("task_status") ||
-      searchParams.get("status");
-
-    const priority =
-      searchParams.get("priority");
-
-  /* =====================================================
-    FILTER
-  ===================================================== */
-
-    const filter: Record<
-      string,
-      any
-    > = {
-      status: {
-        $ne: 0,
-      },
-    };
-
-    const userObjectId = mongoose.Types.ObjectId.isValid(user._id)
-      ? new mongoose.Types.ObjectId(String(user._id))
-      : user._id;
-
     if (
+      !id ||
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Valid task ID is required",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    /* =====================================================
+       ACCESS
+    ===================================================== */
+
+    const accessFilter =
       Number(user.user_role) === 1
-    ) {
-      filter.created_by =
-        userObjectId;
-    } else {
-      filter.$or = [
-        {
-          created_by: userObjectId,
-        },
-        {
-          assign_to: userObjectId,
-        },
-        {
-          assign_to: String(user._id),
-        },
-      ];
-    }
-
-  /* =====================================================
-      PROJECT FILTER
-  ===================================================== */
-
-    if (
-      projectId &&
-      mongoose.Types.ObjectId.isValid(
-        projectId
-      )
-    ) {
-      filter.project_id =
-        projectId;
-    }
-
-    /* =====================================================
-       ASSIGN FILTER
-    ===================================================== */
-
-    if (
-      assignTo &&
-      mongoose.Types.ObjectId.isValid(
-        assignTo
-      )
-    ) {
-      filter.assign_to =
-        assignTo;
-    }
-
-    /* =====================================================
-       STATUS FILTER
-    ===================================================== */
-
-    if (
-      taskStatus &&
-      taskStatus !== "all"
-    ) {
-      if (
-        taskStatus ===
-          "Partially Done" ||
-        taskStatus ===
-          "Partially Completed"
-      ) {
-        filter.task_status = {
-          $in: [
-            "Partially Done",
-            "Partially Completed",
+        ? {
+          $or: [
+            { created_by: user._id },
+            { admin_id: user._id },
+          ],
+        }
+        : {
+          $or: [
+            {
+              created_by:
+                user._id,
+            },
+            {
+              assign_to:
+                user._id,
+            },
           ],
         };
-      } else {
-        filter.task_status =
-          taskStatus;
-      }
-    }
 
     /* =====================================================
-       PRIORITY FILTER
+       FETCH
     ===================================================== */
 
-    if (priority) {
-      filter.priority =
-        priority;
-    }
+    const task =
+      await Task.findOne({
+        _id: id,
 
-    /* =====================================================
-       FETCH TASKS
-    ===================================================== */
-
-    const tasks =
-      await Task.find(filter)
+        ...accessFilter,
+      })
         .populate(
           "project_id",
           "name color"
@@ -207,240 +148,32 @@ export async function GET(req: Request) {
           "comments.user_id",
           "full_name name email profile_picture avatarColor"
         )
-        .sort({
-          created_on: -1,
-          createdAt: -1,
-        })
         .lean();
 
-    /* =====================================================
-       FORMAT TASKS
-    ===================================================== */
-
-    const formattedTasks =
-      tasks.map(
-        (task: any) => {
-          const assignedArr =
-            Array.isArray(
-              task.assign_to
-            )
-              ? task.assign_to.map(
-                  (u: any) =>
-                    typeof u ===
-                      "object" &&
-                    u !== null
-                      ? {
-                          _id:
-                            u._id,
-
-                          name:
-                            u.full_name ||
-                            u.name ||
-                            "User",
-
-                          email:
-                            u.email ||
-                            "",
-
-                          avatarColor:
-                            u.avatarColor ||
-                            "#4f46e5",
-                        }
-                      : u
-                )
-              : [];
-
-          const createdObj =
-            typeof task.created_by ===
-              "object" &&
-            task.created_by !== null
-              ? {
-                  _id:
-                    task.created_by
-                      ._id,
-
-                  name:
-                    task.created_by
-                      .full_name ||
-                    task.created_by
-                      .name ||
-                    "Admin",
-
-                  email:
-                    task.created_by
-                      .email ||
-                    "",
-                }
-              : task.created_by;
-
-          const projectObj =
-            typeof task.project_id ===
-              "object" &&
-            task.project_id !== null
-              ? {
-                  _id:
-                    task.project_id
-                      ._id,
-
-                  name:
-                    task.project_id
-                      .name,
-
-                  color:
-                    task.project_id
-                      .color ||
-                    "#3b82f6",
-                }
-              : undefined;
-
-          const formattedComments =
-            Array.isArray(
-              task.comments
-            )
-              ? task.comments.map(
-                  (c: any) => ({
-                    _id: c._id,
-
-                    comment:
-                      c.comment,
-
-                    user_id:
-                      c.user_id,
-
-                    datetime:
-                      c.datetime,
-
-                    author:
-                      typeof c.user_id ===
-                        "object" &&
-                      c.user_id !== null
-                        ? {
-                            _id:
-                              c.user_id
-                                ._id,
-
-                            name:
-                              c.user_id
-                                .full_name ||
-                              c.user_id
-                                .name ||
-                              "User",
-
-                            email:
-                              c.user_id
-                                .email,
-                          }
-                        : {
-                            _id:
-                              c.user_id,
-
-                            name:
-                              "User",
-                          },
-
-                    content:
-                      c.comment,
-
-                    createdAt:
-                      c.datetime,
-                  })
-                )
-              : [];
-
-          return {
-            ...task,
-
-            project_id:
-              task.project_id,
-
-            assign_to:
-              task.assign_to,
-
-            created_by:
-              task.created_by,
-
-            task_status:
-              task.task_status ===
-              "Partially Completed"
-                ? "Partially Done"
-                : task.task_status ||
-                  "To Do",
-
-            completion_date:
-              task.completion_date,
-
-            completion_time:
-              task.completion_time,
-
-            created_on:
-              task.created_on ||
-              task.createdAt,
-
-            modified_by:
-              task.modified_by,
-
-            modified_on:
-              task.modified_on,
-
-            status:
-              task.task_status ===
-              "Partially Completed"
-                ? "Partially Done"
-                : task.task_status ||
-                  "To Do",
-
-            record_status:
-              task.status ?? 1,
-
-            comments:
-              typeof task.comments ===
-              "string"
-                ? task.comments
-                : "",
-
-            projectId:
-              projectObj,
-
-            Project:
-              projectObj?.name,
-
-            assignedTo:
-              assignedArr,
-
-            createdBy:
-              createdObj,
-
-            dueDate:
-              task.completion_date
-                ? new Date(
-                    task.completion_date
-                  )
-                    .toISOString()
-                    .split("T")[0]
-                : undefined,
-
-            dueTime:
-              task.completion_time ||
-              undefined,
-
-            commentsList:
-              formattedComments,
-
-            createdAt:
-              task.created_on ||
-              task.createdAt,
-          };
+    if (
+      !task ||
+      task.status === 0
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Task not found",
+        },
+        {
+          status: 404,
         }
       );
+    }
 
     return NextResponse.json({
       success: true,
 
-      data: formattedTasks,
+      data: task,
     });
   } catch (error: any) {
     console.error(
-      "GET TASKS ERROR:",
+      "GET TASK ERROR:",
       error
     );
 
@@ -450,7 +183,7 @@ export async function GET(req: Request) {
 
         message:
           error?.message ||
-          "Failed to fetch tasks",
+          "Failed to fetch task",
       },
       {
         status: 500,
@@ -460,18 +193,27 @@ export async function GET(req: Request) {
 }
 
 /* =========================================================
-   POST /api/tasks
-   CREATE TASK
+   PATCH TASK
    ========================================================= */
 
-export async function POST(
-  req: Request
+export async function PATCH(
+  req: Request,
+  {
+    params,
+  }: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
 ) {
   try {
     await dbConnect();
 
     const user =
       await currentUser();
+
+    const { id } =
+      await params;
 
     if (!user) {
       return NextResponse.json(
@@ -486,625 +228,903 @@ export async function POST(
       );
     }
 
+    if (
+      !id ||
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Valid task ID is required",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    /* =====================================================
+       ACCESS FILTER
+       - Admin: tasks created by this admin
+       - Employee: tasks created by them OR assigned to them
+       The employee-specific field restrictions are enforced below.
+    ===================================================== */
+
+    const isAdminUser =
+      Number(user.user_role) === 1;
+
+    const accessFilter = isAdminUser
+      ? {
+          $or: [
+            { created_by: user._id },
+            { admin_id: user._id },
+          ],
+        }
+      : {
+          $or: [
+            {
+              created_by: user._id,
+            },
+            {
+              assign_to: user._id,
+            },
+          ],
+        };
+
+    /* =====================================================
+       GET OLD TASK
+       IMPORTANT FOR ASSIGN / UNASSIGN
+    ===================================================== */
+
+    const existingTask =
+      await Task.findOne({
+        _id: id,
+
+        ...accessFilter,
+      }).lean();
+
+    if (
+      !existingTask ||
+      existingTask.status === 0
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Task not found",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
     const body =
       await req.json();
 
-    const {
-      title,
-      description,
+    /* =====================================================
+       REVIEW / REASSIGN
+       Employee completion first goes to Review.
+       Only the task owner/admin can approve or reassign.
+    ===================================================== */
 
-      project_id,
-      projectId,
+    const reviewAction = body.reviewAction;
 
-      assign_to,
-      assignedTo,
+    if (
+      reviewAction === "approve" ||
+      reviewAction === "reject"
+    ) {
+      if (Number(user.user_role) !== 1) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Only an admin can review this task",
+          },
+          { status: 403 }
+        );
+      }
 
-      priority,
+      if (existingTask.task_status !== "Review") {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "This task is not waiting for review",
+          },
+          { status: 400 }
+        );
+      }
 
-      task_status,
+      const latestWork =
+        await TaskWork.findOne({
+          taskId: existingTask._id,
+          status: "Completed",
+        })
+          .sort({
+            updatedAt: -1,
+            createdAt: -1,
+          })
+          .lean();
 
-      status: reqStatus,
+      if (!latestWork) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "No completed work session was found for review",
+          },
+          { status: 400 }
+        );
+      }
 
-      files,
+      const now = new Date();
 
-      urls,
+      if (reviewAction === "approve") {
+        const approvedStatus = "Completed";
 
-      url,
+        const approvedTask =
+          await Task.findOneAndUpdate(
+            {
+              _id: id,
+              created_by: user._id,
+              status: { $ne: 0 },
+              task_status: "Review",
+            },
+            {
+              task_status: approvedStatus,
+              completion_date: now,
+              completion_time: now,
+              modified_by: user._id,
+              modified_on: now,
+            },
+            {
+              new: true,
+              runValidators: true,
+            }
+          )
+            .populate(
+              "project_id",
+              "name color"
+            )
+            .populate(
+              "assign_to",
+              "full_name name email profile_picture avatarColor"
+            )
+            .populate(
+              "created_by",
+              "full_name name email avatarColor"
+            )
+            .lean();
 
-      comments,
+        if (!approvedTask) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Task could not be approved",
+            },
+            { status: 404 }
+          );
+        }
 
-      completion_date,
-      dueDate,
+        await createGlobalLog({
+          actorId: String(user._id),
+          action: "APPROVE",
+          entityType: "Task",
+          entityId: String(existingTask._id),
+          targetUserId:
+            Array.isArray(existingTask.assign_to) &&
+            existingTask.assign_to.length > 0
+              ? String(existingTask.assign_to[0])
+              : null,
+          description:
+            `Approved task "${existingTask.title}" after employee review`,
+          information: {
+            task_id: existingTask.task_id,
+            task_title: existingTask.title,
+            approved_status: approvedStatus,
+            work_id: String(latestWork._id),
+            reviewed_at: now,
+          },
+        });
 
-      completion_time,
-      dueTime,
+        return NextResponse.json({
+          success: true,
+          message:
+            approvedStatus === "Completed"
+              ? "Task approved and marked as completed"
+              : "Task review approved",
+          data: approvedTask,
+        });
+      }
 
-      task_assign_date,
+      const reassignTo =
+        typeof body.reassignTo === "string"
+          ? body.reassignTo
+          : "";
 
-      task_delay_reason,
-    } = body;
+      if (
+        !reassignTo ||
+        !mongoose.Types.ObjectId.isValid(reassignTo)
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Please select an employee to reassign the task",
+          },
+          { status: 400 }
+        );
+      }
+
+      const reassignedEmployee =
+        await User.findOne({
+          _id: reassignTo,
+          $or: [
+            { user_role: 2 },
+            { user_role: "2" },
+            { user_role: { $exists: false } },
+          ],
+        }).select("_id full_name email");
+
+      if (!reassignedEmployee) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Selected employee not found",
+          },
+          { status: 400 }
+        );
+      }
+
+      const oldAssignedIds =
+        Array.isArray(existingTask.assign_to)
+          ? existingTask.assign_to.map((employeeId: any) =>
+              String(employeeId)
+            )
+          : [];
+
+      const reassignedTask =
+        await Task.findOneAndUpdate(
+          {
+            _id: id,
+            status: { $ne: 0 },
+          },
+          {
+            assign_to: [reassignedEmployee._id],
+            task_status: "To Do",
+            task_assign_date: now,
+            task_delay_reason:
+              typeof body.reviewReason === "string"
+                ? body.reviewReason.trim() || null
+                : existingTask.task_delay_reason || null,
+            modified_by: user._id,
+            modified_on: now,
+          },
+          {
+            new: true,
+            runValidators: true,
+          }
+        )
+          .populate(
+            "project_id",
+            "name color"
+          )
+          .populate(
+            "assign_to",
+            "full_name name email profile_picture avatarColor"
+          )
+          .populate(
+            "created_by",
+            "full_name name email avatarColor"
+          )
+          .lean();
+
+      if (!reassignedTask) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Task could not be reassigned",
+          },
+          { status: 404 }
+        );
+      }
+
+      await createGlobalLog({
+        actorId: String(user._id),
+        action: "REJECT",
+        entityType: "Task",
+        entityId: String(existingTask._id),
+        targetUserId: String(reassignedEmployee._id),
+        description:
+          `Rejected review for task "${existingTask.title}" and requested reassignment`,
+        information: {
+          task_id: existingTask.task_id,
+          task_title: existingTask.title,
+          previous_assignees: oldAssignedIds,
+          new_assignee: String(reassignedEmployee._id),
+          new_assignee_name: reassignedEmployee.full_name,
+          reason:
+            typeof body.reviewReason === "string"
+              ? body.reviewReason.trim() || null
+              : null,
+          rejected_at: now,
+          work_id: latestWork ? String(latestWork._id) : null,
+        },
+      });
+
+      for (const employeeId of oldAssignedIds) {
+        await createGlobalLog({
+          actorId: String(user._id),
+          action: "UNASSIGN",
+          entityType: "Task",
+          entityId: String(existingTask._id),
+          targetUserId: employeeId,
+          description:
+            `Unassigned task "${existingTask.title}" during review reassignment`,
+          information: {
+            task_id: existingTask.task_id,
+            task_title: existingTask.title,
+            unassigned_user_id: employeeId,
+            reassigned_to: String(reassignedEmployee._id),
+            reassigned_at: now,
+          },
+        });
+      }
+
+      await createGlobalLog({
+        actorId: String(user._id),
+        action: "ASSIGN",
+        entityType: "Task",
+        entityId: String(existingTask._id),
+        targetUserId: String(reassignedEmployee._id),
+        description:
+          `Reassigned task "${existingTask.title}" to ${reassignedEmployee.full_name}`,
+        information: {
+          task_id: existingTask.task_id,
+          task_title: existingTask.title,
+          assigned_user_id: String(reassignedEmployee._id),
+          assigned_user_name: reassignedEmployee.full_name,
+          assigned_at: now,
+          previous_assignees: oldAssignedIds,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message:
+          `Task rejected and reassigned to ${reassignedEmployee.full_name}`,
+        data: reassignedTask,
+      });
+    }
+
+    const updateData: Record<
+      string,
+      any
+    > = {
+      task_assign_date:
+        body.task_assign_date,
+
+      task_delay_reason:
+        body.task_delay_reason,
+    };
+
+    /*
+     * Reassigned employees are allowed to update only the
+     * description and add files. They cannot change assignment,
+     * project, title, priority, status, or remove existing files.
+     */
+    const isAssignedEmployee =
+      !isAdminUser &&
+      String(existingTask.created_by) !== String(user._id) &&
+      Array.isArray(existingTask.assign_to) &&
+      existingTask.assign_to.some(
+        (employeeId: any) =>
+          String(employeeId) === String(user._id)
+      );
+
+    if (isAssignedEmployee) {
+      // Employees cannot change title, project, priority, status, or assignment
+      if (
+        body.title !== undefined &&
+        String(body.title).trim() !== String(existingTask.title).trim()
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Employees are not permitted to change the task title.",
+          },
+          { status: 403 }
+        );
+      }
+
+      const reqProjId = body.project_id ?? body.projectId;
+      if (
+        reqProjId !== undefined &&
+        String(reqProjId) !== String(existingTask.project_id)
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Employees are not permitted to change the project.",
+          },
+          { status: 403 }
+        );
+      }
+
+      if (
+        body.priority !== undefined &&
+        String(body.priority) !== String(existingTask.priority)
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Employees are not permitted to change the task priority.",
+          },
+          { status: 403 }
+        );
+      }
+
+      if (
+        (body.task_status !== undefined &&
+          String(body.task_status) !== String(existingTask.task_status)) ||
+        (body.status !== undefined &&
+          Number(body.status) !== Number(existingTask.status))
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Employees are not permitted to change task status directly. Work status is updated via work sessions.",
+          },
+          { status: 403 }
+        );
+      }
+
+      const reqAssigned = body.assign_to ?? body.assignedTo;
+      if (reqAssigned !== undefined) {
+        const currentAssignedIds = Array.isArray(existingTask.assign_to)
+          ? existingTask.assign_to.map((a: any) => String(a?._id || a))
+          : [];
+        const reqAssignedIds = Array.isArray(reqAssigned)
+          ? reqAssigned.map((a: any) => String(a?._id || a))
+          : [];
+        const isChanged =
+          currentAssignedIds.length !== reqAssignedIds.length ||
+          currentAssignedIds.some((aid: string) => !reqAssignedIds.includes(aid));
+        if (isChanged) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Employees are not permitted to change task assignments.",
+            },
+            { status: 403 }
+          );
+        }
+      }
+
+      const employeeUpdate: Record<string, any> = {
+        modified_by: user._id,
+        modified_on: new Date(),
+      };
+
+      if (body.description !== undefined) {
+        employeeUpdate.description =
+          String(body.description);
+      }
+
+      if (body.files !== undefined) {
+        if (!Array.isArray(body.files)) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Files must be an array",
+            },
+            { status: 400 }
+          );
+        }
+
+        const existingFiles = Array.isArray(existingTask.files)
+          ? existingTask.files
+          : [];
+
+        const fileKey = (file: any) => {
+          if (!file) return "";
+          if (typeof file === "string") return file;
+          if (file.url) return String(file.url);
+          return [
+            file.name || "",
+            file.size || "",
+            file.type || "",
+          ].join("|");
+        };
+
+        const requestedFiles = body.files;
+        const requestedKeys = new Set(
+          requestedFiles.map(fileKey)
+        );
+
+        const removedExistingFile =
+          existingFiles.some(
+            (existingFile: any) =>
+              !requestedKeys.has(
+                fileKey(existingFile)
+              )
+          );
+
+        if (removedExistingFile) {
+          return NextResponse.json(
+            {
+              success: false,
+              message:
+                "Existing task files cannot be deleted. You can only add new files.",
+            },
+            { status: 403 }
+          );
+        }
+
+        employeeUpdate.files =
+          requestedFiles;
+      }
+
+      if (body.urls !== undefined) {
+        if (!Array.isArray(body.urls)) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Links must be an array",
+            },
+            { status: 400 }
+          );
+        }
+
+        const existingUrls = Array.isArray(existingTask.urls)
+          ? existingTask.urls
+          : (existingTask.url ? [existingTask.url] : []);
+        const getUrlStr = (u: any) =>
+          typeof u === "string" ? u.trim() : String(u?.url || u?.link || "").trim();
+        const requestedUrlSet = new Set(body.urls.map(getUrlStr));
+        const removedExistingUrl = existingUrls.some((u: any) => {
+          const val = getUrlStr(u);
+          return val && !requestedUrlSet.has(val);
+        });
+
+        if (removedExistingUrl) {
+          return NextResponse.json(
+            {
+              success: false,
+              message:
+                "Existing task links cannot be deleted. You can only add new links.",
+            },
+            { status: 403 }
+          );
+        }
+
+        employeeUpdate.urls =
+          body.urls;
+      }
+
+      const updatedEmployeeTask =
+        await Task.findOneAndUpdate(
+          {
+            _id: id,
+            status: { $ne: 0 },
+            assign_to: user._id,
+          },
+          employeeUpdate,
+          {
+            new: true,
+            runValidators: true,
+          }
+        )
+          .populate(
+            "project_id",
+            "name color"
+          )
+          .populate(
+            "assign_to",
+            "full_name name email profile_picture avatarColor"
+          )
+          .populate(
+            "created_by",
+            "full_name name email avatarColor"
+          )
+          .lean();
+
+      if (!updatedEmployeeTask) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Task not found or no longer assigned to you",
+          },
+          { status: 404 }
+        );
+      }
+
+      await createGlobalLog({
+        actorId: String(user._id),
+        action: "UPDATE",
+        entityType: "Task",
+        entityId: String(updatedEmployeeTask._id),
+        targetUserId: String(user._id),
+        description:
+          `Updated reassigned task "${updatedEmployeeTask.title}"`,
+        information: {
+          task_id: updatedEmployeeTask.task_id,
+          description_updated:
+            body.description !== undefined,
+          files_count:
+            Array.isArray(body.files)
+              ? body.files.length
+              : Array.isArray(existingTask.files)
+                ? existingTask.files.length
+                : 0,
+          updated_at: new Date(),
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Task updated successfully",
+        data: updatedEmployeeTask,
+      });
+    }
 
     /* =====================================================
        TITLE
     ===================================================== */
 
     if (
-      !title ||
-      !title.trim()
+      body.title !==
+      undefined
     ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Task title is required",
-        },
-        {
-          status: 400,
-        }
-      );
+      updateData.title =
+        String(
+          body.title
+        ).trim();
+    }
+
+    /* =====================================================
+       DESCRIPTION
+    ===================================================== */
+
+    if (
+      body.description !==
+      undefined
+    ) {
+      updateData.description =
+        body.description;
     }
 
     /* =====================================================
        PROJECT
     ===================================================== */
 
-    const finalProjectId =
-      project_id ||
-      projectId;
+    if (
+      body.project_id !==
+      undefined ||
+      body.projectId !==
+      undefined
+    ) {
+      const pId =
+        body.project_id ??
+        body.projectId;
 
-    const isEmployee = Number(user.user_role) !== 1;
-
-    if (isEmployee) {
-      if (!finalProjectId || !mongoose.Types.ObjectId.isValid(finalProjectId)) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "Project is required. You must select an assigned project to create a task.",
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-
-      // Verify that the employee is assigned to this project
-      const userObjectId = mongoose.Types.ObjectId.isValid(user._id)
-        ? new mongoose.Types.ObjectId(String(user._id))
-        : null;
-
-      const assignedProject = await Project.findOne({
-        _id: finalProjectId,
-        $or: [
-          ...(userObjectId ? [{ project_users: userObjectId }] : []),
-          { project_users: String(user._id) },
-        ],
-      });
-
-      if (!assignedProject) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "You are not assigned to this project and cannot create tasks in it.",
-          },
-          {
-            status: 403,
-          }
-        );
-      }
+      updateData.project_id =
+        pId &&
+          mongoose.Types.ObjectId.isValid(
+            pId
+          )
+          ? pId
+          : null;
     }
 
     /* =====================================================
        ASSIGNMENT
     ===================================================== */
 
-    const rawAssigned =
-      assign_to ||
-      assignedTo ||
+    let assignmentChanged =
+      false;
+
+    let newAssignedIds: string[] =
       [];
 
-    const requestedAssignedIds =
-      Array.isArray(rawAssigned)
-        ? rawAssigned
+    if (
+      body.assign_to !==
+      undefined ||
+      body.assignedTo !==
+      undefined
+    ) {
+      const rawAssigned =
+        body.assign_to ??
+        body.assignedTo;
+
+      const requestedAssignedIds =
+        Array.isArray(rawAssigned)
+          ? rawAssigned
             .map(
-              (id: any) =>
-                typeof id ===
+              (item: any) =>
+                typeof item ===
                   "object" &&
-                id !== null
-                  ? id._id
-                  : id
+                  item !== null
+                  ? item._id
+                  : item
             )
             .filter(
-              (id: any) =>
-                typeof id ===
-                  "string" &&
+              (memberId: any) =>
+                typeof memberId ===
+                "string" &&
                 mongoose.Types.ObjectId.isValid(
-                  id
+                  memberId
                 )
             )
-        : [];
-
-    const validAssignedTo =
-      Number(user.user_role) === 1
-        ? await User.find({
-            _id: {
-              $in:
-                requestedAssignedIds,
-            },
-          }).distinct("_id")
-        : [user._id];
-
-    /* =====================================================
-       CREATED BY
-    ===================================================== */
-
-    const finalCreatedBy =
-      user._id;
-
-    /* =====================================================
-       URLS
-    ===================================================== */
-
-    const formattedUrls =
-      Array.isArray(urls)
-        ? urls
-        : url
-          ? [url]
           : [];
+
+      const validAssignedTo =
+        Number(user.user_role) === 1
+          ? await User.find({
+              _id: {
+                $in: requestedAssignedIds,
+              },
+            }).distinct("_id")
+          : [user._id];
+
+      updateData.assign_to =
+        validAssignedTo;
+
+      newAssignedIds =
+        validAssignedTo.map(
+          (id: any) =>
+            String(id)
+        );
+
+      assignmentChanged =
+        true;
+    }
+
+    /* =====================================================
+       PRIORITY
+    ===================================================== */
+
+    if (
+      body.priority !==
+      undefined
+    ) {
+      updateData.priority =
+        body.priority;
+    }
+
+    /* =====================================================
+       TASK STATUS
+    ===================================================== */
+
+    if (
+      body.task_status !==
+      undefined
+    ) {
+      updateData.task_status =
+        body.task_status;
+    } else if (
+      body.status !==
+      undefined &&
+      typeof body.status ===
+      "string"
+    ) {
+      updateData.task_status =
+        body.status;
+    }
 
     /* =====================================================
        FILES
     ===================================================== */
 
-    const formattedFiles =
-      Array.isArray(files)
-        ? files
-        : [];
+    if (
+      body.files !==
+      undefined
+    ) {
+      updateData.files =
+        Array.isArray(
+          body.files
+        )
+          ? body.files
+          : [];
+    }
 
     /* =====================================================
-       TASK NUMBER
-       =====================================================
-
-       IMPORTANT:
-       `task_id` has a UNIQUE MongoDB index.
-
-       The old implementation first read the Tasks collection,
-       then checked `Task.exists()`, then updated Settings. Two
-       simultaneous requests could both see the same free number
-       and both try to create it.
-
-       We now reserve the number atomically in ONE MongoDB
-       operation using:
-         $max + $inc
-
-       Example:
-         nextTaskNumber = 5
-         -> atomic update
-         -> nextTaskNumber = 6
-         -> generated task_id = QT-5
-
-       If another request runs at the same time, MongoDB serializes
-       the update and the second request receives QT-6.
+       URLS
     ===================================================== */
 
-    const settingsOwnerId =
-      user.settings_id || user._id;
-
-    let taskSettings =
-      await Settings.findOne({
-        owner_user_id: settingsOwnerId,
-      });
-
-    /*
-     * Fallback for older users whose settings_id may not be linked
-     * correctly yet.
-     */
-    if (!taskSettings) {
-      taskSettings =
-        await Settings.findOne({
-          owner_user_id: user._id,
-        });
-    }
-
-    if (!taskSettings) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Task settings were not found for this account.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    const taskPrefix =
-      String(
-        taskSettings.taskIdPrefix ||
-          "QT"
-      )
-        .trim()
-        .toUpperCase();
-
-    if (!taskPrefix) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Task ID prefix is not configured.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    /*
-     * Repair the counter first.
-
-     * If existing Tasks contain QT-5 but Settings says
-     * nextTaskNumber = 5, the next generated number must be 6.
-
-     * We calculate the highest existing number only to repair
-     * an old/out-of-sync Settings counter.
-     */
-    const escapedPrefix =
-      taskPrefix.replace(
-        /[.*+?^${}()|[\]\\]/g,
-        "\\$&"
-      );
-
-    const taskIdRegex =
-      new RegExp(
-        `^${escapedPrefix}-(\\d+)$`,
-        "i"
-      );
-
-    const existingPrefixTasks =
-      await Task.find({
-        task_id: {
-          $regex: taskIdRegex,
-        },
-      })
-        .select("task_id")
-        .lean();
-
-    let highestExistingNumber = 0;
-
-    for (
-      const existingTask of
-        existingPrefixTasks
+    if (
+      body.urls !==
+      undefined
     ) {
-      const match =
-        String(
-          existingTask.task_id || ""
-        ).match(taskIdRegex);
-
-      if (!match) {
-        continue;
-      }
-
-      const number =
-        Number(match[1]);
-
-      if (
-        Number.isFinite(number) &&
-        number >
-          highestExistingNumber
-      ) {
-        highestExistingNumber =
-          number;
-      }
+      updateData.urls =
+        Array.isArray(
+          body.urls
+        )
+          ? body.urls
+          : [];
     }
 
-    const configuredNextNumber =
-      Number(
-        taskSettings.nextTaskNumber
-      );
+    /* =====================================================
+       COMPLETION DATE
+    ===================================================== */
 
-    const safeNextNumber =
-      Number.isFinite(
-        configuredNextNumber
-      ) &&
-      configuredNextNumber > 0
-        ? Math.floor(
-            configuredNextNumber
-          )
-        : 1;
+    if (
+      body.completion_date !==
+      undefined ||
+      body.dueDate !==
+      undefined
+    ) {
+      const d =
+        body.completion_date ??
+        body.dueDate;
 
-    /*
-     * The smallest valid next number is:
-     *
-     * highest existing number + 1
-     *
-     * We then use MongoDB's atomic $max + $inc in the SAME
-     * findOneAndUpdate operation.
-     *
-     * This is the important race-condition fix.
-     */
-    const minimumNextNumber =
-      Math.max(
-        safeNextNumber,
-        highestExistingNumber + 1
-      );
+      updateData.completion_date =
+        d
+          ? new Date(d)
+          : null;
+    }
 
-    const reservedSettings =
-      await Settings.findOneAndUpdate(
+    /* =====================================================
+       COMPLETION TIME
+    ===================================================== */
+
+    if (
+      body.completion_time !==
+      undefined ||
+      body.dueTime !==
+      undefined
+    ) {
+      updateData.completion_time =
+        toTimeDate(
+          body.completion_time ??
+          body.dueTime
+        );
+    }
+
+    /* =====================================================
+       RECORD STATUS
+    ===================================================== */
+
+    if (
+      body.status !==
+      undefined &&
+      typeof body.status ===
+      "number"
+    ) {
+      updateData.status =
+        body.status;
+    }
+
+    /* =====================================================
+       MODIFIED TRACKING
+    ===================================================== */
+
+    updateData.modified_by =
+      user._id;
+
+    updateData.modified_on =
+      new Date();
+
+    /* =====================================================
+       UPDATE TASK
+    ===================================================== */
+
+    const updatedTask =
+      await Task.findOneAndUpdate(
         {
-          _id:
-            taskSettings._id,
-        },
-        {
-          $max: {
-            nextTaskNumber:
-              minimumNextNumber,
-          },
+          _id: id,
 
-          $inc: {
-            nextTaskNumber: 1,
-          },
-
-          $set: {
-            modified_by:
-              user._id,
-            modified_on:
-              new Date(),
-          },
+          ...accessFilter,
         },
+
+        updateData,
+
         {
           new: true,
+
+          runValidators: true,
         }
-      );
-
-    if (!reservedSettings) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Failed to reserve the next task number.",
-        },
-        {
-          status: 500,
-        }
-      );
-    }
-
-    /*
-     * nextTaskNumber now points to the NEXT task.
-     * Therefore the number just reserved is -1.
-     */
-    const taskNumber =
-      Number(
-        reservedSettings.nextTaskNumber
-      ) - 1;
-
-    const taskId =
-      `${taskPrefix}-${taskNumber}`;
-
-    /* =====================================================
-       TASK DATA
-    ===================================================== */
-
-    const taskData: Record<
-      string,
-      any
-    > = {
-      task_id:
-        taskId,
-
-      title:
-        title.trim(),
-
-      description:
-        description || "",
-
-      project_id:
-        finalProjectId &&
-        mongoose.Types.ObjectId.isValid(
-          finalProjectId
-        )
-          ? finalProjectId
-          : null,
-
-      assign_to:
-        validAssignedTo,
-
-      created_by:
-        finalCreatedBy,
-
-      priority:
-        priority || "Medium",
-
-      task_status:
-        task_status ||
-        (typeof reqStatus ===
-        "string"
-          ? reqStatus
-          : "To Do"),
-
-      files:
-        formattedFiles,
-
-      urls:
-        formattedUrls,
-
-      comments:
-        Array.isArray(comments)
-          ? comments
-          : [],
-
-      completion_date:
-        completion_date ||
-        dueDate
-          ? new Date(
-              completion_date ||
-                dueDate
-            )
-          : null,
-
-      completion_time:
-        toTimeDate(
-          completion_time ||
-            dueTime
-        ),
-
-      created_on:
-        new Date(),
-
-      status: 1,
-
-      task_assign_date,
-
-      task_delay_reason,
-    };
-
-    /* =====================================================
-       CREATE TASK
-    ===================================================== */
-
-    const task =
-      await Task.create(
-        taskData
-      );
-
-
-    /* =====================================================
-       EXISTING TASK LOG
-       ===================================================== */
-
-    await createInitialTaskLogs(
-      task
-    );
-
-    /* =====================================================
-       GLOBAL LOG - CREATE TASK
-    ===================================================== */
-
-    await createGlobalLog({
-      actorId:
-        String(user._id),
-
-      action:
-        "CREATE",
-
-      entityType:
-        "Task",
-
-      entityId:
-        String(task._id),
-
-      description:
-        `Created task "${task.title}"`,
-
-      information: {
-        task_id:
-          task.task_id,
-
-        title:
-          task.title,
-
-        description:
-          task.description,
-
-        project_id:
-          task.project_id
-            ? String(
-                task.project_id
-              )
-            : null,
-
-        priority:
-          task.priority,
-
-        task_status:
-          task.task_status,
-
-        created_by:
-          String(
-            task.created_by
-          ),
-
-        created_at:
-          task.created_on,
-
-        assigned_users:
-          validAssignedTo.map(
-            (id: any) =>
-              String(id)
-          ),
-      },
-    });
-
-    /* =====================================================
-       GLOBAL LOG - INITIAL ASSIGNMENTS
-    ===================================================== */
-
-    for (
-      const employeeId of
-        validAssignedTo
-    ) {
-      const employee =
-        await User.findById(
-          employeeId
-        )
-          .select(
-            "_id full_name email"
-          )
-          .lean();
-
-      if (!employee) {
-        continue;
-      }
-
-      await createGlobalLog({
-        actorId:
-          String(user._id),
-
-        action:
-          "ASSIGN",
-
-        entityType:
-          "Task",
-
-        entityId:
-          String(task._id),
-
-        targetUserId:
-          String(
-            employee._id
-          ),
-
-        description:
-          `Assigned task "${task.title}" to ${employee.full_name}`,
-
-        information: {
-          task_id:
-            task.task_id,
-
-          task_title:
-            task.title,
-
-          assigned_to:
-            String(
-              employee._id
-            ),
-
-          assigned_user_name:
-            employee.full_name,
-
-          assigned_at:
-            new Date(),
-        },
-      });
-    }
-
-    /* =====================================================
-       POPULATE
-    ===================================================== */
-
-    const populatedTask =
-      await Task.findById(
-        task._id
       )
         .populate(
           "project_id",
@@ -1118,48 +1138,221 @@ export async function POST(
           "created_by",
           "full_name name email avatarColor"
         )
+        .populate(
+          "modified_by",
+          "full_name name email"
+        )
+        .populate(
+          "comments.user_id",
+          "full_name name email profile_picture avatarColor"
+        )
         .lean();
 
-    return NextResponse.json(
-      {
-        success: true,
-
-        message:
-          "Task created successfully",
-
-        data:
-          populatedTask,
-      },
-      {
-        status: 201,
-      }
-    );
-  } catch (error: any) {
-    console.error(
-      "CREATE TASK ERROR:",
-      error
-    );
-
-  
-    if (
-      error?.code === 11000 &&
-      (
-        error?.keyPattern?.task_id ||
-        error?.keyValue?.task_id
-      )
-    ) {
+    if (!updatedTask) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "Another task was created at the same time. Please create the task again.",
-          code: "TASK_ID_COLLISION",
+            "Task not found",
         },
         {
-          status: 409,
+          status: 404,
         }
       );
     }
+
+    /* =====================================================
+       ASSIGN / UNASSIGN DETECTION
+    ===================================================== */
+
+    if (
+      assignmentChanged
+    ) {
+      const oldAssignedIds =
+        Array.isArray(existingTask.assign_to)
+          ? existingTask.assign_to.map((id: any) =>
+            String(id)
+          )
+          : [];
+
+      const addedUserIds =
+        newAssignedIds.filter(
+          (id: string) =>
+            !oldAssignedIds.includes(id)
+        );
+
+      const removedUserIds =
+        oldAssignedIds.filter(
+          (id: string) =>
+            !newAssignedIds.includes(id)
+        );
+
+      /* ===================================================
+         ASSIGN LOGS
+      =================================================== */
+
+      for (
+        const employeeId of
+        addedUserIds
+      ) {
+        const employee =
+          await User.findById(
+            employeeId
+          )
+            .select(
+              "_id full_name email"
+            )
+            .lean();
+
+        if (!employee) {
+          continue;
+        }
+
+        if (employee.email) {
+          sendTaskAssignedMail({
+            to: employee.email,
+            assigneeName: employee.full_name || "Team Member",
+            taskTitle: updatedTask.title,
+            taskId: updatedTask.task_id,
+            description: updatedTask.description,
+            projectName:
+              updatedTask.project_id && typeof updatedTask.project_id === "object"
+                ? updatedTask.project_id.name
+                : undefined,
+            priority: updatedTask.priority,
+            status: updatedTask.task_status,
+            dueDate: updatedTask.completion_date,
+            dueTime: updatedTask.completion_time,
+            assignedByName: user.full_name || user.name || "Admin",
+          }).catch((err) => {
+            console.error("Failed to send task assigned mail on update:", err);
+          });
+        }
+
+        await createGlobalLog({
+          actorId:
+            String(user._id),
+
+          action:
+            "ASSIGN",
+
+          entityType:
+            "Task",
+
+          entityId:
+            String(
+              updatedTask._id
+            ),
+
+          targetUserId:
+            String(
+              employee._id
+            ),
+
+          description:
+            `Assigned task "${updatedTask.title}" to ${employee.full_name}`,
+
+          information: {
+            task_id:
+              updatedTask.task_id,
+
+            task_title:
+              updatedTask.title,
+
+            assigned_to:
+              String(
+                employee._id
+              ),
+
+            assigned_user_name:
+              employee.full_name,
+
+            assigned_at:
+              new Date(),
+          },
+        });
+      }
+
+      /* ===================================================
+         UNASSIGN LOGS
+      =================================================== */
+
+      for (
+        const employeeId of
+        removedUserIds
+      ) {
+        const employee =
+          await User.findById(
+            employeeId
+          )
+            .select(
+              "_id full_name email"
+            )
+            .lean();
+
+        if (!employee) {
+          continue;
+        }
+
+        await createGlobalLog({
+          actorId:
+            String(user._id),
+
+          action:
+            "UNASSIGN",
+
+          entityType:
+            "Task",
+
+          entityId:
+            String(
+              updatedTask._id
+            ),
+
+          targetUserId:
+            String(
+              employee._id
+            ),
+
+          description:
+            `Unassigned task "${updatedTask.title}" from ${employee.full_name}`,
+
+          information: {
+            task_id:
+              updatedTask.task_id,
+
+            task_title:
+              updatedTask.title,
+
+            unassigned_from:
+              String(
+                employee._id
+              ),
+
+            unassigned_user_name:
+              employee.full_name,
+
+            unassigned_at:
+              new Date(),
+          },
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+
+      message:
+        "Task updated successfully",
+
+      data:
+        updatedTask,
+    });
+  } catch (error: any) {
+    console.error(
+      "UPDATE TASK ERROR:",
+      error
+    );
 
     return NextResponse.json(
       {
@@ -1167,7 +1360,235 @@ export async function POST(
 
         message:
           error?.message ||
-          "Failed to create task",
+          "Failed to update task",
+      },
+      {
+        status: 500,
+      }
+    );
+  }
+}
+
+/* =========================================================
+   DELETE TASK
+   SOFT DELETE
+   ========================================================= */
+
+export async function DELETE(
+  req: Request,
+  {
+    params,
+  }: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
+) {
+  try {
+    await dbConnect();
+
+    const user =
+      await currentUser();
+
+    const { id } =
+      await params;
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Authentication required",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
+    if (
+      !id ||
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Valid task ID is required",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    /* =====================================================
+       ACCESS
+    ===================================================== */
+
+    if (Number(user.user_role) !== 1) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Employees are not permitted to delete tasks. Only admins can delete tasks.",
+        },
+        { status: 403 }
+      );
+    }
+
+    const accessFilter = {
+      $or: [
+        { created_by: user._id },
+        { admin_id: user._id },
+      ],
+    };
+
+    /* =====================================================
+       GET ORIGINAL TASK
+       BEFORE SOFT DELETE
+    ===================================================== */
+
+    const existingTask =
+      await Task.findOne({
+        _id: id,
+
+        ...accessFilter,
+      }).lean();
+
+    if (
+      !existingTask ||
+      existingTask.status === 0
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Task not found",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    /* =====================================================
+       SOFT DELETE
+    ===================================================== */
+
+    const deletedTask =
+      await Task.findOneAndUpdate(
+        {
+          _id: id,
+
+          ...accessFilter,
+        },
+
+        {
+          status: 0,
+
+          modified_by:
+            user._id,
+
+          modified_on:
+            new Date(),
+        },
+
+        {
+          new: true,
+        }
+      );
+
+    if (!deletedTask) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Task not found",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    /* =====================================================
+       GLOBAL LOG - DELETE
+    ===================================================== */
+
+    await createGlobalLog({
+      actorId:
+        String(user._id),
+
+      action:
+        "DELETE",
+
+      entityType:
+        "Task",
+
+      entityId:
+        String(
+          existingTask._id
+        ),
+
+      description:
+        `Deleted task "${existingTask.title}"`,
+
+      information: {
+        task_id:
+          existingTask.task_id,
+
+        title:
+          existingTask.title,
+
+        project_id:
+          existingTask.project_id
+            ? String(
+              existingTask.project_id
+            )
+            : null,
+
+        assigned_users:
+          Array.isArray(
+            existingTask.assign_to
+          )
+            ? existingTask.assign_to.map(
+              (id: any) =>
+                String(id)
+            )
+            : [],
+
+        priority:
+          existingTask.priority,
+
+        task_status:
+          existingTask.task_status,
+
+        deleted_at:
+          new Date(),
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+
+      message:
+        "Task deleted successfully",
+    });
+  } catch (error: any) {
+    console.error(
+      "DELETE TASK ERROR:",
+      error
+    );
+
+    return NextResponse.json(
+      {
+        success: false,
+
+        message:
+          error?.message ||
+          "Failed to delete task",
       },
       {
         status: 500,

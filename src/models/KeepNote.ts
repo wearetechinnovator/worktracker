@@ -12,10 +12,10 @@ export interface IKeepNote extends Document {
 
 const KeepNoteSchema = new Schema<IKeepNote>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
-    title: { type: String, required: true, trim: true, maxlength: 120 },
-    content: { type: String, required: true, trim: true, maxlength: 5000 },
-    color: { type: String, default: '#f8fafc', trim: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    title: { type: String, required: true, trim: true, maxlength: 200 },
+    content: { type: String, required: true, trim: true, maxlength: 10000 },
+    color: { type: String, default: '#fef9c3', trim: true },
     isPinned: { type: Boolean, default: false },
   },
   { timestamps: true }
@@ -23,7 +23,12 @@ const KeepNoteSchema = new Schema<IKeepNote>(
 
 KeepNoteSchema.index({ userId: 1, isPinned: -1, updatedAt: -1 });
 
+if (mongoose.models && mongoose.models.KeepNote) {
+  delete (mongoose.models as any).KeepNote;
+}
+
 const KeepNote: Model<IKeepNote> =
   mongoose.models.KeepNote || mongoose.model<IKeepNote>('KeepNote', KeepNoteSchema);
 
 export default KeepNote;
+

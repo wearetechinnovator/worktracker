@@ -5,7 +5,7 @@ import {
   Folder, FolderPlus, Plus, Search, Edit3, Trash2, Clock,
   AlertCircle, Users, Briefcase, Mail, FileBarChart, Lightbulb, HelpCircle, Sparkles, GripVertical
 } from 'lucide-react';
-import { formatMinutesToDuration } from '@/lib/time';
+import { formatMinutesToDuration, formatTimeTo12H } from '@/lib/time';
 import PageShimmer from '@/components/PageShimmer';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { toast } from '@/lib/toast';
@@ -358,8 +358,8 @@ export default function ProjectsPage() {
             employeeRole: empObj.designation || empObj.role || 'Member',
             title: taskDisplayTitle,
             date: ws.date ? new Date(ws.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recent',
-            startTime: ws.startTime ? new Date(ws.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '',
-            endTime: ws.endTime ? new Date(ws.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : (ws.status === 'Paused' ? 'Paused' : 'Active'),
+            startTime: ws.startTime ? formatTimeTo12H(ws.startTime) : '',
+            endTime: ws.endTime ? formatTimeTo12H(ws.endTime) : (ws.status === 'Paused' ? 'Paused' : 'Active'),
             actualTime: duration,
             description: ws.notes || taskObj.description || '',
             status: ws.status === 'Completed' ? (ws.isFullyCompleted !== false ? 'Completed' : 'Partially Done') : ws.status,
@@ -379,7 +379,7 @@ export default function ProjectsPage() {
           }
           if (new Date(ws.createdAt || ws.date) > new Date(existing.createdAt)) {
             existing.date = ws.date ? new Date(ws.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : existing.date;
-            existing.endTime = ws.endTime ? new Date(ws.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : existing.endTime;
+            existing.endTime = ws.endTime ? formatTimeTo12H(ws.endTime) : existing.endTime;
             existing.createdAt = ws.createdAt || ws.date;
             if (ws.notes) existing.description = ws.notes;
           }
@@ -748,115 +748,12 @@ export default function ProjectsPage() {
                   </div>
 
                   {/* Avatar Stack for Assigned Members */}
-                  {assignedMembers.length > 0 && (
-                    <div
-                      title={`Assigned Members (${assignedMembers.length})`}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        marginLeft: 'auto',
-                        marginRight: '2px',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {assignedMembers.slice(0, 3).map((m: any, idx: number) => {
-                        const nameStr = typeof m === 'string' ? 'User' : (m.name || 'User');
-                        const roleStr = typeof m === 'object' && m.role ? ` • ${m.role}` : '';
-                        const presence: 'working' | 'idle' | 'offline' = typeof m === 'object' && m.presenceState ? m.presenceState : 'offline';
 
-                        let dotColor = '#94a3b8'; // Grey for offline
-                        let stateText = 'Offline';
-                        let dotGlow = 'none';
-
-                        if (presence === 'working') {
-                          dotColor = '#22c55e'; // Green for working
-                          stateText = 'Currently Working';
-                          dotGlow = '0 0 4px rgba(34, 197, 94, 0.7)';
-                        } else if (presence === 'idle') {
-                          dotColor = '#f59e0b'; // Yellow for logged in / idle
-                          stateText = 'Idle';
-                          dotGlow = '0 0 4px rgba(245, 158, 11, 0.7)';
-                        }
-
-                        const initial = nameStr.charAt(0).toUpperCase();
-                        const color = typeof m === 'string' ? '#3b82f6' : (m.avatarColor || '#3b82f6');
-                        const tooltip = `${nameStr}${roleStr}\n${stateText}`;
-
-                        return (
-                          <div
-                            key={typeof m === 'string' ? m : (m._id || idx)}
-                            title={tooltip}
-                            style={{
-                              width: '22px',
-                              height: '22px',
-                              borderRadius: '50%',
-                              backgroundColor: color,
-                              color: '#ffffff',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '0.66rem',
-                              fontWeight: 700,
-                              border: '1.5px solid var(--bg-primary)',
-                              marginLeft: idx === 0 ? 0 : '-6px',
-                              boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
-                              flexShrink: 0,
-                              position: 'relative',
-                              zIndex: 3 - idx,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {initial}
-                            {/* Presence Status Dot Indicator */}
-                            <span
-                              style={{
-                                position: 'absolute',
-                                bottom: '-1px',
-                                right: '-1px',
-                                width: '6px',
-                                height: '6px',
-                                borderRadius: '50%',
-                                backgroundColor: dotColor,
-                                border: '1px solid #ffffff',
-                                boxShadow: dotGlow,
-                              }}
-                            />
-                          </div>
-                        );
-                      })}
-                      {assignedMembers.length > 3 && (
-                        <div
-                          title={`+${assignedMembers.length - 3} more:\n${assignedMembers.slice(3).map((m: any) => typeof m === 'string' ? m : `${m.name || 'User'}${m.role ? ` (${m.role})` : ''}`).join('\n')}`}
-                          style={{
-                            width: '22px',
-                            height: '22px',
-                            borderRadius: '50%',
-                            backgroundColor: 'var(--bg-tertiary)',
-                            color: 'var(--text-secondary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '0.58rem',
-                            fontWeight: 700,
-                            border: '1.5px solid var(--bg-primary)',
-                            marginLeft: '-6px',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
-                            flexShrink: 0,
-                            position: 'relative',
-                            zIndex: 0,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          +{assignedMembers.length - 3}
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   {/* Task Count Badge */}
-                  <span className="tag-badge" title={`${proj.taskCount || 0} active tasks`} style={{ fontSize: '0.68rem', padding: '1px 6px', fontWeight: 700, borderRadius: '10px', flexShrink: 0 }}>
+                  {/* <span className="tag-badge" title={`${proj.taskCount || 0} active tasks`} style={{ fontSize: '0.68rem', padding: '1px 6px', fontWeight: 700, borderRadius: '10px', flexShrink: 0 }}>
                     {proj.taskCount || 0}
-                  </span>
+                  </span> */}
                 </div>
               );
             })}
@@ -1289,30 +1186,18 @@ export default function ProjectsPage() {
                           const initials = m.name ? m.name.split(' ').map((n: string) => n[0]).join('') : 'U';
                           return (
                             <div key={m._id} className="list-row" style={{ padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                              <div className="avatar-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+
                                 <div style={{ position: 'relative', flexShrink: 0 }}>
                                   <div className="avatar" style={{ backgroundColor: m.avatarColor || '#3b82f6', width: '26px', height: '26px', fontSize: '0.68rem', fontWeight: 700 }}>
-                                    {initials}
+                                    {m.name}
                                   </div>
-                                  <span
-                                    style={{
-                                      position: 'absolute',
-                                      bottom: '-1px',
-                                      right: '-1px',
-                                      width: '6px',
-                                      height: '6px',
-                                      borderRadius: '50%',
-                                      backgroundColor: dotColor,
-                                      border: '1.5px solid var(--bg-primary)',
-                                      boxShadow: dotGlow,
-                                    }}
-                                  />
-                                </div>
+                                  <h1>{}</h1>
+                                </div> 
                                 <div style={{ overflow: 'hidden' }}>
                                   <div style={{ fontWeight: 700, fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
                                   <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.role}</div>
                                 </div>
-                              </div>
+
                               <span
                                 style={{
                                   fontSize: '0.62rem',

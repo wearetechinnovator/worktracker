@@ -12,6 +12,7 @@ import dynamic from 'next/dynamic';
 import { taskApi } from '@/lib/taskApi';
 import { toast } from '@/lib/toast';
 import TaskDetailsModal from '@/components/TaskDetailsModal';
+import { formatTimeTo12H } from '@/lib/time';
 
 const CKEditorComponent = dynamic(
   () => import('@/components/CKEditorWrapper'),
@@ -1099,6 +1100,11 @@ export default function MyTasks({ userId }: { userId: string }) {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                             <Calendar size={12} />
                             <span>{new Date(task.dueDate).toLocaleDateString()}</span>
+                            {task.dueTime && (
+                              <span style={{ marginLeft: '4px', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                {formatTimeTo12H(task.dueTime)}
+                              </span>
+                            )}
                           </div>
                         ) : (
                           <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>-</span>

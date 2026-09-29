@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+import { comparePassword, encryptPassword } from "@/lib/encryption";
 
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
@@ -178,7 +178,7 @@ export async function PATCH(req: Request) {
         );
       }
 
-      const passwordMatches = await bcrypt.compare(
+      const passwordMatches = await comparePassword(
         currentPassword,
         user.password
       );
@@ -193,9 +193,9 @@ export async function PATCH(req: Request) {
         );
       }
 
-      const hashedPassword = await bcrypt.hash(newPassword, 12);
+      const encryptedPassword = encryptPassword(newPassword);
 
-      user.password = hashedPassword;
+      user.password = encryptedPassword;
       user.modified_by = user._id;
 
       await user.save();

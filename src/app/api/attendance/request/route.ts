@@ -7,6 +7,7 @@ import Settings from "@/models/Settings";
 import Attendance from "@/models/Attendance";
 import Notification from "@/models/Notification";
 import { currentUser } from "@/lib/auth";
+import { sendPunchRequestMail } from "@/lib/mailer";
 
 function getClientIp(req: Request): string {
   const forwardedFor = req.headers.get("x-forwarded-for");
@@ -231,6 +232,22 @@ export async function POST(req: Request) {
       });
     } catch (notifErr) {
       console.error("Failed to create admin notification:", notifErr);
+    }
+
+    if (admin.email) {
+      sendPunchRequestMail({
+        to: admin.email,
+        employeeName: user.full_name || user.name || "Employee",
+        employeeEmail: user.email || "",
+        requestType,
+        reason,
+        date: attendanceDate,
+        requestedAt: now,
+        ip: getClientIp(req),
+        browser: getClientBrowser(req),
+      }).catch((mailErr) => {
+        console.error("Failed to send punch request email to admin:", mailErr);
+      });
     }
 
     return NextResponse.json(

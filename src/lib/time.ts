@@ -57,3 +57,41 @@ export function formatLocalDateString(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * Formats any time/date representation into a 12-hour AM/PM string, e.g., "02:30 PM"
+ */
+export function formatTimeTo12H(val?: string | Date | number | null): string {
+  if (!val) return '';
+
+  const str = String(val).trim();
+  if (!str) return '';
+
+  // If already 12h format like "02:30 PM", normalize casing and return
+  if (/^\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM|am|pm)$/i.test(str)) {
+    return str.toUpperCase();
+  }
+
+  // 24h time string like "14:30" or "09:15:00"
+  const timeMatch = str.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (timeMatch) {
+    let hours = parseInt(timeMatch[1], 10);
+    const minutes = timeMatch[2];
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    if (hours === 0) hours = 12;
+    return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+  }
+
+  // ISO string, Date object, or numeric timestamp
+  const dateObj = val instanceof Date ? val : new Date(str);
+  if (!Number.isNaN(dateObj.getTime())) {
+    return dateObj.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+
+  return str;
+}

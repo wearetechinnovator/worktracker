@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 import Task from '@/models/Task';
 import TaskWork from '@/models/TaskWork';
+import User from '@/models/User';
+import Project from '@/models/Project';
+import { sendTaskReviewMail } from '@/lib/mailer';
 
 /**
  * Re-evaluates and synchronizes a parent task's overall task_status based on:
@@ -17,6 +20,8 @@ export async function syncTaskStatus(taskId: string | mongoose.Types.ObjectId) {
   try {
     const parentTask = await Task.findById(taskId);
     if (!parentTask) return null;
+
+    const previousStatus = parentTask.task_status;
 
     // Fetch all work sessions for this task sorted by most recent first
     const allTaskWorks = await TaskWork.find({ taskId: parentTask._id }).sort({ createdAt: -1 });
@@ -103,6 +108,57 @@ export async function syncTaskStatus(taskId: string | mongoose.Types.ObjectId) {
     }
 
     await parentTask.save();
+
+    // If task moved to Review, send email notification to the assigner / creator
+    if (parentTask.task_status === 'Review' && previousStatus !== 'Review') {
+      try {
+        let assigner: any = null;
+        if (parentTask.created_by) {
+          const creatorUser = await User.findById(parentTask.created_by).select('email full_name name user_role');
+          if (creatorUser) {
+            if (Number(creatorUser.user_role) === 1 || !parentTask.admin_id) {
+              assigner = creatorUser;
+            }
+          }
+        }
+        if (!assigner && parentTask.admin_id) {
+          assigner = await User.findById(parentTask.admin_id).select('email full_name name');
+        }
+
+        if (assigner?.email) {
+          let projectName = '';
+          if (parentTask.project_id) {
+            const proj = await Project.findById(parentTask.project_id).select('name');
+            if (proj?.name) projectName = proj.name;
+          }
+
+          let completedByNames: string[] = [];
+          if (assignedEmployees.length > 0) {
+            const users = await User.find({ _id: { $in: assignedEmployees } }).select('full_name name email');
+            completedByNames = users.map((u: any) => u.full_name || u.name || u.email);
+          } else {
+            const latestEmpId = completedSessions[0]?.employeeId;
+            if (latestEmpId) {
+              const user = await User.findById(latestEmpId).select('full_name name email');
+              if (user) completedByNames = [user.full_name || user.name || user.email];
+            }
+          }
+
+          sendTaskReviewMail({
+            to: assigner.email,
+            creatorName: assigner.full_name || assigner.name || 'Admin',
+            taskTitle: parentTask.title,
+            taskId: parentTask.task_id,
+            projectName,
+            completedByEmployees: completedByNames,
+            submittedAt: new Date(),
+          }).catch((err) => console.error('[Mailer] Error sending task review email:', err));
+        }
+      } catch (mailErr) {
+        console.error('[Mailer] Error triggering review email:', mailErr);
+      }
+    }
+
     return parentTask;
   } catch (error) {
     console.error('Error synchronizing task status:', error);

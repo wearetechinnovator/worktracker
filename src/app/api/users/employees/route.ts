@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+import { encryptPassword, decryptPassword, isEncrypted } from "@/lib/encryption";
 import mongoose from "mongoose";
 
 import dbConnect from "@/lib/dbConnect";
@@ -7,6 +7,7 @@ import User from "@/models/User";
 import Project from "@/models/Project";
 import { currentUser } from "@/lib/auth";
 import { createGlobalLog } from "@/lib/globalLog";
+import { sendEmployeeWelcomeMail } from "@/lib/mailer";
 
 /* =========================================================
    GET EMPLOYEES
@@ -62,6 +63,7 @@ export async function GET() {
             "full_name",
             "email",
             "phone_number",
+            "password",
             "designation",
             "role_id",
             "group",
@@ -89,12 +91,25 @@ export async function GET() {
           );
           const employeeProject = foundProj ? foundProj.name : null;
 
+          let decryptedPassword = "";
+          if (employee.password) {
+            try {
+              decryptedPassword = isEncrypted(employee.password)
+                ? decryptPassword(employee.password)
+                : "";
+            } catch {
+              decryptedPassword = "";
+            }
+          }
+
           return {
             ...employee,
 
             _id: String(
               employee._id
             ),
+
+            password: decryptedPassword,
 
             Project: employeeProject,
             workMode: employee.workMode || "Hybrid",
@@ -311,10 +326,9 @@ export async function POST(
        PASSWORD
     ------------------------- */
 
-    const hashedPassword =
-      await bcrypt.hash(
-        password,
-        10
+    const encryptedPassword =
+      encryptPassword(
+        password
       );
 
     const normalizedEmail =
@@ -342,7 +356,7 @@ export async function POST(
           normalizedEmail,
 
         password:
-          hashedPassword,
+          encryptedPassword,
 
         designation,
 
@@ -464,6 +478,24 @@ export async function POST(
           employee.isVerify,
       },
     });
+
+    /* -------------------------
+       SEND WELCOME EMAIL WITH PASS & ID
+    ------------------------- */
+
+    if (employee.email) {
+      sendEmployeeWelcomeMail({
+        to: employee.email,
+        employeeName: employee.full_name || normalizedName,
+        email: employee.email,
+        password: password,
+        employeeId: String(employee._id),
+        designation: employee.designation || null,
+        addedByName: admin.full_name || admin.name || "Admin",
+      }).catch((err) => {
+        console.error("Failed to send employee credentials email:", err);
+      });
+    }
 
     /* -------------------------
        RESPONSE DATA
@@ -886,9 +918,8 @@ export async function PATCH(
       }
 
       updateData.password =
-        await bcrypt.hash(
-          newPassword,
-          12
+        encryptPassword(
+          newPassword
         );
     }
 

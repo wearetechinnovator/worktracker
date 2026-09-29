@@ -32,6 +32,7 @@ import { taskApi } from '@/lib/taskApi';
 import TaskDetailsModal from '@/components/TaskDetailsModal';
 import { usePunch } from '@/context/PunchContext';
 import ViewModeBanner from '@/components/ViewModeBanner';
+import { formatTimeTo12H } from '@/lib/time';
 
 const CKEditorComponent = dynamic(
   () => import('@/components/CKEditorWrapper'),
@@ -1820,14 +1821,14 @@ export default function TasksPage() {
                             dangerouslySetInnerHTML={{ __html: task.description }}
                           />
                         )}
-                        {(task.comments || task.commentsList?.length) && (
+                        {/* {(task.comments || task.commentsList?.length) && (
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '4px' }}>
                             <MessageSquare size={11} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
                             <span style={{ maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {task.comments || task.commentsList?.[0]?.content}
                             </span>
                           </div>
-                        )}
+                        )} */}
                       </td>
                       <td>
                         {task.projectId ? (
@@ -2066,6 +2067,11 @@ export default function TasksPage() {
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                             <Calendar size={12} />
                             {new Date(task.dueDate).toLocaleDateString()}
+                            {task.dueTime && (
+                              <span style={{ marginLeft: '4px', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                {formatTimeTo12H(task.dueTime)}
+                              </span>
+                            )}
                           </span>
                         ) : (
                           '-'
@@ -2468,10 +2474,7 @@ export default function TasksPage() {
               };
 
               const formatTime12H = (dVal?: string | Date | null) => {
-                if (!dVal) return '';
-                const dObj = new Date(dVal);
-                if (Number.isNaN(dObj.getTime())) return String(dVal);
-                return dObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                return formatTimeTo12H(dVal);
               };
 
               const taskSessions = taskWorks.filter(

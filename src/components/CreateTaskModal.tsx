@@ -613,9 +613,15 @@ export function CreateTaskModal({
         body: JSON.stringify(payload)
       });
 
-      const json = await res.json();
-      if (!res.ok || !json.success || !json.data) {
-        throw new Error(json.message || `Failed to ${editingTask ? 'update' : 'create'} task`);
+      let json: any = null;
+      try {
+        json = await res.json();
+      } catch {
+        throw new Error(`Server returned status ${res.status}: Failed to ${editingTask ? 'update' : 'create'} task`);
+      }
+
+      if (!res.ok || !json?.success || !json?.data) {
+        throw new Error(json?.message || `Failed to ${editingTask ? 'update' : 'create'} task`);
       }
 
       savedTask = json.data;

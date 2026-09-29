@@ -1281,31 +1281,7 @@ export async function POST(
         );
       }
 
-      /*
-       * ===================================================
-       * OLD RECORD FIX
-       * ===================================================
-       *
-       * This is the important fix for
-       * your current error.
-       *
-       * Old attendance records may not have
-       * attendance_date because the field was
-       * added later.
-       *
-       * We calculate it from punch_in_on.
-       *
-       * Example:
-       *
-       * punch in:
-       * 2026-09-22 23:50
-       *
-       * punch out:
-       * 2026-09-23 00:10
-       *
-       * attendance_date:
-       * 2026-09-22
-       */
+      
 
       if (
         !openAttendance.attendance_date

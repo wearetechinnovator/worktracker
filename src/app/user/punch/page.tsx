@@ -509,14 +509,6 @@ export default function PunchPage() {
           borderRadius: '8px',
           fontSize: '0.85rem'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <Clock size={16} style={{ color: 'var(--accent-primary)' }} />
-            <strong>Allowed Timings:</strong>
-          </div>
-          <div style={{ color: 'var(--text-secondary)', marginLeft: '24px' }}>
-            <div>• Punch In: 09:00 AM - 10:00 AM</div>
-            <div>• Punch Out: 05:00 PM - 07:00 PM</div>
-          </div>
 
           {locationStatus && (
             <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>

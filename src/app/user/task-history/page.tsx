@@ -22,6 +22,7 @@ import {
   Clock4
 } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
+import { formatTimeTo12H } from '@/lib/time';
 
 interface TaskWorkRecord {
   _id: string;
@@ -155,18 +156,7 @@ export default function UserTaskHistoryPage() {
 
   const formatTimeDisplay = (timeStr?: string | Date | null): string => {
     if (!timeStr) return '-';
-    try {
-      const d = new Date(timeStr);
-      if (Number.isNaN(d.getTime())) return String(timeStr);
-      return d.toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
-      });
-    } catch {
-      return String(timeStr);
-    }
+    return formatTimeTo12H(timeStr) || '-';
   };
 
   const formatDateDisplay = (dateStr?: string | Date | null): string => {

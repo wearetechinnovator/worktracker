@@ -340,7 +340,7 @@ export default function Dashboard() {
 			icon: Users,
 			iconBg: '#eff6ff',
 			iconColor: '#3b82f6',
-			value: '22',
+			value: '00',
 			infoTooltip: 'Total tracked work hours across all active team members.',
 			rows: [
 				{ label: 'Tracked', value: '', dotColor: '#3b82f6' },
@@ -353,7 +353,7 @@ export default function Dashboard() {
 			icon: TrendingUp,
 			iconBg: '#ecfdf5',
 			iconColor: '#10b981',
-			value: '22',
+			value: '00',
 			infoTooltip: 'Percentage of high-value focused time vs administrative overhead.',
 			rows: [
 				{ label: 'Focused', value: '', dotColor: '#10b981' },
@@ -430,7 +430,7 @@ export default function Dashboard() {
 			{/* KPI Section Header with 3-Dot Settings Button */}
 			<div className="flex justify-between items-center mb-3.5">
 				<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-					<h2 className="text-[1.05rem] font-semibold text-[var(--text-primary)] m-0">Admin Dashboard</h2>
+					<h2 className="text-[1.05rem] font-semibold text-[var(--text-primary)] m-0">User Dashboard</h2>
 				</div>
 
 				{/* 3-Dot Settings Menu Trigger */}
@@ -876,7 +876,7 @@ export default function Dashboard() {
 								textAlign: 'center'
 							}}>
 								<div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', lineHeight: '1' }}>
-									{projects.length || 2}
+									00
 								</div>
 								<div style={{ fontSize: '0.68rem', fontWeight: 600, color: '#94a3b8', marginTop: '2px' }}>
 									Total

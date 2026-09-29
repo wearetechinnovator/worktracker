@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
 	LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, ChevronLeft, ChevronDown, LogOut, Clock, Settings, CheckSquare, History, Briefcase, FileText, Mail, Copy, Loader2, Menu, X, Activity,
-	ClipboardCheck
+	ClipboardCheck, Building2, Hash
 } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
 import { punchService } from '@/lib/punchService';
@@ -48,6 +48,7 @@ export default function Sidebar() {
 		work: true,
 		time: true,
 		org: true,
+		settings: true,
 	});
 
 	// Collapsed Sidebar Floating Tooltip Portal State
@@ -310,6 +311,8 @@ export default function Sidebar() {
 			pathname.startsWith(`${basePath}/clients`)
 		) {
 			setOpenGroups((prev) => ({ ...prev, org: true }));
+		} else if (pathname.startsWith(`${basePath}/settings`)) {
+			setOpenGroups((prev) => ({ ...prev, settings: true }));
 		}
 	}, [pathname, basePath]);
 
@@ -578,7 +581,7 @@ export default function Sidebar() {
 							</div>
 
 							{/* 4. ORGANISATION / TEAM SUBMENU (Admin & Allowed Staff) */}
-							{(isAdmin || canAccessFeatures) && (
+							{(isAdmin) && (
 								<div className="sidebar-group">
 									<AnimateIcon animateOnHover="appear" >
 										<div
@@ -674,21 +677,70 @@ export default function Sidebar() {
 								<FileText size={17} />
 								<span>Keep Notes</span>
 							</Link>
+							<Link
+								href={`${basePath}/suggestions`}
+								className={`sidebar-link ${pathname === `${basePath}/suggestions` ? 'active' : ''}`}
+								onMouseEnter={(e) => handleItemMouseEnter('suggestion', e)}
+								onMouseLeave={handleItemMouseLeave}
+							>
+								<LayoutDashboardIcon size={17} />
+								<span>Suggestions</span>
+							</Link>
 
-							{/* 6. SYSTEM SETTINGS (Admin Only) */}
+							{/* 6. SETTINGS MASTER SUBMENU (Admin Only) */}
 							{isAdmin && (
-								<AnimateIcon animateOnHover>
-
-									<Link
-										href={`${basePath}/settings`}
-										className={`sidebar-link ${pathname === `${basePath}/settings` ? 'active' : ''}`}
-										onMouseEnter={(e) => handleItemMouseEnter('Settings', e)}
-										onMouseLeave={handleItemMouseLeave}
+								<div className="sidebar-group">
+									<div
+										className={`sidebar-group-header ${pathname.startsWith(`${basePath}/settings`) ? 'active-group' : ''}`}
+										onClick={() => toggleGroup('settings')}
 									>
-										<SettingsIcon />
-										<span>Settings</span>
-									</Link>
-								</AnimateIcon>
+										<div className="sidebar-group-title">
+											<SettingsIcon />
+											<span>Settings</span>
+										</div>
+										<ChevronDown
+											size={14}
+											className="chevron-icon"
+											style={{
+												transform: openGroups.settings ? 'rotate(180deg)' : 'rotate(0deg)',
+												transition: 'transform 0.2s ease',
+												color: 'var(--text-muted)',
+											}}
+										/>
+									</div>
+
+									{(openGroups.settings || isCollapsed) && (
+										<div className="sidebar-submenu">
+											<Link
+												href={`${basePath}/settings/attendance`}
+												className={`sidebar-link ${pathname === `${basePath}/settings/attendance` ? 'active' : ''}`}
+												onMouseEnter={(e) => handleItemMouseEnter('Attendance Setting', e)}
+												onMouseLeave={handleItemMouseLeave}
+											>
+												<Clock size={15} />
+												<span>Attendance Setting</span>
+											</Link>
+											<Link
+												href={`${basePath}/settings/organisation`}
+												className={`sidebar-link ${pathname === `${basePath}/settings/organisation` ? 'active' : ''}`}
+												onMouseEnter={(e) => handleItemMouseEnter('Organisation Setting', e)}
+												onMouseLeave={handleItemMouseLeave}
+											>
+												<Building2 size={15} />
+												<span>Organisation Setting</span>
+											</Link>
+											<Link
+												href={`${basePath}/settings/task`}
+												className={`sidebar-link ${pathname === `${basePath}/settings/task` ? 'active' : ''}`}
+												onMouseEnter={(e) => handleItemMouseEnter('Task Setting', e)}
+												onMouseLeave={handleItemMouseLeave}
+											>
+												<Hash size={15} />
+												<span>Task Setting</span>
+											</Link>
+										</div>
+									)}
+								</div>
 							)}
 
 							{/* 7. ACTIVITY LOGS (Admin Only) */}
@@ -752,7 +804,7 @@ export default function Sidebar() {
 										fontSize: '0.75rem',
 										flexShrink: 0,
 									}}
-									// title={user.name}
+								// title={user.name}
 								>
 									{/* {user.name
 										?.split(' ')

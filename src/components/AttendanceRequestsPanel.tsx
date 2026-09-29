@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Clock3, Loader2, X } from 'lucide-react';
 import { CustomDatePicker, CustomDropdown } from '@/components/TaskFormControls';
+import { formatTimeTo12H } from '@/lib/time';
 
 type AttendanceRequest = {
   _id: string;
@@ -556,9 +557,7 @@ export default function AttendanceRequestsPanel() {
                           fontSize: '0.72rem',
                         }}
                       >
-                        {new Date(
-                          request.requested_punch_at
-                        ).toLocaleTimeString()}
+                        {formatTimeTo12H(request.requested_punch_at)}
                       </div>
                     </td>
 

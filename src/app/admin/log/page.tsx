@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Activity, Filter, Loader2, RefreshCw, Search, UserRound, X
 } from "lucide-react";
+import { formatTimeTo12H } from "@/lib/time";
 
 type Log = {
     _id: string;
@@ -339,7 +340,7 @@ export default function LogsPage() {
                                             <tr key={log._id} style={{ borderTop: "1px solid var(--border-color)" }}>
                                                 <td style={td}>
                                                     <b>{d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</b>
-                                                    <div style={{ fontSize: ".68rem", color: "var(--text-muted)", fontFamily: "monospace" }}>{d.toLocaleTimeString("en-IN")}</div>
+                                                    <div style={{ fontSize: ".68rem", color: "var(--text-muted)", fontFamily: "monospace" }}>{formatTimeTo12H(log.timestamp)}</div>
                                                 </td>
                                                 <td style={td}>
                                                     <span style={{

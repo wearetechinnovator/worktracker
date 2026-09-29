@@ -9,6 +9,7 @@ import Settings from "@/models/Settings";
 import { currentUser } from "@/lib/auth";
 import { createInitialTaskLogs } from "@/lib/taskLog";
 import { createGlobalLog } from "@/lib/globalLog";
+import { sendTaskAssignedMail } from "@/lib/mailer";
 
 /* =========================================================
    TIME HELPER
@@ -103,8 +104,10 @@ export async function GET(req: Request) {
     if (
       Number(user.user_role) === 1
     ) {
-      filter.created_by =
-        userObjectId;
+      filter.$or = [
+        { admin_id: userObjectId },
+        { created_by: userObjectId },
+      ];
     } else {
       filter.$or = [
         {
@@ -662,47 +665,117 @@ export async function POST(
         : [];
 
     /* =====================================================
-       TASK NUMBER
+       TASK NUMBER & UNIQUE TASK ID GENERATION (PER ACCOUNT)
     ===================================================== */
 
-    const taskSettings =
-      await Settings.findOneAndUpdate(
-        {
-          owner_user_id:
-            user.settings_id ||
-            user._id,
-        },
+    const adminId = Number(user.user_role) === 1
+      ? user._id
+      : (user.created_by || user.settings_id || user._id);
 
-        {
-          $inc: {
-            nextTaskNumber: 1,
-          },
-        },
+    const settingsOwnerId = adminId;
 
-        {
-          new: true,
+    let taskSettings = await Settings.findOne({
+      owner_user_id: settingsOwnerId,
+    });
 
-          upsert: true,
+    if (!taskSettings && user.settings_id) {
+      taskSettings = await Settings.findById(user.settings_id);
+    }
 
-          setDefaultsOnInsert:
-            true,
+    if (!taskSettings) {
+      taskSettings = await Settings.findOne({
+        owner_user_id: user._id,
+      });
+    }
+
+    const taskPrefix = String(
+      taskSettings?.taskIdPrefix || "QT"
+    )
+      .trim()
+      .toUpperCase() || "QT";
+
+    const escapedPrefix = taskPrefix.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
+    const taskIdRegex = new RegExp(`^${escapedPrefix}-(\\d+)$`, "i");
+
+    // Scan all existing tasks with this prefix FOR THIS ACCOUNT ONLY
+    const existingPrefixTasks = await Task.find({
+      $or: [{ admin_id: adminId }, { created_by: adminId }],
+      task_id: { $regex: taskIdRegex },
+    })
+      .select("task_id")
+      .lean();
+
+    let highestExistingNumber = 0;
+    for (const existingTask of existingPrefixTasks) {
+      const match = String(existingTask.task_id || "").match(taskIdRegex);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (Number.isFinite(num) && num > highestExistingNumber) {
+          highestExistingNumber = num;
         }
-      );
+      }
+    }
 
-    const taskNumber =
-      Math.max(
-        1,
-        Number(
-          taskSettings.nextTaskNumber ||
-            2
-        ) - 1
-      );
+    // Determine the next number for this account (starts from 1 if no tasks exist in this account)
+    const configuredNext = Number(taskSettings?.nextTaskNumber || 1);
+    const targetNextNumber = Math.max(
+      highestExistingNumber + 1,
+      Number.isFinite(configuredNext) && configuredNext > 0 ? configuredNext : 1
+    );
 
-    const taskId =
-      `${String(
-        taskSettings.taskIdPrefix ||
-          "QT"
-      ).toUpperCase()}-${taskNumber}`;
+    // Atomically ensure settings is synchronized to at least targetNextNumber
+    if (taskSettings) {
+      await Settings.updateOne(
+        { _id: taskSettings._id, nextTaskNumber: { $lt: targetNextNumber } },
+        { $set: { nextTaskNumber: targetNextNumber } }
+      );
+    }
+
+    // Atomically reserve the next number for this account
+    const reservedSettings = await Settings.findOneAndUpdate(
+      {
+        owner_user_id: settingsOwnerId,
+      },
+      {
+        $inc: {
+          nextTaskNumber: 1,
+        },
+        $setOnInsert: {
+          taskIdPrefix: taskPrefix,
+        },
+      },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+      }
+    );
+
+    let taskNumber = Math.max(
+      highestExistingNumber + 1,
+      (Number(reservedSettings.nextTaskNumber) || (targetNextNumber + 1)) - 1
+    );
+
+    // Safety collision check for this account: Ensure this task_id does not already exist in this account
+    while (
+      await Task.exists({
+        $or: [{ admin_id: adminId }, { created_by: adminId }],
+        task_id: `${taskPrefix}-${taskNumber}`,
+      })
+    ) {
+      taskNumber++;
+      if (taskSettings) {
+        await Settings.updateOne(
+          { _id: taskSettings._id },
+          { $set: { nextTaskNumber: taskNumber + 1 } }
+        );
+      }
+    }
+
+    const taskId = `${taskPrefix}-${taskNumber}`;
 
     /* =====================================================
        TASK DATA
@@ -714,6 +787,9 @@ export async function POST(
     > = {
       task_id:
         taskId,
+
+      admin_id:
+        adminId,
 
       title:
         title.trim(),
@@ -943,6 +1019,31 @@ export async function POST(
         )
         .lean();
 
+    if (populatedTask && Array.isArray(populatedTask.assign_to)) {
+      for (const assignee of populatedTask.assign_to) {
+        if (assignee && typeof assignee === "object" && assignee.email) {
+          sendTaskAssignedMail({
+            to: assignee.email,
+            assigneeName: assignee.full_name || assignee.name || "Team Member",
+            taskTitle: populatedTask.title,
+            taskId: populatedTask.task_id,
+            description: populatedTask.description,
+            projectName:
+              populatedTask.project_id && typeof populatedTask.project_id === "object"
+                ? populatedTask.project_id.name
+                : undefined,
+            priority: populatedTask.priority,
+            status: populatedTask.task_status,
+            dueDate: populatedTask.completion_date,
+            dueTime: populatedTask.completion_time,
+            assignedByName: user.full_name || user.name || "Admin",
+          }).catch((err) => {
+            console.error("Failed to send task assignment email:", err);
+          });
+        }
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,
@@ -962,6 +1063,27 @@ export async function POST(
       "CREATE TASK ERROR:",
       error
     );
+
+    if (
+      error?.code === 11000 &&
+      (
+        error?.keyPattern?.task_id ||
+        error?.keyValue?.task_id ||
+        String(error?.message).includes("task_id")
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Another task was created at the same time. Please create the task again.",
+          code: "TASK_ID_COLLISION",
+        },
+        {
+          status: 409,
+        }
+      );
+    }
 
     return NextResponse.json(
       {

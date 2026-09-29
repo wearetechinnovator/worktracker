@@ -5,6 +5,7 @@ import AttendanceRequest from "@/models/AttendanceRequest";
 import User from "@/models/User";
 import Notification from "@/models/Notification";
 import { currentUser } from "@/lib/auth";
+import { sendPunchApprovedMail } from "@/lib/mailer";
 
 export async function PATCH(
   req: Request,
@@ -148,6 +149,19 @@ export async function PATCH(
       });
     } catch (notifErr) {
       console.error("Failed to notify employee of approval:", notifErr);
+    }
+
+    if (employee.email) {
+      sendPunchApprovedMail({
+        to: employee.email,
+        employeeName: employee.full_name || employee.name || "Employee",
+        requestType: request.request_type,
+        date: request.attendance_date,
+        approvedByName: user.full_name || user.name || "Admin",
+        approvedAt: request.reviewed_at,
+      }).catch((mailErr) => {
+        console.error("Failed to send punch approval email to employee:", mailErr);
+      });
     }
 
     return NextResponse.json({

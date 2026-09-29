@@ -106,11 +106,11 @@ const PunchContext = createContext<PunchContextType>({
   loading: true,
   user: null,
 
-  punchIn: async () => {},
-  punchOut: async () => {},
-  togglePunch: async () => {},
-  requestPunch: async () => {},
-  refreshPunch: async () => {},
+  punchIn: async () => { },
+  punchOut: async () => { },
+  togglePunch: async () => { },
+  requestPunch: async () => { },
+  refreshPunch: async () => { },
 });
 
 export function PunchProvider({
@@ -195,10 +195,10 @@ export function PunchProvider({
       refreshPunch
     );
 
-    window.addEventListener(
-      'focus',
-      refreshPunch
-    );
+    // window.addEventListener(
+    //   'focus',
+    //   refreshPunch
+    // );
 
     return () => {
       window.removeEventListener(
@@ -227,8 +227,8 @@ export function PunchProvider({
 
   const isViewMode = Boolean(
     user &&
-      !isAdmin &&
-      !punchState.isPunchedIn
+    !isAdmin &&
+    !punchState.isPunchedIn
   );
 
   // =========================================================
@@ -343,7 +343,7 @@ export function PunchProvider({
         pendingRequest:
           punchState.pendingRequest,
 
-      
+
         rejectedRequest:
           punchState.rejectedRequest ?? null,
 
