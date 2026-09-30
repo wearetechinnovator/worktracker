@@ -1030,6 +1030,64 @@ export async function POST(
             )
           : null;
 
+      /* =====================================================
+         PREVIOUS DAY SYSTEM AUTO PUNCH-OUT CHECK
+      ===================================================== */
+
+      let previousDayAutoPunchOut: any = null;
+
+      if (!isAdmin) {
+        const previousDay = getAttendanceDate(
+          new Date(
+            now.getTime() -
+            24 * 60 * 60 * 1000
+          )
+        );
+
+        previousDayAutoPunchOut =
+          await Attendance.findOne({
+            user_id: effectiveUserId,
+            attendance_date: previousDay,
+            punch_in_on: { $ne: null },
+            punch_out_on: { $ne: null },
+
+            // Auto punch-out records created by our cron/test route
+            // are identified by punch_out_systemid.
+            punch_out_systemid: "SYSTEM_AUTO_PUNCH_OUT",
+          })
+            .sort({ punch_out_on: -1 })
+            .lean();
+      }
+
+      if (
+        previousDayAutoPunchOut &&
+        !approvedPunchInRequest
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Your previous day's punch-out was automatically generated because you did not punch out. Admin approval is required before you can punch in today.",
+            requiresRequest: true,
+            requestType: "punchIn",
+            code: "AUTO_PUNCH_OUT_APPROVAL_REQUIRED",
+            previousDayAutoPunchOut: {
+              attendance_date:
+                previousDayAutoPunchOut.attendance_date,
+              punch_in_on:
+                previousDayAutoPunchOut.punch_in_on,
+              punch_out_on:
+                previousDayAutoPunchOut.punch_out_on,
+              punch_out_source:
+                previousDayAutoPunchOut.punch_out_source,
+              punch_out_reason:
+                previousDayAutoPunchOut.punch_out_reason,
+            },
+          },
+          { status: 403 }
+        );
+      }
+
       /*
        * ---------------------------------------------------
        * Punch In time window.
@@ -1281,7 +1339,31 @@ export async function POST(
         );
       }
 
-      
+      /*
+       * ===================================================
+       * OLD RECORD FIX
+       * ===================================================
+       *
+       * This is the important fix for
+       * your current error.
+       *
+       * Old attendance records may not have
+       * attendance_date because the field was
+       * added later.
+       *
+       * We calculate it from punch_in_on.
+       *
+       * Example:
+       *
+       * punch in:
+       * 2026-09-22 23:50
+       *
+       * punch out:
+       * 2026-09-23 00:10
+       *
+       * attendance_date:
+       * 2026-09-22
+       */
 
       if (
         !openAttendance.attendance_date

@@ -1,6 +1,6 @@
 'use client';
 
-import { Briefcase, Clock3, Edit3, Mail, Trash2, Trash2Icon } from 'lucide-react';
+import { Briefcase, Clock3, Edit3, Eye, Mail, Trash2, Trash2Icon } from 'lucide-react';
 
 import { formatMinutesToDuration } from '@/lib/time';
 import { AnimateIcon } from './animate-ui/icons/icon';
@@ -353,6 +353,21 @@ export default function EmployeeCard({
                         gap: '6px',
                     }}
                 >
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        title="View details"
+                        aria-label={`View ${employee.full_name}`}
+                        onClick={() => {
+                            openEmployeeDetails(employee)
+                        }}
+                        style={{
+                            padding: '6px 8px',
+                            border: 'none'
+                        }}
+                    >
+                        <Eye size={14} />
+                    </button>
                     <button
                         type="button"
                         className="action-btn"

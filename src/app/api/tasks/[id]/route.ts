@@ -264,14 +264,7 @@ export async function PATCH(
           ],
         }
       : {
-          $or: [
-            {
-              created_by: user._id,
-            },
-            {
-              assign_to: user._id,
-            },
-          ],
+          created_by: user._id,
         };
 
     /* =====================================================
@@ -1428,22 +1421,19 @@ export async function DELETE(
        ACCESS
     ===================================================== */
 
-    if (Number(user.user_role) !== 1) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Employees are not permitted to delete tasks. Only admins can delete tasks.",
-        },
-        { status: 403 }
-      );
-    }
-
-    const accessFilter = {
-      $or: [
-        { created_by: user._id },
-        { admin_id: user._id },
-      ],
-    };
+    // Admins keep their existing access. Employees can delete only tasks
+    // that they originally created; being assigned is not enough.
+    const accessFilter =
+      Number(user.user_role) === 1
+        ? {
+            $or: [
+              { created_by: user._id },
+              { admin_id: user._id },
+            ],
+          }
+        : {
+            created_by: user._id,
+          };
 
     /* =====================================================
        GET ORIGINAL TASK

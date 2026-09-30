@@ -89,11 +89,6 @@ const attendanceRequestSchema = new Schema(
       trim: true,
     },
 
-    /*
-     * Approval is only an allowance.
-     * This becomes non-null only after the employee actually clicks
-     * Punch In / Punch Out and the punch action succeeds.
-     */
     used_at: {
       type: Date,
       default: null,
@@ -106,13 +101,6 @@ const attendanceRequestSchema = new Schema(
   }
 );
 
-/*
- * Only one active request/allowance can exist for the same employee,
- * date and action at a time.
- *
- * After an approved allowance is consumed, used_at is populated and
- * a new request is still blocked by the Attendance record itself.
- */
 attendanceRequestSchema.index(
   {
     employee_id: 1,

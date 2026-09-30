@@ -20,6 +20,7 @@ interface Employee {
 	userType?: string;
 	user_role?: number;
 	workMode?: string;
+	password?: string;
 }
 
 interface Props {
@@ -77,7 +78,7 @@ export default function EmployeeDetailsModal({ employee, isOpen, onClose }: Prop
 				</div>
 
 				{/* Modal Body */}
-				<div className='w-full grid grid-cols-1 md:grid-cols-4'>
+				<div className='w-full grid grid-cols-1 md:grid-cols-4 gap-3'>
 					<div>
 						<p className='text-teal-900'>Full Name</p>
 						<p className='text-sm text-gray-800'>{empData?.full_name}</p>
@@ -94,7 +95,24 @@ export default function EmployeeDetailsModal({ employee, isOpen, onClose }: Prop
 						<p className='text-teal-900'>Role</p>
 						<p className='text-sm text-gray-800'>{empData?.role || "--"}</p>
 					</div>
+
+					<div>
+						<p className='text-teal-900'>Password</p>
+						<p className='text-sm text-gray-800'>{empData?.password || "--"}</p>
+					</div>
+					<div>
+						<p className='text-teal-900'>Work Mode</p>
+						<p className='text-sm text-gray-800'>{empData?.workMode || "--"}</p>
+					</div>
+
+					<div>
+						<p className='text-teal-900'>Designation</p>
+						<p className='text-sm text-gray-800'>{empData?.designation || "--"}</p>
+					</div>
+
 				</div>
+
+				
 			</div>
 		</div>
 	);

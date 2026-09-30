@@ -677,7 +677,7 @@ export default function Sidebar() {
 								<FileText size={17} />
 								<span>Keep Notes</span>
 							</Link>
-							<Link
+							{/* <Link
 								href={`${basePath}/suggestions`}
 								className={`sidebar-link ${pathname === `${basePath}/suggestions` ? 'active' : ''}`}
 								onMouseEnter={(e) => handleItemMouseEnter('suggestion', e)}
@@ -685,7 +685,7 @@ export default function Sidebar() {
 							>
 								<LayoutDashboardIcon size={17} />
 								<span>Suggestions</span>
-							</Link>
+							</Link> */}
 
 							{/* 6. SETTINGS MASTER SUBMENU (Admin Only) */}
 							{isAdmin && (

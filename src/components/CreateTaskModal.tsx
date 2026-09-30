@@ -445,13 +445,36 @@ export function CreateTaskModal({
         formData.urls.length > 0
       );
     }
+
     return Boolean(
       formData.title !== (editingTask.title || '') ||
       formData.description !== (editingTask.description || '') ||
+      formData.projectId !== String(editingTask.projectId?._id || editingTask.project_id?._id || editingTask.projectId || editingTask.project_id || '') ||
       formData.priority !== (editingTask.priority || 'Medium') ||
-      formData.status !== (editingTask.status || 'To Do') ||
+      formData.status !== (editingTask.task_status || editingTask.status || 'To Do') ||
       formData.dueDate !== (editingTask.dueDate || '') ||
-      formData.comments !== (editingTask.comments || '')
+      formData.dueTime !== (editingTask.dueTime || '') ||
+      formData.task_assign_date !== (editingTask.task_assign_date ? String(editingTask.task_assign_date).slice(0, 10) : '') ||
+      formData.task_delay_reason !== (editingTask.task_delay_reason || '') ||
+      formData.comments !== (editingTask.comments || '') ||
+      JSON.stringify(formData.assignedTo) !== JSON.stringify(
+        Array.isArray(editingTask.assignedTo || editingTask.assign_to)
+          ? (editingTask.assignedTo || editingTask.assign_to).map((e: any) =>
+              typeof e === 'object' && e !== null ? e._id : e
+            )
+          : []
+      ) ||
+      JSON.stringify(formData.files) !== JSON.stringify(editingTask.files || []) ||
+      JSON.stringify(formData.urls) !== JSON.stringify(
+        Array.isArray(editingTask.urls)
+          ? editingTask.urls
+          : (editingTask.url ? [editingTask.url] : [])
+      ) ||
+      formData.tags !== (
+        Array.isArray(editingTask.tags)
+          ? editingTask.tags.join(', ')
+          : (editingTask.tags || '')
+      )
     );
   };
 
@@ -461,7 +484,9 @@ export function CreateTaskModal({
     if (isFormDirty()) {
       saveDraft(draftKey, {
         type: 'task',
-        title: formData.title.trim() ? `Task: ${formData.title.trim()}` : (editingTask ? 'Edit Task' : 'New Task'),
+        title: formData.title.trim()
+          ? `Task: ${formData.title.trim()}`
+          : (editingTask ? 'Edit Task' : 'New Task'),
         subtitle: formData.dueDate ? `Due: ${formData.dueDate}` : 'Draft saved',
         data: formData,
       });
@@ -498,22 +523,19 @@ export function CreateTaskModal({
     e.preventDefault();
 
     if (!editingTask) {
-      if (!formData.projectId.trim()) {
-        setError('Please choose a project');
-        return;
-      }
-
       if (!formData.title.trim()) {
         setError('Task name is required');
         return;
       }
 
-      if (!isAdmin) {
-        if (projects.length === 0) {
-          setError('You are not assigned to any project and cannot create a task.');
-          return;
-        }
+      // Admin must choose a project when creating a task.
+      if (isAdmin && !formData.projectId.trim()) {
+        setError('Please choose a project');
+        return;
+      }
 
+      // Employee project is optional. If selected, validate assignment.
+      if (!isAdmin && formData.projectId.trim()) {
         const isAssigned = projects.some(
           (p) => String(p._id) === String(formData.projectId)
         );
@@ -523,8 +545,14 @@ export function CreateTaskModal({
         }
       }
     } else {
-      if (isAdmin && (!formData.title.trim() || !formData.projectId.trim())) {
-        setError('Please fill all required fields');
+      if (isAdmin && !formData.title.trim()) {
+        setError('Task name is required');
+        return;
+      }
+
+      // A no-project task can be opened by admin, but must be assigned a project when saved.
+      if (isAdmin && !formData.projectId.trim()) {
+        setError('Please choose a project before saving this task');
         return;
       }
     }
@@ -576,29 +604,35 @@ export function CreateTaskModal({
         payload = {
           title: formData.title.trim(),
           description: formData.description || '',
-          project_id: formData.projectId || undefined,
+          project_id: formData.projectId || null,
           assign_to: safeAssignedTo,
           created_by: userId,
           priority: formData.priority,
           task_status: formData.status,
           files: formData.files,
           urls: formData.urls,
-          comments: formData.comments ? [{ comment: formData.comments, user_id: userId, datetime: new Date().toISOString() }] : [],
+          comments: formData.comments
+            ? [{ comment: formData.comments, user_id: userId, datetime: new Date().toISOString() }]
+            : [],
           completion_date: formData.dueDate || undefined,
           completion_time: formData.dueTime || undefined,
           task_assign_date: formData.task_assign_date || undefined,
-          task_delay_reason: formData.task_delay_reason ? (formData.task_delay_reason.trim() || undefined) : undefined,
+          task_delay_reason: formData.task_delay_reason
+            ? (formData.task_delay_reason.trim() || undefined)
+            : undefined,
           status: 1,
 
           // Backward compatibility properties
-          projectId: formData.projectId || undefined,
+          projectId: formData.projectId || null,
           assignedTo: safeAssignedTo,
           createdBy: userId,
           dueDate: formData.dueDate || undefined,
           dueTime: formData.dueTime || undefined,
 
           url: formData.urls[0] || formData.url || undefined,
-          tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : []
+          tags: formData.tags
+            ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+            : []
         };
       }
 
@@ -743,7 +777,7 @@ export function CreateTaskModal({
                   /> */}
 
                   <CustomDatePicker
-                    label="Task Assign Date"
+                    label="Task Received Date"
                     value={formData.task_assign_date}
                     onChange={(val) =>
                       setFormData((prev) => ({
@@ -813,42 +847,22 @@ export function CreateTaskModal({
                  ========================================================= */
               !editingTask && (
                 <>
-                  {!isLoadingProjects && projects.length === 0 && (
-                    <div
-                      style={{
-                        padding: '12px 14px',
-                        marginBottom: '16px',
-                        borderRadius: '8px',
-                        background: '#fef2f2',
-                        border: '1px solid #fecaca',
-                        color: '#991b1b',
-                        fontSize: '0.85rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                      }}
-                    >
-                      <AlertCircle size={18} style={{ flexShrink: 0 }} />
-                      <div>
-                        <strong>No Project Assigned:</strong> You are not assigned to any project. You cannot create a task until an administrator assigns you to a project.
-                      </div>
-                    </div>
-                  )}
+                  
 
                   <div className="form-group" style={{ marginBottom: '16px' }}>
                     <CustomDropdown
-                      label="Choose Project *"
+                      label="Choose Project"
                       placeholder={
                         isLoadingProjects
                           ? 'Loading assigned projects...'
                           : projects.length === 0
-                            ? 'No assigned project found'
-                            : 'Choose Project'
+                            ? 'No Project — Task will show NA'
+                            : 'Select Project (Optional)'
                       }
                       value={formData.projectId}
-                      disabled={projects.length === 0 || isLoadingProjects}
+                      disabled={isLoadingProjects}
                       options={[
-                        { value: '', label: 'Choose Project' },
+                        { value: '', label: 'NA — No Project' },
                         ...projects.map((p) => ({
                           value: p._id,
                           label: p.name,
@@ -858,8 +872,8 @@ export function CreateTaskModal({
                       onChange={(val) => setFormData((prev) => ({ ...prev, projectId: val }))}
                     />
                     {!isLoadingProjects && projects.length === 0 && (
-                      <span style={{ fontSize: '0.75rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>
-                        You must be assigned to at least one project to create a task.
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                        No project is assigned to you. The task will be created without a project.
                       </span>
                     )}
                   </div>
@@ -901,8 +915,8 @@ export function CreateTaskModal({
                   placeholder="e.g. Implement user authentication workflow"
                   value={formData.title}
                   disabled={
-                    (!isAdmin && Boolean(editingTask)) ||
-                    (!isAdmin && !editingTask && (projects.length === 0 || isLoadingProjects))
+                    (!isAdmin && Boolean(editingTask))
+                    // (!isAdmin && !editingTask && isLoadingProjects)
                   }
                   style={
                     !isAdmin && editingTask
@@ -1030,7 +1044,7 @@ export function CreateTaskModal({
               <Button
                 type="submit"
                 loading={submitting}
-                disabled={!isAdmin && !editingTask && (projects.length === 0 || isLoadingProjects)}
+                // disabled={!isAdmin && !editingTask}
                 className="btn btn-primary"
               >
                 {editingTask ? 'Update Task' : 'Create Task'}

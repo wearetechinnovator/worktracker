@@ -558,30 +558,18 @@ export async function POST(
 
     const isEmployee = Number(user.user_role) !== 1;
 
-    if (isEmployee) {
-      if (!finalProjectId || !mongoose.Types.ObjectId.isValid(finalProjectId)) {
+    if (isEmployee && finalProjectId) {
+      if (!mongoose.Types.ObjectId.isValid(finalProjectId)) {
         return NextResponse.json(
-          {
-            success: false,
-            message: "Project is required. You must select an assigned project to create a task.",
-          },
-          {
-            status: 400,
-          }
+          { success: false, message: "Invalid project ID." },
+          { status: 400 }
         );
       }
 
-      // Verify that the employee is assigned to this project
-      const userObjectId = mongoose.Types.ObjectId.isValid(user._id)
-        ? new mongoose.Types.ObjectId(String(user._id))
-        : null;
-
+      // Project is optional for employees. If selected, validate assignment.
       const assignedProject = await Project.findOne({
         _id: finalProjectId,
-        $or: [
-          ...(userObjectId ? [{ project_users: userObjectId }] : []),
-          { project_users: String(user._id) },
-        ],
+        project_users: user._id,
       });
 
       if (!assignedProject) {
@@ -590,9 +578,7 @@ export async function POST(
             success: false,
             message: "You are not assigned to this project and cannot create tasks in it.",
           },
-          {
-            status: 403,
-          }
+          { status: 403 }
         );
       }
     }

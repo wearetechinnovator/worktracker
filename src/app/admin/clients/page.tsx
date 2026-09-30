@@ -591,10 +591,6 @@ export default function ClientsPage() {
               <UserPlus size={30} style={{ color: 'var(--accent-primary)' }} />
             </div>
 
-            <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '6px' }}>
-              Your client directory is ready
-            </h2>
-
             <p
               style={{
                 color: 'var(--text-secondary)',

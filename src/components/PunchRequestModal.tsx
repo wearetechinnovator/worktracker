@@ -73,6 +73,39 @@ export default function PunchRequestModal({
       setIsSubmitting(false);
     }
   };
+  interface PunchRequestModalProps {
+  currentTime?: string;
+  startTime?: string | null;
+  endTime?: string | null;
+}
+
+   const formatTime12h = (timeVal: string | null | undefined) => {
+    if (!timeVal) return '';
+
+    let date: Date;
+
+    // Check if the string is just a time format like "14:30" or "14:30:00"
+    if (/^\d{2}:\d{2}/.test(timeVal)) {
+      const [hours, minutes] = timeVal.split(':');
+      date = new Date();
+      date.setHours(parseInt(hours, 10));
+      date.setMinutes(parseInt(minutes, 10));
+    } else {
+      // Fallback for valid ISO strings or full datetime strings
+      date = new Date(timeVal);
+    }
+
+    // Ensure the date parsing didn't fail
+    if (isNaN(date.getTime())) return timeVal;
+
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+
 
   return (
     <div
@@ -182,13 +215,12 @@ export default function PunchRequestModal({
               {/* <strong>
                 {message || `Configured ${actionLabel} window is currently closed.`}
               </strong> */}
-                <strong className='flex gap-2'>
-                  {startTime && endTime && (
-                    <div>Allowed: {startTime} – {endTime}</div>
-                  )}
-
-                  {currentTime && <div>Current Time: {currentTime}</div>}
-                </strong>
+              <strong className='flex gap-2'>
+                {startTime && endTime && (
+                  <div>Allowed: {formatTime12h(startTime)} – {formatTime12h(endTime)}</div>
+                )}
+                {currentTime && <div>Current Time: {formatTime12h(currentTime)}</div>}
+              </strong>
 
               <div>Please enter a reason for admin approval.</div>
             </div>

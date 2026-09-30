@@ -16,6 +16,7 @@ import { sendEmployeeWelcomeMail } from "@/lib/mailer";
 export async function GET() {
   try {
     await dbConnect();
+
     const admin = await currentUser();
 
     if (!admin) {
@@ -38,71 +39,143 @@ export async function GET() {
       );
     }
 
-    const adminProjects = await Project.find({ created_by: admin._id }).select("name project_users").lean();
+    
+    const adminProjects = await Project.find({
+      created_by: admin._id,
+      status: true,
+    })
+      .select("_id name project_users")
+      .lean();
+
     const employees = await User.find({
       user_role: 2,
       created_by: admin._id,
-    }).select(
-      [
-        "_id",
-        "full_name",
-        "email",
-        "phone_number",
-        "password",
-        "designation",
-        "role_id",
-        "group",
-        "profile_picture",
-        "status",
-        "isVerify",
-        "created_by",
-        "settings_id",
-        "workMode",
-      ].join(" ")
-    ).sort({ createdAt: -1 }).lean();
+    })
+      .select(
+        [
+          "_id",
+          "full_name",
+          "email",
+          "phone_number",
+          "password",
+          "designation",
+          "role_id",
+          "group",
+          "profile_picture",
+          "status",
+          "isVerify",
+          "created_by",
+          "settings_id",
+          "workMode",
+        ].join(" ")
+      )
+      .populate("role_id", "name short_desc")
+      .sort({ createdAt: -1 })
+      .lean();
 
-    const data =
-      employees.map(
-        (employee: any) => {
-          const foundProj = adminProjects.find((p: any) =>
-            Array.isArray(p.project_users) &&
-            p.project_users.some(
-              (u: any) => String(u?._id || u) === String(employee._id)
+    const data = employees.map((employee: any) => {
+      /*
+       * An employee can belong to more than one project.
+       */
+      const employeeProjects = adminProjects
+        .filter(
+          (project: any) =>
+            Array.isArray(project.project_users) &&
+            project.project_users.some(
+              (userId: any) =>
+                String(userId?._id || userId) ===
+                String(employee._id)
             )
-          );
-          const employeeProject = foundProj ? foundProj.name : null;
+        )
+        .map((project: any) => ({
+          _id: String(project._id),
+          name: project.name,
+        }));
 
-          let decryptedPassword = "";
-          if (employee.password) {
-            try {
-              decryptedPassword = isEncrypted(employee.password)
-                ? decryptPassword(employee.password)
-                : "";
-            } catch {
-              decryptedPassword = "";
-            }
-          }
+      const projectNames = employeeProjects
+        .map((project) => project.name)
+        .filter(Boolean);
 
-          return {
-            ...employee,
-            _id: String(employee._id),
-            password: decryptedPassword,
-            Project: employeeProject,
-            workMode: employee.workMode || "Hybrid",
-            role_id: employee.role_id
-              ? String(employee.role_id) : null,
-            settings_id: employee.settings_id
-              ? String(employee.settings_id) : null,
-            created_by: employee.created_by
-              ? String(employee.created_by)
-              : null,
-            name: employee.full_name || "Unknown User",
-            role: employee.designation || "Employee",
-            userType: "employee",
-            avatarColor: "#3b82f6"
-          };
+      /*
+       * Keep both `project` and `Project` so the API remains compatible
+       * with existing frontend code regardless of casing.
+       *
+       * Example:
+       * project: "Website, Worktracker"
+       * Project: "Website, Worktracker"
+       */
+      const projectText =
+        projectNames.length > 0
+          ? projectNames.join(", ")
+          : null;
+
+      let decryptedPassword = "";
+
+      if (employee.password) {
+        try {
+          decryptedPassword = isEncrypted(employee.password)
+            ? decryptPassword(employee.password)
+            : "";
+        } catch {
+          decryptedPassword = "";
         }
-      );
+      }
+
+      return {
+        ...employee,
+
+        _id: String(employee._id),
+
+        password: decryptedPassword,
+
+        // Full project objects for future UI use.
+        projects: employeeProjects,
+
+        // String used by the current table.
+        project: projectText,
+        Project: projectText,
+
+        workMode: employee.workMode || "Hybrid",
+
+        role_id:
+          employee.role_id &&
+          typeof employee.role_id === "object"
+            ? String(employee.role_id._id)
+            : employee.role_id
+              ? String(employee.role_id)
+              : null,
+
+        roleName:
+          employee.role_id &&
+          typeof employee.role_id === "object"
+            ? employee.role_id.name || null
+            : null,
+
+        settings_id: employee.settings_id
+          ? String(employee.settings_id)
+          : null,
+
+        created_by: employee.created_by
+          ? String(employee.created_by)
+          : null,
+
+        name:
+          employee.full_name ||
+          "Unknown User",
+
+        // Role comes from Role.name.
+        // Designation stays from User.designation.
+        role:
+          employee.role_id &&
+          typeof employee.role_id === "object"
+            ? employee.role_id.name || "Employee"
+            : "Employee",
+
+        userType: "employee",
+
+        avatarColor: "#3b82f6",
+      };
+    });
 
     return NextResponse.json({
       success: true,

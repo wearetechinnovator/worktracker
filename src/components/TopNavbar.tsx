@@ -812,15 +812,15 @@ export default function TopNavbar() {
           );
         }
 
-        if (type === 'task') {
-          if (!isAdmin && projects.length === 0) {
-            toast.error('You are not assigned to any project. You cannot create a task.');
-            return;
-          }
-          setIsTaskModalOpen(
-            true
-          );
-        }
+        // if (type === 'task') {
+        //   if (!isAdmin && projects.length === 0) {
+        //     toast.error('You are not assigned to any project. You cannot create a task.');
+        //     return;
+        //   }
+        //   setIsTaskModalOpen(
+        //     true
+        //   );
+        // }
       };
 
     const handlePunchChanged =
@@ -1040,10 +1040,10 @@ export default function TopNavbar() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (!isAdmin && projects.length === 0) {
-                        toast.error('You are not assigned to any project. You cannot create a task.');
-                        return;
-                      }
+                      // if (!isAdmin && projects.length === 0) {
+                      //   toast.error('You are not assigned to any project. You cannot create a task.');
+                      //   return;
+                      // }
 
                       setIsTaskModalOpen(
                         true
@@ -1408,10 +1408,10 @@ export default function TopNavbar() {
                     return;
                   }
 
-                  if (projects.length === 0) {
-                    toast.error('You are not assigned to any project. You cannot create a task.');
-                    return;
-                  }
+                  // if (projects.length === 0) {
+                  //   toast.error('You are not assigned to any project. You cannot create a task.');
+                  //   return;
+                  // }
 
                   setIsTaskModalOpen(
                     true

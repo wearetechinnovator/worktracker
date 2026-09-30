@@ -214,6 +214,16 @@ export default function GlobalLogsPage() {
   const [entityType, setEntityType] =
     useState("");
 
+  const getToday = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const [dateFilter, setDateFilter] = useState(getToday);
+  const [showAllDates, setShowAllDates] = useState(false);
+
+  const [localPage, setLocalPage] = useState(1);
+  const localPageSize = 10;
+
   const [page, setPage] =
     useState(1);
 
@@ -399,9 +409,11 @@ export default function GlobalLogsPage() {
           String(page)
         );
 
+        // Fetch a large batch so date filtering and client-side pagination
+        // operate on the complete result set returned by the current API.
         params.set(
           "limit",
-          String(limit)
+          "5000"
         );
 
         if (action) {
@@ -493,21 +505,8 @@ export default function GlobalLogsPage() {
           receivedLogs
         );
 
-        setTotal(
-          Number(
-            data?.total ??
-            data?.data?.total ??
-            receivedLogs.length
-          )
-        );
-
-        setTotalPages(
-          Number(
-            data?.totalPages ??
-            data?.data?.totalPages ??
-            1
-          )
-        );
+        setTotal(receivedLogs.length);
+        setTotalPages(1);
       } catch (error) {
         console.error(
           "FETCH GLOBAL LOGS ERROR:",
@@ -559,6 +558,37 @@ export default function GlobalLogsPage() {
      CLEAR FILTERS
   ======================================================= */
 
+  const filteredLogs = useMemo(() => {
+    const q = activeSearch.trim().toLowerCase();
+
+    return logs.filter((log) => {
+      if (!showAllDates) {
+        const d = new Date(log.created_at);
+        const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        if (localDate !== dateFilter) return false;
+      }
+
+      if (!q) return true;
+
+      const actor = log.actor_id?.full_name || log.actor_id?.email || "";
+      const entity = log.entity_id?.name || log.entity_id?.title || log.entity_id?.full_name || "";
+      const target = log.target_user_id?.full_name || log.target_user_id?.email || "";
+      return [log.description, log.action, log.entity_type, actor, entity, target]
+        .some(value => String(value).toLowerCase().includes(q));
+    });
+  }, [logs, activeSearch, dateFilter, showAllDates]);
+
+  useEffect(() => {
+    setLocalPage(1);
+  }, [activeSearch, action, entityType, dateFilter, showAllDates]);
+
+  const localTotal = filteredLogs.length;
+  const localTotalPages = Math.max(1, Math.ceil(localTotal / localPageSize));
+  const paginatedLogs = filteredLogs.slice(
+    (localPage - 1) * localPageSize,
+    localPage * localPageSize
+  );
+
   function clearAllFilters() {
     setSearch("");
 
@@ -579,7 +609,9 @@ export default function GlobalLogsPage() {
     Boolean(
       search ||
       action ||
-      entityType
+      entityType ||
+      showAllDates ||
+      dateFilter !== getToday()
     );
 
   /* =======================================================
@@ -1487,6 +1519,16 @@ export default function GlobalLogsPage() {
             )}
           </div>
 
+          {/* DATE */}
+
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", border: "1px solid var(--border-color)", borderRadius: "var(--border-radius-sm)", background: "var(--bg-secondary)", padding: "0 8px", height: "38px" }}>
+            <Calendar size={14} style={{ color: "var(--text-muted)" }} />
+            <input type="date" value={dateFilter} disabled={showAllDates} onChange={(e) => { setDateFilter(e.target.value); setLocalPage(1); }} style={{ border: "none", outline: "none", background: "transparent", fontSize: ".8rem", color: "var(--text-primary)" }} />
+            <button type="button" className="btn btn-secondary" onClick={() => { setShowAllDates(v => !v); setLocalPage(1); }} style={{ height: "28px", padding: "0 7px", fontSize: ".7rem", whiteSpace: "nowrap" }}>
+              {showAllDates ? "Today" : "All"}
+            </button>
+          </div>
+
           {/* ACTION */}
 
           <div
@@ -1864,7 +1906,7 @@ export default function GlobalLogsPage() {
                       </div>
                     </td>
                   </tr>
-                ) : logs.length ===
+                ) : filteredLogs.length ===
                   0 ? (
                   /* ===============================================
                      EMPTY
@@ -1924,7 +1966,7 @@ export default function GlobalLogsPage() {
                      LOGS
                   =============================================== */
 
-                  logs.map(
+                  paginatedLogs.map(
                     (log) => {
                       const actorName =
                         log.actor_id
@@ -2325,7 +2367,7 @@ export default function GlobalLogsPage() {
           =================================================== */}
 
           {!loading &&
-            logs.length > 0 && (
+            filteredLogs.length > 0 && (
               <div
                 style={{
                   display:
@@ -2355,22 +2397,22 @@ export default function GlobalLogsPage() {
                   Showing{" "}
                   <strong>
                     {Math.min(
-                      (page -
+                      (localPage -
                         1) *
-                      limit +
+                      localPageSize +
                       1,
-                      total
+                      localTotal
                     )}
                     -
                     {Math.min(
-                      page *
-                      limit,
-                      total
+                      localPage *
+                      localPageSize,
+                      localTotal
                     )}
                   </strong>{" "}
                   of{" "}
                   <strong>
-                    {total}
+                    {localTotal}
                   </strong>{" "}
                   entries
                 </div>
@@ -2391,16 +2433,12 @@ export default function GlobalLogsPage() {
                   <button
                     className="btn btn-secondary"
                     onClick={() =>
-                      setPage(
-                        (p) =>
-                          Math.max(
-                            1,
-                            p - 1
-                          )
+                      setLocalPage(
+                        (p) => Math.max(1, p - 1)
                       )
                     }
                     disabled={
-                      page <= 1
+                      localPage <= 1
                     }
                     style={{
                       padding:
@@ -2408,12 +2446,12 @@ export default function GlobalLogsPage() {
                       fontSize:
                         "0.75rem",
                       opacity:
-                        page <=
+                        localPage <=
                           1
                           ? 0.5
                           : 1,
                       cursor:
-                        page <=
+                        localPage <=
                           1
                           ? "not-allowed"
                           : "pointer",
@@ -2426,7 +2464,7 @@ export default function GlobalLogsPage() {
 
                   {Array.from({
                     length:
-                      totalPages,
+                      localTotalPages,
                   }).map(
                     (
                       _,
@@ -2439,10 +2477,10 @@ export default function GlobalLogsPage() {
                         pageNum ===
                         1 ||
                         pageNum ===
-                        totalPages ||
+                        localTotalPages ||
                         Math.abs(
                           pageNum -
-                          page
+                          localPage
                         ) <= 1
                       ) {
                         return (
@@ -2451,13 +2489,13 @@ export default function GlobalLogsPage() {
                               pageNum
                             }
                             className={
-                              page ===
+                              localPage ===
                                 pageNum
                                 ? "btn btn-primary"
                                 : "btn btn-secondary"
                             }
                             onClick={() =>
-                              setPage(
+                              setLocalPage(
                                 pageNum
                               )
                             }
@@ -2479,7 +2517,7 @@ export default function GlobalLogsPage() {
                         pageNum ===
                         2 ||
                         pageNum ===
-                        totalPages -
+                        localTotalPages -
                         1
                       ) {
                         return (
@@ -2510,17 +2548,13 @@ export default function GlobalLogsPage() {
                   <button
                     className="btn btn-secondary"
                     onClick={() =>
-                      setPage(
-                        (p) =>
-                          Math.min(
-                            totalPages,
-                            p + 1
-                          )
+                      setLocalPage(
+                        (p) => Math.min(localTotalPages, p + 1)
                       )
                     }
                     disabled={
-                      page >=
-                      totalPages
+                      localPage >=
+                      localTotalPages
                     }
                     style={{
                       padding:
@@ -2528,13 +2562,13 @@ export default function GlobalLogsPage() {
                       fontSize:
                         "0.75rem",
                       opacity:
-                        page >=
-                          totalPages
+                        localPage >=
+                          localTotalPages
                           ? 0.5
                           : 1,
                       cursor:
-                        page >=
-                          totalPages
+                        localPage >=
+                          localTotalPages
                           ? "not-allowed"
                           : "pointer",
                     }}

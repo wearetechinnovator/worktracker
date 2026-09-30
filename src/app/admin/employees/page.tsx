@@ -37,7 +37,7 @@ type Employee = {
 
 	designation?: string | null;
 
-	group?: string | null;
+	project?: string | null;
 
 	user_role: number;
 
@@ -48,7 +48,7 @@ type Employee = {
 	createdAt?: string;
 	updatedAt?: string;
 
-	// Attendance data if API provides it
+
 	totalMinutes?: number;
 
 	todayAttendance?: {
@@ -785,16 +785,62 @@ export default function EmployeesPage() {
 					}}
 				>
 					{filteredEmployees.length === 0 ? (
-						<p
+						<div
 							style={{
-								color: 'var(--text-muted)',
-								textAlign: 'center',
-								padding: '32px',
 								gridColumn: '1 / -1',
+								minHeight: '360px',
+								display: 'flex',
+								flexDirection: 'column',
+								alignItems: 'center',
+								justifyContent: 'center',
+								textAlign: 'center',
+								padding: '40px 20px',
+								border: '1px solid var(--border-color)',
+								borderRadius: '10px',
+								background: 'var(--bg-primary)',
 							}}
 						>
-							No registered employees found. Click Add Employee to create one.
-						</p>
+							<div
+								style={{
+									width: '64px',
+									height: '64px',
+									borderRadius: '50%',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									background: 'rgba(59,130,246,0.10)',
+									color: '#3b82f6',
+									marginBottom: '18px',
+								}}
+							>
+								<UserPlus size={28} />
+							</div>
+							<p
+								style={{
+									fontSize: '0.9rem',
+									color: 'var(--text-secondary)',
+									maxWidth: '460px',
+									lineHeight: 1.6,
+									margin: '0 0 18px',
+								}}
+							>
+								Add employees to build your team and manage their details,
+								attendance, and assigned work.
+							</p>
+							<button
+								className="btn btn-primary"
+								type="button"
+								onClick={() => setIsAddModalOpen(true)}
+								style={{
+									display: 'inline-flex',
+									alignItems: 'center',
+									gap: '7px',
+								}}
+							>
+								<UserPlus size={14} />
+								Add your first employee
+							</button>
+						</div>
 					) : (
 						paginatedEmployees.map((employee) => (
 							<EmployeeCard
@@ -820,15 +866,58 @@ export default function EmployeesPage() {
 					}}
 				>
 					{filteredEmployees.length === 0 ? (
-						<p
+						<div
 							style={{
-								color: 'var(--text-muted)',
+								minHeight: '360px',
+								display: 'flex',
+								flexDirection: 'column',
+								alignItems: 'center',
+								justifyContent: 'center',
 								textAlign: 'center',
-								padding: '32px',
+								padding: '40px 20px',
 							}}
 						>
-							No registered employees found. Click Add Employee to create one.
-						</p>
+							<div
+								style={{
+									width: '64px',
+									height: '64px',
+									borderRadius: '50%',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									background: 'rgba(59,130,246,0.10)',
+									color: '#3b82f6',
+									marginBottom: '18px',
+								}}
+							>
+								<UserPlus size={28} />
+							</div>
+							<p
+								style={{
+									fontSize: '0.9rem',
+									color: 'var(--text-secondary)',
+									maxWidth: '460px',
+									lineHeight: 1.6,
+									margin: '0 0 18px',
+								}}
+							>
+								Add employees to build your team and manage their details,
+								attendance, and assigned work.
+							</p>
+							<button
+								className="btn btn-primary"
+								type="button"
+								onClick={() => setIsAddModalOpen(true)}
+								style={{
+									display: 'inline-flex',
+									alignItems: 'center',
+									gap: '7px',
+								}}
+							>
+								<UserPlus size={14} />
+								Add your first employee
+							</button>
+						</div>
 					) : (
 						<table
 							style={{
@@ -848,7 +937,7 @@ export default function EmployeesPage() {
 									<th style={tableHeaderStyle}>Email</th>
 									{/* <th style={tableHeaderStyle}>Phone</th> */}
 									<th style={tableHeaderStyle}>Designation</th>
-									<th style={tableHeaderStyle}>Group</th>
+									<th style={tableHeaderStyle}>Project</th>
 									<th style={tableHeaderStyle}>Status</th>
 									<th
 										style={{
@@ -958,7 +1047,7 @@ export default function EmployeesPage() {
 											</td>
 
 											<td style={tableCellStyle}>
-												{employee.group || '—'}
+												{employee.project}
 											</td>
 
 											<td style={tableCellStyle}>

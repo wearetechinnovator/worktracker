@@ -115,8 +115,6 @@ interface UserProfile {
 }
 
 
-// Employee task page: employees can work only while punched in.
-// View-only mode is enforced through PunchContext and the action guards below.
 export default function TasksPage() {
   const router = useRouter();
   const [user, setUser] = useState<UserProfile | null>();
@@ -1281,10 +1279,10 @@ export default function TasksPage() {
       return;
     }
 
-    if (!isAdmin && projects.length === 0) {
-      toast.error('You are not assigned to any project. You cannot create a task.');
-      return;
-    }
+    // if (!isAdmin && projects.length === 0) {
+    //   toast.error('You are not assigned to any project. You cannot create a task.');
+    //   return;
+    // }
 
     setEditingTask(null);
     setShowModal(true);
@@ -1502,7 +1500,7 @@ export default function TasksPage() {
     }
 
     // 2. Status Filter
-    if (!filterStatus || filterStatus === 'all') {
+    if (!filterStatus || filterStatus === 'Active') {
       // Show all tasks including Completed - do not hide or auto-delete completed tasks
     } else if (filterStatus === 'Completed') {
       if (task.status !== 'Completed' && !isTaskFullyCompletedByMe(task._id)) return false;
@@ -1812,13 +1810,8 @@ export default function TasksPage() {
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
-              <option value="">All Tasks (Default)</option>
-              <option value="Active">Active Tasks Only</option>
-              <option value="To Do">To Do</option>
-              <option value="In Progress">In Progress</option>
+              <option value="Active">Active</option>
               <option value="Paused">Paused</option>
-              <option value="Partially Done">Partially Done</option>
-              <option value="Review">Review</option>
               <option value="Completed">Completed Only</option>
             </select>
           </div>
@@ -1834,11 +1827,11 @@ export default function TasksPage() {
               value={filterPriority}
               onChange={(e) => setFilterPriority(e.target.value)}
             >
-              <option value="">All Priorities</option>
-              <option value="Urgent">🔴 Urgent</option>
-              <option value="High">🟠 High</option>
-              <option value="Medium">🟡 Medium</option>
-              <option value="Low">🟢 Low</option>
+              <option value="">All</option>
+              <option value="Urgent">Urgent</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
             </select>
           </div>
 
@@ -1853,7 +1846,7 @@ export default function TasksPage() {
               value={filterProject}
               onChange={(e) => setFilterProject(e.target.value)}
             >
-              <option value="">All Projects</option>
+              <option value="">All</option>
               {projects.map((p) => (
                 <option key={p._id} value={p._id}>
                   {p.name}
@@ -1862,25 +1855,7 @@ export default function TasksPage() {
             </select>
           </div>
 
-          {/* Assignee Filter */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Assigned To
-            </label>
-            <select
-              className="form-control"
-              style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%', height: '36px' }}
-              value={filterAssignee}
-              onChange={(e) => setFilterAssignee(e.target.value)}
-            >
-              <option value="">All Assignees</option>
-              {employees.map((e) => (
-                <option key={e._id} value={e._id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
-          </div>
+
 
           {/* Due Date Filter */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1893,10 +1868,10 @@ export default function TasksPage() {
               value={filterDateRange}
               onChange={(e) => setFilterDateRange(e.target.value)}
             >
-              <option value="">All Dates</option>
-              <option value="overdue">⚠️ Overdue</option>
-              <option value="today">📅 Due Today</option>
-              <option value="this_week">📆 Due This Week</option>
+              <option value="">All</option>
+              <option value="overdue">Overdue</option>
+              <option value="today">Due Today</option>
+              <option value="this_week">Due This Week</option>
               <option value="has_date">With Due Date</option>
               <option value="no_date">No Due Date</option>
             </select>
@@ -1973,14 +1948,34 @@ export default function TasksPage() {
                             : undefined,
                       }}
                     >
-                      <td style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>
-                        {task.task_id ? (
-                          <span style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '0.76rem' }}>
-                            {task.task_id}
+                      <td style={{ whiteSpace: 'nowrap', verticalAlign: 'top', }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {task.task_id ? (
+                            <span style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '0.76rem' }}>
+                              {task.task_id}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                          <span
+                            style={{
+                              fontSize: '0.78rem',
+                              color: 'var(--text-primary)',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {task.createdAt
+                              ? new Date(task.createdAt).toLocaleString('en-IN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true,
+                              })
+                              : '-'}
                           </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>—</span>
-                        )}
+                        </div>
                       </td>
                       <td>
                         <div
@@ -2010,15 +2005,13 @@ export default function TasksPage() {
                             {task.Project}
                           </span>
                         ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>None</span>
+                          <span className="tag-badge" style={{ backgroundColor: '#cbd5e120', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}><Folder size={10} />NA</span>
                         )}
                       </td>
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           <span className="tag-badge" style={{ ...getStatusBadgeStyles(task.status), fontWeight: 750, fontSize: '0.72rem', width: 'fit-content' }}>
-                            {task.status}
-                          </span>
-                          {isSomeoneWorking && (
+                           {isSomeoneWorking && (
                             <span className="tag-badge" style={{
                               background: '#ecfdf5',
                               color: '#047857',
@@ -2032,33 +2025,12 @@ export default function TasksPage() {
                               width: 'fit-content'
                             }}>
                               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} className="animate-pulse" />
-                              <span>Working Now</span>
+                            
                             </span>
-                          )}
-                          {!isSomeoneWorking && isSomeonePaused && (
-                            <span className="tag-badge" style={{
-                              background: '#fef3c7',
-                              color: '#b45309',
-                              borderColor: '#fde68a',
-                              fontSize: '0.66rem',
-                              fontWeight: 750,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              padding: '2px 6px',
-                              width: 'fit-content'
-                            }}>
-                              <PauseCircle size={10} style={{ color: '#d97706' }} />
-                              <span>
-                                Paused
-                                {pausedWorkers.length > 0 && (
-                                  <span style={{ fontWeight: 600, opacity: 0.9 }}>
-                                    {` (${pausedWorkers.map((w: any) => w.employeeId?.full_name || w.employeeId?.name || 'Employee').join(', ')})`}
-                                  </span>
-                                )}
-                              </span>
-                            </span>
-                          )}
+                          )} {task.status}
+                          </span>
+                          
+                          
                         </div>
                       </td>
                       <td>
@@ -2373,7 +2345,7 @@ export default function TasksPage() {
                                               }}
                                             >
                                               <option value="" disabled>
-                                                End Work
+                                                Choose
                                               </option>
                                               <option value="full">Complete</option>
                                               <option value="partial">Partially Done</option>

@@ -13,21 +13,10 @@ export async function GET() {
 
     if (!user) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Authentication required.",
-        },
+        { success: false, message: "Authentication required." },
         { status: 401 }
       );
     }
-
-    /*
-     * =====================================================
-     * ADMIN
-     * =====================================================
-     *
-     * Admins can see requests from their own employees.
-     */
 
     if (Number(user.user_role) === 1) {
       const myEmployees = await User.find({
@@ -35,82 +24,40 @@ export async function GET() {
         user_role: 2,
       }).distinct("_id");
 
-      const requests =
-        await AttendanceRequest.find({
-          $or: [
-            {
-              admin_id: user._id,
-            },
-            {
-              employee_id: {
-                $in: myEmployees,
-              },
-            },
-          ],
-        })
-          .populate(
-            "employee_id",
-            "full_name email designation"
-          )
-          .populate(
-            "reviewed_by",
-            "full_name email"
-          )
-          .sort({
-            requested_at: -1,
-            createdAt: -1,
-          })
-          .lean();
+      const requests = await AttendanceRequest.find({
+        $or: [
+          { admin_id: user._id },
+          { employee_id: { $in: myEmployees } },
+        ],
+      })
+        .populate("employee_id", "full_name email designation")
+        .populate("reviewed_by", "full_name email")
+        .sort({ requested_at: -1, createdAt: -1 })
+        .lean();
 
-      return NextResponse.json({
-        success: true,
-        data: requests,
-      });
+      return NextResponse.json({ success: true, data: requests });
     }
 
-    /*
-     * =====================================================
-     * EMPLOYEE
-     * =====================================================
-     *
-     * Employees can only see their own request history.
-     * This is what powers the Activity Log on the Punch page.
-     */
-
     if (Number(user.user_role) === 2) {
-      const requests =
-        await AttendanceRequest.find({
-          employee_id: user._id,
-        })
-          .populate(
-            "reviewed_by",
-            "full_name email"
-          )
-          .sort({
-            requested_at: -1,
-            createdAt: -1,
-          })
-          .lean();
+      const requests = await AttendanceRequest.find({
+        employee_id: user._id,
+      })
+        .populate("reviewed_by", "full_name email")
+        .sort({ requested_at: -1, createdAt: -1 })
+        .lean();
 
-      return NextResponse.json({
-        success: true,
-        data: requests,
-      });
+      return NextResponse.json({ success: true, data: requests });
     }
 
     return NextResponse.json(
       {
         success: false,
-        message:
-          "You are not allowed to view attendance requests.",
+        message: "You are not allowed to view attendance requests.",
       },
       { status: 403 }
     );
   } catch (error) {
-    console.error(
-      "GET /api/attendance/requests error:",
-      error
-    );
+    console.error("GET /api/attendance/requests error:", error);
 
     return NextResponse.json(
       {

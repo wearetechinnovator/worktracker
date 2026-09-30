@@ -7,7 +7,6 @@ import Settings from "@/models/Settings";
 import Attendance from "@/models/Attendance";
 import Notification from "@/models/Notification";
 import { currentUser } from "@/lib/auth";
-import { sendPunchRequestMail } from "@/lib/mailer";
 
 function getClientIp(req: Request): string {
   const forwardedFor = req.headers.get("x-forwarded-for");
@@ -139,11 +138,28 @@ export async function POST(req: Request) {
         attendance_date: attendanceDate,
       });
 
+      if (
+        todayAttendance?.punch_in_on &&
+        todayAttendance?.punch_out_on
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Your attendance for today is already completed. You can punch in again on the next attendance day.",
+            isAlreadyPunchedOut: true,
+            canPunchIn: false,
+            canPunchOut: false,
+          },
+          { status: 409 }
+        );
+      }
+
       if (todayAttendance?.punch_in_on) {
         return NextResponse.json(
           {
             success: false,
-            message: "You have already punched in for today.",
+            message: "You have already punched in for today. Please punch out first.",
           },
           { status: 400 }
         );
@@ -166,6 +182,56 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
+    }
+
+    /* =====================================================
+       PREVIOUS DAY SYSTEM AUTO PUNCH-OUT
+    ===================================================== */
+
+    let previousDayAutoPunchOut: any = null;
+
+    if (requestType === "punchIn") {
+      const previousDay = getAttendanceDate(
+        new Date(
+          now.getTime() -
+          24 * 60 * 60 * 1000
+        )
+      );
+
+      previousDayAutoPunchOut =
+        await Attendance.findOne({
+          user_id: user._id,
+          attendance_date: previousDay,
+          punch_in_on: { $ne: null },
+          punch_out_on: { $ne: null },
+          punch_out_systemid: "SYSTEM_AUTO_PUNCH_OUT",
+        })
+          .sort({ punch_out_on: -1 })
+          .lean();
+    }
+
+    let finalReason = reason;
+
+    if (
+      requestType === "punchIn" &&
+      previousDayAutoPunchOut
+    ) {
+      const systemPunchOutTime =
+        previousDayAutoPunchOut.punch_out_on
+          ? new Date(
+              previousDayAutoPunchOut.punch_out_on
+            ).toLocaleString("en-IN", {
+              timeZone: "Asia/Kolkata",
+              dateStyle: "medium",
+              timeStyle: "short",
+            })
+          : "Unknown";
+
+      finalReason = [
+        reason,
+        `Previous day's attendance (${previousDayAutoPunchOut.attendance_date}) was automatically punched out by the system because the employee did not punch out.`,
+        `System punch-out time: ${systemPunchOutTime}`,
+      ].join("\n\n");
     }
 
     const existingPending = await AttendanceRequest.findOne({
@@ -210,7 +276,7 @@ export async function POST(req: Request) {
       admin_id: admin._id,
       attendance_date: attendanceDate,
       request_type: requestType,
-      reason,
+      reason: finalReason,
       requested_at: now,
       requested_punch_at: now,
       ip: getClientIp(req),
@@ -232,22 +298,6 @@ export async function POST(req: Request) {
       });
     } catch (notifErr) {
       console.error("Failed to create admin notification:", notifErr);
-    }
-
-    if (admin.email) {
-      sendPunchRequestMail({
-        to: admin.email,
-        employeeName: user.full_name || user.name || "Employee",
-        employeeEmail: user.email || "",
-        requestType,
-        reason,
-        date: attendanceDate,
-        requestedAt: now,
-        ip: getClientIp(req),
-        browser: getClientBrowser(req),
-      }).catch((mailErr) => {
-        console.error("Failed to send punch request email to admin:", mailErr);
-      });
     }
 
     return NextResponse.json(

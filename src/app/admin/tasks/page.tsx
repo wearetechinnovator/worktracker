@@ -32,7 +32,6 @@ import { taskApi } from '@/lib/taskApi';
 import TaskDetailsModal from '@/components/TaskDetailsModal';
 import { usePunch } from '@/context/PunchContext';
 import ViewModeBanner from '@/components/ViewModeBanner';
-import { formatTimeTo12H } from '@/lib/time';
 
 const CKEditorComponent = dynamic(
   () => import('@/components/CKEditorWrapper'),
@@ -114,9 +113,6 @@ interface UserProfile {
   user_role?: number;
 }
 
-
-// Admin task page: the same role-aware page is used here.
-// Admins can view all managed task work and do not require punch-in.
 export default function TasksPage() {
   const router = useRouter();
   const [user, setUser] = useState<UserProfile | null>();
@@ -1327,7 +1323,7 @@ export default function TasksPage() {
     }
 
     // 2. Status Filter
-    if (!filterStatus || filterStatus === 'all') {
+    if (!filterStatus || filterStatus === 'Active') {
       // Show all tasks including Completed - do not hide or auto-delete completed tasks
     } else if (filterStatus === 'Completed') {
       if (task.status !== 'Completed' && !isTaskFullyCompletedByMe(task._id)) return false;
@@ -1637,12 +1633,12 @@ export default function TasksPage() {
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
-              <option value="">All Tasks (Default)</option>
-              <option value="Active">Active Tasks Only</option>
-              <option value="To Do">To Do</option>
+              <option value="Active">Active</option>
+              {/* <option value="">All Tasks (Default)</option> */}
+              {/* <option value="To Do">To Do</option>
               <option value="In Progress">In Progress</option>
               <option value="Paused">Paused</option>
-              <option value="Partially Done">Partially Done</option>
+              <option value="Partially Done">Partially Done</option> */}
               <option value="Review">Review</option>
               <option value="Completed">Completed Only</option>
             </select>
@@ -1659,11 +1655,11 @@ export default function TasksPage() {
               value={filterPriority}
               onChange={(e) => setFilterPriority(e.target.value)}
             >
-              <option value="">All Priorities</option>
-              <option value="Urgent">🔴 Urgent</option>
-              <option value="High">🟠 High</option>
-              <option value="Medium">🟡 Medium</option>
-              <option value="Low">🟢 Low</option>
+              <option value="">All</option>
+              <option value="Urgent">Urgent</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
             </select>
           </div>
 
@@ -1678,7 +1674,7 @@ export default function TasksPage() {
               value={filterProject}
               onChange={(e) => setFilterProject(e.target.value)}
             >
-              <option value="">All Projects</option>
+              <option value="">All</option>
               {projects.map((p) => (
                 <option key={p._id} value={p._id}>
                   {p.name}
@@ -1698,7 +1694,7 @@ export default function TasksPage() {
               value={filterAssignee}
               onChange={(e) => setFilterAssignee(e.target.value)}
             >
-              <option value="">All Assignees</option>
+              <option value="">All</option>
               {employees.map((e) => (
                 <option key={e._id} value={e._id}>
                   {e.name}
@@ -1718,10 +1714,10 @@ export default function TasksPage() {
               value={filterDateRange}
               onChange={(e) => setFilterDateRange(e.target.value)}
             >
-              <option value="">All Dates</option>
-              <option value="overdue">⚠️ Overdue</option>
-              <option value="today">📅 Due Today</option>
-              <option value="this_week">📆 Due This Week</option>
+              <option value="">All</option>
+              <option value="overdue">Overdue</option>
+              <option value="today">Due Today</option>
+              <option value="this_week">Due This Week</option>
               <option value="has_date">With Due Date</option>
               <option value="no_date">No Due Date</option>
             </select>
@@ -1817,33 +1813,18 @@ export default function TasksPage() {
                         </div>
                         {task.description && (
                           <div
-                            style={{
-                              fontSize: '0.75rem',
-                              color: 'var(--text-secondary)',
-                              marginTop: '4px',
-                              lineHeight: '1.4',
-
-                              display: '-webkit-box',
-                              WebkitBoxOrient: 'vertical',
-                              WebkitLineClamp: 1,
-                              overflow: 'hidden',
-
-                              overflowWrap: 'anywhere',
-                              wordBreak: 'break-word',
-                            }}
-                            dangerouslySetInnerHTML={{
-                              __html: task.description,
-                            }}
+                            style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}
+                            dangerouslySetInnerHTML={{ __html: task.description }}
                           />
                         )}
-                        {/* {(task.comments || task.commentsList?.length) && (
+                        {(task.comments || task.commentsList?.length) && (
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '4px' }}>
                             <MessageSquare size={11} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
                             <span style={{ maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {task.comments || task.commentsList?.[0]?.content}
                             </span>
                           </div>
-                        )} */}
+                        )}
                       </td>
                       <td>
                         {task.projectId ? (
@@ -1879,7 +1860,6 @@ export default function TasksPage() {
                               width: 'fit-content'
                             }}>
                               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} className="animate-pulse" />
-                              <span>Working Now</span>
                             </span>
                           )}
                           {!isSomeoneWorking && isSomeonePaused && (
@@ -2002,7 +1982,7 @@ export default function TasksPage() {
                                     marginLeft: eIdx > 0 && !isWorkerActive && !isWorkerPaused ? '-6px' : '0',
                                     flexShrink: 0
                                   }}
-                                  title={`${emp.name}`}
+                                  title={`Assigned to: ${emp.name}${statusDesc}`}
                                 >
                                   {emp.name.split(' ').map((n: string) => n[0]).join('')}
                                 </div>
@@ -2082,11 +2062,6 @@ export default function TasksPage() {
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                             <Calendar size={12} />
                             {new Date(task.dueDate).toLocaleDateString()}
-                            {task.dueTime && (
-                              <span style={{ marginLeft: '4px', color: 'var(--text-primary)', fontWeight: 600 }}>
-                                {formatTimeTo12H(task.dueTime)}
-                              </span>
-                            )}
                           </span>
                         ) : (
                           '-'
@@ -2489,7 +2464,10 @@ export default function TasksPage() {
               };
 
               const formatTime12H = (dVal?: string | Date | null) => {
-                return formatTimeTo12H(dVal);
+                if (!dVal) return '';
+                const dObj = new Date(dVal);
+                if (Number.isNaN(dObj.getTime())) return String(dVal);
+                return dObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
               };
 
               const taskSessions = taskWorks.filter(

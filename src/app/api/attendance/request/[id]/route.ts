@@ -71,25 +71,15 @@ export async function PATCH(
       (employee.created_by && String(employee.created_by) !== String(user._id))
     ) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "This employee does not belong to you.",
-        },
+        { success: false, message: "This employee does not belong to you." },
         { status: 403 }
       );
     }
 
-    /* =====================================================
-       REJECT
-    ===================================================== */
-
     if (decision === "reject") {
       if (!rejectionReason) {
         return NextResponse.json(
-          {
-            success: false,
-            message: "Rejection reason is required.",
-          },
+          { success: false, message: "Rejection reason is required." },
           { status: 400 }
         );
       }
@@ -121,15 +111,6 @@ export async function PATCH(
         data: request,
       });
     }
-
-    /* =====================================================
-       APPROVE
-
-       IMPORTANT:
-       Approval creates NO Attendance record and does NOT
-       punch the employee in/out. It only grants an allowance.
-       The employee must click the Punch button afterward.
-    ===================================================== */
 
     request.status = "Approved";
     request.reviewed_by = user._id;

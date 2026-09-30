@@ -13,80 +13,36 @@ import {
   PunchStatus,
   AttendanceData,
 } from '@/lib/punchService';
+
 export interface AttendanceRequestData {
   _id: string;
-
   attendance_date: string;
-
   request_type: 'punchIn' | 'punchOut';
-
   reason: string;
-
   requested_punch_at: string | Date;
-
   status: 'Pending' | 'Approved' | 'Rejected';
-
   rejection_reason?: string | null;
-
   reviewed_at?: string | Date | null;
 }
+
 interface PunchContextType {
   isPunchedIn: boolean;
   canPunchIn: boolean;
   canPunchOut: boolean;
   isViewMode: boolean;
-
   attendance: AttendanceData | null;
-
   pendingRequest?: any;
-
-  rejectedRequest?: {
-    _id: string;
-    attendance_date: string;
-    request_type: 'punchIn' | 'punchOut';
-    reason: string;
-    requested_punch_at: string | Date;
-    status: 'Pending' | 'Approved' | 'Rejected';
-    rejection_reason?: string | null;
-    reviewed_at?: string | Date | null;
-  } | null;
-
+  rejectedRequest?: AttendanceRequestData | null;
   loading: boolean;
   user: any;
-
-  punchIn: (
-    meta?: {
-      reason?: string;
-      geo?: any[];
-      systemId?: string;
-    }
-  ) => Promise<void>;
-
-  punchOut: (
-    meta?: {
-      reason?: string;
-      geo?: any[];
-      systemId?: string;
-    }
-  ) => Promise<void>;
-
-  togglePunch: (
-    meta?: {
-      reason?: string;
-      geo?: any[];
-      systemId?: string;
-    }
-  ) => Promise<void>;
-
+  punchIn: (meta?: { reason?: string; geo?: any[]; systemId?: string }) => Promise<void>;
+  punchOut: (meta?: { reason?: string; geo?: any[]; systemId?: string }) => Promise<void>;
+  togglePunch: (meta?: { reason?: string; geo?: any[]; systemId?: string }) => Promise<void>;
   requestPunch: (
     requestType: 'punchIn' | 'punchOut',
     reason: string,
-    meta?: {
-      geo?: any[];
-      systemId?: string;
-    }
+    meta?: { geo?: any[]; systemId?: string }
   ) => Promise<any>;
-
   refreshPunch: () => Promise<void>;
 }
 
@@ -95,40 +51,24 @@ const PunchContext = createContext<PunchContextType>({
   canPunchIn: true,
   canPunchOut: false,
   isViewMode: false,
-
   attendance: null,
-
   pendingRequest: null,
-
-  // IMPORTANT
   rejectedRequest: null,
-
   loading: true,
   user: null,
-
-  punchIn: async () => { },
-  punchOut: async () => { },
-  togglePunch: async () => { },
-  requestPunch: async () => { },
-  refreshPunch: async () => { },
+  punchIn: async () => {},
+  punchOut: async () => {},
+  togglePunch: async () => {},
+  requestPunch: async () => {},
+  refreshPunch: async () => {},
 });
 
-export function PunchProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function PunchProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
-
   const [punchState, setPunchState] = useState<PunchStatus>(() =>
     punchService.getPunchStatus()
   );
-
   const [loading, setLoading] = useState(true);
-
-  // =========================================================
-  // FETCH CURRENT USER
-  // =========================================================
 
   const fetchUser = useCallback(async () => {
     try {
@@ -150,28 +90,16 @@ export function PunchProvider({
     }
   }, []);
 
-  // =========================================================
-  // REFRESH PUNCH STATE
-  // =========================================================
-
   const refreshPunch = useCallback(async () => {
     try {
       const latest = await punchService.fetchPunchStatus();
-
       setPunchState(latest);
     } catch (err) {
-      console.error(
-        'Failed to refresh punch status:',
-        err
-      );
+      console.error('Failed to refresh punch status:', err);
     } finally {
       setLoading(false);
     }
   }, []);
-
-  // =========================================================
-  // INITIAL LOAD + EVENTS
-  // =========================================================
 
   useEffect(() => {
     fetchUser();
@@ -185,108 +113,48 @@ export function PunchProvider({
       }
     };
 
-    window.addEventListener(
-      'punch-status-changed',
-      handlePunchChanged
-    );
-
-    window.addEventListener(
-      'punchStateChanged',
-      refreshPunch
-    );
-
-    // window.addEventListener(
-    //   'focus',
-    //   refreshPunch
-    // );
+    window.addEventListener('punch-status-changed', handlePunchChanged);
+    window.addEventListener('punchStateChanged', refreshPunch);
 
     return () => {
-      window.removeEventListener(
-        'punch-status-changed',
-        handlePunchChanged
-      );
-
-      window.removeEventListener(
-        'punchStateChanged',
-        refreshPunch
-      );
-
-      window.removeEventListener(
-        'focus',
-        refreshPunch
-      );
+      window.removeEventListener('punch-status-changed', handlePunchChanged);
+      window.removeEventListener('punchStateChanged', refreshPunch);
+      window.removeEventListener('focus', refreshPunch);
     };
   }, [fetchUser, refreshPunch]);
 
-  // =========================================================
-  // VIEW MODE
-  // =========================================================
-
-  const isAdmin =
-    user && Number(user.user_role) === 1;
+  const isAdmin = user && Number(user.user_role) === 1;
 
   const isViewMode = Boolean(
-    user &&
-    !isAdmin &&
-    !punchState.isPunchedIn
+    user && !isAdmin && !punchState.isPunchedIn
   );
 
-  // =========================================================
-  // PUNCH IN
-  // =========================================================
-
   const punchIn = async (
-    meta?: {
-      reason?: string;
-      geo?: any[];
-      systemId?: string;
-    }
+    meta?: { reason?: string; geo?: any[]; systemId?: string }
   ) => {
     setLoading(true);
-
     try {
-      const updated =
-        await punchService.punchIn(meta);
-
+      const updated = await punchService.punchIn(meta);
       setPunchState(updated);
     } finally {
       setLoading(false);
     }
   };
-
-  // =========================================================
-  // PUNCH OUT
-  // =========================================================
 
   const punchOut = async (
-    meta?: {
-      reason?: string;
-      geo?: any[];
-      systemId?: string;
-    }
+    meta?: { reason?: string; geo?: any[]; systemId?: string }
   ) => {
     setLoading(true);
-
     try {
-      const updated =
-        await punchService.punchOut(meta);
-
+      const updated = await punchService.punchOut(meta);
       setPunchState(updated);
     } finally {
       setLoading(false);
     }
   };
 
-  // =========================================================
-  // TOGGLE PUNCH
-  // =========================================================
-
   const togglePunch = async (
-    meta?: {
-      reason?: string;
-      geo?: any[];
-      systemId?: string;
-    }
+    meta?: { reason?: string; geo?: any[]; systemId?: string }
   ) => {
     if (punchState.isPunchedIn) {
       await punchOut(meta);
@@ -295,62 +163,28 @@ export function PunchProvider({
     }
   };
 
-  // =========================================================
-  // REQUEST PUNCH
-  // =========================================================
-
   const requestPunch = async (
     requestType: 'punchIn' | 'punchOut',
     reason: string,
-    meta?: {
-      geo?: any[];
-      systemId?: string;
-    }
+    meta?: { geo?: any[]; systemId?: string }
   ) => {
-    const res =
-      await punchService.requestPunch(
-        requestType,
-        reason,
-        meta
-      );
-
+    const res = await punchService.requestPunch(requestType, reason, meta);
     await refreshPunch();
-
     return res;
   };
-
-  // =========================================================
-  // PROVIDER
-  // =========================================================
 
   return (
     <PunchContext.Provider
       value={{
-        isPunchedIn:
-          punchState.isPunchedIn,
-
-        canPunchIn:
-          punchState.canPunchIn,
-
-        canPunchOut:
-          punchState.canPunchOut,
-
+        isPunchedIn: punchState.isPunchedIn,
+        canPunchIn: punchState.canPunchIn,
+        canPunchOut: punchState.canPunchOut,
         isViewMode,
-
-        attendance:
-          punchState.attendance,
-
-        pendingRequest:
-          punchState.pendingRequest,
-
-
-        rejectedRequest:
-          punchState.rejectedRequest ?? null,
-
+        attendance: punchState.attendance,
+        pendingRequest: punchState.pendingRequest,
+        rejectedRequest: punchState.rejectedRequest ?? null,
         loading,
-
         user,
-
         punchIn,
         punchOut,
         togglePunch,

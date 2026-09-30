@@ -44,6 +44,14 @@ export default function LogsPage() {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState("All");
     const [isAdmin, setIsAdmin] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
+    const getToday = () => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    };
+    const [dateFilter, setDateFilter] = useState(getToday);
+    const [showAllDates, setShowAllDates] = useState(false);
+    const [page, setPage] = useState(1);
+    const pageSize = 10;
 
     // Fetch initial task & employee options for filters
     useEffect(() => {
@@ -116,8 +124,14 @@ export default function LogsPage() {
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
-        if (!q) return logs;
         return logs.filter(l => {
+            if (!showAllDates) {
+                const logDate = new Date(l.timestamp);
+                const localDate = `${logDate.getFullYear()}-${String(logDate.getMonth() + 1).padStart(2, "0")}-${String(logDate.getDate()).padStart(2, "0")}`;
+                if (localDate !== dateFilter) return false;
+            }
+
+            if (!q) return true;
             const taskObj = typeof l.task_id === "object" && l.task_id ? l.task_id : null;
             const taskTitle = taskObj?.title || (typeof l.task_id === "string" ? l.task_id : "");
             const taskIdStr = taskObj?.task_id || "";
@@ -126,7 +140,7 @@ export default function LogsPage() {
             const userEmail = userObj?.email || "";
             return [taskTitle, taskIdStr, userName, userEmail, l.action, l.status].some(x => x.toLowerCase().includes(q));
         });
-    }, [logs, search]);
+    }, [logs, search, dateFilter, showAllDates]);
 
     const clear = () => {
         setSearch("");
@@ -134,10 +148,18 @@ export default function LogsPage() {
         setStatus("All");
         setSelectedTaskId("All");
         setSelectedEmployeeId("All");
+        setDateFilter(getToday());
+        setShowAllDates(false);
+        setPage(1);
     };
 
+    useEffect(() => { setPage(1); }, [search, action, status, selectedTaskId, selectedEmployeeId, dateFilter, showAllDates]);
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const paginatedLogs = filtered.slice((page - 1) * pageSize, page * pageSize);
+
     const hasActiveFilters = Boolean(
-        search || action !== "All" || status !== "All" || selectedTaskId !== "All" || selectedEmployeeId !== "All"
+        search || action !== "All" || status !== "All" || selectedTaskId !== "All" || selectedEmployeeId !== "All" || showAllDates || dateFilter !== getToday()
     );
 
     const getActionBadgeStyles = (actionName: string) => {
@@ -264,6 +286,16 @@ export default function LogsPage() {
                         )}
 
                         <label style={{ fontSize: ".72rem", fontWeight: 700, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 5 }}>
+                            DATE
+                            <div style={{ display: "flex", gap: 6 }}>
+                                <input type="date" className="form-control" value={dateFilter} disabled={showAllDates} onChange={e => setDateFilter(e.target.value)} style={{ height: 38 }} />
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowAllDates(v => !v)} style={{ height: 38, whiteSpace: "nowrap", fontSize: ".72rem" }}>
+                                    {showAllDates ? "Today" : "All"}
+                                </button>
+                            </div>
+                        </label>
+
+                        <label style={{ fontSize: ".72rem", fontWeight: 700, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 5 }}>
                             ACTION
                             <select
                                 className="form-control"
@@ -327,7 +359,7 @@ export default function LogsPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filtered.map(log => {
+                                    {paginatedLogs.map(log => {
                                         const taskObj = typeof log.task_id === "object" && log.task_id ? log.task_id : null;
                                         const taskId = taskObj?.task_id || "—";
                                         const taskTitle = taskObj?.title || (typeof log.task_id === "string" ? log.task_id : "Unknown Task");
@@ -401,6 +433,16 @@ export default function LogsPage() {
                                     })}
                                 </tbody>
                             </table>
+                        </div>
+                    )}
+                    {!loading && filtered.length > 0 && (
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderTop: "1px solid var(--border-color)", background: "var(--bg-secondary)", fontSize: ".75rem", gap: 10, flexWrap: "wrap" }}>
+                            <span>Showing <b>{(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)}</b> of <b>{filtered.length}</b></span>
+                            <div style={{ display: "flex", gap: 5 }}>
+                                <button className="btn btn-secondary" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Previous</button>
+                                <span style={{ padding: "6px 9px" }}>Page {page} / {totalPages}</span>
+                                <button className="btn btn-secondary" disabled={page === totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>Next</button>
+                            </div>
                         </div>
                     )}
                 </div>

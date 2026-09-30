@@ -25,6 +25,14 @@ const attendanceSchema = new Schema(
       default: null,
     },
 
+    // manual = employee/admin action, system = automatic 11:59 PM punch-out
+    punch_out_source: {
+      type: String,
+      enum: ["manual", "system"],
+      default: "manual",
+      index: true,
+    },
+
     allow_punch_in_by: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -99,7 +107,6 @@ const attendanceSchema = new Schema(
     timestamps: true,
   }
 );
-
 
 attendanceSchema.index(
   {
