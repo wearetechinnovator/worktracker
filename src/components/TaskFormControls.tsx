@@ -87,7 +87,7 @@ export function CustomDropdown({
                 padding: '0 2px',
               }}
             >
-              <Plus size={13}/>
+              <Plus size={13} />
               <span>{actionButton.label}</span>
             </button>
           )}
@@ -315,8 +315,8 @@ export function CustomMultiSelectDropdown({
   const displayText = disabledMessage
     ? disabledMessage
     : selectedLabels.length > 1
-    ? `${selectedLabels[0]} +${selectedLabels.length - 1} more`
-    : selectedLabels[0] || placeholder;
+      ? `${selectedLabels[0]} +${selectedLabels.length - 1} more`
+      : selectedLabels[0] || placeholder;
 
   return (
     <div style={{ position: 'relative', width: '100%', ...style }} ref={containerRef}>
@@ -1007,34 +1007,26 @@ export function CustomTimePicker({
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {/* Hour selector */}
-              <select
+              <input
                 className="form-control"
                 value={hours}
                 onChange={(e) => onChange(format24(parseInt(e.target.value, 10), minutes, ampm))}
                 style={{ flex: 1, padding: '4px 6px', fontSize: '0.8rem', height: '34px', minWidth: '50px' }}
               >
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {String(i + 1).padStart(2, '0')}
-                  </option>
-                ))}
-              </select>
+                
+              </input>
 
               <span style={{ fontWeight: 800, color: 'var(--text-muted)' }}>:</span>
 
               {/* Minute selector */}
-              <select
+              <input
                 className="form-control"
                 value={minutes}
                 onChange={(e) => onChange(format24(hours, parseInt(e.target.value, 10), ampm))}
                 style={{ flex: 1, padding: '4px 6px', fontSize: '0.8rem', height: '34px', minWidth: '50px' }}
               >
-                {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
-                  <option key={m} value={m}>
-                    {String(m).padStart(2, '0')}
-                  </option>
-                ))}
-              </select>
+                
+              </input>
 
               {/* AM/PM toggle */}
               <div style={{ display: 'flex', flexShrink: 0, borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>

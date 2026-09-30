@@ -221,8 +221,8 @@ export default function AdminProfilePage() {
       return;
     }
 
-    if (newPassword.length < 8) {
-      toast.error("New password must be at least 8 characters.");
+    if (newPassword.length < 6) {
+      toast.error("New password must be at least 6 characters.");
       return;
     }
 
@@ -747,209 +747,7 @@ export default function AdminProfilePage() {
         {/* =================================================
             PROPERTY INFORMATION CARD
         ================================================= */}
-        <section className="card" style={{ padding: "20px" }}>
-          {/* Card Header */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              paddingBottom: "14px",
-              marginBottom: "16px",
-              borderBottom: "1px solid var(--border-color)",
-            }}
-          >
-            <div
-              style={{
-                width: "34px",
-                height: "34px",
-                borderRadius: "var(--border-radius-sm)",
-                background: "var(--bg-tertiary)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--accent-primary)",
-                flexShrink: 0,
-              }}
-            >
-              <Building2 size={18} />
-            </div>
-            <div>
-              <h2
-                style={{
-                  fontSize: "0.95rem",
-                  fontWeight: 700,
-                  margin: 0,
-                  color: "var(--text-primary)",
-                }}
-              >
-                Organisation Information
-              </h2>
-              <p
-                style={{
-                  fontSize: "0.75rem",
-                  color: "var(--text-muted)",
-                  margin: 0,
-                }}
-              >
-                Information about your organization.
-              </p>
-            </div>
-          </div>
-
-          {/* Form Fields */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            {/* Property Name */}
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label
-                htmlFor="property-name"
-                className="form-label"
-                style={{ fontWeight: 600, fontSize: "0.75rem", marginBottom: "6px" }}
-              >
-                Property Name
-              </label>
-              <div className="custom-input-group">
-                <span className="custom-input-addon">
-                  <Building2 size={15} />
-                </span>
-                <input
-                  id="property-name"
-                  type="text"
-                  value={profile.property?.name || ""}
-                  onChange={(e) => updatePropertyField("name", e.target.value)}
-                  placeholder="Property name"
-                  className="custom-input-control"
-                />
-              </div>
-            </div>
-
-            {/* Property Logo */}
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label
-                htmlFor="property-logo"
-                className="form-label"
-                style={{ fontWeight: 600, fontSize: "0.75rem", marginBottom: "6px" }}
-              >
-                Property Logo
-              </label>
-              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                {/* Logo Preview */}
-                <div
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                    borderRadius: "var(--border-radius-sm)",
-                    border: "1px solid var(--border-color)",
-                    background: "var(--bg-tertiary)",
-                    overflow: "hidden",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  {propertyLogo ? (
-                    <img
-                      src={propertyLogo}
-                      alt="Logo"
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "contain",
-                      }}
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <Building2
-                      size={18}
-                      style={{ color: "var(--text-muted)" }}
-                    />
-                  )}
-                </div>
-
-                <div style={{ flex: 1, display: "flex", gap: "6px" }}>
-                  {/* <div className="custom-input-group" style={{ flex: 1 }}>
-                    <span className="custom-input-addon">
-                      <ImageIcon size={15} />
-                    </span>
-                    <input
-                      id="property-logo"
-                      type="text"
-                      value={propertyLogo || ""}
-                      onChange={(e) =>
-                        updatePropertyField("logo", e.target.value)
-                      }
-                      placeholder="Property logo URL or click Upload"
-                      className="custom-input-control"
-                    />
-                  </div> */}
-
-                  <button
-                    type="button"
-                    onClick={() => propertyLogoInputRef.current?.click()}
-                    disabled={uploadingTarget === "property_logo"}
-                    className="btn btn-secondary"
-                    style={{
-                      height: "36px",
-                      padding: "0 12px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      flexShrink: 0,
-                    }}
-                    title="Upload logo from computer"
-                  >
-                    {uploadingTarget === "property_logo" ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Upload size={14} />
-                    )}
-                    <span style={{ fontSize: "0.75rem" }}>Upload</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Short Description */}
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label
-                htmlFor="property-description"
-                className="form-label"
-                style={{ fontWeight: 600, fontSize: "0.75rem", marginBottom: "6px" }}
-              >
-                Short Description
-              </label>
-              <div
-                className="custom-input-group"
-                style={{ alignItems: "flex-start" }}
-              >
-                <span
-                  className="custom-input-addon"
-                  style={{ height: "auto", padding: "10px" }}
-                >
-                  <FileText size={15} />
-                </span>
-                <textarea
-                  id="property-description"
-                  value={profile.property?.short_description || ""}
-                  onChange={(e) =>
-                    updatePropertyField("short_description", e.target.value)
-                  }
-                  placeholder="Write a short description..."
-                  rows={5}
-                  className="custom-input-control"
-                  style={{
-                    minHeight: "120px",
-                    resize: "vertical",
-                    paddingTop: "9px",
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </section>
+        
       </div>
 
       {/* =================================================
@@ -1028,7 +826,7 @@ export default function AdminProfilePage() {
               setValue: setNewPassword,
               show: showNewPassword,
               setShow: setShowNewPassword,
-              placeholder: "Minimum 8 characters",
+              placeholder: "Minimum 6 characters",
             },
             {
               id: "confirm-password",

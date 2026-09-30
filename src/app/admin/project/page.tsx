@@ -961,7 +961,7 @@ export default function ProjectsPage() {
             )}
           </div>
 
-          
+
         </div>
 
         {/* Right column detail panel */}
@@ -1203,7 +1203,7 @@ export default function ProjectsPage() {
                   {/* Stats */}
                   <div className="grid-stats" style={{ marginBottom: '20px' }}>
                     <div className="card stat-card" style={{ background: 'var(--bg-tertiary)' }}>
-                      <div className="stat-icon-wrapper" style={{ color: 'var(--accent-primary)'}}>
+                      <div className="stat-icon-wrapper" style={{ color: 'var(--accent-primary)' }}>
                         <Clock size={16} />
                       </div>
                       <div className="stat-info">
@@ -1294,27 +1294,29 @@ export default function ProjectsPage() {
                                         {log.status}
                                       </span>
                                     )}
-                                    {log.sessionCount && log.sessionCount > 1 && (
-                                      <span
-                                        style={{
-                                          background: 'var(--bg-secondary)',
-                                          border: '1px solid var(--border-color)',
-                                          padding: '1px 5px',
-                                          borderRadius: '4px',
-                                          fontSize: '0.64rem',
-                                          color: 'var(--text-muted)',
-                                        }}
-                                      >
-                                        {log.sessionCount} sessions
-                                      </span>
-                                    )}
+
                                   </div>
                                   <h5 style={{ fontWeight: 400, fontSize: '0.78rem', margin: '1px 0' }}>{log.title}</h5>
                                   {log.description && (
                                     <div
                                       className="work-entry-desc"
-                                      style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '2px' }}
-                                      dangerouslySetInnerHTML={{ __html: log.description }}
+                                      style={{
+                                        fontSize: '0.72rem',
+                                        color: 'var(--text-secondary)',
+                                        padding: '4px 6px',
+                                        marginTop: '2px',
+
+                                        display: '-webkit-box',
+                                        WebkitBoxOrient: 'vertical',
+                                        WebkitLineClamp: 1,
+                                        overflow: 'hidden',
+
+                                        overflowWrap: 'anywhere',
+                                        wordBreak: 'break-word',
+                                      }}
+                                      dangerouslySetInnerHTML={{
+                                        __html: log.description,
+                                      }}
                                     />
                                   )}
                                 </div>

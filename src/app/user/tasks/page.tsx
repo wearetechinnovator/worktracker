@@ -2155,7 +2155,7 @@ export default function TasksPage() {
                                     marginLeft: eIdx > 0 && !isWorkerActive && !isWorkerPaused ? '-6px' : '0',
                                     flexShrink: 0
                                   }}
-                                  title={`Assigned to: ${emp.name}${statusDesc}`}
+                                  title={`${emp.name}`}
                                 >
                                   {emp.name.split(' ').map((n: string) => n[0]).join('')}
                                 </div>

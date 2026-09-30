@@ -993,7 +993,7 @@ export default function MyTasks({ userId }: { userId: string }) {
                                       boxShadow: isEmpWorking ? '0 0 4px #10b98180' : undefined,
                                       flexShrink: 0
                                     }}
-                                    title={`Assigned to: ${emp.name}${statusDesc}`}
+                                    title={`${emp.name}`}
                                   >
                                     {emp.name.split(' ').map((n: string) => n[0]).join('')}
                                   </div>

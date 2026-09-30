@@ -656,7 +656,7 @@ export function CreateTaskModal({
 
   return (
     <>
-      <div className="modal-overlay" style={{ zIndex: 1200 }}>
+      <div className="modal-overlay" style={{ zIndex: 12000 }}>
         <div
           className="modal-container"
           onClick={(e) => e.stopPropagation()}
@@ -729,7 +729,7 @@ export function CreateTaskModal({
                     );
                   })()}
 
-                  <CustomDropdown
+                  {/* <CustomDropdown
                     label="Priority"
                     placeholder="Select Priority"
                     value={formData.priority}
@@ -740,6 +740,20 @@ export function CreateTaskModal({
                       { value: 'Urgent', label: 'Urgent', color: '#ef4444', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
                     ]}
                     onChange={(val) => setFormData({ ...formData, priority: val as any })}
+                  /> */}
+
+                  <CustomDatePicker
+                    label="Task Assign Date"
+                    value={formData.task_assign_date}
+                    onChange={(val) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        task_assign_date: val,
+                        task_delay_reason: val
+                          ? prev.task_delay_reason
+                          : '',
+                      }))
+                    }
                   />
                 </div>
 
@@ -769,86 +783,6 @@ export function CreateTaskModal({
                   />
                 </div>
 
-                {/* Task Assignment Details */}
-                <div
-                  style={{
-                    marginBottom: '16px',
-                    padding: '14px',
-                    border: '1px solid var(--border-color, #e2e8f0)',
-                    borderRadius: '10px',
-                    background: 'var(--bg-secondary, #f8fafc)',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: '0.8rem',
-                      fontWeight: 800,
-                      marginBottom: '12px',
-                      color: 'var(--text-primary, #0f172a)',
-                    }}
-                  >
-                    Task Assignment Details
-                  </div>
-
-                  {/* Assign Date */}
-                  <div
-                    style={{
-                      marginBottom: formData.task_assign_date ? '14px' : 0,
-                    }}
-                  >
-                    <CustomDatePicker
-                      label="Task Assign Date"
-                      value={formData.task_assign_date}
-                      onChange={(val) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          task_assign_date: val,
-                          task_delay_reason: val
-                            ? prev.task_delay_reason
-                            : '',
-                        }))
-                      }
-                    />
-                  </div>
-
-                  {/* Assignment Reason - only visible after date is selected */}
-                  {formData.task_assign_date && (
-                    <div>
-                      <label
-                        className="form-label"
-                        style={{
-                          display: 'block',
-                          fontWeight: 700,
-                          fontSize: '0.75rem',
-                          marginBottom: '6px',
-                        }}
-                      >
-                        Assignment Reason
-                      </label>
-
-                      <textarea
-                        className="form-control"
-                        value={formData.task_delay_reason}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            task_delay_reason: e.target.value,
-                          }))
-                        }
-                        placeholder="Why is this task being assigned?"
-                        rows={3}
-                        style={{
-                          width: '100%',
-                          minHeight: '72px',
-                          resize: 'vertical',
-                          fontSize: '0.8rem',
-                          padding: '9px 10px',
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
 
                 {/* Assign To (Admin Only) - Dual-Column Drag & Drop / Project-Scoped Selection */}
                 <ProjectAssigneeSelector
@@ -908,8 +842,8 @@ export function CreateTaskModal({
                         isLoadingProjects
                           ? 'Loading assigned projects...'
                           : projects.length === 0
-                          ? 'No assigned project found'
-                          : 'Choose Project'
+                            ? 'No assigned project found'
+                            : 'Choose Project'
                       }
                       value={formData.projectId}
                       disabled={projects.length === 0 || isLoadingProjects}
@@ -935,28 +869,97 @@ export function CreateTaskModal({
 
 
             {/* Task Title */}
-            <div className="form-group" style={{ marginBottom: '16px' }}>
-              <label className="form-label">
-                Task Name *
-                {!isAdmin && editingTask && (
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '8px', fontWeight: 500 }}>
-                    (Read-only for employee)
-                  </span>
-                )}
-              </label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="e.g. Implement user authentication workflow"
-                value={formData.title}
-                disabled={(!isAdmin && Boolean(editingTask)) || (!isAdmin && !editingTask && (projects.length === 0 || isLoadingProjects))}
-                style={
-                  !isAdmin && editingTask
-                    ? { background: 'var(--bg-tertiary)', cursor: 'not-allowed', opacity: 0.85 }
-                    : {}
-                }
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              />
+            <div
+              className="form-group"
+              style={{
+                marginBottom: '16px',
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'flex-start',
+              }}
+            >
+              {/* Task Name */}
+              <div style={{ flex: 1 }}>
+                <label className="form-label">
+                  Task Name *
+                  {!isAdmin && editingTask && (
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        color: 'var(--text-muted)',
+                        marginLeft: '8px',
+                        fontWeight: 500,
+                      }}
+                    >
+                    </span>
+                  )}
+                </label>
+
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="e.g. Implement user authentication workflow"
+                  value={formData.title}
+                  disabled={
+                    (!isAdmin && Boolean(editingTask)) ||
+                    (!isAdmin && !editingTask && (projects.length === 0 || isLoadingProjects))
+                  }
+                  style={
+                    !isAdmin && editingTask
+                      ? {
+                        background: 'var(--bg-tertiary)',
+                        cursor: 'not-allowed',
+                        opacity: 0.85,
+                      }
+                      : { padding: '9px' }
+                  }
+                  onChange={(e) =>
+                    setFormData({ ...formData, title: e.target.value })
+                  }
+                />
+              </div>
+
+              {/* Priority */}
+              <div style={{ flex: 1 }}>
+                <CustomDropdown
+                  label="Priority"
+                  placeholder="Select Priority"
+                  value={formData.priority}
+                  options={[
+                    {
+                      value: 'Low',
+                      label: 'Low',
+                      color: '#3b82f6',
+                      badgeBg: '#eff6ff',
+                      badgeColor: '#1d4ed8',
+                    },
+                    {
+                      value: 'Medium',
+                      label: 'Medium',
+                      color: '#f59e0b',
+                      badgeBg: '#fffbeb',
+                      badgeColor: '#b45309',
+                    },
+                    {
+                      value: 'High',
+                      label: 'High',
+                      color: '#f97316',
+                      badgeBg: '#fff7ed',
+                      badgeColor: '#c2410c',
+                    },
+                    {
+                      value: 'Urgent',
+                      label: 'Urgent',
+                      color: '#ef4444',
+                      badgeBg: '#fef2f2',
+                      badgeColor: '#b91c1c',
+                    },
+                  ]}
+                  onChange={(val) =>
+                    setFormData({ ...formData, priority: val as any })
+                  }
+                />
+              </div>
             </div>
 
             {/* Task Description */}
@@ -998,7 +1001,7 @@ export function CreateTaskModal({
               <div style={{ gap: '16px', marginBottom: '20px', alignItems: 'start' }}>
                 <div>
                   <label className="form-label" style={{ fontWeight: 700, fontSize: '0.75rem', marginBottom: '6px' }}>
-                    Comments / Notes
+                    Comments
                   </label>
                   <div className="custom-input-group" style={{ alignItems: 'flex-start' }}>
                     <span className="custom-input-addon" style={{ height: '10vh', paddingTop: '8px' }}>

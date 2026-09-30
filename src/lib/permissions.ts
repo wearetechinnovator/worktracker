@@ -52,7 +52,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   },
   {
     domain: 'employees',
-    label: 'Employees & Roles',
+    label: 'Employees',
     description: 'Manage team members, roles, and user access',
     iconName: 'Users',
     actions: [

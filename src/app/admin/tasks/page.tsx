@@ -1817,8 +1817,23 @@ export default function TasksPage() {
                         </div>
                         {task.description && (
                           <div
-                            style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}
-                            dangerouslySetInnerHTML={{ __html: task.description }}
+                            style={{
+                              fontSize: '0.75rem',
+                              color: 'var(--text-secondary)',
+                              marginTop: '4px',
+                              lineHeight: '1.4',
+
+                              display: '-webkit-box',
+                              WebkitBoxOrient: 'vertical',
+                              WebkitLineClamp: 1,
+                              overflow: 'hidden',
+
+                              overflowWrap: 'anywhere',
+                              wordBreak: 'break-word',
+                            }}
+                            dangerouslySetInnerHTML={{
+                              __html: task.description,
+                            }}
                           />
                         )}
                         {/* {(task.comments || task.commentsList?.length) && (
@@ -1987,7 +2002,7 @@ export default function TasksPage() {
                                     marginLeft: eIdx > 0 && !isWorkerActive && !isWorkerPaused ? '-6px' : '0',
                                     flexShrink: 0
                                   }}
-                                  title={`Assigned to: ${emp.name}${statusDesc}`}
+                                  title={`${emp.name}`}
                                 >
                                   {emp.name.split(' ').map((n: string) => n[0]).join('')}
                                 </div>

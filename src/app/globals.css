@@ -1315,7 +1315,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: 100001111;
 }
 
 .modal-container,
@@ -1796,6 +1796,7 @@ textarea.form-control {
 
 .work-entry-desc p {
   margin: 0;
+  
 }
 
 .work-entry-desc p+p {

@@ -65,6 +65,8 @@ export default function RolesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openPermissionGroup, setOpenPermissionGroup] =
+  useState<string | null>(null);
 
   // Create Role Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -489,7 +491,7 @@ export default function RolesPage() {
           <button
             onClick={() => setShowCreateModal(true)}
             className="btn btn-primary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px'}}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
           >
             <Plus size={16} />
             <span>Create Custom Role</span>
@@ -554,56 +556,56 @@ export default function RolesPage() {
               </div>
             ) : (
               filteredRoles.map((role) => {
-              const isSelected = selectedRoleId === role._id;
+                const isSelected = selectedRoleId === role._id;
 
-              return (
-                <div
-                  key={role._id}
-                  onClick={() => setSelectedRoleId(role._id)}
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: '10px',
-                    border: isSelected ? `2px solid blue` : '1px solid var(--border-color)',
-                    background: isSelected ? `blue10` : 'var(--bg-secondary)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '10px',
-                    
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                return (
+                  <div
+                    key={role._id}
+                    onClick={() => setSelectedRoleId(role._id)}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: '10px',
+                      border: isSelected ? `2px solid blue` : '1px solid var(--border-color)',
+                      background: isSelected ? `blue10` : 'var(--bg-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
 
-                    
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {role.name}
-                        </span>
-                        {false && (
-                          <span title="System Default Role" style={{ display: 'inline-flex', alignItems: 'center' }}>
-                            <Lock size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+
+
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {role.name}
                           </span>
-                        )}
-                        {false && (
-                          <span style={{ fontSize: '0.62rem', fontWeight: 800, background: '#7f56d920', color: '#7f56d9', padding: '1px 5px', borderRadius: '4px', border: '1px solid #7f56d930' }}>
-                            ADMIN
-                          </span>
-                        )}
+                          {false && (
+                            <span title="System Default Role" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                              <Lock size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                            </span>
+                          )}
+                          {false && (
+                            <span style={{ fontSize: '0.62rem', fontWeight: 800, background: '#7f56d920', color: '#7f56d9', padding: '1px 5px', borderRadius: '4px', border: '1px solid #7f56d930' }}>
+                              ADMIN
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--bg-primary)', padding: '2px 8px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                      {role.employees ? role.employees.length : 0}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--bg-primary)', padding: '2px 8px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                        {role.employees ? role.employees.length : 0}
+                      </span>
 
+                    </div>
                   </div>
-                </div>
-              );
+                );
               })
             )}
           </div>
@@ -615,7 +617,7 @@ export default function RolesPage() {
             {/* Header: Selected Role Metadata Editor */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                
+
                 {false ? (
                   <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
                     {selectedRole.name}
@@ -640,7 +642,7 @@ export default function RolesPage() {
               {/* Action Buttons & Color Swatch Selector */}
               {isAdmin && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                  
+
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {isAdmin && (
@@ -671,50 +673,30 @@ export default function RolesPage() {
               )}
             </div>
 
-            {/* Discord Feature Flag Toggles Bar */}
-            <div style={{ background: 'var(--bg-secondary)', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Shield size={16} style={{ color: '#7f56d9' }} />
-                <span>Administrator Override Access</span>
-              </div>
 
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: isAdmin ? 'pointer' : 'default' }}>
-                <input
-                  type="checkbox"
-                  checked={activeRoleAdmin}
-                  onChange={(e) => setActiveRoleAdmin(e.target.checked)}
-                  disabled={!isAdmin}
-                  style={{ width: '16px', height: '16px', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: '0.82rem', fontWeight: 550, color: activeRoleAdmin ? '#7f56d9' : 'var(--text-secondary)' }}>
-                  {activeRoleAdmin ? 'System Admin Bypass ACTIVE' : 'Standard Permission Checks'}
-                </span>
-              </label>
-            </div>
+            
 
-            {/* Strapi-style Action-Subject Permission Matrix Header */}
+
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-                <div />
 
-                {isAdmin && !activeRoleAdmin && (
-                  <button
-                    type="button"
-                    onClick={toggleAllPermissions}
-                    className="btn btn-secondary"
-                    style={{ fontSize: '0.74rem', padding: '4px 10px', fontWeight: 700 }}
-                  >
-                    {activePermissions.length === ALL_PERMISSION_KEYS.length ? 'Deselect All' : 'Select All Permissions'}
-                  </button>
-                )}
-              </div>
 
-              {/* Permission Groups Accordion List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+              {/* Permission Groups */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                }}
+              >
                 {PERMISSION_GROUPS.map((group) => {
                   const groupKeys = group.actions.map((a) => a.key);
-                  const selectedCount = groupKeys.filter((k) => activePermissions.includes(k)).length;
-                  const isFullySelected = selectedCount === groupKeys.length;
+
+                  const selectedCount = groupKeys.filter((key) =>
+                    activePermissions.includes(key)
+                  ).length;
+
+                  const isOpen = openPermissionGroup === group.domain;
 
                   return (
                     <div
@@ -723,87 +705,202 @@ export default function RolesPage() {
                         background: 'var(--bg-secondary)',
                         border: '1px solid var(--border-color)',
                         borderRadius: '10px',
-                        overflow: 'hidden'
+                        overflow: 'hidden',
                       }}
                     >
-                      {/* Group Header Bar */}
-                      <div
+                      {/* Master Permission Header */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenPermissionGroup(
+                            isOpen ? null : group.domain
+                          )
+                        }
                         style={{
-                          padding: '12px 16px',
-                          background: 'var(--bg-tertiary)',
-                          borderBottom: '1px solid var(--border-color)',
+                          width: '100%',
+                          border: 'none',
+                          background: 'var(--bg-secondary)',
+                          padding: '14px 16px',
                           display: 'flex',
-                          justifyContent: 'space-between',
                           alignItems: 'center',
-                          flexWrap: 'wrap',
-                          gap: '10px'
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          color: 'var(--text-primary)',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                          }}
+                        >
                           {renderDomainIcon(group.iconName)}
-                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            {group.label}
-                          </span>
+
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'flex-start',
+                              gap: '3px',
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: '0.88rem',
+                                fontWeight: 800,
+                              }}
+                            >
+                              {group.label}
+                            </span>
+
+                            <span
+                              style={{
+                                fontSize: '0.7rem',
+                                color: 'var(--text-secondary)',
+                              }}
+                            >
+                              {selectedCount} permissions enabled
+                            </span>
+                          </div>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '0.7rem', fontWeight: 750, color: 'var(--text-secondary)', background: 'var(--bg-primary)', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-                            {selectedCount}/{groupKeys.length} enabled
-                          </span>
-
-                          {isAdmin && !activeRoleAdmin && (
-                            <button
-                              type="button"
-                              onClick={() => toggleGroupPermissions(group)}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                          }}
+                        >
+                          {selectedCount > 0 && (
+                            <span
                               style={{
-                                background: 'none',
-                                border: 'none',
-                                fontSize: '0.72rem',
-                                color: 'var(--accent-primary)',
+                                fontSize: '0.68rem',
                                 fontWeight: 700,
-                                cursor: 'pointer',
-                                textDecoration: 'underline'
+                                padding: '3px 8px',
+                                borderRadius: '10px',
+                                background: 'rgba(59,130,246,0.1)',
+                                color: '#2563eb',
                               }}
                             >
-                              {isFullySelected ? 'Uncheck Group' : 'Check Group'}
-                            </button>
+                              {selectedCount}
+                            </span>
                           )}
-                        </div>
-                      </div>
 
-                      {/* Group Actions Checklist Grid */}
-                      <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
-                        {group.actions.map((action) => {
-                          const isChecked = activePermissions.includes(action.key) || activeRoleAdmin;
-                          return (
-                            <label
-                              key={action.key}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                padding: '8px 12px',
-                                borderRadius: '6px',
-                                background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'var(--bg-primary)',
-                                border: isChecked ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid var(--border-color)',
-                                cursor: isAdmin && !activeRoleAdmin ? 'pointer' : 'default',
-                                transition: 'all 0.15s ease'
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => togglePermission(action.key)}
-                                disabled={!isAdmin || activeRoleAdmin}
-                                style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
-                              />
-                              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isChecked ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                                {action.label}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
+                          <span
+                            style={{
+                              fontSize: '16px',
+                              color: 'var(--text-secondary)',
+                              transform: isOpen
+                                ? 'rotate(180deg)'
+                                : 'rotate(0deg)',
+                              transition: 'transform 0.2s ease',
+                            }}
+                          >
+                            ↓
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* Permission Selector */}
+                      {isOpen && (
+                        <div
+                          style={{
+                            borderTop:
+                              '1px solid var(--border-color)',
+                            padding: '14px 16px',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns:
+                                'repeat(auto-fill, minmax(150px, 1fr))',
+                              gap: '10px',
+                            }}
+                          >
+                            {[
+                              {
+                                key: 'create',
+                                label: 'Create',
+                              },
+                              {
+                                key: 'update',
+                                label: 'Update',
+                              },
+                              {
+                                key: 'edit',
+                                label: 'Edit',
+                              },
+                              {
+                                key: 'delete',
+                                label: 'Delete',
+                              },
+                              {
+                                key: 'manage',
+                                label: 'Manage',
+                              },
+                            ].map((permission) => {
+                              const permissionKey =
+                                `${group.domain}.${permission.key}`;
+
+                              const checked =
+                                activePermissions.includes(
+                                  permissionKey
+                                );
+
+                              return (
+                                <label
+                                  key={permission.key}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    padding: '10px 12px',
+                                    borderRadius: '7px',
+                                    background: checked
+                                      ? 'rgba(59,130,246,0.08)'
+                                      : 'var(--bg-primary)',
+                                    border: checked
+                                      ? '1px solid rgba(59,130,246,0.3)'
+                                      : '1px solid var(--border-color)',
+                                    cursor: isAdmin
+                                      ? 'pointer'
+                                      : 'default',
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={!isAdmin}
+                                    onChange={() =>
+                                      togglePermission(
+                                        permissionKey
+                                      )
+                                    }
+                                    style={{
+                                      accentColor:
+                                        'var(--accent-primary)',
+                                    }}
+                                  />
+
+                                  <span
+                                    style={{
+                                      fontSize: '0.8rem',
+                                      fontWeight: 650,
+                                      color: checked
+                                        ? 'var(--text-primary)'
+                                        : 'var(--text-secondary)',
+                                    }}
+                                  >
+                                    {permission.label}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -811,63 +908,7 @@ export default function RolesPage() {
             </div>
 
             {/* Assigned Role Members Panel */}
-            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h4 style={{ fontSize: '0.85rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Users size={16} style={{ color: activeRoleColor }} />
-                  <span>Members with {selectedRole.name} Role ({selectedRole.employees ? selectedRole.employees.length : 0})</span>
-                </h4>
 
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => setShowReassignModal(true)}
-                    className="btn btn-secondary"
-                    style={{ fontSize: '0.74rem', padding: '4px 10px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <UserPlus size={12} />
-                    <span>Assign Team Member</span>
-                  </button>
-                )}
-              </div>
-
-              {!selectedRole.employees || selectedRole.employees.length === 0 ? (
-                <div style={{ padding: '20px', textAlign: 'center', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px dashed var(--border-color)', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                  No team members are currently assigned to this role.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                  {selectedRole.employees.map((emp) => (
-                    <div
-                      key={emp._id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        background: 'var(--bg-secondary)',
-                        padding: '6px 12px',
-                        borderRadius: '20px',
-                        border: '1px solid var(--border-color)'
-                      }}
-                    >
-                      <div
-                        className="avatar"
-                        style={{
-                          backgroundColor: emp.avatarColor || '#3b82f6',
-                          width: '20px',
-                          height: '20px',
-                          fontSize: '0.58rem',
-                          color: '#ffffff'
-                        }}
-                      >
-                        {"ssss"}
-                      </div>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>{emp.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         ) : (
           <div className="card" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -881,7 +922,7 @@ export default function RolesPage() {
         <div className="modal-backdrop" onClick={() => setShowCreateModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--border-color)' }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem'}}>Create Custom Role</h3>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Create Custom Role</h3>
               <button onClick={() => setShowCreateModal(false)} className="btn" style={{ padding: '4px', background: 'none' }}>
                 <X size={16} />
               </button>

@@ -600,7 +600,7 @@ export default function UserTaskHistoryPage() {
                               <td colSpan={8} style={{ padding: '12px 18px', background: 'var(--bg-secondary)' }}>
                                 <div style={{ borderLeft: '3px solid var(--accent-primary)', paddingLeft: 14 }}>
                                   <div style={{ fontSize: '.7rem', fontWeight: 750, color: 'var(--text-muted)', letterSpacing: 0.5, marginBottom: 8 }}>
-                                    WORK SESSIONS BREAKDOWN ({group.entries.length})
+                                    Task Done ({group.entries.length})
                                   </div>
                                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.76rem' }}>
                                     <thead>
