@@ -45,10 +45,10 @@ export default function Sidebar() {
 
 	// Submenu Accordion Toggle State
 	const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-		work: true,
-		time: true,
-		org: true,
-		settings: true,
+		work: false,
+		time: false,
+		org: false,
+		settings: false,
 	});
 
 	// Collapsed Sidebar Floating Tooltip Portal State

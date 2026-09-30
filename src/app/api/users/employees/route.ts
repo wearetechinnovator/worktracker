@@ -16,69 +16,50 @@ import { sendEmployeeWelcomeMail } from "@/lib/mailer";
 export async function GET() {
   try {
     await dbConnect();
-
-    const admin =
-      await currentUser();
+    const admin = await currentUser();
 
     if (!admin) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Authentication required",
+          message: "Authentication required",
         },
         { status: 401 }
       );
     }
 
-    if (
-      Number(admin.user_role) !== 1
-    ) {
+    if (Number(admin.user_role) !== 1) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Only admins can view employees",
+          message: "Only admins can view employees",
         },
         { status: 403 }
       );
     }
 
-    const adminProjects = await Project.find({
+    const adminProjects = await Project.find({ created_by: admin._id }).select("name project_users").lean();
+    const employees = await User.find({
+      user_role: 2,
       created_by: admin._id,
-    })
-      .select("name project_users")
-      .lean();
-
-    const employees =
-      await User.find({
-        user_role: 2,
-
-        created_by:
-          admin._id,
-      })
-        .select(
-          [
-            "_id",
-            "full_name",
-            "email",
-            "phone_number",
-            "password",
-            "designation",
-            "role_id",
-            "group",
-            "profile_picture",
-            "status",
-            "isVerify",
-            "created_by",
-            "settings_id",
-            "workMode",
-          ].join(" ")
-        )
-        .sort({
-          createdAt: -1,
-        })
-        .lean();
+    }).select(
+      [
+        "_id",
+        "full_name",
+        "email",
+        "phone_number",
+        "password",
+        "designation",
+        "role_id",
+        "group",
+        "profile_picture",
+        "status",
+        "isVerify",
+        "created_by",
+        "settings_id",
+        "workMode",
+      ].join(" ")
+    ).sort({ createdAt: -1 }).lean();
 
     const data =
       employees.map(
@@ -104,50 +85,21 @@ export async function GET() {
 
           return {
             ...employee,
-
-            _id: String(
-              employee._id
-            ),
-
+            _id: String(employee._id),
             password: decryptedPassword,
-
             Project: employeeProject,
             workMode: employee.workMode || "Hybrid",
-
-            role_id:
-              employee.role_id
-                ? String(
-                    employee.role_id
-                  )
-                : null,
-
-            settings_id:
-              employee.settings_id
-                ? String(
-                    employee.settings_id
-                  )
-                : null,
-
-            created_by:
-              employee.created_by
-                ? String(
-                    employee.created_by
-                  )
-                : null,
-
-            name:
-              employee.full_name ||
-              "Unknown User",
-
-            role:
-              employee.designation ||
-              "Employee",
-
-            userType:
-              "employee",
-
-            avatarColor:
-              "#3b82f6",
+            role_id: employee.role_id
+              ? String(employee.role_id) : null,
+            settings_id: employee.settings_id
+              ? String(employee.settings_id) : null,
+            created_by: employee.created_by
+              ? String(employee.created_by)
+              : null,
+            name: employee.full_name || "Unknown User",
+            role: employee.designation || "Employee",
+            userType: "employee",
+            avatarColor: "#3b82f6"
           };
         }
       );
@@ -165,8 +117,7 @@ export async function GET() {
     return NextResponse.json(
       {
         success: false,
-        message:
-          "Failed to load employees",
+        message: "Failed to load employees",
       },
       { status: 500 }
     );
@@ -249,8 +200,8 @@ export async function POST(
     const designation =
       String(
         body.designation ||
-          body.role ||
-          "Employee"
+        body.role ||
+        "Employee"
       ).trim();
 
     /* -------------------------
@@ -293,7 +244,7 @@ export async function POST(
       );
     }
 
-  
+
 
     if (!designation) {
       return NextResponse.json(
@@ -451,8 +402,8 @@ export async function POST(
         role_id:
           employee.role_id
             ? String(
-                employee.role_id
-              )
+              employee.role_id
+            )
             : null,
 
         group:
@@ -467,8 +418,8 @@ export async function POST(
         settings_id:
           employee.settings_id
             ? String(
-                employee.settings_id
-              )
+              employee.settings_id
+            )
             : null,
 
         status:
@@ -524,15 +475,15 @@ export async function POST(
       role_id:
         employee.role_id
           ? String(
-              employee.role_id
-            )
+            employee.role_id
+          )
           : null,
 
       settings_id:
         employee.settings_id
           ? String(
-              employee.settings_id
-            )
+            employee.settings_id
+          )
           : null,
 
       role:
@@ -794,7 +745,7 @@ export async function PATCH(
       body.role_id !==
       undefined
     ) {
-   
+
 
       updateData.role_id = body.role_id;
     }
@@ -1024,8 +975,8 @@ export async function PATCH(
           role_id:
             oldEmployee.role_id
               ? String(
-                  oldEmployee.role_id
-                )
+                oldEmployee.role_id
+              )
               : null,
 
           group:
@@ -1054,8 +1005,8 @@ export async function PATCH(
           role_id:
             employee.role_id
               ? String(
-                  employee.role_id
-                )
+                employee.role_id
+              )
               : null,
 
           group:
@@ -1231,8 +1182,8 @@ export async function DELETE(
         role_id:
           employee.role_id
             ? String(
-                employee.role_id
-              )
+              employee.role_id
+            )
             : null,
 
         group:
@@ -1244,15 +1195,15 @@ export async function DELETE(
         settings_id:
           employee.settings_id
             ? String(
-                employee.settings_id
-              )
+              employee.settings_id
+            )
             : null,
 
         created_by:
           employee.created_by
             ? String(
-                employee.created_by
-              )
+              employee.created_by
+            )
             : null,
 
         status:

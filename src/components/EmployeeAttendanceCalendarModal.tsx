@@ -5,9 +5,9 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, 
-  MapPin, Globe, CheckCircle2, XCircle, AlertTriangle, 
+import {
+  ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock,
+  MapPin, Globe, CheckCircle2, XCircle, AlertTriangle,
   Briefcase, FileText, Loader2, ExternalLink, User, X, Layers
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
@@ -252,8 +252,8 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1500 }}>
-      <div 
-        className="modal-container" 
+      <div
+        className="modal-container"
         style={{ maxWidth: '940px', width: '95%', maxHeight: '92vh', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -287,28 +287,30 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
           <button className="modal-close" onClick={onClose} style={{ fontSize: '1.4rem' }}>&times;</button>
         </div>
 
-       
+
 
         {/* Month Navigator & Summary Stats */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', margin: '18px 0' }}>
-          
+
           {/* Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--bg-tertiary)', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            <button 
-              type="button" 
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--bg-tertiary)', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}
+          >
+            <button
+              type="button"
               className="action-btn"
               onClick={handlePrevMonth}
               title="Previous Month"
             >
               <ChevronLeft size={18} />
             </button>
-            
+
             <div style={{ fontWeight: 800, fontSize: '1rem', minWidth: '150px', textAlign: 'center' }}>
               {MONTH_NAMES[currentMonth]} {currentYear}
             </div>
 
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="action-btn"
               onClick={handleNextMonth}
               title="Next Month"
@@ -422,9 +424,9 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
                   >
                     {/* Top Row: Day Number & Status */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ 
-                        fontSize: '0.85rem', 
-                        fontWeight: 800, 
+                      <span style={{
+                        fontSize: '0.85rem',
+                        fontWeight: 800,
                         color: isToday ? '#ffffff' : (isWeekend ? 'var(--text-muted)' : 'var(--text-primary)'),
                         background: isToday ? 'var(--accent-primary)' : 'transparent',
                         borderRadius: '50%',
@@ -438,10 +440,10 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
                       </span>
 
                       {statusBadgeText && (
-                        <span style={{ 
-                          fontSize: '0.62rem', 
-                          fontWeight: 700, 
-                          color: statusColor, 
+                        <span style={{
+                          fontSize: '0.62rem',
+                          fontWeight: 700,
+                          color: statusColor,
                           background: statusBg,
                           padding: '2px 6px',
                           borderRadius: '4px',
@@ -464,11 +466,11 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
                     {/* Bottom Row: Work Log Indicator */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
                       {workLogsCount > 0 ? (
-                        <span style={{ 
-                          fontSize: '0.63rem', 
-                          fontWeight: 700, 
-                          background: '#eff6ff', 
-                          color: '#2563eb', 
+                        <span style={{
+                          fontSize: '0.63rem',
+                          fontWeight: 700,
+                          background: '#eff6ff',
+                          color: '#2563eb',
                           border: '1px solid #bfdbfe',
                           padding: '1px 5px',
                           borderRadius: '10px',
@@ -498,8 +500,8 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
         {/* DAILY WORK & ATTENDANCE DETAILS SUB-MODAL */}
         {selectedDateForDetails && (
           <div className="modal-overlay" onClick={() => setSelectedDateForDetails(null)} style={{ zIndex: 1700 }}>
-            <div 
-              className="modal-container" 
+            <div
+              className="modal-container"
               style={{ maxWidth: '680px', width: '92%', maxHeight: '85vh', overflowY: 'auto' }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -523,7 +525,7 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
                 </div>
               ) : dailyDetails ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '14px' }}>
-                  
+
                   {/* 1. ATTENDANCE & GEOLOCATION CARD */}
                   <div className="card" style={{ padding: '14px', background: 'var(--bg-tertiary)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -549,7 +551,7 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
 
                     {dailyDetails.attendance ? (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', fontSize: '0.78rem' }}>
-                        
+
                         {/* Check In Info */}
                         <div style={{ background: 'var(--bg-secondary)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
                           <div style={{ fontWeight: 800, color: 'var(--accent-primary)', marginBottom: '4px' }}>
@@ -562,7 +564,7 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
                           )}
                           {dailyDetails.attendance.checkInLocation && (
                             <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'flex-start', gap: '4px', marginTop: '2px' }}>
-                              <MapPin size={12} style={{ marginTop: '2px', flexShrink: 0 }} /> 
+                              <MapPin size={12} style={{ marginTop: '2px', flexShrink: 0 }} />
                               <span>{dailyDetails.attendance.checkInLocation}</span>
                             </div>
                           )}
@@ -591,7 +593,7 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
                           )}
                           {dailyDetails.attendance.checkOutLocation && (
                             <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'flex-start', gap: '4px', marginTop: '2px' }}>
-                              <MapPin size={12} style={{ marginTop: '2px', flexShrink: 0 }} /> 
+                              <MapPin size={12} style={{ marginTop: '2px', flexShrink: 0 }} />
                               <span>{dailyDetails.attendance.checkOutLocation}</span>
                             </div>
                           )}
@@ -625,12 +627,12 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
                     {dailyDetails.workEntries.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {dailyDetails.workEntries.map((work) => (
-                          <div 
-                            key={work._id} 
-                            style={{ 
-                              padding: '10px 12px', 
-                              borderRadius: '8px', 
-                              border: '1px solid var(--border-color)', 
+                          <div
+                            key={work._id}
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              border: '1px solid var(--border-color)',
                               background: 'var(--bg-secondary)',
                               display: 'flex',
                               flexDirection: 'column',
@@ -639,11 +641,11 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                               <div>
-                                <span 
-                                  className="tag-badge" 
-                                  style={{ 
-                                    backgroundColor: `${work.projectColor}15`, 
-                                    color: work.projectColor, 
+                                <span
+                                  className="tag-badge"
+                                  style={{
+                                    backgroundColor: `${work.projectColor}15`,
+                                    color: work.projectColor,
                                     borderColor: `${work.projectColor}30`,
                                     fontSize: '0.68rem',
                                     marginBottom: '4px',
@@ -690,12 +692,12 @@ export default function EmployeeAttendanceCalendarModal({ employee, isOpen, onCl
                     {dailyDetails.taskWorks.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {dailyDetails.taskWorks.map((tw) => (
-                          <div 
-                            key={tw._id} 
-                            style={{ 
-                              padding: '10px 12px', 
-                              borderRadius: '8px', 
-                              border: '1px solid var(--border-color)', 
+                          <div
+                            key={tw._id}
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              border: '1px solid var(--border-color)',
                               background: 'var(--bg-secondary)',
                               display: 'flex',
                               flexDirection: 'column',

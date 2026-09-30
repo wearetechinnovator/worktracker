@@ -50,6 +50,7 @@ type EmployeeCardProps = {
         employeeId: string,
         action: 'allowPunchIn' | 'allowPunchOut'
     ) => void;
+    openEmployeeDetails: (employee: EmployeeCardEmployee) => void;
 };
 
 export default function EmployeeCard({
@@ -58,6 +59,7 @@ export default function EmployeeCard({
     onEdit,
     onDelete,
     onTogglePunchOverride,
+    openEmployeeDetails
 }: EmployeeCardProps) {
     const employeeName = employee.full_name || 'Employee';
 
@@ -91,6 +93,9 @@ export default function EmployeeCard({
                 flexDirection: 'column',
                 transition:
                     'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+            }}
+            onClick={() => {
+                openEmployeeDetails(employee)
             }}
         >
             {/* Header */}
