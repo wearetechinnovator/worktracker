@@ -217,4 +217,46 @@ export async function sendTaskReviewMail(params: {
   return sendEmail({ to: params.to, subject, text });
 }
 
+/**
+ * Send Punch Out Work Summary email to both Admin and Employee
+ */
+export async function sendPunchOutWorkSummaryMail(params: {
+  adminEmail?: string;
+  employeeEmail?: string;
+  employeeName: string;
+  attendanceDate: string;
+  punchOutTime: string;
+  workSummary: string;
+}): Promise<boolean> {
+  const recipients = [params.adminEmail, params.employeeEmail]
+    .map((e) => (e || "").trim())
+    .filter(Boolean);
+
+  if (!recipients.length) {
+    console.warn("[Mailer] No valid recipient emails for punch out work summary.");
+    return false;
+  }
+
+  const to = recipients.join(", ");
+  const subject = `Daily Work Summary & Punch Out - ${params.employeeName} (${params.attendanceDate})`;
+  const text = [
+    `Daily Work Summary & Punch Out Notification`,
+    `========================================`,
+    `Employee: ${params.employeeName}`,
+    `Employee Email: ${params.employeeEmail || "N/A"}`,
+    `Attendance Date: ${params.attendanceDate}`,
+    `Punch Out Time: ${params.punchOutTime}`,
+    `========================================`,
+    ``,
+    `Work Summary / Report:`,
+    `----------------------------------------`,
+    params.workSummary || "No work details provided.",
+    `----------------------------------------`,
+    ``,
+    `This notification has been sent to both Admin and Employee upon Punch Out.`,
+  ].join("\n");
+
+  return sendEmail({ to, subject, text });
+}
+
 export default transporter;

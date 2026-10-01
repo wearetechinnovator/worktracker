@@ -17,6 +17,7 @@ import CreateProjectModal from '@/components/CreateProjectModal';
 import CreateClientModal from '@/components/CreateClientModal';
 import CreateTaskModal from '@/components/CreateTaskModal';
 import PunchRequestModal from '@/components/PunchRequestModal';
+import PunchOutSummaryModal from '@/components/PunchOutSummaryModal';
 import { punchService } from '@/lib/punchService';
 import { toast } from '@/lib/toast';
 
@@ -44,6 +45,7 @@ export default function TopNavbar() {
 
   // Punch Request Modal State
   const [isPunchRequestModalOpen, setIsPunchRequestModalOpen] = useState(false);
+  const [isPunchOutSummaryModalOpen, setIsPunchOutSummaryModalOpen] = useState(false);
   const [punchRequestType, setPunchRequestType] = useState<'punchIn' | 'punchOut'>('punchIn');
   const [punchRequestMeta, setPunchRequestMeta] = useState<{
     message?: string;
@@ -412,28 +414,17 @@ export default function TopNavbar() {
         return;
       }
 
+      if (isPunchedIn) {
+        setIsPunchOutSummaryModalOpen(true);
+        return;
+      }
+
       setIsPunching(true);
 
-      const action =
-        isPunchedIn
-          ? 'punchOut'
-          : 'punchIn';
-
       try {
-        const nextPunchState =
-          action === 'punchIn'
-            ? await punchService.punchIn(
-              {
-                reason:
-                  'TopNavbar punch in',
-              }
-            )
-            : await punchService.punchOut(
-              {
-                reason:
-                  'TopNavbar punch out',
-              }
-            );
+        const nextPunchState = await punchService.punchIn({
+          reason: 'TopNavbar punch in',
+        });
 
         setIsPunchedIn(
           nextPunchState.isPunchedIn
@@ -471,18 +462,12 @@ export default function TopNavbar() {
           error?.requiresRequest ||
           error?.requestType
         ) {
-          setPunchRequestType(action);
+          setPunchRequestType('punchIn');
           setPunchRequestMeta({
             message: error?.message,
             currentTime: error?.currentTime,
-            startTime:
-              action === 'punchIn'
-                ? error?.punchInStartTime
-                : error?.punchOutStartTime,
-            endTime:
-              action === 'punchIn'
-                ? error?.punchInEndTime
-                : error?.punchOutEndTime,
+            startTime: error?.punchInStartTime,
+            endTime: error?.punchInEndTime,
           });
           setIsPunchRequestModalOpen(true);
           return;
@@ -492,10 +477,7 @@ export default function TopNavbar() {
          * Normal validation error.
          */
         alert(
-          error?.message ||
-          `Failed to ${action === 'punchIn'
-            ? 'punch in'
-            : 'punch out'}`
+          error?.message || 'Failed to punch in'
         );
       } finally {
         setIsPunching(false);
@@ -1760,6 +1742,33 @@ export default function TopNavbar() {
           setIsPunchedIn(punch.isPunchedIn);
           setCanPunchOut(punch.canPunchOut);
           setPendingRequest(punch.pendingRequest || null);
+        }}
+      />
+
+      {/* =====================================================
+          PUNCH OUT SUMMARY MODAL
+      ===================================================== */}
+
+      <PunchOutSummaryModal
+        isOpen={isPunchOutSummaryModalOpen}
+        onClose={() => setIsPunchOutSummaryModalOpen(false)}
+        onSuccess={async () => {
+          const punch = await punchService.fetchPunchStatus();
+          setIsPunchedIn(punch.isPunchedIn);
+          setCanPunchIn(punch.canPunchIn);
+          setCanPunchOut(punch.canPunchOut);
+          setPendingRequest(punch.pendingRequest || null);
+          window.dispatchEvent(new CustomEvent('worktracker-refresh'));
+        }}
+        onRequestRequired={(meta) => {
+          setPunchRequestType('punchOut');
+          setPunchRequestMeta({
+            message: meta.message,
+            currentTime: meta.currentTime,
+            startTime: meta.startTime,
+            endTime: meta.endTime,
+          });
+          setIsPunchRequestModalOpen(true);
         }}
       />
     </>

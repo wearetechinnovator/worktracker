@@ -6,6 +6,7 @@ import AttendanceRequest from "@/models/AttendanceRequest";
 import Settings from "@/models/Settings";
 import User from "@/models/User";
 import { currentUser } from "@/lib/auth";
+import { sendPunchOutWorkSummaryMail } from "@/lib/mailer";
 
 /* =========================================================
    HELPERS
@@ -1545,6 +1546,40 @@ export async function POST(
             },
           }
         );
+      }
+
+      /*
+       * Send Punch Out work summary email to Admin and Employee.
+       */
+      try {
+        const adminUser = targetUser.created_by
+          ? await User.findById(targetUser.created_by).select("email full_name name")
+          : await User.findOne({ user_role: 1, status: true }).select("email full_name name");
+
+        const adminEmail = adminUser?.email || "";
+        const employeeEmail = targetUser.email || "";
+        const employeeName = targetUser.full_name || targetUser.name || employeeEmail || "Employee";
+        const punchOutFormattedTime = new Date().toLocaleTimeString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+
+        const workSummaryText = String(body?.workSummary || body?.reason || "").trim();
+
+        if (adminEmail || employeeEmail) {
+          await sendPunchOutWorkSummaryMail({
+            adminEmail,
+            employeeEmail,
+            employeeName,
+            attendanceDate: String(openAttendance.attendance_date),
+            punchOutTime: punchOutFormattedTime,
+            workSummary: workSummaryText,
+          });
+        }
+      } catch (emailErr) {
+        console.error("Error sending punch out work summary email:", emailErr);
       }
 
       /*

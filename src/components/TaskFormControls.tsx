@@ -825,14 +825,16 @@ export function CustomTimePicker({
 
   // Parse time
   const parseTime = (val: string) => {
-    if (!val) return { hours: 10, minutes: 0, ampm: 'AM' };
+    if (!val || typeof val !== 'string') return { hours: 10, minutes: 0, ampm: 'AM' };
     const parts = val.split(':');
     let h = parseInt(parts[0] || '10', 10);
-    const m = parseInt(parts[1] || '0', 10);
+    let m = parseInt(parts[1] || '0', 10);
+    if (Number.isNaN(h)) h = 10;
+    if (Number.isNaN(m)) m = 0;
     const ampm = h >= 12 ? 'PM' : 'AM';
     h = h % 12;
     if (h === 0) h = 12;
-    return { hours: h, minutes: m, ampm };
+    return { hours: Number.isNaN(h) ? 10 : h, minutes: Number.isNaN(m) ? 0 : m, ampm };
   };
 
   const { hours, minutes, ampm } = parseTime(value);
@@ -848,10 +850,12 @@ export function CustomTimePicker({
   }, []);
 
   const format24 = (h: number, m: number, ap: string) => {
-    let hour24 = h;
-    if (ap === 'PM' && h < 12) hour24 = h + 12;
-    if (ap === 'AM' && h === 12) hour24 = 0;
-    return `${String(hour24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const safeH = Number.isNaN(h) ? 10 : h;
+    const safeM = Number.isNaN(m) ? 0 : m;
+    let hour24 = safeH;
+    if (ap === 'PM' && safeH < 12) hour24 = safeH + 12;
+    if (ap === 'AM' && safeH === 12) hour24 = 0;
+    return `${String(hour24).padStart(2, '0')}:${String(safeM).padStart(2, '0')}`;
   };
 
   const formatDisplay = (val: string) => {
@@ -1009,24 +1013,28 @@ export function CustomTimePicker({
               {/* Hour selector */}
               <input
                 className="form-control"
-                value={hours}
-                onChange={(e) => onChange(format24(parseInt(e.target.value, 10), minutes, ampm))}
+                value={Number.isNaN(hours) ? "10" : String(hours)}
+                onChange={(e) => {
+                  const parsed = parseInt(e.target.value, 10);
+                  const safeH = Number.isNaN(parsed) ? 10 : parsed;
+                  onChange(format24(safeH, minutes, ampm));
+                }}
                 style={{ flex: 1, padding: '4px 6px', fontSize: '0.8rem', height: '34px', minWidth: '50px' }}
-              >
-                
-              </input>
+              />
 
               <span style={{ fontWeight: 800, color: 'var(--text-muted)' }}>:</span>
 
               {/* Minute selector */}
               <input
                 className="form-control"
-                value={minutes}
-                onChange={(e) => onChange(format24(hours, parseInt(e.target.value, 10), ampm))}
+                value={Number.isNaN(minutes) ? "00" : String(minutes).padStart(2, '0')}
+                onChange={(e) => {
+                  const parsed = parseInt(e.target.value, 10);
+                  const safeM = Number.isNaN(parsed) ? 0 : parsed;
+                  onChange(format24(hours, safeM, ampm));
+                }}
                 style={{ flex: 1, padding: '4px 6px', fontSize: '0.8rem', height: '34px', minWidth: '50px' }}
-              >
-                
-              </input>
+              />
 
               {/* AM/PM toggle */}
               <div style={{ display: 'flex', flexShrink: 0, borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>

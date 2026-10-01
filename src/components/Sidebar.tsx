@@ -576,6 +576,17 @@ export default function Sidebar() {
 												<span>{isAdmin ? 'Punch Logs' : 'Attendance'}</span>
 											</Link>
 										</AnimateIcon> */}
+										{(isAdmin)&&(
+											<Link
+												href={`${basePath}/attendance-list`}
+												className={`sidebar-link ${pathname === `${basePath}/attendance-list` ? 'active' : ''}`}
+												onMouseEnter={(e) => handleItemMouseEnter('Punch In/Out', e)}
+												onMouseLeave={handleItemMouseLeave}
+											>
+												<LogOutIcon />
+												<span>Attendance List</span>
+											</Link>
+										)}
 									</div>
 								)}
 							</div>

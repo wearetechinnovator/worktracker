@@ -255,9 +255,62 @@ export default function PunchPage() {
   };
 
   const preparePunchOutReport = async () => {
-    const today = getLocalDateValue(new Date());
-    setReportPreview(`Daily Work Summary (${today})\n\nShift punch out report completed.`);
-    setShowReportModal(true);
+    try {
+      setProcessing(true);
+      const todayStr = new Date().toISOString().split('T')[0];
+      const res = await fetch(`/api/task-work?limit=1000`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      const json = await res.json();
+
+      let entries: any[] = [];
+      if (json.success && Array.isArray(json.data)) {
+        entries = json.data.filter((item: any) => {
+          if (!item.date) return true;
+          const itemDate = new Date(item.date).toISOString().split('T')[0];
+          return itemDate === todayStr;
+        });
+        if (entries.length === 0 && json.data.length > 0) {
+          entries = json.data;
+        }
+      }
+
+      let draft = `Daily Work Summary (${todayStr})\n\n`;
+
+      if (entries.length > 0) {
+        draft += entries
+          .map((entry: any, index: number) => {
+            const projectName = entry.taskId?.project_id?.name || 'General';
+            const taskTitle = entry.taskId?.title || 'Untitled Task';
+            const notes = entry.notes || 'Work completed.';
+            const minutes = entry.totalMinutes || 0;
+            const hrs = (minutes / 60).toFixed(1).replace(/\.0$/, '');
+            const duration = `${hrs} hrs (${minutes} mins)`;
+            const status = entry.status || 'Completed';
+
+            return `Task ${index + 1}:
+- Project: ${projectName}
+- Task: ${taskTitle}
+- Duration: ${duration}
+- Status: ${status}
+- Notes: ${notes}`;
+          })
+          .join('\n\n');
+      } else {
+        draft += 'No work entries logged for today.';
+      }
+
+      setReportPreview(draft);
+      setShowReportModal(true);
+    } catch (err: any) {
+      console.error('Failed to prepare punch out report:', err);
+      const todayStr = new Date().toISOString().split('T')[0];
+      setReportPreview(`Daily Work Summary (${todayStr})\n\nNo work entries logged for today.`);
+      setShowReportModal(true);
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const submitPunch = async (action: 'punchIn' | 'punchOut') => {
@@ -830,11 +883,14 @@ export default function PunchPage() {
             </div>
 
             <div className="form-group">
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '6px' }}>
+                Email Content (Editable Preview)
+              </label>
               <textarea
                 className="form-control"
-                readOnly
-                style={{ minHeight: '260px', fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: '1.5', background: 'var(--bg-tertiary)' }}
+                style={{ minHeight: '260px', fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: '1.5' }}
                 value={reportPreview}
+                onChange={(e) => setReportPreview(e.target.value)}
               />
             </div>
 
