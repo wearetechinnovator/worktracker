@@ -1951,7 +1951,7 @@ export default function TasksPage() {
                       <td style={{ whiteSpace: 'nowrap', verticalAlign: 'top', }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {task.task_id ? (
-                            <span style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '0.76rem' }}>
+                            <span style={{color: 'var(--accent-primary)', fontSize: '0.76rem' }}>
                               {task.task_id}
                             </span>
                           ) : (
@@ -1985,12 +1985,12 @@ export default function TasksPage() {
                         >
                           {task.title}
                         </div>
-                        {task.description && (
+                        {/* {task.description && (
                           <div
                             style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}
                             dangerouslySetInnerHTML={{ __html: task.description }}
                           />
-                        )}
+                        )} */}
 
                       </td>
                       <td>
@@ -2049,13 +2049,14 @@ export default function TasksPage() {
                                 height: '24px',
                                 fontSize: '0.62rem',
                                 color: '#ffffff',
-                                flexShrink: 0
+                                flexShrink: 0,
+                                
                               }}
-                              title={`Assigned by: ${task.createdBy.name}`}
+                              title={`${task.createdBy.name}`}
                             >
                               {task.createdBy.name.split(' ').map((n: string) => n[0]).join('')}
                             </div>
-                            <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '85px' }}>
+                            <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', fontWeight: 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '85px' }}>
                               {task.createdBy.name.split(' ')[0]}
                             </span>
                           </div>
@@ -2160,7 +2161,7 @@ export default function TasksPage() {
                             </span>
 
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                              {progress.sessionCount + progress.pausedCount} session{(progress.sessionCount + progress.pausedCount) !== 1 ? 's' : ''}
+                              {/* {progress.sessionCount + progress.pausedCount} session{(progress.sessionCount + progress.pausedCount) !== 1 ? 's' : ''} */}
                               {progress.pausedCount > 0 ? ` • ${progress.pausedCount} paused` : ''}
                             </span>
                           </div>
@@ -3323,7 +3324,7 @@ export default function TasksPage() {
                           lineHeight: 1.5,
                         }}
                       >
-                        {stripHtml(reviewingTask.description)}
+                        {/* {stripHtml(reviewingTask.description)} */}
                       </div>
                     </div>
                   )}
@@ -4283,6 +4284,12 @@ export default function TasksPage() {
           onViewFile={handleViewFile}
           onDownloadFile={handleDownloadFile}
           onDownloadAllFiles={() => handleDownloadAllFilesZip(selectedTaskForDetails.files || [], selectedTaskForDetails.title)}
+          onUpdated={async (updatedTask) => {
+            if (updatedTask) {
+              setSelectedTaskForDetails(updatedTask as Task);
+            }
+            await loadAllData();
+          }}
         />
       )}
 

@@ -37,24 +37,14 @@ interface AttendanceLog {
   checkOutLongitude?: number | null;
 }
 
-const DEFAULT_INLINE_ATTENDANCE: AttendanceLog[] = [];
-
-const DEFAULT_INLINE_EMPLOYEES: any[] = [];
-
-const DEFAULT_DEMO_USER = {
-  _id: 'emp-1',
-  name: 'Alex Johnson',
-  email: 'alex@techinnovator.com',
-  userType: 'admin'
-};
 
 export default function AttendancePage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(DEFAULT_DEMO_USER);
+  const [user, setUser] = useState<any>([]);
 
   // Data State
-  const [logs, setLogs] = useState<AttendanceLog[]>(DEFAULT_INLINE_ATTENDANCE);
-  const [employees, setEmployees] = useState<any[]>(DEFAULT_INLINE_EMPLOYEES);
+  const [logs, setLogs] = useState<AttendanceLog[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [error, setError] = useState<string | null>(null);

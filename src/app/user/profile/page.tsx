@@ -708,7 +708,7 @@ export default function UserProfilePage() {
       {/* =================================================
           CHANGE PASSWORD
       ================================================= */}
-      <section className="card" style={{ padding: "20px", marginTop: "20px" }}>
+      {/* <section className="card" style={{ padding: "20px", marginTop: "20px" }}>
         <div
           style={{
             display: "flex",
@@ -881,7 +881,7 @@ export default function UserProfilePage() {
             )}
           </button>
         </div>
-      </section>
+      </section> */}
 
       {/* =================================================
           SAVE BUTTON

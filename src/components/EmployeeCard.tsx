@@ -93,6 +93,7 @@ export default function EmployeeCard({
                 flexDirection: 'column',
                 transition:
                     'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+                    cursor:'pointer'
             }}
             onClick={() => {
                 openEmployeeDetails(employee)

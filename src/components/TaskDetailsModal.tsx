@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Archive,
   Download,
@@ -11,6 +11,12 @@ import {
   Loader2,
   Trash2,
   Users,
+  Send,
+  Pause,
+  Play,
+  Check,
+  CheckCheck,
+  Paperclip,
   X,
 } from 'lucide-react';
 
@@ -89,6 +95,20 @@ export interface TaskDetailsTask {
   createdAt?: string;
 }
 
+interface TaskUpdateLog {
+  _id: string;
+  action?: string;
+  message?: string;
+  files?: Array<{ name?: string; url?: string; type?: string }>;
+  links?: unknown[];
+  timestamp?: string;
+  user_id?: {
+    full_name?: string;
+    name?: string;
+    email?: string;
+  };
+}
+
 export interface TaskDetailsModalProps {
   task: TaskDetailsTask;
 
@@ -138,6 +158,7 @@ export interface TaskDetailsModalProps {
   }) => void;
 
   onDownloadAllFiles: () => void;
+  onUpdated?: (task?: TaskDetailsTask) => void | Promise<void>;
 }
 
 const initials = (name?: string) =>
@@ -177,6 +198,32 @@ const formatBytes = (bytes?: number) => {
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const normalizeLink = (value: unknown) => {
+  if (typeof value === 'string') return value.trim();
+
+  if (value && typeof value === 'object') {
+    const linkValue = value as { url?: unknown; link?: unknown };
+    return String(linkValue.url || linkValue.link || '').trim();
+  }
+
+  return '';
+};
+
+const getSafeLinkHref = (value: string) => {
+  try {
+    const candidate = /^https?:\/\//i.test(value)
+      ? value
+      : `https://${value}`;
+    const parsed = new URL(candidate);
+
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+      ? parsed.toString()
+      : null;
+  } catch {
+    return null;
+  }
 };
 
 const statusStyle = (status: string) => {
@@ -297,9 +344,22 @@ export default function TaskDetailsModal({
   onViewFile,
   onDownloadFile,
   onDownloadAllFiles,
+  onUpdated,
 }: TaskDetailsModalProps) {
   const [showTaskLogs, setShowTaskLogs] = useState(true);
   const [showAssignee, setShowAssignee] = useState(true);
+
+  const [updateText, setUpdateText] = useState("");
+  const [updateLinks, setUpdateLinks] = useState("");
+  const [updateFiles, setUpdateFiles] = useState<Array<{
+    name: string;
+    url: string;
+    size?: number;
+    type?: string;
+  }>>([]);
+  const [postingUpdate, setPostingUpdate] = useState(false);
+  const [taskUpdates, setTaskUpdates] = useState<TaskUpdateLog[]>([]);
+  const [loadingUpdates, setLoadingUpdates] = useState(false);
 
   const isAdmin = Number(user?.user_role) === 1;
 
@@ -309,11 +369,51 @@ export default function TaskDetailsModal({
   const projectColor =
     task.projectId?.color || '#3b82f6';
 
-  const links = task.urls?.length
+  const rawLinks = task.urls?.length
     ? task.urls
     : task.url
       ? [task.url]
       : [];
+  const links = rawLinks
+    .map(normalizeLink)
+    .filter((link): link is string => Boolean(link));
+
+  const loadTaskUpdates = useCallback(async () => {
+    setLoadingUpdates(true);
+    try {
+      const response = await fetch(
+        `/api/task-logs?taskId=${encodeURIComponent(task._id)}&limit=100`,
+        { credentials: 'include', cache: 'no-store' }
+      );
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Failed to load task updates');
+      }
+
+      const updates = Array.isArray(result.data)
+        ? result.data.filter((entry: TaskUpdateLog) =>
+            String(entry.action || '').startsWith('Posted a task update') ||
+            String(entry.action || '').startsWith('Updated task status')
+          )
+        : [];
+
+      setTaskUpdates(updates);
+    } catch (error) {
+      console.error('Failed to load task updates:', error);
+      setTaskUpdates([]);
+    } finally {
+      setLoadingUpdates(false);
+    }
+  }, [task._id]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadTaskUpdates();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [loadTaskUpdates]);
 
   /*
    * ---------------------------------------------------------
@@ -433,9 +533,7 @@ export default function TaskDetailsModal({
 
         <div className="td-link-list-simple">
           {links.map((url, index) => {
-            const fullUrl = url.startsWith('http')
-              ? url
-              : `https://${url}`;
+            const fullUrl = getSafeLinkHref(url);
 
             return (
               <div
@@ -451,15 +549,17 @@ export default function TaskDetailsModal({
                   <strong>{url}</strong>
                 </div>
 
-                <a
-                  href={fullUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="td-link-open"
-                  title="Open link"
-                >
-                  <ExternalLink size={15} />
-                </a>
+                {fullUrl ? (
+                  <a
+                    href={fullUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="td-link-open"
+                    title="Open link"
+                  >
+                    <ExternalLink size={15} />
+                  </a>
+                ) : null}
               </div>
             );
           })}
@@ -483,16 +583,35 @@ export default function TaskDetailsModal({
 
   const renderComment = () => {
     const comments: string[] = [];
+    const rawComments: unknown = task.comments;
+    const addComment = (value: unknown) => {
+      if (typeof value !== 'string') return;
 
-    if (task.comments?.trim()) {
-      comments.push(task.comments.trim());
+      const text = value.trim();
+      if (text && !comments.includes(text)) {
+        comments.push(text);
+      }
+    };
+
+    if (typeof rawComments === 'string') {
+      addComment(rawComments);
+    } else if (Array.isArray(rawComments)) {
+      rawComments.forEach((comment: unknown) => {
+        if (typeof comment === 'string') {
+          addComment(comment);
+        } else if (comment && typeof comment === 'object') {
+          const value = comment as {
+            comment?: unknown;
+            content?: unknown;
+          };
+          addComment(value.comment ?? value.content);
+        }
+      });
     }
 
     if (task.commentsList?.length) {
       task.commentsList.forEach((comment) => {
-        if (comment.content?.trim()) {
-          comments.push(comment.content.trim());
-        }
+        addComment(comment.content);
       });
     }
 
@@ -515,11 +634,497 @@ export default function TaskDetailsModal({
     );
   };
 
+  const handleUpdateFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files || []);
+    if (!selected.length) return;
+
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    const valid = selected.filter((file) => {
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`${file.name} is larger than 10 MB.`);
+        return false;
+      }
+      return true;
+    });
+
+    try {
+      const uploaded = [] as Array<{
+        name: string;
+        url: string;
+        size?: number;
+        type?: string;
+      }>;
+
+      for (const file of valid) {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch("/api/uploads", {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || `Failed to upload ${file.name}`);
+        }
+
+        uploaded.push(result.data);
+      }
+
+      setUpdateFiles((previous) => [...previous, ...uploaded]);
+      event.target.value = "";
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to upload file");
+    }
+  };
+
+  const handlePostUpdate = async () => {
+    if (!user || postingUpdate) return;
+
+    if (Number(user.user_role) !== 1 && !task.assignedTo?.some((employee) => String(employee._id) === String(user._id || user.id))) {
+      alert("You can only update a task assigned to you.");
+      return;
+    }
+
+    if (!updateText.trim() && !updateFiles.length && !updateLinks.trim()) {
+      alert("Please add an update, status, file, or link.");
+      return;
+    }
+
+    setPostingUpdate(true);
+    try {
+      const links = updateLinks
+        .split(/\n|,/)
+        .map((link) => link.trim())
+        .filter(Boolean);
+
+      const response = await fetch(`/api/tasks/${task._id}/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          message: updateText.trim(),
+          files: updateFiles,
+          links,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to post update");
+      }
+
+      setUpdateText("");
+      setUpdateLinks("");
+      setUpdateFiles([]);
+      await loadTaskUpdates();
+      await onUpdated?.(result.data);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to post update");
+    } finally {
+      setPostingUpdate(false);
+    }
+  };
+
+  const handleEmployeeWorkAction = async (
+    action: "start" | "pause" | "resume" | "partial" | "complete"
+  ) => {
+    if (!user || postingUpdate) return;
+
+    const currentUserId = String(user._id || user.id || "");
+    const currentWork = sessions.find((session) => {
+      const employeeId = String(
+        session.employeeId?._id || session.employeeId || ""
+      );
+
+      return (
+        employeeId === currentUserId &&
+        (session.status === "In Progress" || session.status === "Paused")
+      );
+    });
+
+    if (action !== "start" && !currentWork) {
+      alert("Start work on this task first.");
+      return;
+    }
+
+    if (action === "pause" && currentWork.status !== "In Progress") {
+      alert("Only active work can be paused.");
+      return;
+    }
+
+    if (action === "resume" && currentWork.status !== "Paused") {
+      alert("This task is not paused.");
+      return;
+    }
+
+    setPostingUpdate(true);
+    try {
+      const links = updateLinks
+        .split(/\n|,/)
+        .map((link) => link.trim())
+        .filter(Boolean);
+      const workAction = action === "partial" || action === "complete"
+        ? "complete"
+        : action;
+
+      const response = await fetch("/api/task-work", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          action: workAction,
+          taskId: task._id,
+          workId: currentWork?._id,
+          notes: updateText.trim(),
+          links,
+          files: updateFiles,
+          isFullyCompleted: action === "complete",
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to update task work");
+      }
+
+      const nextStatus = action === "start" || action === "resume"
+        ? "In Progress"
+        : action === "pause"
+        ? "Paused"
+        : action === "partial"
+          ? "Partially Done"
+          : "Review";
+
+      setUpdateText("");
+      setUpdateLinks("");
+      setUpdateFiles([]);
+      await onUpdated?.({ ...task, status: nextStatus });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to update task work");
+    } finally {
+      setPostingUpdate(false);
+    }
+  };
+
+  const renderUpdateComposer = () => {
+    if (!user) return null;
+
+    const isAssignedEmployee = task.assignedTo?.some(
+      (employee) => String(employee._id) === String(user._id || user.id)
+    );
+
+    if (Number(user.user_role) !== 2 || !isAssignedEmployee) return null;
+
+    const currentUserId = String(user._id || user.id || "");
+    const currentWork = sessions.find((session) => {
+      const employeeId = String(
+        session.employeeId?._id || session.employeeId || ""
+      );
+
+      return (
+        employeeId === currentUserId &&
+        (session.status === "In Progress" || session.status === "Paused")
+      );
+    });
+    const isWorking = currentWork?.status === "In Progress";
+    const isPaused = currentWork?.status === "Paused";
+    const isLocked = task.status === "Completed" || task.status === "Review";
+
+    return (
+      <div
+        style={{
+          position: "sticky",
+          bottom: 0,
+          zIndex: 30,
+          background: "rgba(255,255,255,0.98)",
+          borderTop: "1px solid #e5e7eb",
+          boxShadow: "0 -8px 24px rgba(15,23,42,0.08)",
+          padding: "12px 16px 14px",
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        {/* <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+          <strong style={{ fontSize: 13 }}>Update task</strong>
+          <span style={{ fontSize: 11, color: "#64748b" }}>
+            Post progress, files, links or change the work status
+          </span>
+        </div> */}
+
+        <textarea
+          value={updateText}
+          onChange={(event) => setUpdateText(event.target.value)}
+          placeholder="Write an update about your work..."
+          rows={2}
+          disabled={postingUpdate || isLocked}
+          style={{
+            width: "100%",
+            resize: "vertical",
+            border: "1px solid #dbe2ea",
+            borderRadius: 10,
+            padding: "10px 12px",
+            outline: "none",
+            fontSize: 13,
+            minHeight: 40,
+            boxSizing: "border-box",
+          }}
+        />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+          <label
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #dbe2ea", borderRadius: 8, padding: "8px 10px", fontSize: 12, cursor: "pointer", background: "white", opacity: postingUpdate || isLocked ? 0.6 : 1 }}
+          >
+            <Paperclip size={14} />
+            Attach
+            <input type="file" multiple hidden onChange={handleUpdateFiles} disabled={postingUpdate || isLocked} />
+          </label>
+
+          <input
+            value={updateLinks}
+            onChange={(event) => setUpdateLinks(event.target.value)}
+            disabled={postingUpdate || isLocked}
+            placeholder="Add link(s), comma or newline separated"
+            style={{ flex: 1, minWidth: 180, border: "1px solid #dbe2ea", borderRadius: 8, padding: "8px 10px", fontSize: 12 }}
+          />
+
+          <button
+            type="button"
+            onClick={handlePostUpdate}
+            disabled={postingUpdate || isLocked}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, border: 0, borderRadius: 8, padding: "9px 14px", background: "#111827", color: "white", fontSize: 12, fontWeight: 600, cursor: postingUpdate || isLocked ? "not-allowed" : "pointer", opacity: postingUpdate || isLocked ? 0.6 : 1 }}
+          >
+            {postingUpdate ? <Loader2 size={14} className="td-spin" /> : <Send size={14} />}
+            {postingUpdate ? "Posting..." : "Post Update"}
+          </button>
+          {!currentWork ? (
+            <button
+              type="button"
+              onClick={() => handleEmployeeWorkAction("start")}
+              disabled={postingUpdate || isLocked}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, border: 0, borderRadius: 8, padding: "9px 12px", background: "#2563eb", color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: postingUpdate || isLocked ? 0.55 : 1 }}
+            >
+              <Play size={14} />
+              Start Work
+            </button>
+          ) : isPaused ? (
+            <button
+              type="button"
+              onClick={() => handleEmployeeWorkAction("resume")}
+              disabled={postingUpdate || isLocked}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, border: 0, borderRadius: 8, padding: "9px 12px", background: "#2563eb", color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+            >
+              <Play size={14} />
+              Resume
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleEmployeeWorkAction("pause")}
+              disabled={postingUpdate || isLocked || !isWorking}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #f59e0b", borderRadius: 8, padding: "9px 12px", background: "#fffbeb", color: "#b45309", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: postingUpdate || isLocked || !isWorking ? 0.55 : 1 }}
+            >
+              <Pause size={14} />
+              Pause
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => handleEmployeeWorkAction("partial")}
+            disabled={postingUpdate || isLocked || (!isWorking && !isPaused)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #f97316", borderRadius: 8, padding: "9px 12px", background: "#fff7ed", color: "#c2410c", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: postingUpdate || isLocked || (!isWorking && !isPaused) ? 0.55 : 1 }}
+          >
+            {/* <Check size={14} /> */}
+            Partially Complete
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleEmployeeWorkAction("complete")}
+            disabled={postingUpdate || isLocked || (!isWorking && !isPaused)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, border: 0, borderRadius: 8, padding: "9px 12px", background: "#047857", color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: postingUpdate || isLocked || (!isWorking && !isPaused) ? 0.55 : 1 }}
+          >
+            {/* <CheckCheck size={14} /> */}
+            Complete &amp; Submit
+          </button>
+        </div>
+
+        {updateFiles.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+            {updateFiles.map((file, index) => (
+              <span key={`${file.url}-${index}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#f1f5f9", borderRadius: 6, padding: "5px 8px", fontSize: 11 }}>
+                {file.name}
+                <button type="button" onClick={() => setUpdateFiles((previous) => previous.filter((_, fileIndex) => fileIndex !== index))} style={{ border: 0, background: "transparent", cursor: "pointer", padding: 0 }}>×</button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   /*
    * ---------------------------------------------------------
    * TASK LOGS
    * ---------------------------------------------------------
    */
+
+  const renderTaskUpdates = () => {
+    return (
+      <div className="td-collapse-card">
+        <div className="td-collapse-header" style={{ cursor: 'default' }}>
+          <span>Updates</span>
+          <span style={{ fontSize: 11, color: '#64748b' }}>
+            {taskUpdates.length}
+          </span>
+        </div>
+
+        <div className="td-collapse-content">
+          {loadingUpdates ? (
+            <div className="td-sidebar-empty">Loading updates...</div>
+          ) : taskUpdates.length === 0 ? (
+            <div className="td-sidebar-empty">No updates yet</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {taskUpdates.map((update) => {
+                const message = String(
+                  update.message ||
+                    String(update.action || '').split(': ').slice(1).join(': ') ||
+                    ''
+                ).trim();
+                const updateFiles = Array.isArray(update.files) ? update.files : [];
+                const updateLinks = Array.isArray(update.links)
+                  ? update.links.map(normalizeLink).filter(Boolean)
+                  : [];
+                const author =
+                  update.user_id?.full_name ||
+                  update.user_id?.name ||
+                  update.user_id?.email ||
+                  'Team member';
+
+                return (
+                  <div
+                    key={update._id}
+                    style={{
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 7,
+                      padding: '8px 9px',
+                      background: '#fff',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                        marginBottom: 4,
+                      }}
+                    >
+                      <strong style={{ fontSize: 11, color: '#1e293b' }}>
+                        {author}
+                      </strong>
+                      <span style={{ fontSize: 10, color: '#94a3b8' }}>
+                        {update.timestamp
+                          ? new Date(update.timestamp).toLocaleString()
+                          : ''}
+                      </span>
+                    </div>
+
+                    {message && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          lineHeight: 1.45,
+                          color: '#475569',
+                          whiteSpace: 'pre-wrap',
+                          overflowWrap: 'anywhere',
+                        }}
+                      >
+                        {message}
+                      </div>
+                    )}
+
+                    {(updateFiles.length > 0 || updateLinks.length > 0) && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: 5,
+                          marginTop: 6,
+                        }}
+                      >
+                        {updateFiles.map((file, index: number) => (
+                          <button
+                            type="button"
+                            key={`update-file-${update._id}-${index}`}
+                            onClick={() => {
+                              if (!file?.url) return;
+                              onViewFile({
+                                name: file.name || 'Attached file',
+                                url: file.url,
+                                type: file.type,
+                              });
+                            }}
+                            disabled={!file?.url}
+                            title={file?.name || 'Attached file'}
+                            style={{
+                              border: 0,
+                              cursor: file?.url ? 'pointer' : 'default',
+                              maxWidth: 150,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              padding: '3px 5px',
+                              borderRadius: 4,
+                              background: '#eff6ff',
+                              color: '#2563eb',
+                              fontSize: 10,
+                            }}
+                          >
+                            <Paperclip size={10} style={{ verticalAlign: 'middle' }} />{' '}
+                            {file?.name || 'Attached file'}
+                          </button>
+                        ))}
+
+                        {updateLinks.map((link: string, index: number) => {
+                          const href = getSafeLinkHref(link);
+                          return href ? (
+                            <a
+                              key={`update-link-${update._id}-${index}`}
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={link}
+                              style={{
+                                maxWidth: 150,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                padding: '3px 5px',
+                                borderRadius: 4,
+                                background: '#f0fdf4',
+                                color: '#15803d',
+                                fontSize: 10,
+                              }}
+                            >
+                              <LinkIcon size={10} style={{ verticalAlign: 'middle' }} />{' '}
+                              {link}
+                            </a>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const renderTaskLogs = () => {
     return (
@@ -845,6 +1450,10 @@ export default function TaskDetailsModal({
 
           <aside className="td-sidebar">
 
+            {/* EMPLOYEE UPDATES */}
+
+            {renderTaskUpdates()}
+
             {/* TASK LOGS */}
 
             {renderTaskLogs()}
@@ -855,6 +1464,8 @@ export default function TaskDetailsModal({
 
           </aside>
         </div>
+
+        {renderUpdateComposer()}
       </div>
     </div>
   );

@@ -281,7 +281,7 @@ export default function OtpPage() {
 					</Button>
 
 					{/* Resend */}
-					<div
+					{/* <div
 						style={{
 							textAlign: 'center',
 							fontSize: '0.75rem',
@@ -306,7 +306,7 @@ export default function OtpPage() {
 						>
 							Resend OTP
 						</Button>
-					</div>
+					</div> */}
 
 					{/* Back */}
 					<button

@@ -1016,13 +1016,14 @@ export default function MyTasks({ userId }: { userId: string }) {
                                 height: '22px',
                                 fontSize: '0.6rem',
                                 color: '#ffffff',
-                                flexShrink: 0
+                                flexShrink: 0,
+                                fontWeight: '400'
                               }}
-                              title={`Assigned by: ${task.createdBy.name}`}
+                              title={`${task.createdBy.name}`}
                             >
                               {task.createdBy.name.split(' ').map((n: string) => n[0]).join('')}
                             </div>
-                            <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>
+                            <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', fontWeight: 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>
                               {task.createdBy.name.split(' ')[0]}
                             </span>
                           </div>

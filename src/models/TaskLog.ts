@@ -28,6 +28,22 @@ const taskLogSchema = new Schema(
       trim: true,
     },
 
+    message: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    files: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
+
+    links: {
+      type: [String],
+      default: [],
+    },
+
     timestamp: {
       type: Date,
       default: Date.now,
@@ -46,7 +62,9 @@ taskLogSchema.index({
   timestamp: -1,
 });
 
-delete (mongoose.models as any).TaskLog;
+if (mongoose.models.TaskLog) {
+  delete mongoose.models.TaskLog;
+}
 
 const TaskLog =
   mongoose.models.TaskLog ||

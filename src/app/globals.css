@@ -1228,7 +1228,7 @@ a {
 
   padding: 3px 4px;
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 400 !important;
   border-radius: 12px;
   display: inline-block;
   white-space: nowrap;
@@ -1938,12 +1938,13 @@ textarea.form-control {
 .task-title-link {
   cursor: pointer;
   transition: color 0.15s ease-in-out, text-decoration 0.15s ease-in-out;
+  font-weight: 400 !important;
 }
 
-.task-title-link:hover {
+/* .task-title-link:hover {
   color: var(--accent-primary) !important;
   text-decoration: underline !important;
-}
+} */
 
 /* Drawer Animations */
 @keyframes slideInRight {

@@ -753,7 +753,7 @@ export default function AdminProfilePage() {
       {/* =================================================
           CHANGE PASSWORD
       ================================================= */}
-      <section className="card" style={{ padding: "20px", marginTop: "20px" }}>
+      {/* <section className="card" style={{ padding: "20px", marginTop: "20px" }}>
         <div
           style={{
             display: "flex",
@@ -926,7 +926,7 @@ export default function AdminProfilePage() {
             )}
           </button>
         </div>
-      </section>
+      </section> */}
 
       {/* =================================================
           SAVE BUTTON

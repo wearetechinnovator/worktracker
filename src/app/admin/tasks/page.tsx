@@ -1734,12 +1734,12 @@ export default function TasksPage() {
                 <th style={{ width: '105px' }}>Task ID</th>
                 <th>Task Title & Description</th>
                 <th style={{ width: '120px' }}>Project</th>
+                <th style={{ width: '105px' }}>Due Date</th>
                 <th style={{ width: '125px' }}>Status</th>
                 <th style={{ width: '90px' }}>Priority</th>
                 <th style={{ width: '120px' }}>Assigned By</th>
                 <th style={{ width: '130px' }}>Assigned To</th>
                 <th style={{ width: '110px' }}>Progress</th>
-                <th style={{ width: '105px' }}>Due Date</th>
                 {filteredTasks.some(canManageTask) && (
                   <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>
                 )}
@@ -1795,13 +1795,25 @@ export default function TasksPage() {
                       }}
                     >
                       <td style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>
-                        {task.task_id ? (
-                          <span style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '0.76rem' }}>
-                            {task.task_id}
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>—</span>
-                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {task.task_id ? (
+                            <span style={{color: 'var(--accent-primary)', fontSize: '0.76rem' }}>
+                              {task.task_id}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                          {task.createdAt
+                            ? new Date(task.createdAt).toLocaleString('en-IN', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            })
+                            : '-'}
+                        </div>
                       </td>
                       <td>
                         <div
@@ -1811,20 +1823,13 @@ export default function TasksPage() {
                         >
                           {task.title}
                         </div>
-                        {task.description && (
+                        {/* {task.description && (
                           <div
                             style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}
                             dangerouslySetInnerHTML={{ __html: task.description }}
                           />
-                        )}
-                        {(task.comments || task.commentsList?.length) && (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', marginTop: '4px' }}>
-                            <MessageSquare size={11} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-                            <span style={{ maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {task.comments || task.commentsList?.[0]?.content}
-                            </span>
-                          </div>
-                        )}
+                        )} */}
+
                       </td>
                       <td>
                         {task.projectId ? (
@@ -1906,11 +1911,11 @@ export default function TasksPage() {
                                 color: '#ffffff',
                                 flexShrink: 0
                               }}
-                              title={`Assigned by: ${task.createdBy.name}`}
+                              title={`${task.createdBy.name}`}
                             >
                               {task.createdBy.name.split(' ').map((n: string) => n[0]).join('')}
                             </div>
-                            <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '85px' }}>
+                            <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', fontWeight: 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '85px' }}>
                               {task.createdBy.name.split(' ')[0]}
                             </span>
                           </div>
@@ -1982,7 +1987,7 @@ export default function TasksPage() {
                                     marginLeft: eIdx > 0 && !isWorkerActive && !isWorkerPaused ? '-6px' : '0',
                                     flexShrink: 0
                                   }}
-                                  title={`Assigned to: ${emp.name}${statusDesc}`}
+                                  title={`${emp.name}`}
                                 >
                                   {emp.name.split(' ').map((n: string) => n[0]).join('')}
                                 </div>
@@ -2015,7 +2020,7 @@ export default function TasksPage() {
                             </span>
 
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                              {progress.sessionCount + progress.pausedCount} session{(progress.sessionCount + progress.pausedCount) !== 1 ? 's' : ''}
+                              {/* {progress.sessionCount + progress.pausedCount} session{(progress.sessionCount + progress.pausedCount) !== 1 ? 's' : ''} */}
                               {progress.pausedCount > 0 ? ` • ${progress.pausedCount} paused` : ''}
                             </span>
                           </div>
@@ -2725,7 +2730,7 @@ export default function TasksPage() {
                           lineHeight: 1.5,
                         }}
                       >
-                        {stripHtml(reviewingTask.description)}
+                        {/* {stripHtml(reviewingTask.description)} */}
                       </div>
                     </div>
                   )}
