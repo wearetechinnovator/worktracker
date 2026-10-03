@@ -341,7 +341,7 @@ export default function Sidebar() {
 					</button>
 
 					<Link href="/" style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', textDecoration: 'none' }}>
-						Quanto Track
+						Quanto Track 
 					</Link>
 				</div>
 
@@ -370,11 +370,11 @@ export default function Sidebar() {
 							<div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: isCollapsed ? '6px' : '8px' }}>
 								{!isCollapsed ? (
 									<Link href={`${basePath}/dashboard`} className="sidebar-brand" style={{ margin: 0 }}>
-										<span style={{ fontWeight: 800 }}>Quanto Track</span>
+										<span style={{ fontWeight: 800 }}>Quanto Track</span> <sup className='text-muted-foreground'>Beta</sup>
 									</Link>
 								) : (
 									<Link href={`${basePath}/dashboard`} className="sidebar-brand" style={{ fontSize: '1.1rem', fontWeight: 900, textAlign: 'center', margin: 0, color: 'var(--accent-primary)' }} title="Quanto Track">
-										QT
+										QT<sup className='text-muted-foreground font-normal'>v1</sup>
 									</Link>
 								)}
 								<button
