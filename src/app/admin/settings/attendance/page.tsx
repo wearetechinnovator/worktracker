@@ -19,7 +19,6 @@ import {
 import PageShimmer from "@/components/PageShimmer";
 import type { SettingsData } from "@/types/SettingsData";
 import { CustomTimePicker } from "@/components/TaskFormControls";
-import SettingsNavTabs from "@/components/SettingsNavTabs";
 import "../style.css";
 
 type ToggleField =
@@ -263,12 +262,12 @@ export default function AttendanceSettingsPage() {
       <form onSubmit={handleSubmit}>
         {/* PUNCH IN TIMING WINDOW */}
         <div className="card" style={{ marginBottom: "20px" }}>
-          <h3 className="card-title" style={{ marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <h3 className="card-title" style={{ marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px",paddingTop:"5px" }}>
             <Clock size={18} style={{ color: "var(--accent-primary)" }} />
-            Punch In Timing Window
+            Punch In Timing Duration
           </h3>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px",paddingBottom:"10px" }}>
             <CustomTimePicker
               label="Start Time"
               value={settings.punchInStartTime || ""}
@@ -286,37 +285,37 @@ export default function AttendanceSettingsPage() {
 
         {/* PUNCH IN REQUIREMENTS */}
         <div className="card" style={{ marginBottom: "20px" }}>
-          <h3 className="card-title" style={{ marginBottom: "6px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <h3 className="card-title" style={{ marginBottom: "6px", display: "flex", alignItems: "center", gap: "8px",paddingTop:"5px" }}>
             <ShieldCheck size={18} style={{ color: "var(--accent-primary)" }} />
             Punch In Requirements
           </h3>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", marginBottom: "16px" }}>
-            Choose what information employees must provide when punching in.
+            Choose what information to record when available. These settings never block an employee from punching in.
           </p>
 
           <div className="settings-switch-list">
             <SettingSwitch
               field="punchInGeoRequired"
-              title="Location Required"
-              description="Employee must provide their location when punching in."
+              title="Capture Location"
+              description="Record the employee's location when available."
               icon={<MapPin size={18} />}
             />
             <SettingSwitch
               field="punchInIpRequired"
-              title="IP Address Required"
-              description="Employee's IP address must be recorded."
+              title="Capture IP Address"
+              description="Record the employee's IP address when available."
               icon={<Globe size={18} />}
             />
             <SettingSwitch
               field="punchInBrowserRequired"
-              title="Browser Required"
-              description="Employee's browser information must be recorded."
+              title="Capture Browser"
+              description="Record the employee's browser information when available."
               icon={<Monitor size={18} />}
             />
             <SettingSwitch
               field="punchInSystemIdRequired"
-              title="System ID Required"
-              description="Employee's device/system identifier must be provided."
+              title="Capture System ID"
+              description="Record the employee's device/system identifier when available."
               icon={<Fingerprint size={18} />}
             />
           </div>
@@ -324,12 +323,15 @@ export default function AttendanceSettingsPage() {
 
         {/* PUNCH OUT TIMING WINDOW */}
         <div className="card" style={{ marginBottom: "20px" }}>
-          <h3 className="card-title" style={{ marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <h3 className="card-title" style={{ marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px",paddingTop:"5px" }}>
             <Clock size={18} style={{ color: "var(--accent-primary)" }} />
-            Punch Out Timing Window
+            Punch Out Timing Duration
           </h3>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", marginBottom: "16px" }}>
+            Employees can punch out only within this configured time window. An approved exception can allow a punch out outside the window.
+          </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px",paddingBottom:"10px" }}>
             <CustomTimePicker
               label="Start Time"
               value={settings.punchOutStartTime || ""}
@@ -347,37 +349,37 @@ export default function AttendanceSettingsPage() {
 
         {/* PUNCH OUT REQUIREMENTS */}
         <div className="card" style={{ marginBottom: "24px" }}>
-          <h3 className="card-title" style={{ marginBottom: "6px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <h3 className="card-title" style={{ marginBottom: "6px", display: "flex", alignItems: "center", gap: "8px",paddingTop:"5px" }}>
             <ShieldCheck size={18} style={{ color: "var(--accent-primary)" }} />
             Punch Out Requirements
           </h3>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", marginBottom: "16px" }}>
-            Choose what information employees must provide when punching out.
+            Choose what information to record when available. These settings never block an employee from punching out.
           </p>
 
           <div className="settings-switch-list">
             <SettingSwitch
               field="punchOutGeoRequired"
-              title="Location Required"
-              description="Employee must provide their location when punching out."
+              title="Capture Location"
+              description="Record the employee's location when available."
               icon={<MapPin size={18} />}
             />
             <SettingSwitch
               field="punchOutIpRequired"
-              title="IP Address Required"
-              description="Employee's IP address must be recorded."
+              title="Capture IP Address"
+              description="Record the employee's IP address when available."
               icon={<Globe size={18} />}
             />
             <SettingSwitch
               field="punchOutBrowserRequired"
-              title="Browser Required"
-              description="Employee's browser information must be recorded."
+              title="Capture Browser"
+              description="Record the employee's browser information when available."
               icon={<Monitor size={18} />}
             />
             <SettingSwitch
               field="punchOutSystemIdRequired"
-              title="System ID Required"
-              description="Employee's device/system identifier must be provided."
+              title="Capture System ID"
+              description="Record the employee's device/system identifier when available."
               icon={<Fingerprint size={18} />}
             />
           </div>

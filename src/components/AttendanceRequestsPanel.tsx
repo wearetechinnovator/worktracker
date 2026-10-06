@@ -15,6 +15,7 @@ type AttendanceRequest = {
   requested_punch_at: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   rejection_reason?: string | null;
+  approval_reason?: string | null;
   employee_id?: {
     _id?: string;
     full_name?: string;
@@ -41,10 +42,11 @@ export default function AttendanceRequestsPanel() {
     Array<{ _id: string; full_name?: string; email?: string }>
   >([]);
 
-  // Rejection modal state
-  const [showRejectModal, setShowRejectModal] = useState(false);
+  // Review reason modal state
+  const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<AttendanceRequest | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [approvalReason, setApprovalReason] = useState('');
   const [rejectError, setRejectError] = useState<string | null>(null);
 
   const loadRequests = useCallback(async () => {
@@ -196,9 +198,10 @@ export default function AttendanceRequestsPanel() {
   const closeRejectModal = () => {
     if (processingId) return;
 
-    setShowRejectModal(false);
+    setReviewAction(null);
     setSelectedRequest(null);
     setRejectionReason('');
+    setApprovalReason('');
     setRejectError(null);
   };
 
@@ -206,9 +209,20 @@ export default function AttendanceRequestsPanel() {
     if (processingId) return;
 
     setSelectedRequest(request);
+    setReviewAction('reject');
+    setRejectionReason('');
+    setApprovalReason('');
+    setRejectError(null);
+  };
+
+  const openApproveModal = (request: AttendanceRequest) => {
+    if (processingId) return;
+
+    setSelectedRequest(request);
+    setReviewAction('approve');
+    setApprovalReason('');
     setRejectionReason('');
     setRejectError(null);
-    setShowRejectModal(true);
   };
 
   const reviewRequest = async (
@@ -229,6 +243,7 @@ export default function AttendanceRequestsPanel() {
           body: JSON.stringify({
             action,
             rejectionReason: reason,
+            approvalReason: action === 'approve' ? reason : '',
           }),
         }
       );
@@ -249,10 +264,13 @@ export default function AttendanceRequestsPanel() {
       );
 
       if (action === 'reject') {
-        setShowRejectModal(false);
+        setReviewAction(null);
         setSelectedRequest(null);
         setRejectionReason('');
+        setApprovalReason('');
         setRejectError(null);
+      } else {
+        closeRejectModal();
       }
     } catch (requestError: unknown) {
       const message = getErrorMessage(
@@ -284,6 +302,16 @@ export default function AttendanceRequestsPanel() {
       selectedRequest,
       'reject',
       reason
+    );
+  };
+
+  const handleApproveSubmit = async () => {
+    if (!selectedRequest) return;
+
+    await reviewRequest(
+      selectedRequest,
+      'approve',
+      approvalReason.trim()
     );
   };
 
@@ -588,10 +616,7 @@ export default function AttendanceRequestsPanel() {
                             className="btn btn-primary"
                             type="button"
                             onClick={() =>
-                              reviewRequest(
-                                request,
-                                'approve'
-                              )
+                              openApproveModal(request)
                             }
                             disabled={isProcessing}
                             title="Approve request"
@@ -636,7 +661,16 @@ export default function AttendanceRequestsPanel() {
                             fontSize: '0.75rem',
                           }}
                         >
-                          {request.rejection_reason ? (
+                          {request.status === 'Approved' && request.approval_reason ? (
+                            <div
+                              style={{
+                                color: '#166534',
+                                fontSize: '0.72rem',
+                              }}
+                            >
+                              {request.approval_reason}
+                            </div>
+                          ) : request.rejection_reason ? (
                             <div
                               style={{
                                 color: '#b91c1c',
@@ -657,12 +691,12 @@ export default function AttendanceRequestsPanel() {
         </div>
       )}
 
-      {/* Reject Reason Modal */}
-      {showRejectModal && selectedRequest && (
+      {/* Review Reason Modal */}
+      {reviewAction && selectedRequest && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-labelledby="reject-attendance-title"
+          aria-labelledby="review-attendance-title"
           onClick={closeRejectModal}
           style={{
             position: 'fixed',
@@ -700,14 +734,16 @@ export default function AttendanceRequestsPanel() {
             >
               <div>
                 <h3
-                  id="reject-attendance-title"
+                  id="review-attendance-title"
                   style={{
                     margin: 0,
                     fontSize: '1.1rem',
                     fontWeight: 800,
                   }}
                 >
-                  Reject Attendance Request
+                  {reviewAction === 'approve'
+                    ? 'Approve Attendance Request'
+                    : 'Reject Attendance Request'}
                 </h3>
 
                 <p
@@ -751,7 +787,7 @@ export default function AttendanceRequestsPanel() {
             </div>
 
             <label
-              htmlFor="attendance-rejection-reason"
+              htmlFor="attendance-review-reason"
               style={{
                 display: 'block',
                 fontSize: '0.82rem',
@@ -759,19 +795,24 @@ export default function AttendanceRequestsPanel() {
                 marginBottom: '7px',
               }}
             >
-              Rejection Reason <span style={{ color: '#dc2626' }}>*</span>
+              {reviewAction === 'approve' ? 'Approval Reason' : 'Rejection Reason'}{' '}
+              {reviewAction === 'reject' && <span style={{ color: '#dc2626' }}>*</span>}
             </label>
 
             <textarea
-              id="attendance-rejection-reason"
-              value={rejectionReason}
+              id="attendance-review-reason"
+              value={reviewAction === 'approve' ? approvalReason : rejectionReason}
               onChange={(event) => {
-                setRejectionReason(event.target.value);
+                if (reviewAction === 'approve') {
+                  setApprovalReason(event.target.value);
+                } else {
+                  setRejectionReason(event.target.value);
+                }
                 if (rejectError) {
                   setRejectError(null);
                 }
               }}
-              placeholder="Enter the reason for rejecting this request..."
+              placeholder={`Enter the reason for ${reviewAction === 'approve' ? 'approving' : 'rejecting'} this request${reviewAction === 'approve' ? ' (optional)' : ''}...`}
               rows={5}
               autoFocus
               disabled={Boolean(processingId)}
@@ -822,14 +863,14 @@ export default function AttendanceRequestsPanel() {
               <button
                 className="btn btn-primary"
                 type="button"
-                onClick={handleRejectSubmit}
+                onClick={reviewAction === 'approve' ? handleApproveSubmit : handleRejectSubmit}
                 disabled={
                   Boolean(processingId) ||
-                  !rejectionReason.trim()
+                  reviewAction === 'reject' && !rejectionReason.trim()
                 }
                 style={{
-                  background: '#dc2626',
-                  borderColor: '#dc2626',
+                  background: reviewAction === 'approve' ? '#2563eb' : '#dc2626',
+                  borderColor: reviewAction === 'approve' ? '#2563eb' : '#dc2626',
                   color: '#fff',
                   minWidth: '125px',
                 }}
@@ -845,7 +886,7 @@ export default function AttendanceRequestsPanel() {
                 ) : (
                   <>
                     <X size={14} />
-                    Reject Request
+                    {reviewAction === 'approve' ? 'Approve Request' : 'Reject Request'}
                   </>
                 )}
               </button>

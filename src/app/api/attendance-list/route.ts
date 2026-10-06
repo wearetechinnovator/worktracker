@@ -142,7 +142,7 @@ export async function GET(req: Request) {
       Attendance.find(attendanceFilter).lean<any[]>(),
       AttendanceRequest.find(requestFilter)
         .select(
-          "_id employee_id attendance_date request_type reason status requested_at requested_punch_at reviewed_by reviewed_at rejection_reason used_at ip browser geo systemid"
+          "_id employee_id attendance_date request_type reason status requested_at requested_punch_at reviewed_by reviewed_at rejection_reason approval_reason used_at ip browser geo systemid"
         )
         .populate("reviewed_by", "full_name email")
         .lean<any[]>(),
@@ -255,6 +255,7 @@ export async function GET(req: Request) {
           requested_punch_at: toDateOrNull(request.requested_punch_at),
           reviewed_at: toDateOrNull(request.reviewed_at),
           rejection_reason: request.rejection_reason || null,
+          approval_reason: request.approval_reason || null,
           used_at: toDateOrNull(request.used_at),
           reviewed_by: request.reviewed_by
             ? {

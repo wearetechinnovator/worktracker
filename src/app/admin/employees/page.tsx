@@ -1047,7 +1047,7 @@ export default function EmployeesPage() {
 											</td>
 
 											<td style={tableCellStyle}>
-												{employee.project}
+												{employee.project || employee.Project || '—'}
 											</td>
 
 											<td style={tableCellStyle}>

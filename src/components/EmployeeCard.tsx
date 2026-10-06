@@ -19,6 +19,8 @@ export type EmployeeCardEmployee = {
     designation?: string | null;
 
     group?: string | null;
+    project?: string | null;
+
 
     user_role: number;
 
@@ -26,7 +28,7 @@ export type EmployeeCardEmployee = {
 
     status?: boolean;
 
-    Project?: string | null;
+
 
     workMode?: string | null;
 
@@ -310,16 +312,16 @@ export default function EmployeeCard({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: 'var(--bg-secondary)',
-                            border: '1px solid var(--border-color)',
-                            color: 'var(--accent-primary)',
+                            // background: 'var(--bg-secondary)',
+                            // border: '1px solid var(--border-color)',
+                            // color: 'var(--accent-primary)',
                             flexShrink: 0,
                         }}
                     >
-                        <Clock3 size={14} />
+                        {/* <Clock3 size={14} /> */}
                     </div>
 
-                    <div>
+                    {/* <div>
                         <span
                             style={{
                                 display: 'block',
@@ -330,7 +332,7 @@ export default function EmployeeCard({
                                 letterSpacing: '0.05em',
                             }}
                         >
-                            Today
+                            Total Working
                         </span>
                         <span
                             style={{
@@ -343,7 +345,7 @@ export default function EmployeeCard({
                         >
                             {formatMinutesToDuration(employee.totalMinutes ?? 0)}
                         </span>
-                    </div>
+                    </div> */}
                 </div>
 
                 <div

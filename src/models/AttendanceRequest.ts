@@ -89,6 +89,12 @@ const attendanceRequestSchema = new Schema(
       trim: true,
     },
 
+    approval_reason: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+
     used_at: {
       type: Date,
       default: null,
@@ -116,8 +122,26 @@ attendanceRequestSchema.index(
   }
 );
 
+const existingAttendanceRequestModel =
+  mongoose.models.AttendanceRequest;
+
+// Keep the field available during development when Mongoose reuses a model
+// compiled before the schema was updated.
+if (
+  existingAttendanceRequestModel &&
+  !existingAttendanceRequestModel.schema.path("approval_reason")
+) {
+  existingAttendanceRequestModel.schema.add({
+    approval_reason: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+  });
+}
+
 const AttendanceRequest =
-  mongoose.models.AttendanceRequest ||
+  existingAttendanceRequestModel ||
   mongoose.model("AttendanceRequest", attendanceRequestSchema);
 
 export default AttendanceRequest;

@@ -48,14 +48,14 @@ export default function AddTeamMemberModal({
     short_desc?: string;
   };
 
-const [roles, setRoles] = useState<
-  {
-    _id: string;
-    name: string;
-    short_desc?: string;
-    status: number;
-  }[]
->([]);
+  const [roles, setRoles] = useState<
+    {
+      _id: string;
+      name: string;
+      short_desc?: string;
+      status: number;
+    }[]
+  >([]);
   const [fetchedDesignations, setFetchedDesignations] =
     useState<Designation[]>([]);
   type ProjectOption = {
@@ -406,18 +406,18 @@ const [roles, setRoles] = useState<
 
         const loadedRoles = Array.isArray(result.data)
           ? result.data
-              .filter(
-                (item: any) =>
-                  item?._id &&
-                  item?.name &&
-                  Number(item?.status) === 1
-              )
-              .map((item: any) => ({
-                _id: String(item._id),
-                name: String(item.name),
-                short_desc: String(item.short_desc || ''),
-                status: Number(item.status),
-              }))
+            .filter(
+              (item: any) =>
+                item?._id &&
+                item?.name &&
+                Number(item?.status) === 1
+            )
+            .map((item: any) => ({
+              _id: String(item._id),
+              name: String(item.name),
+              short_desc: String(item.short_desc || ''),
+              status: Number(item.status),
+            }))
           : [];
 
         setRoles(loadedRoles);
@@ -483,22 +483,22 @@ const [roles, setRoles] = useState<
   // fallback/extra source when a parent explicitly provides project data.
   const projectOptionsFromProp: ProjectOption[] = Array.isArray(projectsList)
     ? projectsList
-        .map((p, index) => {
-          if (typeof p === 'string') {
-            return {
-              _id: `prop-project-${index}-${p}`,
-              name: p,
-            };
-          }
-
-          if (!p?._id || !p?.name) return null;
-
+      .map((p, index) => {
+        if (typeof p === 'string') {
           return {
-            _id: String(p._id),
-            name: String(p.name),
+            _id: `prop-project-${index}-${p}`,
+            name: p,
           };
-        })
-        .filter(Boolean) as ProjectOption[]
+        }
+
+        if (!p?._id || !p?.name) return null;
+
+        return {
+          _id: String(p._id),
+          name: String(p.name),
+        };
+      })
+      .filter(Boolean) as ProjectOption[]
     : [];
 
   const allProjectOptions = Array.from(
@@ -894,12 +894,17 @@ const [roles, setRoles] = useState<
               label="Role"
               placeholder="Select Role"
               value={roleId}
-              options={roles
-                .filter((role) => role.status === 1)
-                .map((role) => ({
-                  value: role._id,
-                  label: role.name,
-                }))}
+              options={[
+                {
+                  value: "",
+                  label: "Choose Role",
+                },
+                ...roles
+                  .filter((role) => role.status === 1)
+                  .map((role) => ({
+                    value: role._id,
+                    label: role.name,
+                  }))]}
               onChange={(value) => {
                 setRoleId(value);
 
@@ -915,15 +920,21 @@ const [roles, setRoles] = useState<
 
           {/* Row 2: Job Title / Role & Default Project */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'start' }}>
-            
+
             <CustomDropdown
               label="Designation *"
               placeholder="Select Designation"
               value={designation ?? ''}
-              options={allRoleSuggestions.map((designation) => ({
-                value: designation,
-                label: designation,
-              }))}
+
+              options={[
+                {
+                  value: "",
+                  label: "Choose Designation",
+                },
+                ...allRoleSuggestions.map((designation) => ({
+                  value: designation,
+                  label: designation,
+                }))]}
               onChange={(val) => setDesignation(val)}
               actionButton={{
                 label: 'Add',
@@ -949,10 +960,15 @@ const [roles, setRoles] = useState<
                     p._id === project
                 )?.name ?? (project ?? '')
               }
-              options={allProjectOptions.map((p) => ({
-                value: p.name,
-                label: p.name,
-              }))}
+              options={[
+                {
+                  value: "",
+                  label: "Choose Project",
+                },
+                ...allProjectOptions.map((p) => ({
+                  value: p.name,
+                  label: p.name,
+                }))]}
               onChange={(val) => setProject(val)}
             />
           </div>

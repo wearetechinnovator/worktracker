@@ -15,7 +15,7 @@ import {
 
 import PageShimmer from "@/components/PageShimmer";
 import type { SettingsData } from "@/types/SettingsData";
-import SettingsNavTabs from "@/components/SettingsNavTabs";
+// import SettingsNavTabs from "@/components/SettingsNavTabs";
 import "../style.css";
 
 const defaultSettings: SettingsData = {
@@ -244,8 +244,8 @@ export default function TaskSettingsPage() {
               gap: "8px",
             }}
           >
-            <Hash size={20} style={{ color: "var(--accent-primary)" }} />
-            Task ID Sequence & Format
+            {/* <Hash size={20} style={{ color: "var(--accent-primary)" }} /> */}
+            Task ID
           </h3>
 
           <p
@@ -284,9 +284,9 @@ export default function TaskSettingsPage() {
                 placeholder="QT"
                 required
               />
-              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>
+              {/* <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>
                 Typically 2-5 uppercase letters representing your project or team
-              </span>
+              </span> */}
             </div>
 
             <div>
@@ -308,9 +308,9 @@ export default function TaskSettingsPage() {
                 }
                 required
               />
-              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>
+              {/* <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>
                 The numerical increment assigned to the next created task
-              </span>
+              </span> */}
             </div>
           </div>
 

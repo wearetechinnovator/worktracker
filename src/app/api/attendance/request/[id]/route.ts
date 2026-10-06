@@ -37,6 +37,7 @@ export async function PATCH(
     const body = await req.json().catch(() => ({}));
     const decision = body.action;
     const rejectionReason = String(body.rejectionReason || "").trim();
+    const approvalReason = String(body.approvalReason || "").trim();
 
     if (decision !== "approve" && decision !== "reject") {
       return NextResponse.json(
@@ -88,6 +89,7 @@ export async function PATCH(
       request.reviewed_by = user._id;
       request.reviewed_at = new Date();
       request.rejection_reason = rejectionReason;
+      request.approval_reason = null;
       request.used_at = null;
 
       await request.save();
@@ -115,9 +117,20 @@ export async function PATCH(
     request.status = "Approved";
     request.reviewed_by = user._id;
     request.reviewed_at = new Date();
+    request.approval_reason = approvalReason || null;
+    request.rejection_reason = null;
     request.used_at = null;
 
     await request.save();
+    await AttendanceRequest.updateOne(
+      { _id: request._id },
+      {
+        $set: {
+          approval_reason: approvalReason || null,
+          rejection_reason: null,
+        },
+      }
+    );
 
     try {
       await Notification.create({
@@ -145,11 +158,13 @@ export async function PATCH(
       });
     }
 
+    const approvedRequest = await AttendanceRequest.findById(request._id).lean();
+
     return NextResponse.json({
       success: true,
       message:
         "Attendance request approved. The employee must click the Punch button to complete the action.",
-      data: request,
+      data: approvedRequest,
     });
   } catch (error: any) {
     console.error("PATCH /api/attendance/request/[id] error:", error);

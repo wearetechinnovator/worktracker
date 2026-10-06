@@ -17,6 +17,7 @@ interface AttendanceRequestHistory {
   status: 'Pending' | 'Approved' | 'Rejected';
   reviewed_at?: string | null;
   rejection_reason?: string | null;
+  approval_reason?: string | null;
   reviewed_by?: {
     full_name?: string;
     email?: string;
@@ -95,6 +96,12 @@ export default function PunchPage() {
   // Attendance request activity
   const [requestHistory, setRequestHistory] = useState<AttendanceRequestHistory[]>([]);
   const [requestHistoryLoading, setRequestHistoryLoading] = useState(false);
+  const [requestHistoryDate, setRequestHistoryDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
+  const [requestHistoryAction, setRequestHistoryAction] = useState<'all' | 'punchIn' | 'punchOut'>('all');
+  const [requestHistoryStatus, setRequestHistoryStatus] = useState<'all' | 'Pending' | 'Approved' | 'Rejected'>('all');
 
   // Punch Request Modal State
   const [isPunchRequestModalOpen, setIsPunchRequestModalOpen] = useState(false);
@@ -223,6 +230,26 @@ export default function PunchPage() {
     h = h % 12;
     h = h ? h : 12;
     return `${h}:${m} ${ampm}`;
+  };
+
+  const filteredRequestHistory = requestHistory.filter((request) => {
+    if (request.attendance_date !== requestHistoryDate) return false;
+    if (requestHistoryAction !== 'all' && request.request_type !== requestHistoryAction) {
+      return false;
+    }
+    if (requestHistoryStatus !== 'all' && request.status !== requestHistoryStatus) {
+      return false;
+    }
+    return true;
+  });
+
+  const clearRequestHistoryFilters = () => {
+    const now = new Date();
+    setRequestHistoryDate(
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    );
+    setRequestHistoryAction('all');
+    setRequestHistoryStatus('all');
   };
 
   const formatDurationText = (minutes?: number) => {
@@ -612,8 +639,67 @@ export default function PunchPage() {
                   color: 'var(--text-secondary)',
                 }}
               >
-                See when you requested Punch In/Out and when the admin responded.
+                See what you requested and the admin response. Showing today by default.
               </p>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <input
+                type="date"
+                value={requestHistoryDate}
+                onChange={(event) => setRequestHistoryDate(event.target.value)}
+                aria-label="Attendance request history date"
+                style={{
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '7px',
+                  padding: '7px 9px',
+                  fontSize: '0.76rem',
+                  color: 'var(--text-primary)',
+                  background: 'var(--bg-primary)',
+                }}
+              />
+              <select
+                value={requestHistoryAction}
+                onChange={(event) => setRequestHistoryAction(event.target.value as 'all' | 'punchIn' | 'punchOut')}
+                aria-label="Filter by action"
+                style={{
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '7px',
+                  padding: '8px 9px',
+                  fontSize: '0.76rem',
+                  color: 'var(--text-primary)',
+                  background: 'var(--bg-primary)',
+                }}
+              >
+                <option value="all">All Actions</option>
+                <option value="punchIn">Punch In</option>
+                <option value="punchOut">Punch Out</option>
+              </select>
+              <select
+                value={requestHistoryStatus}
+                onChange={(event) => setRequestHistoryStatus(event.target.value as 'all' | 'Pending' | 'Approved' | 'Rejected')}
+                aria-label="Filter by status"
+                style={{
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '7px',
+                  padding: '8px 9px',
+                  fontSize: '0.76rem',
+                  color: 'var(--text-primary)',
+                  background: 'var(--bg-primary)',
+                }}
+              >
+                <option value="all">All Statuses</option>
+                <option value="Pending">Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={clearRequestHistoryFilters}
+                style={{ padding: '7px 10px', fontSize: '0.76rem' }}
+              >
+                Clear
+              </button>
             </div>
           </div>
 
@@ -628,7 +714,7 @@ export default function PunchPage() {
             >
               Loading request history...
             </div>
-          ) : requestHistory.length === 0 ? (
+          ) : filteredRequestHistory.length === 0 ? (
             <div
               style={{
                 padding: '22px',
@@ -639,226 +725,78 @@ export default function PunchPage() {
                 fontSize: '0.8rem',
               }}
             >
-              No attendance requests yet.
+              No attendance requests found for {requestHistoryDate}.
             </div>
           ) : (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-              }}
-            >
-              {requestHistory.map((request) => {
-                const isApproved = request.status === 'Approved';
-                const isRejected = request.status === 'Rejected';
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table" style={{ minWidth: '760px' }}>
+                <thead>
+                  <tr>
+                    <th>Date / Time</th>
+                    <th>Action</th>
+                    <th>Request Reason</th>
+                    <th>Status</th>
+                    <th>Admin Response</th>
+                    <th>Admin Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRequestHistory.map((request) => {
+                    const isApproved = request.status === 'Approved';
+                    const isRejected = request.status === 'Rejected';
+                    const adminReason = isApproved
+                      ? request.approval_reason
+                      : request.rejection_reason;
 
-                return (
-                  <div
-                    key={request._id}
-                    style={{
-                      position: 'relative',
-                      padding: '13px 14px 13px 18px',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border-color)',
-                      background: isApproved
-                        ? '#f0fdf4'
-                        : isRejected
-                          ? '#fef2f2'
-                          : '#fffbeb',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: '4px',
-                        background: isApproved
-                          ? '#10b981'
-                          : isRejected
-                            ? '#ef4444'
-                            : '#f59e0b',
-                      }}
-                    />
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        gap: '12px',
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontWeight: 800,
-                            fontSize: '0.84rem',
-                            color: 'var(--text-primary)',
-                          }}
-                        >
-                          {request.request_type === 'punchIn'
-                            ? 'Punch In Request'
-                            : 'Punch Out Request'}
-                        </div>
-
-                        <div
-                          style={{
-                            marginTop: '4px',
-                            fontSize: '0.72rem',
-                            color: 'var(--text-secondary)',
-                          }}
-                        >
-                          Requested on{' '}
-                          <strong>
-                            {formatRequestDateTime(
-                              request.requested_punch_at
-                            )}
-                          </strong>
-                        </div>
-                      </div>
-
-                      <span
-                        style={{
-                          padding: '4px 9px',
-                          borderRadius: '999px',
-                          fontSize: '0.68rem',
-                          fontWeight: 800,
-                          background: isApproved
-                            ? '#dcfce7'
-                            : isRejected
-                              ? '#fee2e2'
-                              : '#fef3c7',
-                          color: isApproved
-                            ? '#047857'
-                            : isRejected
-                              ? '#b91c1c'
-                              : '#b45309',
-                        }}
-                      >
-                        {request.status}
-                      </span>
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: '10px',
-                        padding: '9px 10px',
-                        borderRadius: '7px',
-                        background: 'rgba(255,255,255,0.7)',
-                        fontSize: '0.75rem',
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      <strong>Reason:</strong>{' '}
-                      {request.reason || 'No reason provided.'}
-                    </div>
-
-                    {request.status === 'Pending' && (
-                      <div
-                        style={{
-                          marginTop: '9px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          color: '#b45309',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                        }}
-                      >
-                        <Clock size={13} />
-                        Waiting for admin response
-                      </div>
-                    )}
-
-                    {request.status === 'Approved' && (
-                      <div
-                        style={{
-                          marginTop: '9px',
-                          paddingTop: '9px',
-                          borderTop: '1px solid #bbf7d0',
-                          color: '#047857',
-                          fontSize: '0.72rem',
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            fontWeight: 800,
-                          }}
-                        >
-                          <CheckCircle2 size={14} />
-                          Admin approved this request
-                        </div>
-
-                        <div style={{ marginTop: '4px' }}>
-                          Responded on{' '}
-                          <strong>
-                            {formatRequestDateTime(request.reviewed_at)}
-                          </strong>
-                          {request.reviewed_by?.full_name
-                            ? ` by ${request.reviewed_by.full_name}`
-                            : ''}
-                        </div>
-                      </div>
-                    )}
-
-                    {request.status === 'Rejected' && (
-                      <div
-                        style={{
-                          marginTop: '9px',
-                          paddingTop: '9px',
-                          borderTop: '1px solid #fecaca',
-                          color: '#b91c1c',
-                          fontSize: '0.72rem',
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            fontWeight: 800,
-                          }}
-                        >
-                          <XCircle size={14} />
-                          Admin rejected this request
-                        </div>
-
-                        <div style={{ marginTop: '4px' }}>
-                          Responded on{' '}
-                          <strong>
-                            {formatRequestDateTime(request.reviewed_at)}
-                          </strong>
-                          {request.reviewed_by?.full_name
-                            ? ` by ${request.reviewed_by.full_name}`
-                            : ''}
-                        </div>
-
-                        <div
-                          style={{
-                            marginTop: '7px',
-                            padding: '8px 9px',
-                            borderRadius: '7px',
-                            background: '#fff',
-                            color: '#7f1d1d',
-                          }}
-                        >
-                          <strong>Admin's Reason:</strong>{' '}
-                          {request.rejection_reason ||
-                            'No rejection reason was provided.'}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                    return (
+                      <tr key={request._id}>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {request.attendance_date}
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                            {formatRequestDateTime(request.requested_punch_at)}
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 700 }}>
+                          {request.request_type === 'punchIn' ? 'Punch In' : 'Punch Out'}
+                        </td>
+                        <td style={{ maxWidth: '220px', whiteSpace: 'normal' }}>
+                          {request.reason || 'No reason provided.'}
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              padding: '4px 9px',
+                              borderRadius: '999px',
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              background: isApproved
+                                ? '#dcfce7'
+                                : isRejected
+                                  ? '#fee2e2'
+                                  : '#fef3c7',
+                              color: isApproved
+                                ? '#047857'
+                                : isRejected
+                                  ? '#b91c1c'
+                                  : '#b45309',
+                            }}
+                          >
+                            {request.status}
+                          </span>
+                        </td>
+                        <td style={{ whiteSpace: 'normal', minWidth: '180px' }}>
+                          {request.status === 'Pending'
+                            ? 'Waiting for admin response'
+                            : `${formatRequestDateTime(request.reviewed_at)}${request.reviewed_by?.full_name ? ` by ${request.reviewed_by.full_name}` : ''}`}
+                        </td>
+                        <td style={{ maxWidth: '220px', whiteSpace: 'normal' }}>
+                          {adminReason || '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

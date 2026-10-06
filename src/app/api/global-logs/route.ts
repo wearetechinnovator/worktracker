@@ -83,22 +83,24 @@ export async function GET(req: Request) {
     ===================================================== */
 
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
       filter.$or = [
         {
           description: {
-            $regex: search,
+            $regex: escapedSearch,
             $options: "i",
           },
         },
         {
           action: {
-            $regex: search,
+            $regex: escapedSearch,
             $options: "i",
           },
         },
         {
           entity_type: {
-            $regex: search,
+            $regex: escapedSearch,
             $options: "i",
           },
         },

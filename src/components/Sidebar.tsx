@@ -9,7 +9,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
 	LayoutDashboard, Folder, Users, FileBarChart, Calendar, ChevronRight, ChevronLeft, ChevronDown, LogOut, Clock, Settings, CheckSquare, History, Briefcase, FileText, Mail, Copy, Loader2, Menu, X, Activity,
-	ClipboardCheck, Building2, Hash
+	ClipboardCheck, Building2, Hash,
+	SquareKanban
 } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
 import { punchService } from '@/lib/punchService';
@@ -26,6 +27,8 @@ import { Blocks } from './animate-ui/icons/blocks';
 import { List } from './animate-ui/icons/list';
 import { Fingerprint } from './animate-ui/icons/fingerprint';
 import { SettingsIcon } from './animate-ui/icons/settings';
+import { SquareKanbanIcon } from './animate-ui/icons/square-kanban';
+import { ChartLine } from './animate-ui/icons/chart-line';
 
 export default function Sidebar() {
 	const pathname = usePathname();
@@ -373,7 +376,7 @@ export default function Sidebar() {
 										<span style={{ fontWeight: 800 }}>Quanto Track</span> <sup className='text-muted-foreground'>Beta</sup>
 									</Link>
 								) : (
-									<Link href={`${basePath}/dashboard`} className="sidebar-brand" style={{ fontSize: '1.1rem', fontWeight: 900, textAlign: 'center', margin: 0, color: 'var(--accent-primary)' }} title="Quanto Track">
+									<Link href={`${basePath}/dashboard`} className="sidebar-brand" style={{ fontSize: '1.1rem', fontWeight: 900, textAlign: 'center', margin: 0 }} title="Quanto Track">
 										QT<sup className='text-muted-foreground font-normal'>v1</sup>
 									</Link>
 								)}
@@ -756,27 +759,27 @@ export default function Sidebar() {
 
 							{/* 7. ACTIVITY LOGS (Admin Only) */}
 							{isAdmin && (
-								<AnimateIcon animateOnHover>
+								<AnimateIcon animateOnHover delay={500}>
 									<Link
 										href={`${basePath}/log`}
 										className={`sidebar-link ${pathname === `${basePath}/log` ? 'active' : ''}`}
 										onMouseEnter={(e) => handleItemMouseEnter('Activity Logs', e)}
 										onMouseLeave={handleItemMouseLeave}
 									>
-										<Activity size={17} />
+										<SquareKanbanIcon />
 										<span>Task Logs</span>
 									</Link>
 								</AnimateIcon>
 							)}
 							{isAdmin && (
-								<AnimateIcon animateOnHover>
+								<AnimateIcon animateOnHover delay={500}>
 									<Link
 										href={`${basePath}/global-log`}
 										className={`sidebar-link ${pathname === `${basePath}/global-log` ? 'active' : ''}`}
 										onMouseEnter={(e) => handleItemMouseEnter('Activity Logs', e)}
 										onMouseLeave={handleItemMouseLeave}
 									>
-										<Activity size={17} />
+										<ChartLine />
 										<span>Global Logs</span>
 									</Link>
 								</AnimateIcon>

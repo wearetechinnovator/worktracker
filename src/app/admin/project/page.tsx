@@ -1514,7 +1514,7 @@ export default function ProjectsPage() {
                       }}
                     >
                       <option value="">None</option>
-                      <option value="new">Add New Client Inline...</option>
+                      {/* <option value="new">Add New Client Inline...</option> */}
                       {clientsList.map(c => {
                         const projNames = c.projects && c.projects.length > 0
                           ? ` (${c.projects.map((p: any) => p.name).join(', ')})`

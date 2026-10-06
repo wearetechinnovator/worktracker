@@ -1341,13 +1341,13 @@ export default function GlobalLogsPage() {
                   "var(--text-primary)",
               }}
             >
-              <Activity
+              {/* <Activity
                 size={22}
                 style={{
                   color:
                     "var(--accent-primary)",
                 }}
-              />
+              /> */}
 
               Global Logs
             </h1>

@@ -6,7 +6,7 @@ import AttendanceRequest from "@/models/AttendanceRequest";
 import Settings from "@/models/Settings";
 import User from "@/models/User";
 import { currentUser } from "@/lib/auth";
-import { sendPunchOutWorkSummaryMail } from "@/lib/mailer";
+import { sendPunchInMail, sendPunchOutWorkSummaryMail } from "@/lib/mailer";
 
 /* =========================================================
    HELPERS
@@ -91,118 +91,33 @@ function getCurrentISTTime(
 function timeToMinutes(
   time: string | null | undefined
 ): number | null {
-  if (!time) {
-    return null;
-  }
+  if (!time) return null;
 
-  const match =
-    /^(\d{2}):(\d{2})$/.exec(time);
-
-  if (!match) {
-    return null;
-  }
+  const match = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!match) return null;
 
   const hours = Number(match[1]);
   const minutes = Number(match[2]);
-
-  if (
-    hours < 0 ||
-    hours > 23 ||
-    minutes < 0 ||
-    minutes > 59
-  ) {
-    return null;
-  }
+  if (hours > 23 || minutes > 59) return null;
 
   return hours * 60 + minutes;
 }
 
-/**
- * Check whether current time is inside
- * configured attendance window.
- *
- * Both null:
- *     No restriction.
- *
- * One null:
- *     No restriction.
- *
- * Normal:
- *     10:00 -> 10:30
- *
- * Overnight:
- *     22:00 -> 02:00
- */
 function isWithinTimeWindow(
   currentTime: string,
-  startTime:
-    | string
-    | null
-    | undefined,
-  endTime:
-    | string
-    | null
-    | undefined
+  startTime: string | null | undefined,
+  endTime: string | null | undefined
 ): boolean {
-  /*
-   * No restriction.
-   */
-  if (!startTime && !endTime) {
-    return true;
-  }
+  if (!startTime || !endTime) return true;
 
-  /*
-   * Partial configuration.
-   *
-   * Treat as unrestricted.
-   */
-  if (!startTime || !endTime) {
-    return true;
-  }
+  const current = timeToMinutes(currentTime);
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
 
-  const current =
-    timeToMinutes(currentTime);
+  if (current === null || start === null || end === null) return true;
+  if (start <= end) return current >= start && current <= end;
 
-  const start =
-    timeToMinutes(startTime);
-
-  const end =
-    timeToMinutes(endTime);
-
-  /*
-   * Invalid configuration.
-   */
-  if (
-    current === null ||
-    start === null ||
-    end === null
-  ) {
-    return true;
-  }
-
-  /*
-   * Normal time window.
-   *
-   * Example:
-   * 10:00 -> 18:00
-   */
-  if (start <= end) {
-    return (
-      current >= start &&
-      current <= end
-    );
-  }
-
-  /*
-   * Overnight time window.
-   *
-   * Example:
-   * 22:00 -> 02:00
-   */
-  return (
-    current >= start ||
-    current <= end
-  );
+  return current >= start || current <= end;
 }
 
 /* =========================================================
@@ -346,100 +261,6 @@ async function getUserSettings(
     owner_user_id: ownerId,
     status: 1,
   });
-}
-
-/* =========================================================
-   REQUIREMENT VALIDATION
-========================================================= */
-
-function validatePunchRequirements(
-  settings: any,
-
-  action:
-    | "punchIn"
-    | "punchOut",
-
-  data: {
-    geo: any[];
-    ip: string;
-    browser: string;
-    systemId: string | null;
-  }
-): string[] {
-  const {
-    geo,
-    ip,
-    browser,
-    systemId,
-  } = data;
-
-  const prefix =
-    action === "punchIn"
-      ? "punchIn"
-      : "punchOut";
-
-  const errors: string[] = [];
-
-  /*
-   * GEO
-   */
-  if (
-    settings?.[
-    `${prefix}GeoRequired`
-    ] &&
-    (!Array.isArray(geo) ||
-      geo.length === 0)
-  ) {
-    errors.push(
-      "Location is required."
-    );
-  }
-
-  /*
-   * IP
-   */
-  if (
-    settings?.[
-    `${prefix}IpRequired`
-    ] &&
-    !ip
-  ) {
-    errors.push(
-      "IP address is required."
-    );
-  }
-
-  /*
-   * Browser
-   */
-  if (
-    settings?.[
-    `${prefix}BrowserRequired`
-    ] &&
-    (!browser ||
-      browser ===
-      "Unknown Browser")
-  ) {
-    errors.push(
-      "Browser information is required."
-    );
-  }
-
-  /*
-   * System ID
-   */
-  if (
-    settings?.[
-    `${prefix}SystemIdRequired`
-    ] &&
-    !systemId
-  ) {
-    errors.push(
-      "System ID is required."
-    );
-  }
-
-  return errors;
 }
 
 /* =========================================================
@@ -1089,91 +910,24 @@ export async function POST(
         );
       }
 
-      /*
-       * ---------------------------------------------------
-       * Punch In time window.
-       * ---------------------------------------------------
-       */
-
-      const punchInAllowed =
-        isWithinTimeWindow(
-          currentTime,
-
-          settings.punchInStartTime,
-
-          settings.punchInEndTime
-        );
+      const punchInAllowed = isWithinTimeWindow(
+        currentTime,
+        settings.punchInStartTime,
+        settings.punchInEndTime
+      );
 
       if (!punchInAllowed && !approvedPunchInRequest) {
         return NextResponse.json(
           {
             success: false,
-
-            message:
-              "Punch In window closed.",
-
+            message: "Punch In window closed.",
             requiresRequest: true,
-
-            requestType:
-              "punchIn",
-
+            requestType: "punchIn",
             currentTime,
-
-            punchInStartTime:
-              settings.punchInStartTime,
-
-            punchInEndTime:
-              settings.punchInEndTime,
+            punchInStartTime: settings.punchInStartTime,
+            punchInEndTime: settings.punchInEndTime,
           },
-          {
-            status: 403,
-          }
-        );
-      }
-
-      /*
-       * ---------------------------------------------------
-       * Metadata requirements.
-       * ---------------------------------------------------
-       */
-
-      const requirementErrors =
-        validatePunchRequirements(
-          settings,
-
-          "punchIn",
-
-          {
-            geo:
-              Array.isArray(geo)
-                ? geo
-                : [],
-
-            ip,
-
-            browser,
-
-            systemId,
-          }
-        );
-
-      if (
-        requirementErrors.length >
-        0
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-
-            message:
-              "Punch In requirements are missing.",
-
-            errors:
-              requirementErrors,
-          },
-          {
-            status: 400,
-          }
+          { status: 403 }
         );
       }
 
@@ -1277,6 +1031,44 @@ export async function POST(
             },
           }
         );
+      }
+
+      /*
+       * Send Punch In notification email to Admin.
+       */
+      try {
+        let adminUser = targetUser.created_by
+          ? await User.findById(targetUser.created_by).select("email full_name name status")
+          : null;
+
+        if (!adminUser?.email || adminUser.status === false) {
+          adminUser = await User.findOne({ user_role: 1, status: true }).select("email full_name name");
+        }
+
+        const adminEmail = adminUser?.email || "";
+        const employeeEmail = targetUser.email || "";
+        const employeeName = targetUser.full_name || targetUser.name || employeeEmail || "Employee";
+        const punchInFormattedTime = new Date().toLocaleTimeString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+
+        if (adminEmail) {
+          await sendPunchInMail({
+            adminEmail,
+            employeeEmail,
+            employeeName,
+            attendanceDate: String(attendance.attendance_date),
+            punchInTime: punchInFormattedTime,
+            reason: String(reason || "").trim() || "Regular shift punch in",
+            ip: ip || undefined,
+            browser: browser || undefined,
+          });
+        }
+      } catch (emailErr) {
+        console.error("Error sending punch in email to admin:", emailErr);
       }
 
       return NextResponse.json({
@@ -1405,91 +1197,24 @@ export async function POST(
             )
           : null;
 
-      /*
-       * ---------------------------------------------------
-       * Punch Out time window.
-       * ---------------------------------------------------
-       */
-
-      const punchOutAllowed =
-        isWithinTimeWindow(
-          currentTime,
-
-          settings.punchOutStartTime,
-
-          settings.punchOutEndTime
-        );
+      const punchOutAllowed = isWithinTimeWindow(
+        currentTime,
+        settings.punchOutStartTime,
+        settings.punchOutEndTime
+      );
 
       if (!punchOutAllowed && !approvedPunchOutRequest) {
         return NextResponse.json(
           {
             success: false,
-
-            message:
-              "Punch Out time window has passed or is not currently open.",
-
+            message: "Punch Out time window has passed or is not currently open.",
             requiresRequest: true,
-
-            requestType:
-              "punchOut",
-
+            requestType: "punchOut",
             currentTime,
-
-            punchOutStartTime:
-              settings.punchOutStartTime,
-
-            punchOutEndTime:
-              settings.punchOutEndTime,
+            punchOutStartTime: settings.punchOutStartTime,
+            punchOutEndTime: settings.punchOutEndTime,
           },
-          {
-            status: 403,
-          }
-        );
-      }
-
-      /*
-       * ---------------------------------------------------
-       * Metadata requirements.
-       * ---------------------------------------------------
-       */
-
-      const requirementErrors =
-        validatePunchRequirements(
-          settings,
-
-          "punchOut",
-
-          {
-            geo:
-              Array.isArray(geo)
-                ? geo
-                : [],
-
-            ip,
-
-            browser,
-
-            systemId,
-          }
-        );
-
-      if (
-        requirementErrors.length >
-        0
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-
-            message:
-              "Punch Out requirements are missing.",
-
-            errors:
-              requirementErrors,
-          },
-          {
-            status: 400,
-          }
+          { status: 403 }
         );
       }
 

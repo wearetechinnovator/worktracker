@@ -1,4 +1,3 @@
-import { html } from "motion/react-client";
 import nodemailer from "nodemailer";
 
 const smtpUser = process.env.SMTP_USER;
@@ -215,6 +214,50 @@ export async function sendTaskReviewMail(params: {
     .join("\n");
 
   return sendEmail({ to: params.to, subject, text });
+}
+
+/**
+ * Send Punch In Alert email to Admin
+ */
+export async function sendPunchInMail(params: {
+  adminEmail?: string;
+  employeeEmail?: string;
+  employeeName: string;
+  attendanceDate: string;
+  punchInTime: string;
+  reason?: string;
+  ip?: string;
+  browser?: string;
+}): Promise<boolean> {
+  const recipients = [params.adminEmail]
+    .map((e) => (e || "").trim())
+    .filter(Boolean);
+
+  if (!recipients.length) {
+    console.warn("[Mailer] No valid admin recipient email for punch in alert.");
+    return false;
+  }
+
+  const to = recipients.join(", ");
+  const subject = `Employee Punch In Alert - ${params.employeeName} (${params.attendanceDate})`;
+  const text = [
+    `Employee Punch In Notification`,
+    `========================================`,
+    `Employee: ${params.employeeName}`,
+    `Employee Email: ${params.employeeEmail || "N/A"}`,
+    `Attendance Date: ${params.attendanceDate}`,
+    `Punch In Time: ${params.punchInTime}`,
+    params.reason ? `Reason / Note: ${params.reason}` : null,
+    params.ip ? `IP Address: ${params.ip}` : null,
+    params.browser ? `Browser / Device: ${params.browser}` : null,
+    `========================================`,
+    ``,
+    `This notification has been sent to Admin upon employee Punch In.`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return sendEmail({ to, subject, text });
 }
 
 /**

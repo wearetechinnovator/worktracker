@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
+import Attendance from "@/models/Attendance";
 import Project from "@/models/Project";
 import { currentUser } from "@/lib/auth";
 import { createGlobalLog } from "@/lib/globalLog";
@@ -42,7 +43,6 @@ export async function GET() {
     
     const adminProjects = await Project.find({
       created_by: admin._id,
-      status: true,
     })
       .select("_id name project_users")
       .lean();
@@ -73,20 +73,42 @@ export async function GET() {
       .sort({ createdAt: -1 })
       .lean();
 
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+    const todayAttendances = await Attendance.find({
+      user_id: { $in: employees.map((employee) => employee._id) },
+      attendance_date: today,
+    }).lean();
+
+    const attendanceByEmployee = new Map(
+      todayAttendances.map((attendance: any) => [
+        String(attendance.user_id),
+        attendance,
+      ])
+    );
+
     const data = employees.map((employee: any) => {
       /*
        * An employee can belong to more than one project.
        */
       const employeeProjects = adminProjects
-        .filter(
-          (project: any) =>
-            Array.isArray(project.project_users) &&
-            project.project_users.some(
-              (userId: any) =>
-                String(userId?._id || userId) ===
-                String(employee._id)
-            )
-        )
+        .filter((project: any) => {
+          if (!Array.isArray(project.project_users)) return false;
+
+          return project.project_users.some((userId: any) => {
+            const assignedUserId =
+              userId?._id?.toString?.() ||
+              userId?.toString?.() ||
+              String(userId);
+
+            return assignedUserId === String(employee._id);
+          });
+        })
         .map((project: any) => ({
           _id: String(project._id),
           name: project.name,
@@ -108,6 +130,22 @@ export async function GET() {
         projectNames.length > 0
           ? projectNames.join(", ")
           : null;
+
+      const todayAttendanceRecord = attendanceByEmployee.get(
+        String(employee._id)
+      );
+      const punchIn = todayAttendanceRecord?.punch_in_on
+        ? new Date(todayAttendanceRecord.punch_in_on)
+        : null;
+      const punchOut = todayAttendanceRecord?.punch_out_on
+        ? new Date(todayAttendanceRecord.punch_out_on)
+        : punchIn
+          ? new Date()
+          : null;
+      const totalMinutes =
+        punchIn && punchOut && punchOut > punchIn
+          ? Math.floor((punchOut.getTime() - punchIn.getTime()) / 60000)
+          : 0;
 
       let decryptedPassword = "";
 
@@ -174,6 +212,18 @@ export async function GET() {
         userType: "employee",
 
         avatarColor: "#3b82f6",
+
+        totalMinutes,
+        todayAttendance: {
+          allowPunchInDate:
+            todayAttendanceRecord?.allow_punch_in_by
+              ? today
+              : undefined,
+          allowPunchOutDate:
+            todayAttendanceRecord?.allow_punch_out_by
+              ? today
+              : undefined,
+        },
       };
     });
 

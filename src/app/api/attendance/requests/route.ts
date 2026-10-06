@@ -35,7 +35,13 @@ export async function GET() {
         .sort({ requested_at: -1, createdAt: -1 })
         .lean();
 
-      return NextResponse.json({ success: true, data: requests });
+      return NextResponse.json({
+        success: true,
+        data: requests.map((request) => ({
+          ...request,
+          approval_reason: request.approval_reason || null,
+        })),
+      });
     }
 
     if (Number(user.user_role) === 2) {
@@ -46,7 +52,13 @@ export async function GET() {
         .sort({ requested_at: -1, createdAt: -1 })
         .lean();
 
-      return NextResponse.json({ success: true, data: requests });
+      return NextResponse.json({
+        success: true,
+        data: requests.map((request) => ({
+          ...request,
+          approval_reason: request.approval_reason || null,
+        })),
+      });
     }
 
     return NextResponse.json(

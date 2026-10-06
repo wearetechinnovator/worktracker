@@ -204,7 +204,8 @@ export default function LogsPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
                     <div>
                         <h1 style={{ margin: "0 0 5px", fontSize: "1.45rem", fontWeight: 750, display: "flex", alignItems: "center", gap: 9 }}>
-                            <Activity size={23} /> Activity Logs
+                            {/* <Activity size={23} />  */}
+                            Activity Logs
                         </h1>
                         <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: ".84rem" }}>
                             {isAdmin ? "Track live task activities, starts, pauses, and completions across your team." : "Your task activity and work history."}
@@ -340,8 +341,8 @@ export default function LogsPage() {
                         <div style={{ height: 300, display: "grid", placeItems: "center" }}><Loader2 className="animate-spin" /></div>
                     ) : filtered.length === 0 ? (
                         <div style={{ height: 300, display: "grid", placeItems: "center", color: "var(--text-muted)" }}>
-                            <div style={{ textAlign: "center" }}>
-                                <Activity size={30} />
+                            <div style={{ textAlign: "center", }}>
+                                {/* <Activity size={30} /> */}
                                 <div style={{ fontWeight: 700, marginTop: 8 }}>No activity found</div>
                                 <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 4 }}>
                                     {hasActiveFilters ? "Try clearing or changing your filters" : "Activities will appear here when employees work on tasks"}
