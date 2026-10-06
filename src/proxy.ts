@@ -6,6 +6,7 @@ const publicRoutes = [
   "/register",
   "/otp",
 ];
+//hello
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
