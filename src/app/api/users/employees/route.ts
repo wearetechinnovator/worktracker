@@ -558,7 +558,7 @@ export async function POST(
     ------------------------- */
 
     if (employee.email) {
-      sendEmployeeWelcomeMail({
+      const emailSent = await sendEmployeeWelcomeMail({
         to: employee.email,
         employeeName: employee.full_name || normalizedName,
         email: employee.email,
@@ -566,9 +566,14 @@ export async function POST(
         employeeId: String(employee._id),
         designation: employee.designation || null,
         addedByName: admin.full_name || admin.name || "Admin",
-      }).catch((err) => {
-        console.error("Failed to send employee credentials email:", err);
       });
+
+      if (!emailSent) {
+        console.error(
+          "Employee was created, but the welcome email could not be sent:",
+          employee.email
+        );
+      }
     }
 
     /* -------------------------
