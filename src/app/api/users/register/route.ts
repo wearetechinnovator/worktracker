@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { encryptPassword } from "@/lib/encryption";
+import { hashPassword } from "@/lib/encryption";
 
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
@@ -87,10 +87,7 @@ export async function POST(req: Request) {
        ENCRYPT PASSWORD
     ===================================================== */
 
-    const encryptedPassword =
-      encryptPassword(
-        password
-      );
+    const hashedPassword = await hashPassword(password);
 
     /* =====================================================
        CREATE ADMIN USER
@@ -101,7 +98,7 @@ export async function POST(req: Request) {
 
       email: normalizedEmail,
 
-      password: encryptedPassword,
+      password: hashedPassword,
 
       // 1 = Admin
       user_role: 1,

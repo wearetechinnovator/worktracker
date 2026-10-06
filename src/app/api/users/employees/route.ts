@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { encryptPassword, decryptPassword, isEncrypted } from "@/lib/encryption";
+import { hashPassword } from "@/lib/encryption";
 import mongoose from "mongoose";
 
 import dbConnect from "@/lib/dbConnect";
@@ -147,24 +147,12 @@ export async function GET() {
           ? Math.floor((punchOut.getTime() - punchIn.getTime()) / 60000)
           : 0;
 
-      let decryptedPassword = "";
-
-      if (employee.password) {
-        try {
-          decryptedPassword = isEncrypted(employee.password)
-            ? decryptPassword(employee.password)
-            : "";
-        } catch {
-          decryptedPassword = "";
-        }
-      }
-
       return {
         ...employee,
 
         _id: String(employee._id),
 
-        password: decryptedPassword,
+        password: undefined,
 
         // Full project objects for future UI use.
         projects: employeeProjects,
@@ -400,10 +388,7 @@ export async function POST(
        PASSWORD
     ------------------------- */
 
-    const encryptedPassword =
-      encryptPassword(
-        password
-      );
+    const hashedPassword = await hashPassword(password);
 
     const normalizedEmail =
       String(email)
@@ -430,7 +415,7 @@ export async function POST(
           normalizedEmail,
 
         password:
-          encryptedPassword,
+          hashedPassword,
 
         designation,
 
@@ -997,9 +982,7 @@ export async function PATCH(
       }
 
       updateData.password =
-        encryptPassword(
-          newPassword
-        );
+        await hashPassword(newPassword);
     }
 
     /* -------------------------

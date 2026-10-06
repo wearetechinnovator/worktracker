@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { comparePassword, encryptPassword } from "@/lib/encryption";
+import { comparePassword, hashPassword } from "@/lib/encryption";
 
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
@@ -193,9 +193,9 @@ export async function PATCH(req: Request) {
         );
       }
 
-      const encryptedPassword = encryptPassword(newPassword);
+      const hashedPassword = await hashPassword(newPassword);
 
-      user.password = encryptedPassword;
+      user.password = hashedPassword;
       user.modified_by = user._id;
 
       await user.save();
