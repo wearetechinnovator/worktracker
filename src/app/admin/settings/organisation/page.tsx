@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 import PageShimmer from "@/components/PageShimmer";
-import SettingsNavTabs from "@/components/SettingsNavTabs";
+
 import { toast } from "@/lib/toast";
 import "../style.css";
 
