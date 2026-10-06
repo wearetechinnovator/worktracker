@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
+import "@/models/Role";
 import Attendance from "@/models/Attendance";
 import Project from "@/models/Project";
 import { currentUser } from "@/lib/auth";
