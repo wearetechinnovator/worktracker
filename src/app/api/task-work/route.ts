@@ -62,6 +62,19 @@ function localDateTime(dateValue: unknown, timeValue: unknown) {
   return Number.isNaN(value.getTime()) ? new Date() : value;
 }
 
+function timestampOrLocalDateTime(
+  timestampValue: unknown,
+  dateValue: unknown,
+  timeValue: unknown
+) {
+  if (timestampValue) {
+    const timestamp = new Date(String(timestampValue));
+    if (!Number.isNaN(timestamp.getTime())) return timestamp;
+  }
+
+  return localDateTime(dateValue, timeValue);
+}
+
 function minutesBetween(start: Date, end: Date) {
   return Math.max(
     0,
@@ -522,7 +535,8 @@ export async function POST(request: NextRequest) {
               current.date
             }T00:00:00`
           ),
-          startTime: localDateTime(
+          startTime: timestampOrLocalDateTime(
+            body.localTimestamp,
             body.localDate ||
               current.date,
             body.localTime ||
@@ -731,7 +745,8 @@ export async function POST(request: NextRequest) {
         );
 
       work.endTime =
-        localDateTime(
+        timestampOrLocalDateTime(
+          body.localTimestamp,
           body.localDate ||
             current.date,
           body.localTime ||

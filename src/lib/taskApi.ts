@@ -29,7 +29,7 @@ export async function addTaskComment(taskId: string, commentData: any) {
   } catch (err) { console.error('API Comment failed:', err); return { success: false, error: err }; }
 }
 
-export async function startTaskWork(payload: { taskId: string; employeeId?: string; localDate?: string; localTime?: string }) {
+export async function startTaskWork(payload: { taskId: string; employeeId?: string; localDate?: string; localTime?: string; localTimestamp?: string }) {
   const response = await fetch('/api/task-work', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ action: 'start', ...payload }) });
   return response.json();
 }
@@ -44,7 +44,7 @@ export async function resumeTaskWork(payload: { taskId: string; workId?: string;
   return response.json();
 }
 
-export async function endTaskWork(workId: string, payload: { notes?: string; links?: string[]; files?: Array<{ name: string; url: string; size?: number; type?: string }>; localTime?: string; isFullyCompleted?: boolean }) {
+export async function endTaskWork(workId: string, payload: { notes?: string; links?: string[]; files?: Array<{ name: string; url: string; size?: number; type?: string }>; localTime?: string; localTimestamp?: string; isFullyCompleted?: boolean }) {
   const response = await fetch('/api/task-work', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ action: 'complete', workId, ...payload }) });
   return response.json();
 }

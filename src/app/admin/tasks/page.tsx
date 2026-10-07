@@ -596,6 +596,7 @@ export default function TasksPage() {
       const result = await taskApi.startTaskWork({
         taskId,
         employeeId: user._id || user.id,
+        localTimestamp: new Date().toISOString(),
         localDate,
         localTime,
       });
@@ -715,6 +716,7 @@ export default function TasksPage() {
         notes: workNotes.trim() || undefined,
         links,
         files: workFiles,
+        localTimestamp: effectiveEndTime.toISOString(),
         localTime,
         isFullyCompleted: completionStatus === 'full',
       });

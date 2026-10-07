@@ -536,6 +536,7 @@ export default function MyTasks({ userId }: { userId: string }) {
           .map((link) => link.trim())
           .filter(Boolean),
         files: workFiles,
+        localTimestamp: effectiveEndTime.toISOString(),
         localTime,
         isFullyCompleted: completionStatus === 'full',
       });
