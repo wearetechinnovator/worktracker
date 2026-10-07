@@ -79,6 +79,7 @@ export async function sendPunchRequestMail(params: {
     `Reason: ${params.reason}`,
     `Requested At: ${params.requestedAt ? new Date(params.requestedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
     params.ip ? `IP Address: ${params.ip}` : null,
+    `Link: ${'https://tisworktracker.vercel.app/admin/punch'}`,
     params.browser ? `Browser: ${params.browser}` : null,
     `Status: Pending`,
   ]
@@ -110,6 +111,7 @@ export async function sendPunchApprovedMail(params: {
     params.approvedByName ? `Approved By: ${params.approvedByName}` : null,
     `Approved At: ${params.approvedAt ? new Date(params.approvedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
     ``,
+    `Link: ${'https://tisworktracker.vercel.app/admin/punch'}`,
     `Note: Approval grants permission. Please click the ${reqTypeLabel} button in your application to complete the punch action.`,
   ]
     .filter(Boolean)
@@ -146,6 +148,7 @@ export async function sendTaskAssignedMail(params: {
     params.dueTime ? `Due Time: ${params.dueTime}` : null,
     params.assignedByName ? `Assigned By: ${params.assignedByName}` : null,
     params.description ? `\nDescription:\n${params.description}` : null,
+    `Link: ${'https://tisworktracker.vercel.app/user/tasks'}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -171,6 +174,7 @@ export async function sendEmployeeWelcomeMail(params: {
     `Employee Name: ${params.employeeName}`,
     `Login Email / ID: ${params.email}`,
     `Password: ${params.password}`,
+    `Link: ${'https://tisworktracker.vercel.app/login'}`,
     // params.employeeId ? `Employee ID: ${params.employeeId}` : null,
     params.designation ? `Designation: ${params.designation}` : null,
     params.addedByName ? `Added By: ${params.addedByName}` : null,
@@ -251,6 +255,7 @@ export async function sendPunchInMail(params: {
     params.reason ? `Reason / Note: ${params.reason}` : null,
     params.ip ? `IP Address: ${params.ip}` : null,
     params.browser ? `Browser / Device: ${params.browser}` : null,
+    `Link: ${'https://tisworktracker.vercel.app/admin/attendance-list'}`,
     `========================================`,
     ``,
     `This notification has been sent to Admin upon employee Punch In.`,
