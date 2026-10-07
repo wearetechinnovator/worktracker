@@ -51,6 +51,64 @@ export default function UserProfilePage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const profileFileInputRef = useRef<HTMLInputElement | null>(null);
+  const initialProfilePictureRef = useRef<string | null>(null);
+
+  const parseResponse = async (response: Response) => {
+    const text = await response.text();
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(
+        response.status === 413
+          ? "The request is too large. Please use a smaller profile image."
+          : text.trim() || `Request failed with status ${response.status}`
+      );
+    }
+  };
+
+  const compressImage = async (file: File): Promise<File> => {
+    const imageUrl = URL.createObjectURL(file);
+
+    try {
+      const image = new Image();
+      image.src = imageUrl;
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error("Unable to read the selected image."));
+      });
+
+      const maxDimension = 512;
+      const scale = Math.min(
+        1,
+        maxDimension / Math.max(image.naturalWidth, image.naturalHeight)
+      );
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        throw new Error("Unable to process the selected image.");
+      }
+
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", 0.75)
+      );
+
+      if (!blob) {
+        throw new Error("Unable to compress the selected image.");
+      }
+
+      return new File([blob], "profile-picture.jpg", {
+        type: "image/jpeg",
+        lastModified: Date.now(),
+      });
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+    }
+  };
 
   /* =====================================================
      LOAD PROFILE
@@ -66,7 +124,7 @@ export default function UserProfilePage() {
           cache: "no-store",
         });
 
-        const result = await response.json();
+        const result = await parseResponse(response);
 
         if (!response.ok || !result.success) {
           throw new Error(result.message || "Failed to load profile");
@@ -80,6 +138,10 @@ export default function UserProfilePage() {
               result.data.profile?.profile_picture || result.data.profile_picture || null,
           },
         });
+        initialProfilePictureRef.current =
+          result.data.profile?.profile_picture ||
+          result.data.profile_picture ||
+          null;
 
         setPhone(
           result.data.phone_number !== null &&
@@ -135,8 +197,9 @@ export default function UserProfilePage() {
   const handleFileUpload = async (file: File) => {
     try {
       setUploading(true);
+      const compressedFile = await compressImage(file);
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", compressedFile);
 
       const response = await fetch("/api/uploads", {
         method: "POST",
@@ -144,7 +207,7 @@ export default function UserProfilePage() {
         body: formData,
       });
 
-      const result = await response.json();
+      const result = await parseResponse(response);
 
       if (!response.ok || !result.success || !result.data?.url) {
         throw new Error(result.message || "Failed to upload image");
@@ -206,7 +269,7 @@ export default function UserProfilePage() {
         }),
       });
 
-      const result = await response.json();
+      const result = await parseResponse(response);
 
       if (!response.ok || !result.success) {
         throw new Error(result.message || "Failed to change password");
@@ -256,6 +319,9 @@ export default function UserProfilePage() {
     try {
       setSaving(true);
 
+      const profilePicture = profile.profile?.profile_picture || null;
+      const profilePictureChanged =
+        profilePicture !== initialProfilePictureRef.current;
       const response = await fetch("/api/profile", {
         method: "PATCH",
         headers: {
@@ -266,11 +332,11 @@ export default function UserProfilePage() {
           full_name: name,
           phone_number: phoneNumber,
           gender: profile.profile?.gender || null,
-          profile_picture: profile.profile?.profile_picture || null,
+          ...(profilePictureChanged ? { profile_picture: profilePicture } : {}),
         }),
       });
 
-      const result = await response.json();
+      const result = await parseResponse(response);
 
       if (!response.ok || !result.success) {
         throw new Error(result.message || "Failed to update profile");
@@ -284,6 +350,10 @@ export default function UserProfilePage() {
             result.data.profile?.profile_picture || result.data.profile_picture || null,
         },
       });
+      initialProfilePictureRef.current =
+        result.data.profile?.profile_picture ||
+        result.data.profile_picture ||
+        null;
 
       setPhone(
         result.data.phone_number !== null &&
