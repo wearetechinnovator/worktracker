@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { createTaskShareToken } from "@/lib/taskShare";
 
 const smtpUser = process.env.SMTP_USER;
 const smtpPass = process.env.SMTP_PASS;
@@ -137,7 +138,7 @@ export async function sendTaskAssignedMail(params: {
   assignedByName?: string;
 }): Promise<boolean> {
   const taskLink = params.taskId
-    ? `https://tisworktracker.vercel.app/user/tasks/${encodeURIComponent(params.taskId)}`
+    ? `https://tisworktracker.vercel.app/user/tasks/${createTaskShareToken(params.taskId)}`
     : "https://tisworktracker.vercel.app/user/tasks";
   const subject = `New Task Assigned: ${params.taskId ? `[${params.taskId}] ` : ""}${params.taskTitle}`;
   const text = [
@@ -203,7 +204,7 @@ export async function sendTaskReviewMail(params: {
   submittedAt?: Date | string;
 }): Promise<boolean> {
   const taskLink = params.taskId
-    ? `https://tisworktracker.vercel.app/admin/tasks?taskId=${encodeURIComponent(params.taskId)}`
+    ? `https://tisworktracker.vercel.app/admin/tasks?taskId=${createTaskShareToken(params.taskId)}`
     : "https://tisworktracker.vercel.app/admin/tasks";
   const subject = `Task Ready for Review: ${params.taskId ? `[${params.taskId}] ` : ""}${params.taskTitle}`;
   const text = [

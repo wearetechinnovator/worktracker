@@ -10,6 +10,7 @@ import { currentUser } from "@/lib/auth";
 import { createInitialTaskLogs } from "@/lib/taskLog";
 import { createGlobalLog } from "@/lib/globalLog";
 import { sendTaskAssignedMail } from "@/lib/mailer";
+import { createTaskShareToken } from "@/lib/taskShare";
 
 /* =========================================================
    TIME HELPER
@@ -353,6 +354,7 @@ export async function GET(req: Request) {
 
           return {
             ...task,
+            shareToken: createTaskShareToken(String(task._id)),
 
             project_id:
               task.project_id,

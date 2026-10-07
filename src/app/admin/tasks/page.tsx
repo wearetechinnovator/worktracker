@@ -41,6 +41,7 @@ const CKEditorComponent = dynamic(
 interface Task {
   _id: string;
   task_id?: string;
+  shareToken?: string;
   title: string;
   description?: string;
   projectId?: {
@@ -1047,7 +1048,7 @@ export default function TasksPage() {
   };
 
   const openTaskDetailsModal = async (task: Task) => {
-    const shareableId = task.task_id || task._id;
+    const shareableId = task.shareToken || task.task_id || task._id;
     router.replace(`/admin/tasks?taskId=${encodeURIComponent(shareableId)}`, {
       scroll: false,
     });
@@ -1092,7 +1093,7 @@ export default function TasksPage() {
 
     const numericId = decodedId.match(/^\d+$/)?.[0];
     const requestedTask = tasks.find((task) => {
-      const values = [task._id, task.task_id]
+      const values = [task._id, task.task_id, task.shareToken]
         .filter(Boolean)
         .map((value) => String(value).toLowerCase());
       const normalizedId = decodedId.toLowerCase();
