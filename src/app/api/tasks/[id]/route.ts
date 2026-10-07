@@ -1202,7 +1202,7 @@ export async function PATCH(
         }
 
         if (employee.email) {
-          sendTaskAssignedMail({
+          const sent = await sendTaskAssignedMail({
             to: employee.email,
             assigneeName: employee.full_name || "Team Member",
             taskTitle: updatedTask.title,
@@ -1217,9 +1217,10 @@ export async function PATCH(
             dueDate: updatedTask.completion_date,
             dueTime: updatedTask.completion_time,
             assignedByName: user.full_name || user.name || "Admin",
-          }).catch((err) => {
-            console.error("Failed to send task assigned mail on update:", err);
           });
+          if (!sent) {
+            console.error(`[Mailer] Task assignment email was not sent to ${employee.email}`);
+          }
         }
 
         await createGlobalLog({

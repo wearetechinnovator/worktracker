@@ -1008,7 +1008,7 @@ export async function POST(
     if (populatedTask && Array.isArray(populatedTask.assign_to)) {
       for (const assignee of populatedTask.assign_to) {
         if (assignee && typeof assignee === "object" && assignee.email) {
-          sendTaskAssignedMail({
+          const sent = await sendTaskAssignedMail({
             to: assignee.email,
             assigneeName: assignee.full_name || assignee.name || "Team Member",
             taskTitle: populatedTask.title,
@@ -1023,9 +1023,10 @@ export async function POST(
             dueDate: populatedTask.completion_date,
             dueTime: populatedTask.completion_time,
             assignedByName: user.full_name || user.name || "Admin",
-          }).catch((err) => {
-            console.error("Failed to send task assignment email:", err);
           });
+          if (!sent) {
+            console.error(`[Mailer] Task assignment email was not sent to ${assignee.email}`);
+          }
         }
       }
     }

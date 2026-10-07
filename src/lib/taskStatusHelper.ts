@@ -144,7 +144,7 @@ export async function syncTaskStatus(taskId: string | mongoose.Types.ObjectId) {
             }
           }
 
-          sendTaskReviewMail({
+          const sent = await sendTaskReviewMail({
             to: assigner.email,
             creatorName: assigner.full_name || assigner.name || 'Admin',
             taskTitle: parentTask.title,
@@ -152,7 +152,10 @@ export async function syncTaskStatus(taskId: string | mongoose.Types.ObjectId) {
             projectName,
             completedByEmployees: completedByNames,
             submittedAt: new Date(),
-          }).catch((err) => console.error('[Mailer] Error sending task review email:', err));
+          });
+          if (!sent) {
+            console.error(`[Mailer] Task review email was not sent to ${assigner.email}`);
+          }
         }
       } catch (mailErr) {
         console.error('[Mailer] Error triggering review email:', mailErr);

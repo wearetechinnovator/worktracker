@@ -146,16 +146,17 @@ export async function PATCH(
     }
 
     if (employee.email) {
-      sendPunchApprovedMail({
+      const sent = await sendPunchApprovedMail({
         to: employee.email,
         employeeName: employee.full_name || employee.name || "Employee",
         requestType: request.request_type,
         date: request.attendance_date,
         approvedByName: user.full_name || user.name || "Admin",
         approvedAt: request.reviewed_at,
-      }).catch((mailErr) => {
-        console.error("Failed to send punch approval email to employee:", mailErr);
       });
+      if (!sent) {
+        console.error(`[Mailer] Punch approval email was not sent to ${employee.email}`);
+      }
     }
 
     const approvedRequest = await AttendanceRequest.findById(request._id).lean();
