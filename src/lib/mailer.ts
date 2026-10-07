@@ -208,6 +208,7 @@ export async function sendTaskReviewMail(params: {
     `Status: Review`,
     `Submitted At: ${params.submittedAt ? new Date(params.submittedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
     ``,
+    `${'https://tisworktracker.vercel.app/user/tasks'}`,
     `All assigned team members have completed their work. The task is now awaiting your review.`,
   ]
     .filter(Boolean)
