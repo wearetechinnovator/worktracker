@@ -354,7 +354,9 @@ export async function GET(req: Request) {
 
           return {
             ...task,
-            shareToken: createTaskShareToken(String(task._id)),
+            shareToken: createTaskShareToken(
+              String(task.task_id || task._id)
+            ),
 
             project_id:
               task.project_id,
