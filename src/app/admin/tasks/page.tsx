@@ -4,8 +4,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/exhaustive-deps */
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import JSZip from 'jszip';
 import {
   CheckSquare, Plus, AlertCircle, CheckCircle2,
@@ -115,6 +115,8 @@ interface UserProfile {
 
 export default function TasksPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const suppressTaskQueryRef = useRef(false);
   const [user, setUser] = useState<UserProfile | null>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -1045,6 +1047,10 @@ export default function TasksPage() {
   };
 
   const openTaskDetailsModal = async (task: Task) => {
+    const shareableId = task.task_id || task._id;
+    router.replace(`/admin/tasks?taskId=${encodeURIComponent(shareableId)}`, {
+      scroll: false,
+    });
     setSelectedTaskForDetails(task);
     setTaskWorkSessions([]);
     setLoadingSessions(true);
@@ -1063,7 +1069,45 @@ export default function TasksPage() {
   const closeTaskDetailsModal = () => {
     setSelectedTaskForDetails(null);
     setTaskWorkSessions([]);
+    suppressTaskQueryRef.current = true;
+    router.replace('/admin/tasks', { scroll: false });
   };
+
+  useEffect(() => {
+    if (!tasks.length || selectedTaskForDetails) return;
+
+    const requestedId = searchParams.get('taskId');
+    if (!requestedId) {
+      suppressTaskQueryRef.current = false;
+      return;
+    }
+    if (suppressTaskQueryRef.current) return;
+
+    let decodedId = requestedId;
+    try {
+      decodedId = decodeURIComponent(requestedId);
+    } catch {
+      decodedId = requestedId;
+    }
+
+    const numericId = decodedId.match(/^\d+$/)?.[0];
+    const requestedTask = tasks.find((task) => {
+      const values = [task._id, task.task_id]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+      const normalizedId = decodedId.toLowerCase();
+      return values.includes(normalizedId) ||
+        Boolean(numericId && values.some((value) => value.match(new RegExp(`(?:^|-)${numericId}$`))));
+    });
+
+    if (requestedTask) {
+      void openTaskDetailsModal(requestedTask);
+    } else {
+      suppressTaskQueryRef.current = true;
+      toast.error('The requested task could not be found or you do not have access to it.');
+      router.replace('/admin/tasks', { scroll: false });
+    }
+  }, [tasks, selectedTaskForDetails, searchParams]);
 
   const canManageTask = (task: Task) => {
     if (!user) return false;

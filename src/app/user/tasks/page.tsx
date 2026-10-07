@@ -4,8 +4,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/exhaustive-deps */
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import JSZip from 'jszip';
 import {
   CheckSquare, Plus, AlertCircle, CheckCircle2,
@@ -117,6 +117,8 @@ interface UserProfile {
 
 export default function TasksPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const suppressTaskQueryRef = useRef(false);
   const [user, setUser] = useState<UserProfile | null>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -1066,6 +1068,10 @@ export default function TasksPage() {
   };
 
   const openTaskDetailsModal = async (task: Task) => {
+    const shareableId = task.task_id || task._id;
+    router.replace(`/user/tasks?taskId=${encodeURIComponent(shareableId)}`, {
+      scroll: false,
+    });
     setSelectedTaskForDetails(task);
     setTaskWorkSessions([]);
     setLoadingSessions(true);
@@ -1081,9 +1087,52 @@ export default function TasksPage() {
     }
   };
 
+  useEffect(() => {
+    if (!tasks.length || selectedTaskForDetails) return;
+
+    const requestedId = searchParams.get('taskId');
+    if (!requestedId) {
+      suppressTaskQueryRef.current = false;
+      return;
+    }
+    if (suppressTaskQueryRef.current) return;
+
+    let decodedId = requestedId;
+    try {
+      decodedId = decodeURIComponent(requestedId);
+    } catch {
+      decodedId = requestedId;
+    }
+
+    const lookupIds = new Set([decodedId.toLowerCase()]);
+    const numericId = decodedId.match(/^\d+$/)?.[0];
+    if (numericId) lookupIds.add(numericId);
+
+    const requestedTask = tasks.find((task) =>
+      [task._id, task.task_id].some(
+        (value) => {
+          if (!value) return false;
+          const normalizedValue = String(value).toLowerCase();
+          if (lookupIds.has(normalizedValue)) return true;
+          return Boolean(numericId && normalizedValue.match(new RegExp(`(?:^|-)${numericId}$`)));
+        }
+      )
+    );
+
+    if (requestedTask) {
+      void openTaskDetailsModal(requestedTask);
+    } else {
+      suppressTaskQueryRef.current = true;
+      toast.error('The requested task could not be found or you do not have access to it.');
+      router.replace('/user/tasks', { scroll: false });
+    }
+  }, [tasks, selectedTaskForDetails, searchParams]);
+
   const closeTaskDetailsModal = () => {
     setSelectedTaskForDetails(null);
     setTaskWorkSessions([]);
+    suppressTaskQueryRef.current = true;
+    router.replace('/user/tasks', { scroll: false });
   };
 
   const openReassignedEditor = (task: Task) => {
@@ -1239,16 +1288,27 @@ export default function TasksPage() {
     return user.userType === 'admin' || task.createdBy?._id === user._id || isAssigned;
   };
 
+  const canEditOrDeleteTask = (task: Task) => {
+    if (!user) return false;
+    const currentUserId = user._id || user.id;
+    return Boolean(
+      user.userType === 'admin' ||
+      (currentUserId &&
+        task.createdBy?._id &&
+        String(task.createdBy._id) === String(currentUserId))
+    );
+  };
+
   const handleDelete = async (taskId: string) => {
-    if (!isAdmin) {
-      toast.error('Only administrators are permitted to delete tasks.');
+    const task = tasks.find(t => t._id === taskId);
+    if (!task || !canEditOrDeleteTask(task)) {
+      toast.error('You can only delete tasks created by you.');
       return;
     }
     if (isViewMode) {
       toast.error('You are currently in View-Only mode. Please punch in to delete tasks.');
       return;
     }
-    const task = tasks.find(t => t._id === taskId);
     const taskTitle = task?.title || 'Task';
     if (!confirm(`Are you sure you want to delete "${taskTitle}"?`)) return;
 
@@ -1266,8 +1326,8 @@ export default function TasksPage() {
   };
 
   const openEditModal = (task: Task) => {
-    if (!isAdmin) {
-      toast.error('Only administrators are permitted to edit tasks.');
+    if (!canEditOrDeleteTask(task)) {
+      toast.error('You can only edit tasks created by you.');
       return;
     }
 
@@ -1911,7 +1971,7 @@ export default function TasksPage() {
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
                         {tasks.length === 0 ? 'Create your first task to get started' : 'Try adjusting your filters'}
                       </p>
-                      {isAdmin && (
+                      {(!isViewMode || isAdmin) && (
                         <button
                           onClick={openCreateModal}
                           className="btn btn-primary"
@@ -2573,7 +2633,7 @@ export default function TasksPage() {
                                 </button>
                               )} */}
 
-                              {isAdmin && (
+                              {canEditOrDeleteTask(task) && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -2587,7 +2647,7 @@ export default function TasksPage() {
                                 </button>
                               )}
 
-                              {isAdmin && (
+                              {canEditOrDeleteTask(task) && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();

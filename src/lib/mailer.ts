@@ -136,6 +136,9 @@ export async function sendTaskAssignedMail(params: {
   dueTime?: string | Date | null;
   assignedByName?: string;
 }): Promise<boolean> {
+  const taskLink = params.taskId
+    ? `https://tisworktracker.vercel.app/user/tasks/${encodeURIComponent(params.taskId)}`
+    : "https://tisworktracker.vercel.app/user/tasks";
   const subject = `New Task Assigned: ${params.taskId ? `[${params.taskId}] ` : ""}${params.taskTitle}`;
   const text = [
     `You have been assigned a new task:`,
@@ -148,7 +151,7 @@ export async function sendTaskAssignedMail(params: {
     params.dueTime ? `Due Time: ${params.dueTime}` : null,
     params.assignedByName ? `Assigned By: ${params.assignedByName}` : null,
     params.description ? `\nDescription:\n${params.description}` : null,
-    `Link: ${'https://tisworktracker.vercel.app/user/tasks'}`,
+    `Open Task: ${taskLink}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -199,6 +202,9 @@ export async function sendTaskReviewMail(params: {
   completedByEmployees?: string[];
   submittedAt?: Date | string;
 }): Promise<boolean> {
+  const taskLink = params.taskId
+    ? `https://tisworktracker.vercel.app/admin/tasks?taskId=${encodeURIComponent(params.taskId)}`
+    : "https://tisworktracker.vercel.app/admin/tasks";
   const subject = `Task Ready for Review: ${params.taskId ? `[${params.taskId}] ` : ""}${params.taskTitle}`;
   const text = [
     `Task Completed and Ready for Review:`,
@@ -212,7 +218,7 @@ export async function sendTaskReviewMail(params: {
     `Status: Review`,
     `Submitted At: ${params.submittedAt ? new Date(params.submittedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
     ``,
-    `Link: ${'https://tisworktracker.vercel.app/admin/tasks'}`,
+    `Open Task for Review: ${taskLink}`,
     `All assigned team members have completed their work. The task is now awaiting your review.`,
   ]
     .filter(Boolean)
