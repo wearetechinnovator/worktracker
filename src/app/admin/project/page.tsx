@@ -11,6 +11,7 @@ import CreateProjectModal from '@/components/CreateProjectModal';
 import { toast } from '@/lib/toast';
 
 import { getClients } from '@/lib/clientApi';
+import { Lottie } from 'lottie-react';
 
 interface Employee {
   _id: string;
@@ -991,7 +992,13 @@ export default function ProjectsPage() {
                 // border: '1px solid rgba(59, 130, 246, 0.2)',
                 // boxShadow: '0 4px 12px rgba(59, 130, 246, 0.08)'
               }}>
-                <FolderPlus size={34} style={{ color: 'var(--accent-primary)' }} />
+                <Lottie
+                src="/no_projects.json"
+                autoplay
+                loop
+                aria-label="No projects"
+                style={{ width: '180px', height: '180px', marginBottom: '16px' }}
+              />
               </div>
 
               {/* Heading & Subtitle */}

@@ -12,6 +12,7 @@ import { toast } from '@/lib/toast';
 import { getClients } from '@/lib/clientApi';
 import { usePunch } from '@/context/PunchContext';
 import ViewModeBanner from '@/components/ViewModeBanner';
+import { Lottie } from 'lottie-react';
 
 interface Employee {
   _id: string;
@@ -185,6 +186,7 @@ export default function ProjectsPage() {
 
   const colors = ['#3b82f6', '#10b981', '#7f56d9', '#f59e0b', '#f43f5e', '#06b6d4', '#475569'];
 
+  const folderIcon = '/folder_icon.png'
   // Load the authenticated user from the server-side DB session.
   // Do not use localStorage as the source of truth for authentication.
   useEffect(() => {
@@ -301,14 +303,14 @@ export default function ProjectsPage() {
       const employeeResult = await employeeResponse.json();
       const loadedEmployees: Employee[] = (employeeResponse.ok && employeeResult.success && Array.isArray(employeeResult.data))
         ? employeeResult.data.map((employee: any) => ({
-            ...employee,
-            _id: String(employee._id),
-            name: employee.name || employee.full_name || 'User',
-            role: employee.role || employee.designation || 'Employee',
-            userType: Number(employee.user_role) === 1 ? 'admin' : 'employee',
-            avatarColor: employee.avatarColor || '#3b82f6',
-            totalMinutes: Number(employee.totalMinutes) || 0,
-          }))
+          ...employee,
+          _id: String(employee._id),
+          name: employee.name || employee.full_name || 'User',
+          role: employee.role || employee.designation || 'Employee',
+          userType: Number(employee.user_role) === 1 ? 'admin' : 'employee',
+          avatarColor: employee.avatarColor || '#3b82f6',
+          totalMinutes: Number(employee.totalMinutes) || 0,
+        }))
         : [];
       const [clientResult, workResult] = await Promise.all([
         getClients(),
@@ -646,29 +648,7 @@ export default function ProjectsPage() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div className="project-heading">
-            <h1>Projects</h1>
-          </div>
-          
-        <div style={{ display: 'flex',}}>
-          {canCreateProject && (
-            <button className="btn btn-primary" onClick={() => {
-              setDeptName('');
-              setDeptDesc('');
-              setDeptColor('#3b82f6');
-              setDeptMembers([]);
-              setIsAddDeptOpen(true);
-            }}>
-              <Plus size={14} />
-              <span>New Project</span>
-            </button>
-          )}
-          {/* <button className="btn btn-primary" onClick={() => {
-            if (projects.length === 0) return alert('Create a Project first!');
-            setIsLogWorkOpen(true);
-          }}>
-            <Plus size={14} />
-            <span>Log Work</span>
-          </button> */}
+          <h1 className='text-[1.6rem] font-bold'>Projects</h1>
         </div>
       </div>
 
@@ -761,18 +741,18 @@ export default function ProjectsPage() {
             {projects.length === 0 && (
               <div style={{
                 border: '1px dashed var(--border-color)',
-                borderRadius: '10px',
+                borderRadius: '5px',
                 padding: '16px 12px',
                 textAlign: 'center',
                 background: 'var(--bg-tertiary)',
-                marginTop: '4px'
+                marginTop: '4px',
+                display:'flex',
+                alignItems: 'center',
+                gap:'10px'
               }}>
-                <FolderPlus size={22} style={{ color: 'var(--accent-primary)', marginBottom: '6px', opacity: 0.8 }} />
-                <div style={{ fontWeight: 700, fontSize: '0.78rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
+                <img src={folderIcon} alt="folderIcon" width={22}/>
+                <div style={{fontSize: '0.78rem', color: 'var(--text-primary)'}}>
                   No projects yet
-                </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: '1.3' }}>
-                  Create your first project to get started.
                 </div>
               </div>
             )}
@@ -789,177 +769,27 @@ export default function ProjectsPage() {
               justifyContent: 'center',
               padding: '48px 32px',
               minHeight: '460px',
-              borderRadius: '16px',
+              borderRadius: '5px',
               border: '1px solid var(--border-color)',
               boxShadow: 'var(--shadow-sm)'
             }}>
               {/* Subtle top illustration */}
-              <div style={{
-                width: '68px',
-                height: '68px',
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(127, 86, 217, 0.12) 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '20px',
-                border: '1px solid rgba(59, 130, 246, 0.2)',
-                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.08)'
-              }}>
-                <FolderPlus size={34} style={{ color: 'var(--accent-primary)' }} />
-              </div>
+              <Lottie
+                src="/no_projects.json"
+                autoplay
+                loop
+                aria-label="No projects"
+                style={{ width: '180px', height: '180px', marginBottom: '16px' }}
+              />
 
               {/* Heading & Subtitle */}
-              <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px', textAlign: 'center' }}>
-                Your workspace is ready!
+              <h2 style={{ fontSize: '1.35rem', color: 'var(--text-primary)', marginBottom: '8px', textAlign: 'center' }}>
+                You're all set!
               </h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', maxWidth: '460px', textAlign: 'center', lineHeight: '1.5', marginBottom: '24px' }}>
-                Create your first project to start organizing tasks, tracking progress, and collaborating with your team.
+
+              <p className="text-xs text-center">
+                Your account is ready. Your Admin will assign you to a project soon.
               </p>
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                {canCreateProject ? (
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => {
-                      setDeptName('');
-                      setDeptDesc('');
-                      setDeptColor('#3b82f6');
-                      setDeptMembers([]);
-                      setIsAddDeptOpen(true);
-                    }}
-                    style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px' }}
-                  >
-                    <Plus size={16} />
-                    <span>Create your first project</span>
-                  </button>
-                ) : (
-                  <button
-                    className="btn btn-primary"
-                    disabled
-                    title="Your role does not have permission to create projects"
-                    style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px', opacity: 0.6 }}
-                  >
-                    <Plus size={16} />
-                    <span>Create your first project</span>
-                  </button>
-                )}
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setIsExploreModalOpen(true)}
-                  style={{ padding: '10px 16px', fontSize: '0.85rem', fontWeight: 650, display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px' }}
-                >
-                  <HelpCircle size={15} />
-                  <span>Explore how it works</span>
-                </button>
-              </div>
-
-              {/* Divider */}
-              <div style={{ width: '100%', maxWidth: '540px', height: '1px', background: 'var(--border-color)', margin: '32px 0 24px 0' }} />
-
-              {/* Feature Highlights Section */}
-              <div style={{ width: '100%', maxWidth: '640px' }}>
-                <h4 style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '14px', textAlign: 'center' }}>
-                  What you can do with projects
-                </h4>
-
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: '12px'
-                }}>
-                  <div style={{
-                    background: 'var(--bg-tertiary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '10px',
-                    padding: '14px 14px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-start'
-                  }}>
-                    <div style={{
-                      width: '30px',
-                      height: '30px',
-                      borderRadius: '6px',
-                      background: '#eff6ff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginBottom: '8px',
-                      color: '#3b82f6'
-                    }}>
-                      <Folder size={16} />
-                    </div>
-                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
-                      Organize work
-                    </span>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
-                      Keep all project details, files and tasks in one place.
-                    </span>
-                  </div>
-
-                  <div style={{
-                    background: 'var(--bg-tertiary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '10px',
-                    padding: '14px 14px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-start'
-                  }}>
-                    <div style={{
-                      width: '30px',
-                      height: '30px',
-                      borderRadius: '6px',
-                      background: '#ecfdf5',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginBottom: '8px',
-                      color: '#10b981'
-                    }}>
-                      <FileBarChart size={16} />
-                    </div>
-                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
-                      Track progress
-                    </span>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
-                      Monitor milestones and measure performance.
-                    </span>
-                  </div>
-
-                  <div style={{
-                    background: 'var(--bg-tertiary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '10px',
-                    padding: '14px 14px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-start'
-                  }}>
-                    <div style={{
-                      width: '30px',
-                      height: '30px',
-                      borderRadius: '6px',
-                      background: '#f3e8ff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginBottom: '8px',
-                      color: '#7f56d9'
-                    }}>
-                      <Users size={16} />
-                    </div>
-                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginBottom: '3px' }}>
-                      Manage team
-                    </span>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
-                      Collaborate with your team and assign tasks easily.
-                    </span>
-                  </div>
-                </div>
-              </div>
             </div>
           ) : !selectedProjId || !activeProject ? (
             <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px', minHeight: '300px', color: 'var(--text-muted)' }}>
@@ -1054,7 +884,7 @@ export default function ProjectsPage() {
                     {/* Left: Logs */}
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <h3 className="card-title" style={{ fontWeight:'400', fontSize: '0.85rem' }}>Work Logs ({filteredProjEntries.length})</h3>
+                        <h3 className="card-title" style={{ fontWeight: '400', fontSize: '0.85rem' }}>Work Logs ({filteredProjEntries.length})</h3>
 
                         <div style={{ display: 'flex', gap: '6px' }}>
                           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -1159,7 +989,7 @@ export default function ProjectsPage() {
 
                     {/* Right: Members */}
                     <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
-                      <h3 className="card-title" style={{fontWeight:'400', fontSize: '0.85rem', marginBottom: '8px' }}>Staff Assigned</h3>
+                      <h3 className="card-title" style={{ fontWeight: '400', fontSize: '0.85rem', marginBottom: '8px' }}>Staff Assigned</h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto' }}>
                         {activeProject.members.map((m: any) => {
                           const presence: 'working' | 'idle' | 'offline' = m.presenceState || 'offline';
@@ -1187,16 +1017,16 @@ export default function ProjectsPage() {
                           return (
                             <div key={m._id} className="list-row" style={{ padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
 
-                                <div style={{ position: 'relative', flexShrink: 0 }}>
-                                  <div className="avatar" style={{ backgroundColor: m.avatarColor || '#3b82f6', width: '26px', height: '26px', fontSize: '0.68rem', fontWeight: 700 }}>
-                                    {m.name}
-                                  </div>
-                                  <h1>{}</h1>
-                                </div> 
-                                <div style={{ overflow: 'hidden' }}>
-                                  <div style={{ fontWeight: 700, fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
-                                  <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.role}</div>
+                              <div style={{ position: 'relative', flexShrink: 0 }}>
+                                <div className="avatar" style={{ backgroundColor: m.avatarColor || '#3b82f6', width: '26px', height: '26px', fontSize: '0.68rem', fontWeight: 700 }}>
+                                  {m.name}
                                 </div>
+                                <h1>{ }</h1>
+                              </div>
+                              <div style={{ overflow: 'hidden' }}>
+                                <div style={{ fontWeight: 700, fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
+                                <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.role}</div>
+                              </div>
 
                               <span
                                 style={{

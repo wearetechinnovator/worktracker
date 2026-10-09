@@ -26,10 +26,6 @@ function getISTParts(date: Date = new Date()) {
   return { hour, minute };
 }
 
-function getPreviousAttendanceDate(date: Date = new Date()): string {
-  return getAttendanceDate(new Date(date.getTime() - 24 * 60 * 60 * 1000));
-}
-
 function getISTDayEnd(attendanceDate: string): Date {
   // 23:59 IST = 18:29 UTC.
   return new Date(`${attendanceDate}T23:59:00+05:30`);
@@ -62,49 +58,35 @@ export async function GET(request: Request) {
     const { hour, minute } = getISTParts(now);
 
 
-    // const isLateEveningWindow = hour === 23 && minute >= 30;
-    // const isShortlyAfterMidnight = hour >= 0 && hour < 2;
-
-    // if (!isLateEveningWindow && !isShortlyAfterMidnight) {
-    //   return NextResponse.json({
-    //     success: true,
-    //     skipped: true,
-    //     message: "Auto punch-out is not due at the current IST time.",
-    //     currentIST: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
-    //   });
-    // }
     const url = new URL(request.url);
     const force = url.searchParams.get("force") === "true";
     const isLateEveningWindow = hour === 23 && minute >= 30;
-    const isShortlyAfterMidnight = hour >= 0 && hour < 2;
-
-    if (!force && !isLateEveningWindow && !isShortlyAfterMidnight) {
-      return NextResponse.json({
-        success: true,
-        skipped: true,
-        message: "Auto punch-out is not due at the current IST time.",
-        currentIST: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
-      });
-    }
-
     await dbConnect();
 
-    const targetAttendanceDate = isShortlyAfterMidnight
-      ? getPreviousAttendanceDate(now)
-      : getAttendanceDate(now);
-
-    const targetPunchOutTime = getISTDayEnd(targetAttendanceDate);
+    const todayAttendanceDate = getAttendanceDate(now);
 
     const openAttendances = await Attendance.find({
-      attendance_date: targetAttendanceDate,
       punch_in_on: { $ne: null },
       punch_out_on: null,
     });
 
     let punchedOutCount = 0;
+    const punchedOutAttendanceDates = new Set<string>();
 
     for (const attendance of openAttendances) {
-      attendance.punch_out_on = targetPunchOutTime;
+      const attendanceDate =
+        attendance.attendance_date ||
+        getAttendanceDate(new Date(attendance.punch_in_on));
+
+      // Catch up records missed while the app was asleep. The current day's
+      // record is only eligible during the normal 11:30 PM window.
+      const isStale = attendanceDate < todayAttendanceDate;
+      if (!isStale && !isLateEveningWindow && !force) {
+        continue;
+      }
+
+      attendance.attendance_date = attendanceDate;
+      attendance.punch_out_on = getISTDayEnd(attendanceDate);
       attendance.punch_out_source = "system";
       attendance.allow_punch_out_by = null;
       attendance.punch_out_ip = null;
@@ -116,16 +98,17 @@ export async function GET(request: Request) {
 
       await attendance.save();
       punchedOutCount += 1;
+      punchedOutAttendanceDates.add(attendanceDate);
     }
 
     return NextResponse.json({
       success: true,
-      targetAttendanceDate,
-      targetPunchOutTime,
+      currentIST: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+      punchedOutAttendanceDates: [...punchedOutAttendanceDates],
       punchedOutCount,
       message:
         punchedOutCount > 0
-          ? `${punchedOutCount} attendance record(s) were automatically punched out at 11:59 PM.`
+          ? `${punchedOutCount} attendance record(s) were automatically punched out.`
           : "No open attendance records required automatic punch-out.",
     });
   } catch (error) {

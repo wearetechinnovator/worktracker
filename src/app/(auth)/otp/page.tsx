@@ -16,6 +16,8 @@ export default function OtpPage() {
 	const [submitting, setSubmitting] = useState(false);
 	const [resending, setResending] = useState(false);
 	const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+	const otpImage = '/otp_image.png';
+	const tisLogo = '/tis.png'
 
 	const handleVerify = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -126,209 +128,270 @@ export default function OtpPage() {
 	const isComplete = otp.every(Boolean);
 
 	return (
-		<div
-			style={{
-				display: 'flex',
-				alignItems: 'center',
-				justifyContent: 'center',
-				minHeight: '85vh',
-				width: '100%',
-			}}
-		>
-			<div
-				className="card"
-				style={{
-					width: '100%',
-					maxWidth: '380px',
-					padding: '28px 30px',
-					boxShadow: 'var(--shadow-md)',
-				}}
-			>
-				{/* Header */}
-				<div
-					style={{
-						textAlign: 'center',
-						marginBottom: '24px',
-					}}
-				>
-					<div
-						style={{
-							width: '42px',
-							height: '42px',
-							margin: '0 auto 14px',
-							borderRadius: '10px',
-							background: '#eff6ff',
-							color: 'var(--accent-primary)',
-							display: 'grid',
-							placeItems: 'center',
-						}}
-					>
-						<Mail size={20} />
+		<div className="h-screen w-screen bg-blue-100 flex items-center justify-center">
+			<div className="h-[80%] w-[70%] bg-white flex overflow-hidden rounded-2xl shadow-lg">
+
+				{/* ================= LEFT SIDE ================= */}
+				<div className="w-1/2 h-full relative overflow-hidden">
+					<img
+						src={otpImage}
+						alt="Verify email"
+						className="h-full w-full object-cover"
+					/>
+
+					{/* Gradient */}
+					<div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+
+					{/* Top Content */}
+					<div className="absolute top-8 left-10 text-white flex items-center gap-20 w-full">
+
+
+						<div>
+							<span className="text-sm font-bold tracking-wide">
+								QUANTO TRACK
+							</span>
+
+							<p className="mt-1 text-xs text-white/75">
+								Organize your work. Stay in control.
+							</p>
+						</div>
+
+						<img
+							src={tisLogo}
+							alt="Quanto Track"
+							className="w-[100px] h-[100px] object-contain"
+						/>
 					</div>
 
-					<h2
-						style={{
-							fontSize: '1.4rem',
-							fontWeight: 800,
-							color: 'var(--text-primary)',
-							marginBottom: '6px',
-						}}
-					>
-						Verify your email
-					</h2>
+					{/* Bottom Content */}
+					<div className="absolute bottom-10 left-10 text-white max-w-sm">
+						<h2 className="text-3xl font-bold leading-tight">
+							One step closer.
+						</h2>
 
-					<p
-						style={{
-							fontSize: '0.8rem',
-							color: 'var(--text-muted)',
-							lineHeight: 1.5,
-							margin: 0,
-						}}
-					>
-						Enter the 6-digit code sent to
-						<br />
-						<strong
-							style={{
-								color: 'var(--text-secondary)',
-								fontWeight: 600,
-							}}
-						>
-							{email}
-						</strong>
-					</p>
+						<p className="mt-2 text-sm text-white/80">
+							We've sent a verification code to your email.
+							<br />
+							Let's get you started.
+						</p>
+					</div>
 				</div>
 
-				<form
-					onSubmit={handleVerify}
-					style={{
-						display: 'flex',
-						flexDirection: 'column',
-						gap: '18px',
-					}}
-				>
-					{/* OTP Inputs */}
+				{/* ================= RIGHT SIDE ================= */}
+				<div className="w-1/2 h-full flex items-center justify-center">
+
 					<div
+						className="card"
 						style={{
-							display: 'flex',
-							justifyContent: 'center',
-							gap: '8px',
+							width: "100%",
+							maxWidth: "380px",
+							padding: "28px 30px",
+							boxShadow: "var(--shadow-md)",
 						}}
 					>
-						{otp.map((digit, index) => (
-							<input
-								key={index}
-								ref={(el) => {
-									inputRefs.current[index] = el;
-								}}
-								type="text"
-								inputMode="numeric"
-								maxLength={1}
-								value={digit}
-								onChange={(e) =>
-									handleChange(index, e.target.value)
-								}
-								onKeyDown={(e) =>
-									handleKeyDown(index, e)
-								}
-								onPaste={handlePaste}
-								autoComplete={index === 0 ? 'one-time-code' : 'off'}
-								style={{
-									width: '44px',
-									height: '48px',
-									textAlign: 'center',
-									fontSize: '1.1rem',
-									fontWeight: 700,
-									color: 'var(--text-primary)',
-									background: 'var(--bg-secondary)',
-									border: `1px solid ${digit
-										? 'var(--accent-primary)'
-										: 'var(--border-color)'
-										}`,
-									borderRadius: 'var(--border-radius-sm)',
-									outline: 'none',
-									transition: 'var(--transition-fast)',
-								}}
-								onFocus={(e) => {
-									e.currentTarget.style.borderColor =
-										'var(--accent-primary)';
-									e.currentTarget.style.boxShadow =
-										'0 0 0 2px rgba(59, 130, 246, 0.12)';
-								}}
-								onBlur={(e) => {
-									e.currentTarget.style.borderColor = digit
-										? 'var(--accent-primary)'
-										: 'var(--border-color)';
-									e.currentTarget.style.boxShadow = 'none';
-								}}
-							/>
-						))}
-					</div>
 
-					<Button
-						type="submit"
-						loading={submitting}
-						className="btn btn-primary"
-						disabled={!isComplete || submitting}
-						style={{
-							padding: '8px 16px',
-							fontSize: '0.85rem',
-							width: '100%',
-							height: '38px',
-							opacity: isComplete ? 1 : 0.55,
-						}}
-					>
-						Verify OTP
-					</Button>
-
-					{/* Resend */}
-					{/* <div
-						style={{
-							textAlign: 'center',
-							fontSize: '0.75rem',
-							color: 'var(--text-muted)',
-						}}
-					>
-						Didn't receive the code?{' '}
-						<Button
-							type="button"
-							variant="link"
-							loading={resending}
-							onClick={handleResend}
+						{/* Header */}
+						<div
 							style={{
-								border: 0,
-								background: 'transparent',
-								color: 'var(--accent-primary)',
-								fontWeight: 700,
-								cursor: 'pointer',
-								padding: 0,
-								height: 'auto',
+								textAlign: "center",
+								marginBottom: "24px",
 							}}
 						>
-							Resend OTP
-						</Button>
-					</div> */}
+							<div
+								style={{
+									width: "42px",
+									height: "42px",
+									margin: "0 auto 14px",
+									borderRadius: "10px",
+									background: "#eff6ff",
+									color: "var(--accent-primary)",
+									display: "grid",
+									placeItems: "center",
+								}}
+							>
+								<Mail size={20} />
+							</div>
 
-					{/* Back */}
-					<button
-						type="button"
-						onClick={() => router.back()}
-						style={{
-							display: 'flex',
-							alignItems: 'center',
-							justifyContent: 'center',
-							gap: '5px',
-							border: 0,
-							background: 'transparent',
-							color: 'var(--text-muted)',
-							fontSize: '0.75rem',
-							cursor: 'pointer',
-							padding: '2px',
-						}}
-					>
-						<ArrowLeft size={13} />
-						Back
-					</button>
-				</form>
+							<h2
+								style={{
+									fontSize: "1.4rem",
+									fontWeight: 800,
+									color: "var(--text-primary)",
+									marginBottom: "6px",
+								}}
+							>
+								Verify your email
+							</h2>
+
+							<p
+								style={{
+									fontSize: "0.8rem",
+									color: "var(--text-muted)",
+									lineHeight: 1.5,
+									margin: 0,
+								}}
+							>
+								Enter the 6-digit code sent to
+								<br />
+
+								<strong
+									style={{
+										color: "var(--text-secondary)",
+										fontWeight: 600,
+									}}
+								>
+									{email}
+								</strong>
+							</p>
+						</div>
+
+						<form
+							onSubmit={handleVerify}
+							style={{
+								display: "flex",
+								flexDirection: "column",
+								gap: "18px",
+							}}
+						>
+
+							{/* OTP Inputs */}
+							<div
+								style={{
+									display: "flex",
+									justifyContent: "center",
+									gap: "8px",
+								}}
+							>
+								{otp.map((digit, index) => (
+									<input
+										key={index}
+										ref={(el) => {
+											inputRefs.current[index] = el;
+										}}
+										type="text"
+										inputMode="numeric"
+										maxLength={1}
+										value={digit}
+										onChange={(e) =>
+											handleChange(index, e.target.value)
+										}
+										onKeyDown={(e) =>
+											handleKeyDown(index, e)
+										}
+										onPaste={handlePaste}
+										autoComplete={
+											index === 0
+												? "one-time-code"
+												: "off"
+										}
+										style={{
+											width: "44px",
+											height: "48px",
+											textAlign: "center",
+											fontSize: "1.1rem",
+											fontWeight: 700,
+											color: "var(--text-primary)",
+											background: "var(--bg-secondary)",
+											border: `1px solid ${digit
+													? "var(--accent-primary)"
+													: "var(--border-color)"
+												}`,
+											borderRadius:
+												"var(--border-radius-sm)",
+											outline: "none",
+											transition:
+												"var(--transition-fast)",
+										}}
+										onFocus={(e) => {
+											e.currentTarget.style.borderColor =
+												"var(--accent-primary)";
+
+											e.currentTarget.style.boxShadow =
+												"0 0 0 2px rgba(59, 130, 246, 0.12)";
+										}}
+										onBlur={(e) => {
+											e.currentTarget.style.borderColor =
+												digit
+													? "var(--accent-primary)"
+													: "var(--border-color)";
+
+											e.currentTarget.style.boxShadow =
+												"none";
+										}}
+									/>
+								))}
+							</div>
+
+							{/* Verify Button */}
+							<Button
+								type="submit"
+								loading={submitting}
+								className="btn btn-primary"
+								disabled={!isComplete || submitting}
+								style={{
+									padding: "8px 16px",
+									fontSize: "0.85rem",
+									width: "100%",
+									height: "38px",
+									opacity: isComplete ? 1 : 0.55,
+								}}
+							>
+								Verify OTP
+							</Button>
+
+							{/* Resend */}
+							<div
+								style={{
+									textAlign: "center",
+									fontSize: "0.75rem",
+									color: "var(--text-muted)",
+								}}
+							>
+								Didn't receive the code?{" "}
+
+								<Button
+									type="button"
+									variant="link"
+									loading={resending}
+									onClick={handleResend}
+									style={{
+										border: 0,
+										background: "transparent",
+										color: "var(--accent-primary)",
+										fontWeight: 700,
+										cursor: "pointer",
+										padding: 0,
+										height: "auto",
+									}}
+								>
+									Resend OTP
+								</Button>
+							</div>
+
+							{/* Back */}
+							<button
+								type="button"
+								onClick={() => router.back()}
+								style={{
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+									gap: "5px",
+									border: 0,
+									background: "transparent",
+									color: "var(--text-muted)",
+									fontSize: "0.75rem",
+									cursor: "pointer",
+									padding: "2px",
+								}}
+							>
+								<ArrowLeft size={13} />
+								Back to Register
+							</button>
+
+						</form>
+					</div>
+				</div>
 			</div>
 		</div>
 	);
