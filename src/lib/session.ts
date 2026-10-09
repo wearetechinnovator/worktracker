@@ -9,7 +9,7 @@ export type Session = {
 };
 
 const COOKIE_NAME = "worktracker_session";
-const MAX_AGE_SECONDS = 60 * 60 * 8;
+const MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 export function createSessionId() {
   return crypto.randomBytes(32).toString("hex");
@@ -29,4 +29,3 @@ export const sessionCookie = {
     maxAge: MAX_AGE_SECONDS,
   },
 };
-
