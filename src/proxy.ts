@@ -6,13 +6,12 @@ const publicRoutes = [
   "/register",
   "/otp",
 ];
-//hello
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isPublicRoute = publicRoutes.some((route) =>
-    pathname.startsWith(route)
+    pathname === route || pathname.startsWith(`${route}/`)
   );
 
   // API routes are handled by their own authentication logic
