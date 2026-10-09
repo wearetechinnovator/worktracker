@@ -394,7 +394,12 @@ export default function TaskDetailsModal({
       const updates = Array.isArray(result.data)
         ? result.data.filter((entry: TaskUpdateLog) =>
             String(entry.action || '').startsWith('Posted a task update') ||
-            String(entry.action || '').startsWith('Updated task status')
+            String(entry.action || '').startsWith('Updated task status') ||
+            Boolean(
+              entry.message ||
+              (Array.isArray(entry.files) && entry.files.length > 0) ||
+              (Array.isArray(entry.links) && entry.links.length > 0)
+            )
           )
         : [];
 
@@ -972,23 +977,53 @@ export default function TaskDetailsModal({
    */
 
   const renderTaskUpdates = () => {
+    const displayedUpdates = [...taskUpdates];
+
+    // Older work completions stored their notes on TaskWork before the
+    // completion log started carrying update details.
+    sessions.forEach((session) => {
+      const message = typeof session.notes === 'string' ? session.notes.trim() : '';
+      const files = Array.isArray(session.files) ? session.files : [];
+      const links = Array.isArray(session.links) ? session.links : [];
+
+      if (!message && files.length === 0 && links.length === 0) return;
+
+      const alreadyListed = displayedUpdates.some((update) =>
+        String(update.message || '').trim() === message &&
+        JSON.stringify(update.files || []) === JSON.stringify(files) &&
+        JSON.stringify(update.links || []) === JSON.stringify(links)
+      );
+
+      if (!alreadyListed) {
+        displayedUpdates.push({
+          _id: `work-${session._id}`,
+          action: 'Posted a task update',
+          message,
+          files,
+          links,
+          timestamp: session.updatedAt || session.createdAt,
+          user_id: session.employeeId,
+        });
+      }
+    });
+
     return (
       <div className="td-collapse-card">
         <div className="td-collapse-header" style={{ cursor: 'default' }}>
           <span>Updates</span>
           <span style={{ fontSize: 11, color: '#64748b' }}>
-            {taskUpdates.length}
+            {displayedUpdates.length}
           </span>
         </div>
 
         <div className="td-collapse-content">
           {loadingUpdates ? (
             <div className="td-sidebar-empty">Loading updates...</div>
-          ) : taskUpdates.length === 0 ? (
+          ) : displayedUpdates.length === 0 ? (
             <div className="td-sidebar-empty">No updates yet</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {taskUpdates.map((update) => {
+              {displayedUpdates.map((update) => {
                 const message = String(
                   update.message ||
                     String(update.action || '').split(': ').slice(1).join(': ') ||

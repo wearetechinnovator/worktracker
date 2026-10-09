@@ -808,7 +808,13 @@ export async function POST(request: NextRequest) {
           work.isFullyCompleted
             ? "Completed"
             : "Partially Done",
-        action: "Completed",
+        action:
+          workNotes || workFiles.length > 0 || workLinks.length > 0
+            ? "Posted a task update"
+            : "Completed",
+        message: workNotes,
+        files: workFiles,
+        links: workLinks,
       });
 
       await syncTaskStatus(task._id);
