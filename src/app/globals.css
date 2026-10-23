@@ -1560,9 +1560,48 @@ textarea.form-control {
   margin-bottom: 22px;
 }
 
+.user-dashboard-page {
+  width: 100%;
+}
+
+.dashboard-tasks-panel {
+  float: right;
+  width: 412px;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 0 24px 24px;
+  position: sticky;
+  top: 72px;
+  z-index: 2;
+}
+
+.dashboard-tasks-panel > aside {
+  max-height: calc(100vh - 88px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.dashboard-tasks-panel > aside > div:first-child {
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
 @media (max-width: 1200px) {
   .dashboard-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-tasks-panel {
+    float: none;
+    width: 100%;
+    position: static;
+  }
+
+  .dashboard-tasks-panel > aside {
+    max-height: none;
+    overflow: visible;
   }
 }
 

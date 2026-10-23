@@ -929,7 +929,7 @@ export default function TopNavbar() {
       <header
         className="top-navbar no-print"
         style={{
-          zIndex: 1060,
+          zIndex: 100,
         }}
       >
         {/* ===================================================

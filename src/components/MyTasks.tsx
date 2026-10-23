@@ -8,16 +8,12 @@ import {
   Eye, User
 } from 'lucide-react';
 import PageShimmer from '@/components/PageShimmer';
-import dynamic from 'next/dynamic';
 import { taskApi } from '@/lib/taskApi';
 import { toast } from '@/lib/toast';
 import TaskDetailsModal from '@/components/TaskDetailsModal';
+import EndWorkSessionModal from '@/components/EndWorkSessionModal';
 import { formatTimeTo12H } from '@/lib/time';
 
-const CKEditorComponent = dynamic(
-  () => import('@/components/CKEditorWrapper'),
-  { ssr: false }
-);
 
 interface Task {
   _id: string;
@@ -1322,189 +1318,21 @@ export default function MyTasks({ userId }: { userId: string }) {
         </div>
       )}
 
-      {/* End Work Dialog */}
-      {showEndWorkDialog && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '20px',
-          }}
-          onClick={closeEndWorkDialog}
-        >
-          <div
-            className="card"
-            style={{
-              maxWidth: '500px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflow: 'auto',
-              position: 'relative',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <StopCircle size={22} style={{ color: '#ef4444' }} />
-                End Work Session
-              </h3>
-              <button
-                onClick={closeEndWorkDialog}
-                className="btn"
-                style={{ padding: '6px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-              Add status, notes or links related to your work before ending the session.
-            </p>
-
-
-
-            <div style={{ marginBottom: '20px' }}>
-              <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
-                Is this task fully completed? *
-              </label>
-              <div style={{ display: 'flex', gap: '16px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="completionStatus"
-                    value="full"
-                    checked={completionStatus === 'full'}
-                    onChange={() => setCompletionStatus('full')}
-                    style={{ cursor: 'pointer' }}
-                  />
-                  <span>Yes, Fully Completed</span>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="completionStatus"
-                    value="partial"
-                    checked={completionStatus === 'partial'}
-                    onChange={() => setCompletionStatus('partial')}
-                    style={{ cursor: 'pointer' }}
-                  />
-                  <span>No, Partially Done (Resume Later)</span>
-                </label>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
-                Work Notes/Reason {completionStatus === 'partial' ? <span style={{ color: '#ef4444' }}>* (Required for partial completion)</span> : '(Optional)'}
-              </label>
-
-              <CKEditorComponent
-                value={workNotes}
-                onChange={(val) => setWorkNotes(val)}
-              />
-
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                {completionStatus === 'partial' ? 'Explain why you are stopping and what work is left.' : 'Describe your progress, achievements, or any issues faced.'}
-              </p>
-            </div>
-
-              <div style={{ marginBottom: '18px' }}>
-                <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
-                  Related Links (Optional)
-                </label>
-                <textarea
-                  className="form-control"
-                  rows={3}
-                  placeholder="e.g. https://github.com/pull/1, https://jira.com/task/123"
-                  value={workLinks}
-                  onChange={(e) => setWorkLinks(e.target.value)}
-                  style={{ fontSize: '0.85rem', resize: 'vertical' }}
-                />
-              </div>
-
-              {/* Attach Work Files */}
-              <div style={{ marginBottom: '22px' }}>
-                <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
-                  Attached Files (Optional)
-                </label>
-                <input
-                  type="file"
-                  multiple
-                  onChange={handleWorkFilesChange}
-                  style={{ fontSize: '0.82rem', marginBottom: '8px' }}
-                />
-                {workFiles.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '100px', overflowY: 'auto' }}>
-                    {workFiles.map((file, fIdx) => (
-                      <div
-                        key={fIdx}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '4px 8px',
-                          background: 'var(--bg-secondary)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '4px',
-                          fontSize: '0.75rem',
-                        }}
-                      >
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {file.name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeWorkFile(fIdx)}
-                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0 4px' }}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={closeEndWorkDialog}
-                disabled={!!processingTaskId}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={() => selectedWorkId && handleEndWork(selectedWorkId)}
-                disabled={!!processingTaskId || (completionStatus === 'partial' && !workNotes.trim())}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: (completionStatus === 'partial' && !workNotes.trim()) ? 0.6 : 1 }}
-              >
-                {processingTaskId ? (
-                  <>
-                    <Loader2 className="animate-spin" size={16} />
-                    <span>Ending...</span>
-                  </>
-                ) : (
-                  <>
-                    <StopCircle size={16} />
-                    <span>End Work</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <EndWorkSessionModal
+        isOpen={showEndWorkDialog}
+        completionStatus={completionStatus}
+        onCompletionStatusChange={setCompletionStatus}
+        notes={workNotes}
+        onNotesChange={setWorkNotes}
+        links={workLinks}
+        onLinksChange={setWorkLinks}
+        files={workFiles}
+        onFilesChange={handleWorkFilesChange}
+        onRemoveFile={removeWorkFile}
+        onCancel={closeEndWorkDialog}
+        onSubmit={() => selectedWorkId && handleEndWork(selectedWorkId)}
+        loading={!!processingTaskId}
+      />
 
       {/* Generated Daily Mail Modal */}
       {showMailModal && (
