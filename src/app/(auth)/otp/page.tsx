@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { sanitizeNumericInput } from '@/lib/inputValidation';
@@ -15,6 +15,7 @@ export default function OtpPage() {
 	const [otp, setOtp] = useState(['', '', '', '', '', '']);
 	const [submitting, setSubmitting] = useState(false);
 	const [resending, setResending] = useState(false);
+	const [resendCooldown, setResendCooldown] = useState(0);
 	const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 	const otpImage = '/otp_image.png';
 	const tisLogo = '/tis.png'
@@ -53,7 +54,7 @@ export default function OtpPage() {
 
 			// OTP verification API now creates the DB session
 			// and sets the worktracker_session cookie.
-			router.push("/admin/dashboard");
+			router.push("/admin/settings/organisation");
 			router.refresh();
 
 		} catch (error) {
@@ -65,23 +66,41 @@ export default function OtpPage() {
 	};
 
 	const handleResend = async () => {
-		if (resending) return;
+		if (resending || resendCooldown > 0 || !email) return;
 		setResending(true);
 		try {
-			// Trigger OTP resend API call
-			const response = await fetch("/api/users/register", {
+			const response = await fetch("/api/otp/resend", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ email }),
 			});
 			const data = await response.json();
-			if (data.message) alert(data.message);
-		} catch (err) {
-			console.error(err);
+
+			if (!response.ok || !data.success) {
+				throw new Error(data.message || "Failed to resend OTP");
+			}
+
+			setOtp(["", "", "", "", "", ""]);
+			setResendCooldown(30);
+			inputRefs.current[0]?.focus();
+			alert(data.message || "OTP resent successfully");
+		} catch (error) {
+			console.error("Resend OTP error:", error);
+			alert(error instanceof Error ? error.message : "Failed to resend OTP");
 		} finally {
 			setResending(false);
 		}
 	};
+
+	useEffect(() => {
+		if (resendCooldown <= 0) return;
+
+		const timer = window.setInterval(() => {
+			setResendCooldown((current) => Math.max(0, current - 1));
+		}, 1000);
+
+		return () => window.clearInterval(timer);
+	}, [resendCooldown]);
 
 	const handleChange = (index: number, value: string) => {
 		const digit = sanitizeNumericInput(value).slice(-1);
@@ -353,6 +372,7 @@ export default function OtpPage() {
 									type="button"
 									variant="link"
 									loading={resending}
+									disabled={resending || resendCooldown > 0 || !email}
 									onClick={handleResend}
 									style={{
 										border: 0,
@@ -364,7 +384,9 @@ export default function OtpPage() {
 										height: "auto",
 									}}
 								>
-									Resend OTP
+									{resendCooldown > 0
+										? `Resend in ${resendCooldown}s`
+										: "Resend OTP"}
 								</Button>
 							</div>
 

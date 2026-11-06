@@ -141,6 +141,13 @@ const userSchema = new Schema(
       default: null,
     },
 
+    organization_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      default: null,
+      index: true,
+    },
+
     settings_id: {
       type: Schema.Types.ObjectId,
       ref: "Settings",

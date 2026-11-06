@@ -105,10 +105,14 @@ export async function GET(req: Request) {
     if (
       Number(user.user_role) === 1
     ) {
-      filter.$or = [
-        { admin_id: userObjectId },
-        { created_by: userObjectId },
-      ];
+      if (user.organization_id) {
+        filter.organization_id = user.organization_id;
+      } else {
+        filter.$or = [
+          { admin_id: userObjectId },
+          { created_by: userObjectId },
+        ];
+      }
     } else {
       filter.$or = [
         {
@@ -562,7 +566,7 @@ export async function POST(
 
     const isEmployee = Number(user.user_role) !== 1;
 
-    if (isEmployee && finalProjectId) {
+    if (finalProjectId) {
       if (!mongoose.Types.ObjectId.isValid(finalProjectId)) {
         return NextResponse.json(
           { success: false, message: "Invalid project ID." },
@@ -570,17 +574,25 @@ export async function POST(
         );
       }
 
-      // Project is optional for employees. If selected, validate assignment.
+      const projectScope =
+        isEmployee
+          ? { project_users: user._id }
+          : user.organization_id
+            ? { organization_id: user.organization_id }
+            : { created_by: user._id };
+
       const assignedProject = await Project.findOne({
         _id: finalProjectId,
-        project_users: user._id,
+        ...projectScope,
       });
 
       if (!assignedProject) {
         return NextResponse.json(
           {
             success: false,
-            message: "You are not assigned to this project and cannot create tasks in it.",
+            message: isEmployee
+              ? "You are not assigned to this project and cannot create tasks in it."
+              : "This project is not part of your organization.",
           },
           { status: 403 }
         );
@@ -624,6 +636,9 @@ export async function POST(
               $in:
                 requestedAssignedIds,
             },
+            ...(user.organization_id
+              ? { organization_id: user.organization_id }
+              : {}),
           }).distinct("_id")
         : [user._id];
 
@@ -692,7 +707,9 @@ export async function POST(
 
     // Scan all existing tasks with this prefix FOR THIS ACCOUNT ONLY
     const existingPrefixTasks = await Task.find({
-      $or: [{ admin_id: adminId }, { created_by: adminId }],
+      ...(user.organization_id
+        ? { organization_id: user.organization_id }
+        : { $or: [{ admin_id: adminId }, { created_by: adminId }] }),
       task_id: { $regex: taskIdRegex },
     })
       .select("task_id")
@@ -752,7 +769,9 @@ export async function POST(
     // Safety collision check for this account: Ensure this task_id does not already exist in this account
     while (
       await Task.exists({
-        $or: [{ admin_id: adminId }, { created_by: adminId }],
+        ...(user.organization_id
+          ? { organization_id: user.organization_id }
+          : { $or: [{ admin_id: adminId }, { created_by: adminId }] }),
         task_id: `${taskPrefix}-${taskNumber}`,
       })
     ) {
@@ -780,6 +799,9 @@ export async function POST(
 
       admin_id:
         adminId,
+
+      organization_id:
+        user.organization_id || null,
 
       title:
         title.trim(),

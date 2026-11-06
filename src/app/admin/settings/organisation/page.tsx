@@ -16,7 +16,6 @@ import {
 
 import PageShimmer from "@/components/PageShimmer";
 
-import { toast } from "@/lib/toast";
 import "../style.css";
 
 interface PropertyInfo {
@@ -58,7 +57,7 @@ export default function OrganisationSettingsPage() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch("/api/profile", {
+        const response = await fetch("/api/organizations", {
           method: "GET",
           credentials: "include",
           cache: "no-store",
@@ -80,16 +79,17 @@ export default function OrganisationSettingsPage() {
           throw new Error(result.message || "Failed to load organisation info");
         }
 
-        const propData = result.data?.property || {};
+        const propData = result.data || {};
         setProperty({
           name: propData.name || "",
           logo: propData.logo || "",
-          short_description: propData.short_description || "",
+          short_description: propData.description || "",
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Failed to load organisation settings";
         console.error("LOAD ORGANISATION SETTINGS ERROR:", err);
-        setError(err.message || "Something went wrong while loading organisation settings.");
-        showToast(err.message || "Failed to load organisation settings", "error");
+        setError(message);
+        showToast(message, "error");
       } finally {
         setLoading(false);
       }
@@ -122,8 +122,8 @@ export default function OrganisationSettingsPage() {
       }));
 
       showToast("Logo uploaded successfully", "success");
-    } catch (err: any) {
-      showToast(err.message || "Failed to upload logo", "error");
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to upload logo", "error");
     } finally {
       setUploadingLogo(false);
     }
@@ -137,18 +137,16 @@ export default function OrganisationSettingsPage() {
       setError(null);
       setSuccessMsg(null);
 
-      const response = await fetch("/api/profile", {
-        method: "PATCH",
+      const response = await fetch("/api/organizations", {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
         body: JSON.stringify({
-          property: {
-            name: property.name.trim(),
-            logo: property.logo ? property.logo.trim() : null,
-            short_description: property.short_description.trim(),
-          },
+          name: property.name.trim(),
+          logo: property.logo ? property.logo.trim() : null,
+          description: property.short_description.trim(),
         }),
       });
 
@@ -160,10 +158,11 @@ export default function OrganisationSettingsPage() {
 
       setSuccessMsg("Organisation information updated successfully.");
       showToast("Organisation settings updated successfully", "success");
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to save organisation settings";
       console.error("SAVE ORGANISATION SETTINGS ERROR:", err);
-      setError(err.message || "Something went wrong while saving organisation settings.");
-      showToast(err.message || "Failed to save organisation settings", "error");
+      setError(message);
+      showToast(message, "error");
     } finally {
       setSaving(false);
     }
@@ -257,7 +256,7 @@ export default function OrganisationSettingsPage() {
                   color: "var(--text-primary)",
                 }}
               >
-                Organisation Information
+                Organization Information
               </h2>
               <p
                 style={{
@@ -279,7 +278,7 @@ export default function OrganisationSettingsPage() {
                 className="form-label"
                 style={{ fontWeight: 600, fontSize: "0.8rem", marginBottom: "6px" }}
               >
-                Property Name
+                Organization Name
               </label>
               <div className="custom-input-group">
                 <span className="custom-input-addon">
@@ -421,6 +420,14 @@ export default function OrganisationSettingsPage() {
 
         {/* SAVE BUTTON */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ padding: "10px 24px" }}
+            onClick={() => router.push("/admin/dashboard")}
+          >
+            Skip for now
+          </button>
           <button
             type="submit"
             className="btn btn-primary"

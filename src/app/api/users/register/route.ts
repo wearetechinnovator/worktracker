@@ -73,6 +73,40 @@ export async function POST(req: Request) {
       });
 
     if (existingUser) {
+      if (!existingUser.isVerify) {
+        const hashedPassword = await hashPassword(password);
+
+        existingUser.full_name = normalizedName;
+        existingUser.password = hashedPassword;
+        existingUser.user_role = 1;
+        existingUser.status = true;
+        existingUser.modified_by = existingUser._id;
+        await existingUser.save();
+
+        const otpSent = await sendOtp(normalizedEmail);
+
+        if (!otpSent) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Failed to send OTP",
+            },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json(
+          {
+            success: true,
+            message: "Your account is not verified yet. A new OTP was sent.",
+            data: {
+              email: normalizedEmail,
+            },
+          },
+          { status: 200 }
+        );
+      }
+
       return NextResponse.json(
         {
           success: false,

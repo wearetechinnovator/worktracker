@@ -43,6 +43,13 @@ const taskSchema = new Schema(
       default: null,
     },
 
+    organization_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      default: null,
+      index: true,
+    },
+
     title: {
       type: String,
       required: true,

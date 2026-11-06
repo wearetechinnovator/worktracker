@@ -43,6 +43,13 @@ const projectSchema = new Schema(
       required: true,
     },
 
+    organization_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      default: null,
+      index: true,
+    },
+
     modified_by: {
       type: Schema.Types.ObjectId,
       ref: "User",

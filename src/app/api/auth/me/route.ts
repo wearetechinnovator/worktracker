@@ -50,6 +50,10 @@ export async function GET() {
         // Original DB value
         user_role: user.user_role,
 
+        organization_id: user.organization_id
+          ? user.organization_id.toString()
+          : null,
+
         // Frontend uses this
         userType,
 

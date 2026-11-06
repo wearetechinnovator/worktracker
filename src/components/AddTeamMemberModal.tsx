@@ -42,6 +42,13 @@ export default function AddTeamMemberModal({
   const [workMode, setWorkMode] = useState(mode === 'add' ? 'Hybrid' : employee?.workMode || 'Hybrid');
   const [avatarColor, setAvatarColor] = useState(employee?.avatarColor);
   const [userType, setUserType] = useState<'admin' | 'employee'>(employee?.userType || 'employee');
+  const [organizationPromptOpen, setOrganizationPromptOpen] = useState(false);
+  const [organizationName, setOrganizationName] = useState('');
+  const [organizationDescription, setOrganizationDescription] = useState('');
+  const [organizationLogo, setOrganizationLogo] = useState('');
+  const [uploadingOrganizationLogo, setUploadingOrganizationLogo] = useState(false);
+  const [savingOrganization, setSavingOrganization] = useState(false);
+  const [organizationError, setOrganizationError] = useState<string | null>(null);
   type Designation = {
     _id: string;
     name: string;
@@ -667,6 +674,7 @@ export default function AddTeamMemberModal({
             status,
             workMode,
             Project: project.trim(),
+            userType,
           }),
         });
 
@@ -746,9 +754,109 @@ export default function AddTeamMemberModal({
 
 
     } catch (err: any) {
+      if (
+        err?.message ===
+        "Set up your organization before adding another admin"
+      ) {
+        window.location.href = "/admin/settings/organisation";
+        return;
+      }
       setError(err.message || "An error occurred while saving member.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleAccountTypeChange = (value: string) => {
+    if (value === 'admin') {
+      setOrganizationPromptOpen(true);
+      return;
+    }
+
+    setUserType('employee');
+  };
+
+  const handleCreateOrganization = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!organizationName.trim()) {
+      setOrganizationError('Organization name is required');
+      return;
+    }
+
+    try {
+      setSavingOrganization(true);
+      setOrganizationError(null);
+
+      const response = await fetch('/api/organizations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: organizationName.trim(),
+          description: organizationDescription.trim() || null,
+          logo: organizationLogo.trim() || null,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Failed to create organization');
+      }
+
+      setUserType('admin');
+      setOrganizationPromptOpen(false);
+      toast.success('Organization created successfully');
+    } catch (error) {
+      setOrganizationError(
+        error instanceof Error ? error.message : 'Failed to create organization'
+      );
+    } finally {
+      setSavingOrganization(false);
+    }
+  };
+
+  const handleOrganizationLogoUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setOrganizationError('Please select an image file');
+      return;
+    }
+
+    try {
+      setUploadingOrganizationLogo(true);
+      setOrganizationError(null);
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/uploads', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.success || !result.data?.url) {
+        throw new Error(result.message || 'Failed to upload organization logo');
+      }
+
+      setOrganizationLogo(result.data.url);
+    } catch (error) {
+      setOrganizationError(
+        error instanceof Error ? error.message : 'Failed to upload organization logo'
+      );
+    } finally {
+      setUploadingOrganizationLogo(false);
     }
   };
 
@@ -917,6 +1025,19 @@ export default function AddTeamMemberModal({
               }}
             />
           </div>
+
+          {mode === 'add' && (
+            <CustomDropdown
+              label="Account Type"
+              placeholder="Select account type"
+              value={userType}
+              options={[
+                { value: 'employee', label: 'Employee' },
+                { value: 'admin', label: 'Admin' },
+              ]}
+              onChange={handleAccountTypeChange}
+            />
+          )}
 
           {/* Row 2: Job Title / Role & Default Project */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'start' }}>
@@ -1149,6 +1270,175 @@ export default function AddTeamMemberModal({
               </Button>
             </div>
           </div>
+        </div>
+      )}
+      {organizationPromptOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="organization-prompt-title"
+          onClick={() => setOrganizationPromptOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 22000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            background: 'rgba(15, 23, 42, 0.45)',
+          }}
+        >
+          <form
+            onSubmit={handleCreateOrganization}
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '420px',
+              padding: '24px',
+              borderRadius: '16px',
+              background: 'var(--surface-primary, #fff)',
+              boxShadow: '0 20px 50px rgba(15, 23, 42, 0.25)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  flexShrink: 0,
+                  display: 'grid',
+                  placeItems: 'center',
+                  borderRadius: '10px',
+                  background: '#eff6ff',
+                  color: '#2563eb',
+                }}
+              >
+                <Briefcase size={19} />
+              </div>
+              <div>
+                <h3
+                  id="organization-prompt-title"
+                  style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}
+                >
+                  Create an organization first
+                </h3>
+                <p style={{ margin: '8px 0 0', fontSize: '0.82rem', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                  To add another admin, we suggest creating an organization so all admins can share employees, projects, and tasks.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '22px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" htmlFor="organization-name">
+                  Organization Name *
+                </label>
+                <input
+                  id="organization-name"
+                  className="form-control"
+                  value={organizationName}
+                  onChange={(event) => setOrganizationName(event.target.value)}
+                  placeholder="e.g. Quanto Technologies"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" htmlFor="organization-description">
+                  Description
+                </label>
+                <textarea
+                  id="organization-description"
+                  className="form-control"
+                  value={organizationDescription}
+                  onChange={(event) => setOrganizationDescription(event.target.value)}
+                  placeholder="A short description about your organization"
+                  rows={3}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" htmlFor="organization-logo">
+                  Organization Logo
+                </label>
+                <input
+                  id="organization-logo"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleOrganizationLogoUpload}
+                  disabled={uploadingOrganizationLogo}
+                  style={{
+                    width: '100%',
+                    padding: '9px',
+                    border: '1px solid var(--border-color, #dbe3ef)',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                  }}
+                />
+                {uploadingOrganizationLogo && (
+                  <small style={{ display: 'block', marginTop: '6px', color: 'var(--text-muted)' }}>
+                    Uploading logo...
+                  </small>
+                )}
+                {organizationLogo && !uploadingOrganizationLogo && (
+                  <img
+                    src={organizationLogo}
+                    alt="Organization logo preview"
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      objectFit: 'cover',
+                      borderRadius: '8px',
+                      marginTop: '8px',
+                      border: '1px solid var(--border-color, #dbe3ef)',
+                    }}
+                  />
+                )}
+              </div>
+
+              {organizationError && (
+                <div
+                  style={{
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    color: '#b91c1c',
+                    fontSize: '0.78rem',
+                  }}
+                >
+                  {organizationError}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setOrganizationPromptOpen(false);
+                  setUserType('employee');
+                }}
+              >
+                Not now
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={
+                  savingOrganization ||
+                  uploadingOrganizationLogo ||
+                  !organizationName.trim()
+                }
+              >
+                {savingOrganization ? 'Creating...' : 'Create organization'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

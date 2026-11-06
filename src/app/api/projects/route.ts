@@ -50,7 +50,9 @@ export async function POST(req: Request) {
       ? await User.find({
         _id: { $in: project_users.filter((id: string) => mongoose.Types.ObjectId.isValid(id)) },
         user_role: 2,
-        created_by: user._id,
+        ...(user.organization_id
+          ? { organization_id: user.organization_id }
+          : { created_by: user._id }),
       }).distinct("_id")
       : [];
 
@@ -68,6 +70,7 @@ export async function POST(req: Request) {
       // IMPORTANT:
       // Never trust created_by from frontend
       created_by: user._id,
+      organization_id: user.organization_id || null,
 
       modified_by: null,
       status: status ?? true,
@@ -135,10 +138,20 @@ export async function GET(req: Request) {
     let query: any = {};
 
     if (id && mongoose.Types.ObjectId.isValid(id)) {
-      query._id = id;
+      query = {
+        _id: id,
+        ...(user.organization_id
+          ? { organization_id: user.organization_id }
+          : Number(user.user_role) === 1
+            ? { created_by: user._id }
+            : {}
+        ),
+      };
     } else if (Number(user.user_role) === 1) {
       // Admin: projects created by this admin
-      query = { created_by: user._id };
+      query = user.organization_id
+        ? { organization_id: user.organization_id }
+        : { created_by: user._id };
     } else {
       // Employee: ONLY projects where user is explicitly assigned as a project member (project_users)
       const userObjectId = mongoose.Types.ObjectId.isValid(user._id)
@@ -340,7 +353,9 @@ export async function PATCH(req: Request) {
       ? await User.find({
         _id: { $in: body.project_users.filter((memberId: string) => mongoose.Types.ObjectId.isValid(memberId)) },
         user_role: 2,
-        created_by: user._id,
+        ...(user.organization_id
+          ? { organization_id: user.organization_id }
+          : { created_by: user._id }),
       }).distinct("_id")
       : undefined;
 
@@ -349,7 +364,9 @@ export async function PATCH(req: Request) {
     }
 
     const project = await Project.findOneAndUpdate(
-      { _id: id, created_by: user._id },
+      { _id: id,       ...(user.organization_id
+        ? { organization_id: user.organization_id }
+        : { created_by: user._id }) },
       updateData,
       {
         new: true,

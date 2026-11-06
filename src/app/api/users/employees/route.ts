@@ -42,15 +42,17 @@ export async function GET() {
     }
 
     
-    const adminProjects = await Project.find({
-      created_by: admin._id,
-    })
+    const employeeScope = admin.organization_id
+      ? { organization_id: admin.organization_id }
+      : { created_by: admin._id };
+
+    const adminProjects = await Project.find(employeeScope)
       .select("_id name project_users")
       .lean();
 
     const employees = await User.find({
-      user_role: 2,
-      created_by: admin._id,
+      ...employeeScope,
+      user_role: admin.organization_id ? { $in: [1, 2] } : 2,
     })
       .select(
         [
@@ -198,7 +200,7 @@ export async function GET() {
             ? employee.role_id.name || "Employee"
             : "Employee",
 
-        userType: "employee",
+        userType: Number(employee.user_role) === 1 ? "admin" : "employee",
 
         avatarColor: "#3b82f6",
 
@@ -315,6 +317,19 @@ export async function POST(
         body.role ||
         "Employee"
       ).trim();
+
+    const requestedUserType =
+      body.userType === "admin" ? "admin" : "employee";
+
+    if (requestedUserType === "admin" && !admin.organization_id) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Set up your organization before adding another admin",
+        },
+        { status: 400 }
+      );
+    }
 
     /* -------------------------
        VALIDATION
@@ -436,8 +451,7 @@ export async function POST(
           body.profile_picture ||
           null,
 
-        // 2 = Employee
-        user_role: 2,
+        user_role: requestedUserType === "admin" ? 1 : 2,
 
         /* -------------------------
            SAME ADMIN SETTINGS
@@ -445,6 +459,9 @@ export async function POST(
 
         settings_id:
           admin.settings_id,
+
+        organization_id:
+          admin.organization_id || null,
 
         /* -------------------------
            OWNERSHIP
@@ -463,7 +480,9 @@ export async function POST(
 
     if (projectName) {
       const targetProj = await Project.findOne({
-        created_by: admin._id,
+        ...(admin.organization_id
+          ? { organization_id: admin.organization_id }
+          : { created_by: admin._id }),
         $or: [
           { name: { $regex: `^${projectName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" } },
           ...(mongoose.Types.ObjectId.isValid(projectName) ? [{ _id: projectName }] : []),
@@ -620,7 +639,7 @@ export async function POST(
         employee.user_role,
 
       userType:
-        "employee",
+        Number(employee.user_role) === 1 ? "admin" : "employee",
 
       created_by:
         String(
@@ -940,7 +959,9 @@ export async function PATCH(
 
       if (projName) {
         const targetProj = await Project.findOne({
-          created_by: loggedInUser._id,
+          ...(loggedInUser.organization_id
+            ? { organization_id: loggedInUser.organization_id }
+            : { created_by: loggedInUser._id }),
           $or: [
             { name: { $regex: `^${projName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" } },
             ...(mongoose.Types.ObjectId.isValid(projName) ? [{ _id: projName }] : []),
