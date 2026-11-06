@@ -20,6 +20,7 @@ import PageShimmer from '@/components/PageShimmer';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import CreateTaskModal from '@/components/CreateTaskModal';
+import { EveningLanternButtonDecor } from '@/components/EveningLanterns';
 import {
   CustomDropdown,
   CustomDatePicker,
@@ -1763,9 +1764,10 @@ export default function TasksPage() {
 
         <button
           onClick={openCreateModal}
-          className="btn btn-primary"
+          className="btn btn-primary diwali-button evening-lantern-btn"
           style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
         >
+          <EveningLanternButtonDecor leftType="A" rightType="B" />
           <Plus size={16} />
           <span>{isAdmin ? 'Create Task' : 'Add My Task'}</span>
         </button>

@@ -15,15 +15,16 @@ import {
 	Eye,
 	Pencil,
 	Trash2,
+	Download,
 } from 'lucide-react';
 
-import { formatMinutesToDuration } from '@/lib/time';
-import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import PageShimmer from '@/components/PageShimmer';
 import EmployeeCard from '@/components/EmployeeCard';
+import { EveningLanternButtonDecor } from '@/components/EveningLanterns';
 import { toast } from '@/lib/toast';
 import EmployeeDetailsModal from '@/components/EmployeeDetailsModal';
+import ExportTeamAttendanceModal from '@/components/ExportTeamAttendanceModal';
 
 type Employee = {
 	_id: string;
@@ -66,6 +67,7 @@ export default function EmployeesPage() {
 	const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 	const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 	const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+	const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 	const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
 	// View mode: card or tabular
@@ -635,18 +637,40 @@ export default function EmployeesPage() {
 					</p>
 				</div>
 
-				<button
-					className="btn btn-primary"
-					onClick={() =>
-						setIsAddModalOpen(true)
-					}
-				>
-					<UserPlus size={14} />
+				<div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+					<button
+						type="button"
+						className="btn btn-secondary"
+						onClick={() => setIsExportModalOpen(true)}
+						style={{
+							display: 'inline-flex',
+							alignItems: 'center',
+							gap: '7px',
+							padding: '7px 14px',
+							fontWeight: 700,
+							fontSize: '0.8rem',
+							borderRadius: '8px',
+							cursor: 'pointer',
+						}}
+					>
+						<Download size={15} />
+						<span>Export Attendance</span>
+					</button>
 
-					<span>
-						Add Employee
-					</span>
-				</button>
+					<button
+						className="btn btn-primary diwali-button evening-lantern-btn"
+						onClick={() =>
+							setIsAddModalOpen(true)
+						}
+					>
+						<EveningLanternButtonDecor leftType="A" rightType="B" />
+						<UserPlus size={14} />
+
+						<span>
+							Add Employee
+						</span>
+					</button>
+				</div>
 			</div>
 
 
@@ -1153,6 +1177,12 @@ export default function EmployeesPage() {
 				employee={selectedEmployee as any}
 				isOpen={isDetailModalOpen}
 				onClose={() => setIsDetailModalOpen(false)}
+			/>
+
+			{/* Master Team Export Modal */}
+			<ExportTeamAttendanceModal
+				isOpen={isExportModalOpen}
+				onClose={() => setIsExportModalOpen(false)}
 			/>
 
 			{/* Add Employee */}

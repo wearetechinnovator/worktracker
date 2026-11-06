@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/static-components */
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -14,6 +16,7 @@ import {
   Fingerprint,
   ShieldCheck,
   X,
+  Calendar,
 } from "lucide-react";
 
 import PageShimmer from "@/components/PageShimmer";
@@ -50,7 +53,40 @@ const defaultSettings: SettingsData = {
 
   taskIdPrefix: "QT",
   nextTaskNumber: 1,
+  weeklyOffDays: [0],
+  saturdayOffRule: "none",
 };
+
+const DAYS_OF_WEEK = [
+  { index: 0, short: "Sun", label: "Sunday" },
+  { index: 1, short: "Mon", label: "Monday" },
+  { index: 2, short: "Tue", label: "Tuesday" },
+  { index: 3, short: "Wed", label: "Wednesday" },
+  { index: 4, short: "Thu", label: "Thursday" },
+  { index: 5, short: "Fri", label: "Friday" },
+  { index: 6, short: "Sat", label: "Saturday" },
+];
+
+const SATURDAY_OFF_OPTIONS = [
+  {
+    id: "every" as const,
+    num: "1",
+    title: "Every Saturday Off",
+    desc: "All Saturdays of the month are weekly off",
+  },
+  {
+    id: "2nd_4th" as const,
+    num: "2",
+    title: "2nd & 4th Saturday Off",
+    desc: "Only 2nd and 4th Saturdays of each month are weekly off",
+  },
+  {
+    id: "alternate" as const,
+    num: "3",
+    title: "Alternative Saturday Off",
+    desc: "Alternate Saturdays (1st, 3rd, 5th) of the month are weekly off",
+  },
+];
 
 export default function AttendanceSettingsPage() {
   const router = useRouter();
@@ -125,6 +161,29 @@ export default function AttendanceSettingsPage() {
       ...prev,
       [field]: !prev[field],
     }));
+  };
+
+  const handleToggleWeeklyOff = (dayIdx: number) => {
+    if (dayIdx === 6) {
+      setSettings((prev) => ({
+        ...prev,
+        saturdayOffRule:
+          prev.saturdayOffRule && prev.saturdayOffRule !== "none" ? "none" : "2nd_4th",
+      }));
+      return;
+    }
+
+    setSettings((prev) => {
+      const current = Array.isArray(prev.weeklyOffDays) ? prev.weeklyOffDays : [0];
+      const exists = current.includes(dayIdx);
+      const updated = exists
+        ? current.filter((d) => d !== dayIdx)
+        : [...current, dayIdx].sort((a, b) => a - b);
+      return {
+        ...prev,
+        weeklyOffDays: updated,
+      };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -382,6 +441,198 @@ export default function AttendanceSettingsPage() {
               description="Record the employee's device/system identifier when available."
               icon={<Fingerprint size={18} />}
             />
+          </div>
+        </div>
+
+        {/* WEEKLY OFF CONFIGURATION */}
+        <div className="card" style={{ marginBottom: "24px" }}>
+          <h3 className="card-title" style={{ marginBottom: "6px", display: "flex", alignItems: "center", gap: "8px", paddingTop: "5px" }}>
+            <Calendar size={18} style={{ color: "var(--accent-primary)" }} />
+            Weekly Off Days Configuration
+          </h3>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", marginBottom: "16px" }}>
+            Select the days of the week that are designated as weekly off for employees (e.g. Sunday). Employees who do not punch in on these days will be marked as Weekly Off instead of Absent.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(105px, 1fr))", gap: "10px", marginBottom: "14px" }}>
+            {DAYS_OF_WEEK.map((day) => {
+              const isSat = day.index === 6;
+              const isSatOff = Boolean(settings.saturdayOffRule && settings.saturdayOffRule !== "none");
+              const active = isSat
+                ? isSatOff
+                : Array.isArray(settings.weeklyOffDays) && settings.weeklyOffDays.includes(day.index);
+
+              let badgeText = active ? "Week Off" : "Working";
+              if (isSat) {
+                if (settings.saturdayOffRule === "every") badgeText = "Every Sat";
+                else if (settings.saturdayOffRule === "2nd_4th") badgeText = "2nd & 4th";
+                else if (settings.saturdayOffRule === "alternate") badgeText = "Alternate";
+                else badgeText = "Working";
+              }
+
+              return (
+                <button
+                  key={day.index}
+                  type="button"
+                  onClick={() => handleToggleWeeklyOff(day.index)}
+                  disabled={saving}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "12px 8px",
+                    borderRadius: "10px",
+                    border: active ? "2px solid var(--accent-primary, #2563eb)" : "1px solid var(--border-color, #e2e8f0)",
+                    background: active ? "var(--accent-light, #eff6ff)" : "var(--bg-secondary, #f8fafc)",
+                    color: active ? "var(--accent-primary, #2563eb)" : "var(--text-primary)",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                    boxShadow: active ? "0 2px 6px rgba(37, 99, 235, 0.12)" : "none",
+                  }}
+                >
+                  <span style={{ fontSize: "0.92rem", fontWeight: 800 }}>{day.short}</span>
+                  <span style={{ fontSize: "0.7rem", marginTop: "2px", opacity: 0.85 }}>{day.label}</span>
+                  <span
+                    style={{
+                      fontSize: "0.62rem",
+                      fontWeight: 700,
+                      marginTop: "6px",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      background: active ? "#2563eb" : "#e2e8f0",
+                      color: active ? "#ffffff" : "#64748b",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {badgeText}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Saturday Specific 3 Options (1: Every Sat Off, 2: 2nd & 4th Sat Off, 3: Alternative Sat Off) */}
+          <div
+            style={{
+              marginTop: "16px",
+              padding: "14px 16px",
+              borderRadius: "12px",
+              background: "var(--bg-secondary, #f8fafc)",
+              border: "1px solid var(--border-color, #e2e8f0)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+              <div>
+                <div style={{ fontSize: "0.84rem", fontWeight: 800, color: "var(--text-primary)" }}>
+                  Saturday Weekly Off Policy
+                </div>
+                <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)" }}>
+                  Choose how Saturdays are treated for employee attendance
+                </div>
+              </div>
+
+              {settings.saturdayOffRule && settings.saturdayOffRule !== "none" && (
+                <button
+                  type="button"
+                  onClick={() => setSettings((prev) => ({ ...prev, saturdayOffRule: "none" }))}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "0.7rem",
+                    fontWeight: 700,
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#64748b",
+                    cursor: "pointer",
+                  }}
+                >
+                  Make All Saturdays Working
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "10px" }}>
+              {SATURDAY_OFF_OPTIONS.map((opt) => {
+                const isSelected = settings.saturdayOffRule === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setSettings((prev) => ({ ...prev, saturdayOffRule: opt.id }))}
+                    disabled={saving}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "10px",
+                      padding: "12px 14px",
+                      borderRadius: "10px",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      border: isSelected ? "2px solid var(--accent-primary, #2563eb)" : "1px solid var(--border-color, #cbd5e1)",
+                      background: isSelected ? "#eff6ff" : "#ffffff",
+                      transition: "all 0.15s ease",
+                      boxShadow: isSelected ? "0 2px 6px rgba(37, 99, 235, 0.12)" : "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "22px",
+                        height: "22px",
+                        borderRadius: "50%",
+                        background: isSelected ? "var(--accent-primary, #2563eb)" : "#e2e8f0",
+                        color: isSelected ? "#ffffff" : "#64748b",
+                        fontSize: "0.72rem",
+                        fontWeight: 800,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                        marginTop: "1px",
+                      }}
+                    >
+                      {opt.num}
+                    </div>
+
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "0.82rem", fontWeight: 800, color: isSelected ? "var(--accent-primary, #2563eb)" : "var(--text-primary)" }}>
+                        {opt.title}
+                      </div>
+                      <div style={{ fontSize: "0.68rem", color: "var(--text-secondary)", marginTop: "2px", lineHeight: 1.25 }}>
+                        {opt.desc}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ marginTop: "14px", fontSize: "0.78rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ fontWeight: 700 }}>Currently configured:</span>
+            <span>
+              {(() => {
+                const regularOffDays = Array.isArray(settings.weeklyOffDays)
+                  ? settings.weeklyOffDays
+                      .filter((d) => d !== 6)
+                      .map((idx) => DAYS_OF_WEEK.find((d) => d.index === idx)?.label)
+                      .filter(Boolean)
+                  : ["Sunday"];
+
+                let satLabel = "All Saturdays Working";
+                if (settings.saturdayOffRule === "every") satLabel = "Every Saturday Off";
+                else if (settings.saturdayOffRule === "2nd_4th") satLabel = "2nd & 4th Saturday Off";
+                else if (settings.saturdayOffRule === "alternate") satLabel = "Alternative Saturday Off (1st, 3rd, 5th)";
+
+                const summaryParts = [...regularOffDays];
+                if (settings.saturdayOffRule && settings.saturdayOffRule !== "none") {
+                  summaryParts.push(satLabel);
+                } else if (summaryParts.length === 0) {
+                  summaryParts.push("No weekly off (all 7 days are working)");
+                }
+                return summaryParts.join(" + ");
+              })()}
+            </span>
           </div>
         </div>
 

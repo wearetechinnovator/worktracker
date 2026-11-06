@@ -71,6 +71,17 @@ const settingsSchema = new Schema(
       default: null,
     },
 
+    weeklyOffDays: {
+      type: [Number],
+      default: [0],
+    },
+
+    saturdayOffRule: {
+      type: String,
+      enum: ["none", "every", "2nd_4th", "alternate"],
+      default: "none",
+    },
+
     taskIdPrefix: {
       type: String,
       default: "QT",

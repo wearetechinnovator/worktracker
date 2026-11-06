@@ -4,11 +4,13 @@ import { useState, useEffect, useCallback, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users, UserPlus, Mail, Edit3,
-  Trash2, AlertCircle, Clock, Briefcase
+  Trash2, AlertCircle, Clock, Briefcase, Download
 } from 'lucide-react';
 import { formatMinutesToDuration } from '@/lib/time';
-import EmployeeAttendanceCalendarModal from '@/components/EmployeeAttendanceCalendarModal';
+import EmployeeDetailsModal from '@/components/EmployeeDetailsModal';
+import ExportTeamAttendanceModal from '@/components/ExportTeamAttendanceModal';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
+import { EveningLanternButtonDecor } from '@/components/EveningLanterns';
 import PageShimmer from '@/components/PageShimmer';
 import type { Employee } from '@/types/Employee2';
 import { toast } from '@/lib/toast';
@@ -28,6 +30,7 @@ export default function EmployeesPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
   const fetchEmployees = useCallback(async () => {
@@ -161,10 +164,32 @@ export default function EmployeesPage() {
           <p>See you Employee and their details here</p>
         </div>
 
-        <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
-          <UserPlus size={14} />
-          <span>Add Employee</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setIsExportModalOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '7px 14px',
+              fontWeight: 700,
+              fontSize: '0.8rem',
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }}
+          >
+            <Download size={15} />
+            <span>Export Attendance</span>
+          </button>
+
+          <button className="btn btn-primary diwali-button evening-lantern-btn" onClick={() => setIsAddModalOpen(true)}>
+            <EveningLanternButtonDecor leftType="A" rightType="B" />
+            <UserPlus size={14} />
+            <span>Add Employee</span>
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -290,10 +315,15 @@ export default function EmployeesPage() {
         {renderPagination(filteredEmployees.length, ITEMS_PER_PAGE, currentPage, setCurrentPage)}
       </div>
 
-      <EmployeeAttendanceCalendarModal
-        employee={selectedEmployee}
+      <EmployeeDetailsModal
+        employee={selectedEmployee as any}
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
+      />
+
+      <ExportTeamAttendanceModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
       />
 
       <AddTeamMemberModal

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 
 import dbConnect from "@/lib/dbConnect";
@@ -84,6 +85,16 @@ function serializeSettings(
             1
         )
       ),
+
+    weeklyOffDays:
+      Array.isArray(settings?.weeklyOffDays) && settings.weeklyOffDays.length > 0
+        ? settings.weeklyOffDays.map(Number)
+        : [0],
+
+    saturdayOffRule:
+      settings?.saturdayOffRule && ["none", "every", "2nd_4th", "alternate"].includes(settings.saturdayOffRule)
+        ? settings.saturdayOffRule
+        : (Array.isArray(settings?.weeklyOffDays) && settings.weeklyOffDays.includes(6) ? "every" : "none"),
   };
 }
 
@@ -125,6 +136,8 @@ async function getOrCreateAdminSettings(admin: any) {
       punchOutEndTime: null,
       taskIdPrefix: "QT",
       nextTaskNumber: 1,
+      weeklyOffDays: [0],
+      saturdayOffRule: "none",
       created_by: admin._id,
       created_on: new Date(),
       status: 1,
@@ -446,6 +459,32 @@ export async function PATCH(
         Boolean(
           body.punchOutSystemIdRequired
         );
+    }
+
+    /* =====================================================
+       WEEKLY OFF DAYS
+    ===================================================== */
+
+    if (body.weeklyOffDays !== undefined) {
+      if (Array.isArray(body.weeklyOffDays)) {
+        updateData.weeklyOffDays = body.weeklyOffDays
+          .map(Number)
+          .filter((n: number) => !isNaN(n) && n >= 0 && n <= 6);
+      } else {
+        updateData.weeklyOffDays = [0];
+      }
+    }
+
+    /* =====================================================
+       SATURDAY OFF RULE
+    ===================================================== */
+
+    if (body.saturdayOffRule !== undefined) {
+      if (["none", "every", "2nd_4th", "alternate"].includes(body.saturdayOffRule)) {
+        updateData.saturdayOffRule = body.saturdayOffRule;
+      } else {
+        updateData.saturdayOffRule = "none";
+      }
     }
 
     /* =====================================================

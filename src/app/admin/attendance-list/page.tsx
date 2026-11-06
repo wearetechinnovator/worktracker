@@ -16,6 +16,7 @@ import {
 import { toast } from "@/lib/toast";
 
 type RequestStatus = "Pending" | "Approved" | "Rejected";
+type AttendanceStatus = "present" | "absent" | "late" | "onLeave";
 
 interface AttendanceRequest {
   _id: string;
@@ -80,7 +81,24 @@ interface Pagination {
   totalPages: number;
 }
 
+interface AttendanceSummary {
+  present: number;
+  absent: number;
+  late: number;
+  onLeave: number;
+  date: string;
+}
+
 const ITEMS_PER_PAGE = 10;
+
+function getTodayDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -227,10 +245,18 @@ export default function AttendanceListPage() {
     total: 0,
     totalPages: 0,
   });
+  const [summary, setSummary] = useState<AttendanceSummary>({
+    present: 0,
+    absent: 0,
+    late: 0,
+    onLeave: 0,
+    date: getTodayDate(),
+  });
 
   const [search, setSearch] = useState("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(getTodayDate);
   const [requestStatus, setRequestStatus] = useState("");
+  const [attendanceStatus, setAttendanceStatus] = useState<AttendanceStatus | "">("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedRow, setSelectedRow] =
@@ -258,6 +284,9 @@ export default function AttendanceListPage() {
         if (requestStatus) {
           params.set("requestStatus", requestStatus);
         }
+        if (attendanceStatus) {
+          params.set("attendanceStatus", attendanceStatus);
+        }
 
         const response = await fetch(
           `/api/attendance-list?${params.toString()}`,
@@ -276,6 +305,15 @@ export default function AttendanceListPage() {
         }
 
         setRows(Array.isArray(json.data) ? json.data : []);
+        setSummary(
+          json.summary || {
+            present: 0,
+            absent: 0,
+            late: 0,
+            onLeave: 0,
+            date: getTodayDate(),
+          }
+        );
         setPagination(
           json.pagination || {
             page,
@@ -296,7 +334,7 @@ export default function AttendanceListPage() {
         setRefreshing(false);
       }
     },
-    [search, date, requestStatus]
+    [search, date, requestStatus, attendanceStatus]
   );
 
   useEffect(() => {
@@ -305,7 +343,7 @@ export default function AttendanceListPage() {
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [search, date, requestStatus, loadAttendance]);
+  }, [search, date, requestStatus, attendanceStatus, loadAttendance]);
 
   const pageNumbers = useMemo(() => {
     const total = pagination.totalPages;
@@ -342,12 +380,20 @@ export default function AttendanceListPage() {
 
   const clearFilters = () => {
     setSearch("");
-    setDate("");
+    setDate(getTodayDate());
     setRequestStatus("");
+    setAttendanceStatus("");
   };
 
   const hasFilters =
-    Boolean(search.trim()) || Boolean(date) || Boolean(requestStatus);
+    Boolean(search.trim()) ||
+    date !== getTodayDate() ||
+    Boolean(requestStatus) ||
+    Boolean(attendanceStatus);
+
+  const toggleAttendanceStatus = (status: AttendanceStatus) => {
+    setAttendanceStatus((current) => (current === status ? "" : status));
+  };
 
   return (
     <div style={{ width: "100%" }}>
@@ -355,53 +401,148 @@ export default function AttendanceListPage() {
       <div
         style={{
           display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
+          alignItems: "flex-end",
+          justifyContent: "end",
           gap: 16,
-          marginBottom: 20,
+          marginBottom: 5,
           flexWrap: "wrap",
         }}
       >
-        <div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: "1.45rem",
-              fontWeight: 800,
-              color: "var(--text-primary)",
-            }}
-          >
-            Attendance List
-          </h1>
-          <p
-            style={{
-              margin: "5px 0 0",
-              color: "var(--text-secondary)",
-              fontSize: "0.8rem",
-            }}
-          >
-            View punch in/out activity and attendance request history of
-            employees added by you.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => loadAttendance(pagination.page, true)}
-          disabled={loading || refreshing}
+        {/* Filters */}
+        <div
+          className="card"
           style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 7,
+            padding: 10,
+            marginBottom: 0,
           }}
         >
-          <RefreshCw
-            size={15}
-            className={refreshing ? "animate-spin" : ""}
-          />
-          Refresh
-        </button>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "minmax(220px, 1.5fr) minmax(160px, .7fr) minmax(160px, .7fr) auto",
+              gap: 10,
+              alignItems: "end",
+            }}
+          >
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "var(--text-muted)",
+                  marginBottom: 5,
+                }}
+              >
+                SEARCH EMPLOYEE
+              </label>
+              <div style={{ position: "relative" }}>
+                <Search
+                  size={15}
+                  style={{
+                    position: "absolute",
+                    left: 10,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "var(--text-muted)",
+                  }}
+                />
+                <input
+                  className="form-control"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Name or email..."
+                  style={{ paddingLeft: 32 }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "var(--text-muted)",
+                  marginBottom: 5,
+                }}
+              >
+                DATE
+              </label>
+              <input
+                type="date"
+                className="form-control"
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+              />
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "var(--text-muted)",
+                  marginBottom: 5,
+                }}
+              >
+                REQUEST STATUS
+              </label>
+              <select
+                className="form-control"
+                value={requestStatus}
+                onChange={(event) =>
+                  setRequestStatus(event.target.value)
+                }
+              >
+                <option value="">All requests</option>
+                <option value="Pending">Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+
+
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => loadAttendance(pagination.page, true)}
+              disabled={loading || refreshing}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+              }}
+            >
+              <RefreshCw
+                size={15}
+                className={refreshing ? "animate-spin" : ""}
+              />
+              Refresh
+            </button>
+            {hasFilters ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={clearFilters}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                <X size={14} />
+                Clear
+              </button>
+            ) : (
+              <div />
+            )}
+          </div>
+        </div>
+
       </div>
 
       {/* Summary */}
@@ -411,10 +552,20 @@ export default function AttendanceListPage() {
           gridTemplateColumns:
             "repeat(auto-fit, minmax(180px, 1fr))",
           gap: 12,
-          marginBottom: 14,
+          marginBottom: 4,
         }}
       >
-        <div className="card" style={{ padding: 15 }}>
+        <button
+          type="button"
+          className="card"
+          onClick={() => toggleAttendanceStatus("present")}
+          style={{
+            padding: 15,
+            textAlign: "left",
+            cursor: "pointer",
+            border: attendanceStatus === "present" ? "2px solid var(--accent-primary)" : undefined,
+          }}
+        >
           <div
             style={{
               display: "flex",
@@ -425,7 +576,7 @@ export default function AttendanceListPage() {
             }}
           >
             <Users size={15} />
-            RECORDS
+            Present
           </div>
           <div
             style={{
@@ -434,11 +585,53 @@ export default function AttendanceListPage() {
               fontWeight: 800,
             }}
           >
-            {pagination.total}
+            {summary.present}
           </div>
-        </div>
-
-        <div className="card" style={{ padding: 15 }}>
+        </button>
+        <button
+          type="button"
+          className="card"
+          onClick={() => toggleAttendanceStatus("absent")}
+          style={{
+            padding: 15,
+            textAlign: "left",
+            cursor: "pointer",
+            border: attendanceStatus === "absent" ? "2px solid var(--accent-primary)" : undefined,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              color: "var(--text-muted)",
+              fontSize: ".7rem",
+            }}
+          >
+            <Users size={15} />
+            Absent
+          </div>
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: "1.35rem",
+              fontWeight: 800,
+            }}
+          >
+            {summary.absent}
+          </div>
+        </button>
+        <button
+          type="button"
+          className="card"
+          onClick={() => toggleAttendanceStatus("late")}
+          style={{
+            padding: 15,
+            textAlign: "left",
+            cursor: "pointer",
+            border: attendanceStatus === "late" ? "2px solid var(--accent-primary)" : undefined,
+          }}
+        >
           <div
             style={{
               display: "flex",
@@ -449,7 +642,7 @@ export default function AttendanceListPage() {
             }}
           >
             <Clock3 size={15} />
-            CURRENT PAGE
+            Late
           </div>
           <div
             style={{
@@ -458,18 +651,28 @@ export default function AttendanceListPage() {
               fontWeight: 800,
             }}
           >
-            {pagination.page} / {Math.max(pagination.totalPages, 1)}
+            {summary.late}
           </div>
-        </div>
+        </button>
 
-        <div className="card" style={{ padding: 15 }}>
+        <button
+          type="button"
+          className="card"
+          onClick={() => toggleAttendanceStatus("onLeave")}
+          style={{
+            padding: 15,
+            textAlign: "left",
+            cursor: "pointer",
+            border: attendanceStatus === "onLeave" ? "2px solid var(--accent-primary)" : undefined,
+          }}
+        >
           <div
             style={{
               color: "var(--text-muted)",
               fontSize: ".7rem",
             }}
           >
-            PENDING REQUESTS
+            On Leave
           </div>
           <div
             style={{
@@ -478,132 +681,25 @@ export default function AttendanceListPage() {
               fontWeight: 800,
             }}
           >
-            {rows.filter(
-              (row) =>
-                row.punch_in_request?.status === "Pending" ||
-                row.punch_out_request?.status === "Pending"
-            ).length}
+            {summary.onLeave}
           </div>
-        </div>
+        </button>
       </div>
 
-      {/* Filters */}
-      <div
-        className="card"
-        style={{
-          padding: 14,
-          marginBottom: 14,
-        }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "minmax(220px, 1.5fr) minmax(160px, .7fr) minmax(160px, .7fr) auto",
-            gap: 10,
-            alignItems: "end",
-          }}
-        >
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: 11,
-                fontWeight: 700,
-                color: "var(--text-muted)",
-                marginBottom: 5,
-              }}
-            >
-              SEARCH EMPLOYEE
-            </label>
-            <div style={{ position: "relative" }}>
-              <Search
-                size={15}
-                style={{
-                  position: "absolute",
-                  left: 10,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "var(--text-muted)",
-                }}
-              />
-              <input
-                className="form-control"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Name or email..."
-                style={{ paddingLeft: 32 }}
-              />
-            </div>
-          </div>
 
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: 11,
-                fontWeight: 700,
-                color: "var(--text-muted)",
-                marginBottom: 5,
-              }}
-            >
-              DATE
-            </label>
-            <input
-              type="date"
-              className="form-control"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-            />
-          </div>
 
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: 11,
-                fontWeight: 700,
-                color: "var(--text-muted)",
-                marginBottom: 5,
-              }}
-            >
-              REQUEST STATUS
-            </label>
-            <select
-              className="form-control"
-              value={requestStatus}
-              onChange={(event) =>
-                setRequestStatus(event.target.value)
-              }
-            >
-              <option value="">All requests</option>
-              <option value="Pending">Pending</option>
-              <option value="Approved">Approved</option>
-              <option value="Rejected">Rejected</option>
-            </select>
-          </div>
-
-          {hasFilters ? (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={clearFilters}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-              }}
-            >
-              <X size={14} />
-              Clear
-            </button>
-          ) : (
-            <div />
-          )}
+<div>
+          <h1
+            style={{
+              margin: 10,
+              fontSize: "1rem",
+              fontWeight: 800,
+              color: "var(--text-primary)",
+            }}
+          >
+            Attendance List {date === getTodayDate() ? "Today" : date}
+          </h1>
         </div>
-      </div>
-
       {/* Table */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {loading ? (
