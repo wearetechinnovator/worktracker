@@ -22,4 +22,10 @@ export interface SettingsData {
   // Task ID
   taskIdPrefix: string;
   nextTaskNumber: number;
+
+  // Weekly Off Days (0=Sunday, 1=Monday, ..., 6=Saturday)
+  weeklyOffDays?: number[];
+
+  // Saturday Off Rule ('none' | 'every' | '2nd_4th' | 'alternate')
+  saturdayOffRule?: 'none' | 'every' | '2nd_4th' | 'alternate';
 }

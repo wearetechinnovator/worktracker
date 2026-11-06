@@ -18,6 +18,7 @@ import CreateClientModal from '@/components/CreateClientModal';
 import CreateTaskModal from '@/components/CreateTaskModal';
 import PunchRequestModal from '@/components/PunchRequestModal';
 import PunchOutSummaryModal from '@/components/PunchOutSummaryModal';
+import { EveningLanternsNavbar, EveningLanternButtonDecor } from '@/components/EveningLanterns';
 import { punchService } from '@/lib/punchService';
 import { toast } from '@/lib/toast';
 
@@ -929,9 +930,11 @@ export default function TopNavbar() {
       <header
         className="top-navbar no-print"
         style={{
-          zIndex: 1060,
+          zIndex: 100,
         }}
       >
+        <EveningLanternsNavbar />
+
         {/* ===================================================
             LIVE CLOCK
         =================================================== */}
@@ -1001,6 +1004,7 @@ export default function TopNavbar() {
             {isAdmin ? (
               <>
                 <div
+                  className="evening-lantern-btn"
                   style={{
                     display:
                       'inline-flex',
@@ -1009,7 +1013,9 @@ export default function TopNavbar() {
                     borderRadius:
                       '8px',
                     overflow:
-                      'hidden',
+                      'visible',
+                    position:
+                      'relative',
                     background:
                       '#3b82f6',
                     boxShadow:
@@ -1017,6 +1023,7 @@ export default function TopNavbar() {
                     height: '38px',
                   }}
                 >
+                  <EveningLanternButtonDecor leftType="A" rightType="B" />
                   {/* CREATE TASK */}
 
                   <button
@@ -1379,6 +1386,7 @@ export default function TopNavbar() {
 
               <button
                 type="button"
+                className="diwali-button evening-lantern-btn"
                 onClick={() => {
                   if (
                     !isPunchedIn
@@ -1400,6 +1408,8 @@ export default function TopNavbar() {
                   );
                 }}
                 style={{
+                  position: 'relative',
+                  overflow: 'visible',
                   display:
                     'inline-flex',
                   alignItems:
@@ -1458,6 +1468,7 @@ export default function TopNavbar() {
                   }
                 }}
               >
+                <EveningLanternButtonDecor leftType="A" rightType="B" />
                 <Plus
                   size={16}
                 />

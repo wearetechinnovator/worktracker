@@ -3,6 +3,7 @@ import dbConnect from "@/lib/dbConnect";
 import Attendance from "@/models/Attendance";
 import AttendanceRequest from "@/models/AttendanceRequest";
 import User from "@/models/User";
+import Settings from "@/models/Settings";
 import { currentUser } from "@/lib/auth";
 
 function toDateOrNull(value: unknown): Date | null {
@@ -27,6 +28,33 @@ function getPunchMode(allowedBy: unknown, employeeId: unknown) {
   return String(allowedBy) === String(employeeId)
     ? "Manual"
     : "Force / Admin";
+}
+
+function getTodayInKolkata() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function getKolkataMinutes(value: unknown) {
+  const date = toDateOrNull(value);
+  if (!date) return null;
+
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value);
+
+  return Number.isFinite(hour) && Number.isFinite(minute)
+    ? hour * 60 + minute
+    : null;
 }
 
 export async function GET(req: Request) {
@@ -64,6 +92,7 @@ export async function GET(req: Request) {
     const search = (params.get("search") || "").trim();
     const date = (params.get("date") || "").trim();
     const requestStatus = (params.get("requestStatus") || "").trim();
+    const attendanceStatus = (params.get("attendanceStatus") || "").trim();
 
     if (date && !isValidAttendanceDate(date)) {
       return NextResponse.json(
@@ -87,6 +116,13 @@ export async function GET(req: Request) {
       );
     }
 
+    if (!["", "present", "absent", "late", "onLeave"].includes(attendanceStatus)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid attendance status." },
+        { status: 400 }
+      );
+    }
+
     // Only employees directly created by the logged-in admin are visible.
     const employeeFilter: Record<string, unknown> = {
       created_by: user._id,
@@ -104,11 +140,19 @@ export async function GET(req: Request) {
     const employees = await User.find(employeeFilter)
       .select("_id full_name email designation profile_picture")
       .lean<any[]>();
+    const summaryDate = date || getTodayInKolkata();
 
     if (!employees.length) {
       return NextResponse.json({
         success: true,
         data: [],
+        summary: {
+          present: 0,
+          absent: 0,
+          late: 0,
+          onLeave: 0,
+          date: summaryDate,
+        },
         pagination: {
           page,
           limit,
@@ -147,6 +191,48 @@ export async function GET(req: Request) {
         .populate("reviewed_by", "full_name email")
         .lean<any[]>(),
     ]);
+
+    const summaryAttendanceRecords = date
+      ? attendanceRecords.filter(
+          (record) => String(record.attendance_date) === summaryDate
+        )
+      : await Attendance.find({
+          user_id: { $in: employeeIds },
+          attendance_date: summaryDate,
+        }).lean<any[]>();
+
+    const settings = await Settings.findOne({
+      $or: [{ owner_user_id: user._id }, { _id: user.settings_id }],
+      status: 1,
+    })
+      .select("punchInStartTime")
+      .lean<any>();
+
+    const configuredStartTime = String(settings?.punchInStartTime || "");
+    const startMatch = /^(\d{1,2}):(\d{2})$/.exec(configuredStartTime);
+    const punchInStartMinutes = startMatch
+      ? Number(startMatch[1]) * 60 + Number(startMatch[2])
+      : null;
+    const summaryByEmployee = new Map(
+      summaryAttendanceRecords.map((record) => [
+        String(record.user_id),
+        record,
+      ])
+    );
+    const present = employees.reduce(
+      (count, employee) =>
+        count +
+        (summaryByEmployee.get(String(employee._id))?.punch_in_on ? 1 : 0),
+      0
+    );
+    const late =
+      punchInStartMinutes === null
+        ? 0
+        : employees.reduce((count, employee) => {
+            const punchIn = summaryByEmployee.get(String(employee._id))?.punch_in_on;
+            const punchInMinutes = getKolkataMinutes(punchIn);
+            return count + (punchInMinutes !== null && punchInMinutes > punchInStartMinutes ? 1 : 0);
+          }, 0);
 
     type MergedRow = {
       userId: string;
@@ -190,6 +276,12 @@ export async function GET(req: Request) {
       row.requests.push(request);
     }
 
+    if (date) {
+      for (const employee of employees) {
+        ensureRow(employee._id, date);
+      }
+    }
+
     const employeeMap = new Map<string, any>(
       employees.map((employee) => [String(employee._id), employee])
     );
@@ -204,6 +296,24 @@ export async function GET(req: Request) {
         return row.requests.some(
           (request) => request.status === requestStatus
         );
+      });
+    }
+
+    if (attendanceStatus) {
+      mergedRows = mergedRows.filter((row) => {
+        const punchIn = row.attendance?.punch_in_on;
+        const punchInMinutes = getKolkataMinutes(punchIn);
+        const isPresent = Boolean(punchIn);
+        const isLate =
+          isPresent &&
+          punchInStartMinutes !== null &&
+          punchInMinutes !== null &&
+          punchInMinutes > punchInStartMinutes;
+
+        if (attendanceStatus === "present") return isPresent;
+        if (attendanceStatus === "late") return isLate;
+        if (attendanceStatus === "absent") return !isPresent;
+        return false;
       });
     }
 
@@ -331,6 +441,13 @@ export async function GET(req: Request) {
     return NextResponse.json({
       success: true,
       data,
+      summary: {
+        present,
+        absent: Math.max(employees.length - present, 0),
+        late,
+        onLeave: 0,
+        date: summaryDate,
+      },
       pagination: {
         page: safePage,
         limit,
