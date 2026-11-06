@@ -46,6 +46,7 @@ export default function AddTeamMemberModal({
   const [organizationName, setOrganizationName] = useState('');
   const [organizationDescription, setOrganizationDescription] = useState('');
   const [organizationLogo, setOrganizationLogo] = useState('');
+  const [hasOrganization, setHasOrganization] = useState<boolean | null>(null);
   const [uploadingOrganizationLogo, setUploadingOrganizationLogo] = useState(false);
   const [savingOrganization, setSavingOrganization] = useState(false);
   const [organizationError, setOrganizationError] = useState<string | null>(null);
@@ -79,6 +80,42 @@ export default function AddTeamMemberModal({
   const [newRoleName, setNewRoleName] = useState('');
   const [addingRole, setAddingRole] = useState(false);
   const [roleAddError, setRoleAddError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    const loadOrganization = async () => {
+      try {
+        const response = await fetch('/api/organizations', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Failed to load organization');
+        }
+
+        if (!cancelled) {
+          setHasOrganization(Boolean(result.data));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load organization:', error);
+          setHasOrganization(null);
+        }
+      }
+    };
+
+    loadOrganization();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   const handleCreateNewRole = async () => {
     const trimmed = newRoleName.trim();
@@ -767,8 +804,44 @@ export default function AddTeamMemberModal({
     }
   };
 
-  const handleAccountTypeChange = (value: string) => {
+  const handleAccountTypeChange = async (value: string) => {
     if (value === 'admin') {
+      if (hasOrganization === true) {
+        setUserType('admin');
+        return;
+      }
+
+      if (hasOrganization === null) {
+        try {
+          const response = await fetch('/api/organizations', {
+            method: 'GET',
+            credentials: 'include',
+            cache: 'no-store',
+          });
+          const result = await response.json();
+
+          if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Failed to load organization');
+          }
+
+          const organizationExists = Boolean(result.data);
+          setHasOrganization(organizationExists);
+
+          if (organizationExists) {
+            setUserType('admin');
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load organization:', error);
+          setOrganizationError(
+            error instanceof Error
+              ? error.message
+              : 'Failed to load organization'
+          );
+          return;
+        }
+      }
+
       setOrganizationPromptOpen(true);
       return;
     }
@@ -808,6 +881,7 @@ export default function AddTeamMemberModal({
       }
 
       setUserType('admin');
+      setHasOrganization(true);
       setOrganizationPromptOpen(false);
       toast.success('Organization created successfully');
     } catch (error) {
