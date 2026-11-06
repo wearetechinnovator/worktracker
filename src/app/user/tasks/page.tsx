@@ -441,7 +441,8 @@ export default function TasksPage() {
           const result = await response.json();
           if (!response.ok || !result.success) {
             throw new Error(result.message || 'Failed to load task work');
-          }
+          } 
+        
           return result;
         }),
       ]);
@@ -2016,7 +2017,7 @@ export default function TasksPage() {
                       <td style={{ whiteSpace: 'nowrap', verticalAlign: 'top', }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {task.task_id ? (
-                            <span style={{color: 'var(--accent-primary)', fontSize: '0.76rem' }}>
+                            <span style={{ color: 'var(--accent-primary)', fontSize: '0.76rem' }}>
                               {task.task_id}
                             </span>
                           ) : (
@@ -2076,26 +2077,26 @@ export default function TasksPage() {
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           <span className="tag-badge" style={{ ...getStatusBadgeStyles(task.status), fontWeight: 750, fontSize: '0.72rem', width: 'fit-content' }}>
-                           {isSomeoneWorking && (
-                            <span className="tag-badge" style={{
-                              background: '#ecfdf5',
-                              color: '#047857',
-                              borderColor: '#10b98140',
-                              fontSize: '0.66rem',
-                              fontWeight: 750,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              padding: '2px 6px',
-                              width: 'fit-content'
-                            }}>
-                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} className="animate-pulse" />
-                            
-                            </span>
-                          )} {task.status}
+                            {isSomeoneWorking && (
+                              <span className="tag-badge" style={{
+                                background: '#ecfdf5',
+                                color: '#047857',
+                                borderColor: '#10b98140',
+                                fontSize: '0.66rem',
+                                fontWeight: 750,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '2px 6px',
+                                width: 'fit-content'
+                              }}>
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} className="animate-pulse" />
+
+                              </span>
+                            )} {task.status}
                           </span>
-                          
-                          
+
+
                         </div>
                       </td>
                       <td>
@@ -2115,7 +2116,7 @@ export default function TasksPage() {
                                 fontSize: '0.62rem',
                                 color: '#ffffff',
                                 flexShrink: 0,
-                                
+
                               }}
                               title={`${task.createdBy.name}`}
                             >
