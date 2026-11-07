@@ -22,6 +22,10 @@ import { toast } from '@/lib/toast';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  onExport?: (
+    format: 'excel' | 'csv',
+    period: { startDate: string; endDate: string; label: string }
+  ) => Promise<void>;
 }
 
 const MONTH_NAMES = [
@@ -39,7 +43,7 @@ const MONTH_NAMES = [
   'December',
 ];
 
-export default function ExportTeamAttendanceModal({ isOpen, onClose }: Props) {
+export default function ExportTeamAttendanceModal({ isOpen, onClose, onExport }: Props) {
   const today = new Date();
   const [selectedYear, setSelectedYear] = useState(today.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth()); // 0-11
@@ -105,6 +109,23 @@ export default function ExportTeamAttendanceModal({ isOpen, onClose }: Props) {
         eDate = endDate;
       }
 
+      const periodLabel =
+        dateMode === 'month'
+          ? `${MONTH_NAMES[selectedMonth]}_${selectedYear}`
+          : dateMode === 'year'
+          ? `Year_${selectedYear}`
+          : `${sDate}_to_${eDate}`;
+
+      if (onExport) {
+        await onExport(format, {
+          startDate: sDate,
+          endDate: eDate,
+          label: periodLabel,
+        });
+        onClose();
+        return;
+      }
+
       const res = await fetch(`/api/attendance/report${query}`, { cache: 'no-store' });
       const json = await res.json();
 
@@ -120,13 +141,6 @@ export default function ExportTeamAttendanceModal({ isOpen, onClose }: Props) {
         toast.error('No employee records found for the selected period.');
         return;
       }
-
-      const periodLabel =
-        dateMode === 'month'
-          ? `${MONTH_NAMES[selectedMonth]}_${selectedYear}`
-          : dateMode === 'year'
-          ? `Year_${selectedYear}`
-          : `${sDate}_to_${eDate}`;
 
       if (format === 'excel') {
         exportAttendanceToExcel({
@@ -183,7 +197,7 @@ export default function ExportTeamAttendanceModal({ isOpen, onClose }: Props) {
           border: '1px solid var(--border-color, #e2e8f0)',
           borderRadius: '16px',
           width: '100%',
-          maxWidth: '520px',
+          maxWidth: '970px',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
           overflow: 'hidden',
           animation: 'fadeIn 0.2s ease-out',
@@ -192,7 +206,7 @@ export default function ExportTeamAttendanceModal({ isOpen, onClose }: Props) {
         {/* Header */}
         <div
           style={{
-            padding: '16px 20px',
+            padding: '24px 36px',
             borderBottom: '1px solid var(--border-color, #e2e8f0)',
             display: 'flex',
             alignItems: 'center',
@@ -236,7 +250,7 @@ export default function ExportTeamAttendanceModal({ isOpen, onClose }: Props) {
         </div>
 
         {/* Body */}
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        <div style={{ padding: '28px 36px 36px', display: 'flex', flexDirection: 'column', gap: '22px' }}>
           {/* Mode Tabs: Monthly | Yearly | Range */}
           <div>
             <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>

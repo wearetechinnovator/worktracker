@@ -91,12 +91,25 @@ export async function GET(req: Request) {
 
     const search = (params.get("search") || "").trim();
     const date = (params.get("date") || "").trim();
+    const startDate = (params.get("startDate") || "").trim();
+    const endDate = (params.get("endDate") || "").trim();
     const requestStatus = (params.get("requestStatus") || "").trim();
     const attendanceStatus = (params.get("attendanceStatus") || "").trim();
 
     if (date && !isValidAttendanceDate(date)) {
       return NextResponse.json(
         { success: false, message: "Invalid attendance date." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      (startDate && !isValidAttendanceDate(startDate)) ||
+      (endDate && !isValidAttendanceDate(endDate)) ||
+      (startDate && endDate && startDate > endDate)
+    ) {
+      return NextResponse.json(
+        { success: false, message: "Invalid attendance date range." },
         { status: 400 }
       );
     }
@@ -172,6 +185,11 @@ export async function GET(req: Request) {
 
     if (date) {
       attendanceFilter.attendance_date = date;
+    } else if (startDate || endDate) {
+      attendanceFilter.attendance_date = {
+        ...(startDate ? { $gte: startDate } : {}),
+        ...(endDate ? { $lte: endDate } : {}),
+      };
     }
 
     const requestFilter: Record<string, unknown> = {
@@ -180,6 +198,11 @@ export async function GET(req: Request) {
 
     if (date) {
       requestFilter.attendance_date = date;
+    } else if (startDate || endDate) {
+      requestFilter.attendance_date = {
+        ...(startDate ? { $gte: startDate } : {}),
+        ...(endDate ? { $lte: endDate } : {}),
+      };
     }
 
     const [attendanceRecords, requestRecords] = await Promise.all([

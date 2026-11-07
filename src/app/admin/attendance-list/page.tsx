@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Download,
   FileText,
   Loader2,
   RefreshCw,
@@ -14,6 +15,10 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
+import ExportTeamAttendanceModal from "@/components/ExportTeamAttendanceModal";
+import EmployeeDetailsModal, {
+  EmployeeModalEmployee,
+} from "@/components/EmployeeDetailsModal";
 
 type RequestStatus = "Pending" | "Approved" | "Rejected";
 type AttendanceStatus = "present" | "absent" | "late" | "onLeave";
@@ -155,6 +160,65 @@ function formatTime(value: string | null | undefined) {
   });
 }
 
+const exportColumns = [
+  ["Employee", (row: AttendanceRow) => row.employee?.full_name || "Unknown Employee"],
+  ["Designation", (row: AttendanceRow) => row.employee?.designation || "—"],
+  ["Date", (row: AttendanceRow) => formatDate(row.attendance_date)],
+  ["Punch In", (row: AttendanceRow) => formatTime(row.punch_in_on)],
+  ["In Type", (row: AttendanceRow) => row.punch_in_mode || "—"],
+  ["Punch In Reason", (row: AttendanceRow) => row.punch_in_reason || "—"],
+  ["Punch Out", (row: AttendanceRow) => formatTime(row.punch_out_on)],
+  ["Out Type", (row: AttendanceRow) => row.punch_out_mode || "—"],
+  ["Punch Out Reason", (row: AttendanceRow) => row.punch_out_reason || "—"],
+  ["In Request", (row: AttendanceRow) => row.punch_in_request?.status || "No Request"],
+  ["Out Request", (row: AttendanceRow) => row.punch_out_request?.status || "No Request"],
+  ["Request Details", (row: AttendanceRow) =>
+    row.requests.length
+      ? row.requests.map((request) =>
+          [
+            request.request_type === "punchIn" ? "Punch In Request" : "Punch Out Request",
+            `Requested: ${formatDateTime(request.requested_at)}`,
+            `Status: ${request.status}`,
+            `Reason: ${request.reason || "—"}`,
+            `Reviewed: ${formatDateTime(request.reviewed_at)}`,
+            `Reviewed by: ${request.reviewed_by?.full_name || request.reviewed_by?.email || "—"}`,
+            `Request IP: ${request.ip || "—"}`,
+            `Approval used at: ${formatDateTime(request.used_at)}`,
+          ].join(" | ")
+        ).join(" || ")
+      : "No Request"],
+  ["Action", () => "Details"],
+] as const;
+
+function escapeCsvValue(value: string) {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function downloadAttendanceRows(rows: AttendanceRow[], format: "csv" | "excel", label: string) {
+  const values = rows.map((row) =>
+    exportColumns.map(([, getValue]) => String(getValue(row)))
+  );
+  const headers = exportColumns.map(([header]) => header);
+  const filename = `Attendance_List_${label}.${format === "csv" ? "csv" : "xls"}`;
+  const content =
+    format === "csv"
+      ? ["\uFEFF" + headers.map(escapeCsvValue).join(","), ...values.map((row) => row.map(escapeCsvValue).join(","))].join("\r\n")
+      : `<table><thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead><tbody>${values
+          .map((row) => `<tr>${row.map((value) => `<td>${value.replace(/[<&>"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[char] || char))}</td>`).join("")}</tr>`)
+          .join("")}</tbody></table>`;
+  const blob = new Blob([content], {
+    type: format === "csv" ? "text/csv;charset=utf-8" : "application/vnd.ms-excel",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function StatusBadge({ status }: { status: RequestStatus | null }) {
   if (!status) {
     return (
@@ -261,6 +325,10 @@ export default function AttendanceListPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedRow, setSelectedRow] =
     useState<AttendanceRow | null>(null);
+  const [selectedEmployee, setSelectedEmployee] =
+    useState<EmployeeModalEmployee | null>(null);
+  const [isListExportModalOpen, setIsListExportModalOpen] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<"csv" | "excel" | null>(null);
 
   const loadAttendance = useCallback(
     async (page = 1, showRefresh = false) => {
@@ -395,6 +463,56 @@ export default function AttendanceListPage() {
     setAttendanceStatus((current) => (current === status ? "" : status));
   };
 
+  const exportFilteredAttendance = async (
+    format: "csv" | "excel",
+    period: { startDate: string; endDate: string; label: string }
+  ) => {
+    try {
+      setExportingFormat(format);
+      const exportRows: AttendanceRow[] = [];
+      let page = 1;
+      let totalPages = 1;
+
+      do {
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: "100",
+          startDate: period.startDate,
+          endDate: period.endDate,
+        });
+        if (search.trim()) params.set("search", search.trim());
+        if (requestStatus) params.set("requestStatus", requestStatus);
+        if (attendanceStatus) params.set("attendanceStatus", attendanceStatus);
+
+        const response = await fetch(`/api/attendance-list?${params.toString()}`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const json = await response.json();
+        if (!response.ok || !json.success) {
+          throw new Error(json.message || "Failed to prepare attendance export.");
+        }
+
+        exportRows.push(...(Array.isArray(json.data) ? json.data : []));
+        totalPages = json.pagination?.totalPages || 1;
+        page += 1;
+      } while (page <= totalPages);
+
+      if (!exportRows.length) {
+        toast.error("No attendance records found for the selected filters.");
+        return;
+      }
+
+      downloadAttendanceRows(exportRows, format, period.label);
+      toast.success(`${format === "csv" ? "CSV" : "Excel"} attendance file downloaded.`);
+    } catch (error) {
+      console.error("Attendance export error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to export attendance.");
+    } finally {
+      setExportingFormat(null);
+    }
+  };
+
   return (
     <div style={{ width: "100%" }}>
       {/* Header */}
@@ -402,25 +520,61 @@ export default function AttendanceListPage() {
         style={{
           display: "flex",
           alignItems: "flex-end",
-          justifyContent: "end",
+          justifyContent: "space-between",
           gap: 16,
-          marginBottom: 5,
+          marginBottom: 12,
           flexWrap: "wrap",
         }}
       >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            gap: 9,
+            flex: "1 1 220px",
+          }}
+        >
+          <h1
+            style={{
+              margin: 0,
+              fontSize: "1.15rem",
+              fontWeight: 800,
+              color: "var(--text-primary)",
+            }}
+          >
+            Attendance List {date === getTodayDate() ? "Today" : date}
+          </h1>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setIsListExportModalOpen(true)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              fontWeight: 800,
+            }}
+          >
+            <Download size={15} />
+            Download
+          </button>
+        </div>
         {/* Filters */}
         <div
           className="card"
           style={{
-            padding: 10,
+            padding: 12,
             marginBottom: 0,
+            flex: "2 1 620px",
+            minWidth: 0,
           }}
         >
           <div
             style={{
               display: "grid",
               gridTemplateColumns:
-                "minmax(220px, 1.5fr) minmax(160px, .7fr) minmax(160px, .7fr) auto",
+                "minmax(210px, 1.5fr) minmax(145px, .8fr) minmax(145px, .8fr) auto",
               gap: 10,
               alignItems: "end",
             }}
@@ -552,7 +706,7 @@ export default function AttendanceListPage() {
           gridTemplateColumns:
             "repeat(auto-fit, minmax(180px, 1fr))",
           gap: 12,
-          marginBottom: 4,
+          marginBottom: 14,
         }}
       >
         <button
@@ -688,18 +842,7 @@ export default function AttendanceListPage() {
 
 
 
-<div>
-          <h1
-            style={{
-              margin: 10,
-              fontSize: "1rem",
-              fontWeight: 800,
-              color: "var(--text-primary)",
-            }}
-          >
-            Attendance List {date === getTodayDate() ? "Today" : date}
-          </h1>
-        </div>
+
       {/* Table */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {loading ? (
@@ -816,6 +959,17 @@ export default function AttendanceListPage() {
                           alignItems: "center",
                           gap: 9,
                           minWidth: 170,
+                          cursor: row.employee ? "pointer" : "default",
+                        }}
+                        onClick={() => {
+                          if (!row.employee) return;
+                          setSelectedEmployee({
+                            _id: row.employee._id,
+                            full_name: row.employee.full_name,
+                            email: row.employee.email || undefined,
+                            designation: row.employee.designation,
+                            profile_picture: row.employee.profile_picture,
+                          });
                         }}
                       >
                         <div
@@ -894,7 +1048,17 @@ export default function AttendanceListPage() {
                     </td>
 
                     <td style={reasonCellStyle}>
-                      {row.punch_in_reason || "—"}
+                      <div
+                        title={row.punch_in_reason || "—"}
+                        style={{
+                          display: "-webkit-box",
+                          WebkitBoxOrient: "vertical",
+                          WebkitLineClamp: 3,
+                          overflow: "hidden",
+                        }}
+                      >
+                        {row.punch_in_reason || "—"}
+                      </div>
                     </td>
 
                     <td style={cellStyle}>
@@ -920,7 +1084,17 @@ export default function AttendanceListPage() {
                     </td>
 
                     <td style={reasonCellStyle}>
-                      {row.punch_out_reason || "—"}
+                      <div
+                        title={row.punch_out_reason || "—"}
+                        style={{
+                          display: "-webkit-box",
+                          WebkitBoxOrient: "vertical",
+                          WebkitLineClamp: 3,
+                          overflow: "hidden",
+                        }}
+                      >
+                        {row.punch_out_reason || "—"}
+                      </div>
                     </td>
 
                     <td style={cellStyle}>
@@ -1369,6 +1543,23 @@ export default function AttendanceListPage() {
           </div>
         </div>
       )}
+
+      <EmployeeDetailsModal
+        employee={selectedEmployee}
+        isOpen={Boolean(selectedEmployee)}
+        onClose={() => setSelectedEmployee(null)}
+      />
+
+      <ExportTeamAttendanceModal
+        isOpen={isListExportModalOpen}
+        onClose={() => {
+          if (!exportingFormat) setIsListExportModalOpen(false);
+        }}
+        onExport={async (format, period) => {
+          await exportFilteredAttendance(format, period);
+          setIsListExportModalOpen(false);
+        }}
+      />
     </div>
   );
 }
@@ -1387,6 +1578,7 @@ const reasonCellStyle: React.CSSProperties = {
   minWidth: 180,
   maxWidth: 260,
   lineHeight: 1.4,
+  overflow: "hidden",
 };
 
 function DetailCard({
