@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
-  Download,
   FileText,
   Loader2,
   RefreshCw,
@@ -15,13 +14,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
-import ExportTeamAttendanceModal from "@/components/ExportTeamAttendanceModal";
-import EmployeeDetailsModal, {
-  EmployeeModalEmployee,
-} from "@/components/EmployeeDetailsModal";
 
 type RequestStatus = "Pending" | "Approved" | "Rejected";
-type AttendanceStatus = "present" | "absent" | "late" | "onLeave";
 
 interface AttendanceRequest {
   _id: string;
@@ -86,24 +80,7 @@ interface Pagination {
   totalPages: number;
 }
 
-interface AttendanceSummary {
-  present: number;
-  absent: number;
-  late: number;
-  onLeave: number;
-  date: string;
-}
-
 const ITEMS_PER_PAGE = 10;
-
-function getTodayDate() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -158,65 +135,6 @@ function formatTime(value: string | null | undefined) {
     minute: "2-digit",
     hour12: true,
   });
-}
-
-const exportColumns = [
-  ["Employee", (row: AttendanceRow) => row.employee?.full_name || "Unknown Employee"],
-  ["Designation", (row: AttendanceRow) => row.employee?.designation || "—"],
-  ["Date", (row: AttendanceRow) => formatDate(row.attendance_date)],
-  ["Punch In", (row: AttendanceRow) => formatTime(row.punch_in_on)],
-  ["In Type", (row: AttendanceRow) => row.punch_in_mode || "—"],
-  ["Punch In Reason", (row: AttendanceRow) => row.punch_in_reason || "—"],
-  ["Punch Out", (row: AttendanceRow) => formatTime(row.punch_out_on)],
-  ["Out Type", (row: AttendanceRow) => row.punch_out_mode || "—"],
-  ["Punch Out Reason", (row: AttendanceRow) => row.punch_out_reason || "—"],
-  ["In Request", (row: AttendanceRow) => row.punch_in_request?.status || "No Request"],
-  ["Out Request", (row: AttendanceRow) => row.punch_out_request?.status || "No Request"],
-  ["Request Details", (row: AttendanceRow) =>
-    row.requests.length
-      ? row.requests.map((request) =>
-          [
-            request.request_type === "punchIn" ? "Punch In Request" : "Punch Out Request",
-            `Requested: ${formatDateTime(request.requested_at)}`,
-            `Status: ${request.status}`,
-            `Reason: ${request.reason || "—"}`,
-            `Reviewed: ${formatDateTime(request.reviewed_at)}`,
-            `Reviewed by: ${request.reviewed_by?.full_name || request.reviewed_by?.email || "—"}`,
-            `Request IP: ${request.ip || "—"}`,
-            `Approval used at: ${formatDateTime(request.used_at)}`,
-          ].join(" | ")
-        ).join(" || ")
-      : "No Request"],
-  ["Action", () => "Details"],
-] as const;
-
-function escapeCsvValue(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-function downloadAttendanceRows(rows: AttendanceRow[], format: "csv" | "excel", label: string) {
-  const values = rows.map((row) =>
-    exportColumns.map(([, getValue]) => String(getValue(row)))
-  );
-  const headers = exportColumns.map(([header]) => header);
-  const filename = `Attendance_List_${label}.${format === "csv" ? "csv" : "xls"}`;
-  const content =
-    format === "csv"
-      ? ["\uFEFF" + headers.map(escapeCsvValue).join(","), ...values.map((row) => row.map(escapeCsvValue).join(","))].join("\r\n")
-      : `<table><thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead><tbody>${values
-          .map((row) => `<tr>${row.map((value) => `<td>${value.replace(/[<&>"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[char] || char))}</td>`).join("")}</tr>`)
-          .join("")}</tbody></table>`;
-  const blob = new Blob([content], {
-    type: format === "csv" ? "text/csv;charset=utf-8" : "application/vnd.ms-excel",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }
 
 function StatusBadge({ status }: { status: RequestStatus | null }) {
@@ -309,26 +227,14 @@ export default function AttendanceListPage() {
     total: 0,
     totalPages: 0,
   });
-  const [summary, setSummary] = useState<AttendanceSummary>({
-    present: 0,
-    absent: 0,
-    late: 0,
-    onLeave: 0,
-    date: getTodayDate(),
-  });
 
   const [search, setSearch] = useState("");
-  const [date, setDate] = useState(getTodayDate);
+  const [date, setDate] = useState("");
   const [requestStatus, setRequestStatus] = useState("");
-  const [attendanceStatus, setAttendanceStatus] = useState<AttendanceStatus | "">("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedRow, setSelectedRow] =
     useState<AttendanceRow | null>(null);
-  const [selectedEmployee, setSelectedEmployee] =
-    useState<EmployeeModalEmployee | null>(null);
-  const [isListExportModalOpen, setIsListExportModalOpen] = useState(false);
-  const [exportingFormat, setExportingFormat] = useState<"csv" | "excel" | null>(null);
 
   const loadAttendance = useCallback(
     async (page = 1, showRefresh = false) => {
@@ -352,9 +258,6 @@ export default function AttendanceListPage() {
         if (requestStatus) {
           params.set("requestStatus", requestStatus);
         }
-        if (attendanceStatus) {
-          params.set("attendanceStatus", attendanceStatus);
-        }
 
         const response = await fetch(
           `/api/attendance-list?${params.toString()}`,
@@ -373,15 +276,6 @@ export default function AttendanceListPage() {
         }
 
         setRows(Array.isArray(json.data) ? json.data : []);
-        setSummary(
-          json.summary || {
-            present: 0,
-            absent: 0,
-            late: 0,
-            onLeave: 0,
-            date: getTodayDate(),
-          }
-        );
         setPagination(
           json.pagination || {
             page,
@@ -402,7 +296,7 @@ export default function AttendanceListPage() {
         setRefreshing(false);
       }
     },
-    [search, date, requestStatus, attendanceStatus]
+    [search, date, requestStatus]
   );
 
   useEffect(() => {
@@ -411,7 +305,7 @@ export default function AttendanceListPage() {
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [search, date, requestStatus, attendanceStatus, loadAttendance]);
+  }, [search, date, requestStatus, loadAttendance]);
 
   const pageNumbers = useMemo(() => {
     const total = pagination.totalPages;
@@ -448,70 +342,12 @@ export default function AttendanceListPage() {
 
   const clearFilters = () => {
     setSearch("");
-    setDate(getTodayDate());
+    setDate("");
     setRequestStatus("");
-    setAttendanceStatus("");
   };
 
   const hasFilters =
-    Boolean(search.trim()) ||
-    date !== getTodayDate() ||
-    Boolean(requestStatus) ||
-    Boolean(attendanceStatus);
-
-  const toggleAttendanceStatus = (status: AttendanceStatus) => {
-    setAttendanceStatus((current) => (current === status ? "" : status));
-  };
-
-  const exportFilteredAttendance = async (
-    format: "csv" | "excel",
-    period: { startDate: string; endDate: string; label: string }
-  ) => {
-    try {
-      setExportingFormat(format);
-      const exportRows: AttendanceRow[] = [];
-      let page = 1;
-      let totalPages = 1;
-
-      do {
-        const params = new URLSearchParams({
-          page: String(page),
-          limit: "100",
-          startDate: period.startDate,
-          endDate: period.endDate,
-        });
-        if (search.trim()) params.set("search", search.trim());
-        if (requestStatus) params.set("requestStatus", requestStatus);
-        if (attendanceStatus) params.set("attendanceStatus", attendanceStatus);
-
-        const response = await fetch(`/api/attendance-list?${params.toString()}`, {
-          credentials: "include",
-          cache: "no-store",
-        });
-        const json = await response.json();
-        if (!response.ok || !json.success) {
-          throw new Error(json.message || "Failed to prepare attendance export.");
-        }
-
-        exportRows.push(...(Array.isArray(json.data) ? json.data : []));
-        totalPages = json.pagination?.totalPages || 1;
-        page += 1;
-      } while (page <= totalPages);
-
-      if (!exportRows.length) {
-        toast.error("No attendance records found for the selected filters.");
-        return;
-      }
-
-      downloadAttendanceRows(exportRows, format, period.label);
-      toast.success(`${format === "csv" ? "CSV" : "Excel"} attendance file downloaded.`);
-    } catch (error) {
-      console.error("Attendance export error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to export attendance.");
-    } finally {
-      setExportingFormat(null);
-    }
-  };
+    Boolean(search.trim()) || Boolean(date) || Boolean(requestStatus);
 
   return (
     <div style={{ width: "100%" }}>
@@ -519,184 +355,53 @@ export default function AttendanceListPage() {
       <div
         style={{
           display: "flex",
-          alignItems: "flex-end",
+          alignItems: "flex-start",
           justifyContent: "space-between",
           gap: 16,
-          marginBottom: 12,
+          marginBottom: 20,
           flexWrap: "wrap",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-start",
-            gap: 9,
-            flex: "1 1 220px",
-          }}
-        >
+        <div>
           <h1
             style={{
               margin: 0,
-              fontSize: "1.15rem",
+              fontSize: "1.45rem",
               fontWeight: 800,
               color: "var(--text-primary)",
             }}
           >
-            Attendance List {date === getTodayDate() ? "Today" : date}
+            Attendance List
           </h1>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => setIsListExportModalOpen(true)}
+          <p
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 7,
-              fontWeight: 800,
+              margin: "5px 0 0",
+              color: "var(--text-secondary)",
+              fontSize: "0.8rem",
             }}
           >
-            <Download size={15} />
-            Download
-          </button>
+            View punch in/out activity and attendance request history of
+            employees added by you.
+          </p>
         </div>
-        {/* Filters */}
-        <div
-          className="card"
+
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => loadAttendance(pagination.page, true)}
+          disabled={loading || refreshing}
           style={{
-            padding: 12,
-            marginBottom: 0,
-            flex: "2 1 620px",
-            minWidth: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
           }}
         >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "minmax(210px, 1.5fr) minmax(145px, .8fr) minmax(145px, .8fr) auto",
-              gap: 10,
-              alignItems: "end",
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "var(--text-muted)",
-                  marginBottom: 5,
-                }}
-              >
-                SEARCH EMPLOYEE
-              </label>
-              <div style={{ position: "relative" }}>
-                <Search
-                  size={15}
-                  style={{
-                    position: "absolute",
-                    left: 10,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "var(--text-muted)",
-                  }}
-                />
-                <input
-                  className="form-control"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Name or email..."
-                  style={{ paddingLeft: 32 }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "var(--text-muted)",
-                  marginBottom: 5,
-                }}
-              >
-                DATE
-              </label>
-              <input
-                type="date"
-                className="form-control"
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-              />
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "var(--text-muted)",
-                  marginBottom: 5,
-                }}
-              >
-                REQUEST STATUS
-              </label>
-              <select
-                className="form-control"
-                value={requestStatus}
-                onChange={(event) =>
-                  setRequestStatus(event.target.value)
-                }
-              >
-                <option value="">All requests</option>
-                <option value="Pending">Pending</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-
-
-            </div>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => loadAttendance(pagination.page, true)}
-              disabled={loading || refreshing}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 7,
-              }}
-            >
-              <RefreshCw
-                size={15}
-                className={refreshing ? "animate-spin" : ""}
-              />
-              Refresh
-            </button>
-            {hasFilters ? (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={clearFilters}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                }}
-              >
-                <X size={14} />
-                Clear
-              </button>
-            ) : (
-              <div />
-            )}
-          </div>
-        </div>
-
+          <RefreshCw
+            size={15}
+            className={refreshing ? "animate-spin" : ""}
+          />
+          Refresh
+        </button>
       </div>
 
       {/* Summary */}
@@ -709,17 +414,7 @@ export default function AttendanceListPage() {
           marginBottom: 14,
         }}
       >
-        <button
-          type="button"
-          className="card"
-          onClick={() => toggleAttendanceStatus("present")}
-          style={{
-            padding: 15,
-            textAlign: "left",
-            cursor: "pointer",
-            border: attendanceStatus === "present" ? "2px solid var(--accent-primary)" : undefined,
-          }}
-        >
+        <div className="card" style={{ padding: 15 }}>
           <div
             style={{
               display: "flex",
@@ -730,7 +425,7 @@ export default function AttendanceListPage() {
             }}
           >
             <Users size={15} />
-            Present
+            RECORDS
           </div>
           <div
             style={{
@@ -739,53 +434,11 @@ export default function AttendanceListPage() {
               fontWeight: 800,
             }}
           >
-            {summary.present}
+            {pagination.total}
           </div>
-        </button>
-        <button
-          type="button"
-          className="card"
-          onClick={() => toggleAttendanceStatus("absent")}
-          style={{
-            padding: 15,
-            textAlign: "left",
-            cursor: "pointer",
-            border: attendanceStatus === "absent" ? "2px solid var(--accent-primary)" : undefined,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              color: "var(--text-muted)",
-              fontSize: ".7rem",
-            }}
-          >
-            <Users size={15} />
-            Absent
-          </div>
-          <div
-            style={{
-              marginTop: 6,
-              fontSize: "1.35rem",
-              fontWeight: 800,
-            }}
-          >
-            {summary.absent}
-          </div>
-        </button>
-        <button
-          type="button"
-          className="card"
-          onClick={() => toggleAttendanceStatus("late")}
-          style={{
-            padding: 15,
-            textAlign: "left",
-            cursor: "pointer",
-            border: attendanceStatus === "late" ? "2px solid var(--accent-primary)" : undefined,
-          }}
-        >
+        </div>
+
+        <div className="card" style={{ padding: 15 }}>
           <div
             style={{
               display: "flex",
@@ -796,7 +449,7 @@ export default function AttendanceListPage() {
             }}
           >
             <Clock3 size={15} />
-            Late
+            CURRENT PAGE
           </div>
           <div
             style={{
@@ -805,28 +458,18 @@ export default function AttendanceListPage() {
               fontWeight: 800,
             }}
           >
-            {summary.late}
+            {pagination.page} / {Math.max(pagination.totalPages, 1)}
           </div>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          className="card"
-          onClick={() => toggleAttendanceStatus("onLeave")}
-          style={{
-            padding: 15,
-            textAlign: "left",
-            cursor: "pointer",
-            border: attendanceStatus === "onLeave" ? "2px solid var(--accent-primary)" : undefined,
-          }}
-        >
+        <div className="card" style={{ padding: 15 }}>
           <div
             style={{
               color: "var(--text-muted)",
               fontSize: ".7rem",
             }}
           >
-            On Leave
+            PENDING REQUESTS
           </div>
           <div
             style={{
@@ -835,13 +478,131 @@ export default function AttendanceListPage() {
               fontWeight: 800,
             }}
           >
-            {summary.onLeave}
+            {rows.filter(
+              (row) =>
+                row.punch_in_request?.status === "Pending" ||
+                row.punch_out_request?.status === "Pending"
+            ).length}
           </div>
-        </button>
+        </div>
       </div>
 
+      {/* Filters */}
+      <div
+        className="card"
+        style={{
+          padding: 14,
+          marginBottom: 14,
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "minmax(220px, 1.5fr) minmax(160px, .7fr) minmax(160px, .7fr) auto",
+            gap: 10,
+            alignItems: "end",
+          }}
+        >
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: 11,
+                fontWeight: 700,
+                color: "var(--text-muted)",
+                marginBottom: 5,
+              }}
+            >
+              SEARCH EMPLOYEE
+            </label>
+            <div style={{ position: "relative" }}>
+              <Search
+                size={15}
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "var(--text-muted)",
+                }}
+              />
+              <input
+                className="form-control"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Name or email..."
+                style={{ paddingLeft: 32 }}
+              />
+            </div>
+          </div>
 
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: 11,
+                fontWeight: 700,
+                color: "var(--text-muted)",
+                marginBottom: 5,
+              }}
+            >
+              DATE
+            </label>
+            <input
+              type="date"
+              className="form-control"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+            />
+          </div>
 
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: 11,
+                fontWeight: 700,
+                color: "var(--text-muted)",
+                marginBottom: 5,
+              }}
+            >
+              REQUEST STATUS
+            </label>
+            <select
+              className="form-control"
+              value={requestStatus}
+              onChange={(event) =>
+                setRequestStatus(event.target.value)
+              }
+            >
+              <option value="">All requests</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+          </div>
+
+          {hasFilters ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={clearFilters}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+              }}
+            >
+              <X size={14} />
+              Clear
+            </button>
+          ) : (
+            <div />
+          )}
+        </div>
+      </div>
 
       {/* Table */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -959,17 +720,6 @@ export default function AttendanceListPage() {
                           alignItems: "center",
                           gap: 9,
                           minWidth: 170,
-                          cursor: row.employee ? "pointer" : "default",
-                        }}
-                        onClick={() => {
-                          if (!row.employee) return;
-                          setSelectedEmployee({
-                            _id: row.employee._id,
-                            full_name: row.employee.full_name,
-                            email: row.employee.email || undefined,
-                            designation: row.employee.designation,
-                            profile_picture: row.employee.profile_picture,
-                          });
                         }}
                       >
                         <div
@@ -1048,17 +798,7 @@ export default function AttendanceListPage() {
                     </td>
 
                     <td style={reasonCellStyle}>
-                      <div
-                        title={row.punch_in_reason || "—"}
-                        style={{
-                          display: "-webkit-box",
-                          WebkitBoxOrient: "vertical",
-                          WebkitLineClamp: 3,
-                          overflow: "hidden",
-                        }}
-                      >
-                        {row.punch_in_reason || "—"}
-                      </div>
+                      {row.punch_in_reason || "—"}
                     </td>
 
                     <td style={cellStyle}>
@@ -1084,17 +824,7 @@ export default function AttendanceListPage() {
                     </td>
 
                     <td style={reasonCellStyle}>
-                      <div
-                        title={row.punch_out_reason || "—"}
-                        style={{
-                          display: "-webkit-box",
-                          WebkitBoxOrient: "vertical",
-                          WebkitLineClamp: 3,
-                          overflow: "hidden",
-                        }}
-                      >
-                        {row.punch_out_reason || "—"}
-                      </div>
+                      {row.punch_out_reason || "—"}
                     </td>
 
                     <td style={cellStyle}>
@@ -1543,23 +1273,6 @@ export default function AttendanceListPage() {
           </div>
         </div>
       )}
-
-      <EmployeeDetailsModal
-        employee={selectedEmployee}
-        isOpen={Boolean(selectedEmployee)}
-        onClose={() => setSelectedEmployee(null)}
-      />
-
-      <ExportTeamAttendanceModal
-        isOpen={isListExportModalOpen}
-        onClose={() => {
-          if (!exportingFormat) setIsListExportModalOpen(false);
-        }}
-        onExport={async (format, period) => {
-          await exportFilteredAttendance(format, period);
-          setIsListExportModalOpen(false);
-        }}
-      />
     </div>
   );
 }
@@ -1578,7 +1291,6 @@ const reasonCellStyle: React.CSSProperties = {
   minWidth: 180,
   maxWidth: 260,
   lineHeight: 1.4,
-  overflow: "hidden",
 };
 
 function DetailCard({

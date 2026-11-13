@@ -21,7 +21,7 @@ import {
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
 import PageShimmer from '@/components/PageShimmer';
 import EmployeeCard from '@/components/EmployeeCard';
-import { EveningLanternButtonDecor } from '@/components/EveningLanterns';
+// import { EveningLanternButtonDecor } from '@/components/EveningLanterns';
 import { toast } from '@/lib/toast';
 import EmployeeDetailsModal from '@/components/EmployeeDetailsModal';
 import ExportTeamAttendanceModal from '@/components/ExportTeamAttendanceModal';
@@ -663,7 +663,7 @@ export default function EmployeesPage() {
 							setIsAddModalOpen(true)
 						}
 					>
-						<EveningLanternButtonDecor leftType="A" rightType="B" />
+						{/* <EveningLanternButtonDecor leftType="A" rightType="B" /> */}
 						<UserPlus size={14} />
 
 						<span>

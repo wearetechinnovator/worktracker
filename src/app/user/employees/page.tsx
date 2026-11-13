@@ -10,7 +10,7 @@ import { formatMinutesToDuration } from '@/lib/time';
 import EmployeeDetailsModal from '@/components/EmployeeDetailsModal';
 import ExportTeamAttendanceModal from '@/components/ExportTeamAttendanceModal';
 import AddTeamMemberModal from '@/components/AddTeamMemberModal';
-import { EveningLanternButtonDecor } from '@/components/EveningLanterns';
+// import { EveningLanternButtonDecor } from '@/components/EveningLanterns';
 import PageShimmer from '@/components/PageShimmer';
 import type { Employee } from '@/types/Employee2';
 import { toast } from '@/lib/toast';
@@ -185,7 +185,7 @@ export default function EmployeesPage() {
           </button>
 
           <button className="btn btn-primary diwali-button evening-lantern-btn" onClick={() => setIsAddModalOpen(true)}>
-            <EveningLanternButtonDecor leftType="A" rightType="B" />
+            {/* <EveningLanternButtonDecor leftType="A" rightType="B" /> */}
             <UserPlus size={14} />
             <span>Add Employee</span>
           </button>

@@ -18,7 +18,7 @@ import CreateClientModal from '@/components/CreateClientModal';
 import CreateTaskModal from '@/components/CreateTaskModal';
 import PunchRequestModal from '@/components/PunchRequestModal';
 import PunchOutSummaryModal from '@/components/PunchOutSummaryModal';
-import { EveningLanternsNavbar, EveningLanternButtonDecor } from '@/components/EveningLanterns';
+// import { EveningLanternsNavbar, EveningLanternButtonDecor } from '@/components/EveningLanterns';
 import { punchService } from '@/lib/punchService';
 import { toast } from '@/lib/toast';
 
@@ -933,7 +933,7 @@ export default function TopNavbar() {
           zIndex: 100,
         }}
       >
-        <EveningLanternsNavbar />
+        {/* <EveningLanternsNavbar /> */}
 
         {/* ===================================================
             LIVE CLOCK
@@ -1023,7 +1023,7 @@ export default function TopNavbar() {
                     height: '38px',
                   }}
                 >
-                  <EveningLanternButtonDecor leftType="A" rightType="B" />
+                  {/* <EveningLanternButtonDecor leftType="A" rightType="B" /> */}
                   {/* CREATE TASK */}
 
                   <button
@@ -1468,7 +1468,7 @@ export default function TopNavbar() {
                   }
                 }}
               >
-                <EveningLanternButtonDecor leftType="A" rightType="B" />
+                {/* <EveningLanternButtonDecor leftType="A" rightType="B" /> */}
                 <Plus
                   size={16}
                 />

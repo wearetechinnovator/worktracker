@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Archive,
   Download,
@@ -840,10 +841,8 @@ export default function TaskDetailsModal({
 
     return (
       <div
+        className="td-update-composer"
         style={{
-          position: "sticky",
-          bottom: 0,
-          zIndex: 30,
           background: "rgba(255,255,255,0.98)",
           borderTop: "1px solid #e5e7eb",
           boxShadow: "0 -8px 24px rgba(15,23,42,0.08)",
@@ -1326,7 +1325,12 @@ export default function TaskDetailsModal({
    * ---------------------------------------------------------
    */
 
-  return (
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
+    (
     <div
       className="td-overlay"
       onClick={onClose}
@@ -1503,5 +1507,7 @@ export default function TaskDetailsModal({
         {renderUpdateComposer()}
       </div>
     </div>
+    ),
+    document.body
   );
 }
