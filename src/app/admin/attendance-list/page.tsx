@@ -6,6 +6,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Download,
+  FileSpreadsheet,
   FileText,
   Loader2,
   RefreshCw,
@@ -14,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
+import ExportTeamAttendanceModal from "@/components/ExportTeamAttendanceModal";
 
 type RequestStatus = "Pending" | "Approved" | "Rejected";
 
@@ -80,7 +83,23 @@ interface Pagination {
   totalPages: number;
 }
 
+interface AttendanceSummary {
+  present: number;
+  absent: number;
+  late: number;
+  onLeave: number;
+}
+
 const ITEMS_PER_PAGE = 10;
+
+function getTodayDateValue() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -135,6 +154,22 @@ function formatTime(value: string | null | undefined) {
     minute: "2-digit",
     hour12: true,
   });
+}
+
+function getDeviceName(
+  browser: string | null | undefined,
+  systemId: string | null | undefined
+) {
+  if (!browser && !systemId) return "—";
+  return /android|iphone|ipad|ipod|mobile|blackberry|windows phone/i.test(
+    `${browser || ""} ${systemId || ""}`
+  )
+    ? "Mobile"
+    : "Desktop";
+}
+
+function escapeExportValue(value: string) {
+  return `"${value.replace(/"/g, '""')}"`;
 }
 
 function StatusBadge({ status }: { status: RequestStatus | null }) {
@@ -229,12 +264,110 @@ export default function AttendanceListPage() {
   });
 
   const [search, setSearch] = useState("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(getTodayDateValue);
   const [requestStatus, setRequestStatus] = useState("");
+  const [attendanceStatus, setAttendanceStatus] = useState("");
+  const [datePreset, setDatePreset] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedRow, setSelectedRow] =
     useState<AttendanceRow | null>(null);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [summary, setSummary] = useState<AttendanceSummary>({
+    present: 0,
+    absent: 0,
+    late: 0,
+    onLeave: 0,
+  });
+
+  const getPresetRange = (preset: string) => {
+    const today = new Date();
+    const end = new Date(today);
+    const start = new Date(today);
+
+    if (preset === "week") {
+      const day = today.getDay();
+      start.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
+    } else if (preset === "month") {
+      start.setDate(1);
+    } else if (preset === "year") {
+      start.setMonth(0, 1);
+    }
+
+    const toDateValue = (value: Date) => {
+      const year = value.getFullYear();
+      const month = String(value.getMonth() + 1).padStart(2, "0");
+      const day = String(value.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    return { startDate: toDateValue(start), endDate: toDateValue(end) };
+  };
+
+  const exportSelectedAttendance = (
+    row: AttendanceRow,
+    format: "csv" | "excel"
+  ) => {
+    const rows = [
+      ["Employee", row.employee?.full_name || "Employee"],
+      ["Date", formatDate(row.attendance_date)],
+      ["Punch In Time", formatDateTime(row.punch_in_on)],
+      ["Punch In Mode", row.punch_in_mode || "—"],
+      ["Punch In Reason", row.punch_in_reason || "—"],
+      ["Punch In IP", row.punch_in_ip || "—"],
+      [
+        "Punch In Device",
+        getDeviceName(row.punch_in_browser, row.punch_in_systemid),
+      ],
+      ["Punch Out Time", formatDateTime(row.punch_out_on)],
+      ["Punch Out Mode", row.punch_out_mode || "—"],
+      ["Punch Out Source", row.punch_out_source === "system" ? "System / Automatic" : "Manual"],
+      ["Punch Out Reason", row.punch_out_reason || "—"],
+      ["Punch Out IP", row.punch_out_ip || "—"],
+      [
+        "Punch Out Device",
+        getDeviceName(row.punch_out_browser, row.punch_out_systemid),
+      ],
+      ...row.requests.flatMap((request, index) => [
+        [`Request ${index + 1} Type`, request.request_type === "punchIn" ? "Punch In" : "Punch Out"],
+        [`Request ${index + 1} Status`, request.status],
+        [`Request ${index + 1} Reason`, request.reason || "—"],
+        [`Request ${index + 1} Requested`, formatDateTime(request.requested_at)],
+      ]),
+    ];
+
+    const fileBase = `attendance-${row.employee?.full_name || "employee"}-${row.attendance_date}`
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase();
+
+    if (format === "csv") {
+      const csv = rows.map((item) => item.map(escapeExportValue).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${fileBase}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const html = `<table><tbody>${rows
+        .map(([label, value]) => `<tr><th>${label}</th><td>${value}</td></tr>`)
+        .join("")}</tbody></table>`;
+      const blob = new Blob([`<html><body>${html}</body></html>`], {
+        type: "application/vnd.ms-excel",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${fileBase}.xls`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    toast.success(`${format === "csv" ? "CSV" : "Excel"} exported successfully.`);
+  };
 
   const loadAttendance = useCallback(
     async (page = 1, showRefresh = false) => {
@@ -253,10 +386,17 @@ export default function AttendanceListPage() {
 
         if (date) {
           params.set("date", date);
+        } else if (datePreset) {
+          const range = getPresetRange(datePreset);
+          params.set("startDate", range.startDate);
+          params.set("endDate", range.endDate);
         }
 
         if (requestStatus) {
           params.set("requestStatus", requestStatus);
+        }
+        if (attendanceStatus) {
+          params.set("attendanceStatus", attendanceStatus);
         }
 
         const response = await fetch(
@@ -276,6 +416,12 @@ export default function AttendanceListPage() {
         }
 
         setRows(Array.isArray(json.data) ? json.data : []);
+        setSummary(json.summary || {
+          present: 0,
+          absent: 0,
+          late: 0,
+          onLeave: 0,
+        });
         setPagination(
           json.pagination || {
             page,
@@ -296,7 +442,7 @@ export default function AttendanceListPage() {
         setRefreshing(false);
       }
     },
-    [search, date, requestStatus]
+    [search, date, datePreset, requestStatus, attendanceStatus]
   );
 
   useEffect(() => {
@@ -305,7 +451,7 @@ export default function AttendanceListPage() {
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [search, date, requestStatus, loadAttendance]);
+  }, [search, date, datePreset, requestStatus, attendanceStatus, loadAttendance]);
 
   const pageNumbers = useMemo(() => {
     const total = pagination.totalPages;
@@ -343,11 +489,43 @@ export default function AttendanceListPage() {
   const clearFilters = () => {
     setSearch("");
     setDate("");
+    setDatePreset("");
     setRequestStatus("");
+    setAttendanceStatus("");
   };
 
   const hasFilters =
-    Boolean(search.trim()) || Boolean(date) || Boolean(requestStatus);
+    Boolean(search.trim()) ||
+    Boolean(date) ||
+    Boolean(datePreset) ||
+    Boolean(requestStatus) ||
+    Boolean(attendanceStatus);
+
+  const attendancePeriodLabel = (() => {
+    if (datePreset) {
+      const range = getPresetRange(datePreset);
+      return datePreset === "today"
+        ? `Today · ${formatDate(range.startDate)}`
+        : `${formatDate(range.startDate)} – ${formatDate(range.endDate)}`;
+    }
+
+    if (date) {
+      return date === getTodayDateValue()
+        ? `Today · ${formatDate(date)}`
+        : formatDate(date);
+    }
+
+    return "All Dates";
+  })();
+
+  const toggleEmployeeSelection = (employeeId: string) => {
+    setSelectedEmployeeIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(employeeId)) next.delete(employeeId);
+      else next.add(employeeId);
+      return next;
+    });
+  };
 
   return (
     <div style={{ width: "100%" }}>
@@ -371,7 +549,16 @@ export default function AttendanceListPage() {
               color: "var(--text-primary)",
             }}
           >
-            Attendance List
+            Attendance List{" "}
+            <span
+              style={{
+                color: "var(--accent-primary)",
+                fontSize: "0.9rem",
+                fontWeight: 700,
+              }}
+            >
+              · {attendancePeriodLabel}
+            </span>
           </h1>
           <p
             style={{
@@ -385,23 +572,30 @@ export default function AttendanceListPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => loadAttendance(pagination.page, true)}
-          disabled={loading || refreshing}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 7,
-          }}
-        >
-          <RefreshCw
-            size={15}
-            className={refreshing ? "animate-spin" : ""}
-          />
-          Refresh
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setIsExportModalOpen(true)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 7 }}
+          >
+            <Download size={15} />
+            Export {selectedEmployeeIds.size ? "Selected" : "All"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => loadAttendance(pagination.page, true)}
+            disabled={loading || refreshing}
+            style={{ display: "inline-flex", alignItems: "center", gap: 7 }}
+          >
+            <RefreshCw
+              size={15}
+              className={refreshing ? "animate-spin" : ""}
+            />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Summary */}
@@ -414,77 +608,49 @@ export default function AttendanceListPage() {
           marginBottom: 14,
         }}
       >
-        <div className="card" style={{ padding: 15 }}>
-          <div
+        {([
+          ["present", "Present", summary.present, "#16a34a", Users],
+          ["absent", "Absent", summary.absent, "#dc2626", Clock3],
+          ["late", "Late", summary.late, "#d97706", Clock3],
+          ["onLeave", "Leave", summary.onLeave, "#7c3aed", CalendarDays],
+        ] as const).map(([key, label, count, color, Icon]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() =>
+              setAttendanceStatus((previous) => (previous === key ? "" : key))
+            }
+            className="card"
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              color: "var(--text-muted)",
-              fontSize: ".7rem",
+              padding: 15,
+              textAlign: "left",
+              cursor: "pointer",
+              border:
+                attendanceStatus === key
+                  ? `2px solid ${color}`
+                  : "1px solid var(--border-color)",
+              background:
+                attendanceStatus === key ? `${color}12` : "var(--bg-primary)",
             }}
           >
-            <Users size={15} />
-            RECORDS
-          </div>
-          <div
-            style={{
-              marginTop: 6,
-              fontSize: "1.35rem",
-              fontWeight: 800,
-            }}
-          >
-            {pagination.total}
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: 15 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              color: "var(--text-muted)",
-              fontSize: ".7rem",
-            }}
-          >
-            <Clock3 size={15} />
-            CURRENT PAGE
-          </div>
-          <div
-            style={{
-              marginTop: 6,
-              fontSize: "1.35rem",
-              fontWeight: 800,
-            }}
-          >
-            {pagination.page} / {Math.max(pagination.totalPages, 1)}
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: 15 }}>
-          <div
-            style={{
-              color: "var(--text-muted)",
-              fontSize: ".7rem",
-            }}
-          >
-            PENDING REQUESTS
-          </div>
-          <div
-            style={{
-              marginTop: 6,
-              fontSize: "1.35rem",
-              fontWeight: 800,
-            }}
-          >
-            {rows.filter(
-              (row) =>
-                row.punch_in_request?.status === "Pending" ||
-                row.punch_out_request?.status === "Pending"
-            ).length}
-          </div>
-        </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                color,
+                fontSize: ".7rem",
+                fontWeight: 700,
+              }}
+            >
+              <Icon size={15} />
+              {label.toUpperCase()}
+            </div>
+            <div style={{ marginTop: 6, fontSize: "1.35rem", fontWeight: 800 }}>
+              {count}
+            </div>
+          </button>
+        ))}
       </div>
 
       {/* Filters */}
@@ -504,6 +670,34 @@ export default function AttendanceListPage() {
             alignItems: "end",
           }}
         >
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: 11,
+                fontWeight: 700,
+                color: "var(--text-muted)",
+                marginBottom: 5,
+              }}
+            >
+              QUICK DATE FILTER
+            </label>
+            <select
+              className="form-control"
+              value={datePreset}
+              onChange={(event) => {
+                setDatePreset(event.target.value);
+                if (event.target.value) setDate("");
+              }}
+            >
+              <option value="">All dates</option>
+              <option value="today">Today</option>
+              <option value="week">This week</option>
+              <option value="month">This month</option>
+              <option value="year">This year</option>
+            </select>
+          </div>
+
           <div>
             <label
               style={{
@@ -553,7 +747,10 @@ export default function AttendanceListPage() {
               type="date"
               className="form-control"
               value={date}
-              onChange={(event) => setDate(event.target.value)}
+              onChange={(event) => {
+                setDate(event.target.value);
+                setDatePreset("");
+              }}
             />
           </div>
 
@@ -583,7 +780,7 @@ export default function AttendanceListPage() {
             </select>
           </div>
 
-          {hasFilters ? (
+          {/* {hasFilters ? (
             <button
               type="button"
               className="btn btn-secondary"
@@ -600,7 +797,7 @@ export default function AttendanceListPage() {
             </button>
           ) : (
             <div />
-          )}
+          )} */}
         </div>
       </div>
 
@@ -676,6 +873,7 @@ export default function AttendanceListPage() {
                   }}
                 >
                   {[
+                    "SELECT",
                     "EMPLOYEE",
                     "DATE",
                     "PUNCH IN",
@@ -713,6 +911,22 @@ export default function AttendanceListPage() {
                         "1px solid var(--border-color)",
                     }}
                   >
+                    <td style={{ padding: "12px 13px" }}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${row.employee?.full_name || "employee"}`}
+                        checked={Boolean(
+                          row.employee?._id &&
+                            selectedEmployeeIds.has(row.employee._id)
+                        )}
+                        disabled={!row.employee?._id}
+                        onChange={() => {
+                          if (row.employee?._id) {
+                            toggleEmployeeSelection(row.employee._id);
+                          }
+                        }}
+                      />
+                    </td>
                     <td style={{ padding: "12px 13px" }}>
                       <div
                         style={{
@@ -1063,12 +1277,35 @@ export default function AttendanceListPage() {
                 </p>
               </div>
 
-              <button
-                className="modal-close"
-                onClick={() => setSelectedRow(null)}
-              >
-                ×
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => exportSelectedAttendance(selectedRow, "csv")}
+                  title="Export CSV"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                >
+                  <Download size={14} />
+                  CSV
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => exportSelectedAttendance(selectedRow, "excel")}
+                  title="Export Excel"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                >
+                  <FileSpreadsheet size={14} />
+                  Excel
+                </button>
+                <button
+                  className="modal-close"
+                  onClick={() => setSelectedRow(null)}
+                  aria-label="Close attendance details"
+                >
+                  ×
+                </button>
+              </div>
             </div>
 
             <div
@@ -1087,7 +1324,13 @@ export default function AttendanceListPage() {
                   ["Mode", selectedRow.punch_in_mode || "—"],
                   ["Reason", selectedRow.punch_in_reason || "—"],
                   ["IP", selectedRow.punch_in_ip || "—"],
-                  ["Browser", selectedRow.punch_in_browser || "—"],
+                  [
+                    "Device",
+                    getDeviceName(
+                      selectedRow.punch_in_browser,
+                      selectedRow.punch_in_systemid
+                    ),
+                  ],
                   ["System ID", selectedRow.punch_in_systemid || "—"],
                 ]}
               />
@@ -1108,7 +1351,13 @@ export default function AttendanceListPage() {
                     selectedRow.punch_out_reason || "—",
                   ],
                   ["IP", selectedRow.punch_out_ip || "—"],
-                  ["Browser", selectedRow.punch_out_browser || "—"],
+                  [
+                    "Device",
+                    getDeviceName(
+                      selectedRow.punch_out_browser,
+                      selectedRow.punch_out_systemid
+                    ),
+                  ],
                   ["System ID", selectedRow.punch_out_systemid || "—"],
                 ]}
               />
@@ -1273,6 +1522,12 @@ export default function AttendanceListPage() {
           </div>
         </div>
       )}
+
+      <ExportTeamAttendanceModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        employeeIds={Array.from(selectedEmployeeIds)}
+      />
     </div>
   );
 }

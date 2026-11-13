@@ -5,21 +5,26 @@ import { useState, useRef, useEffect } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import './CustomSelect.css';
 
-export type SelectOption = "Start" | "Pause" | "Complete" | "Partially Complete";
+export type SelectOption = string;
 
 interface CustomSelectProps {
   options?: SelectOption[];
   onSelect?: (option: SelectOption) => void;
   disabled?: boolean;
+  value?: SelectOption;
+  placeholder?: string;
 }
 
 function CustomSelect({
   options = ["Pause", "Complete", "Partially Complete"],
   onSelect,
   disabled = false,
+  value: controlledValue,
+  placeholder = "Choose",
 }: CustomSelectProps) {
-  const [value, setValue] = useState<SelectOption | "">("");
+  const [value, setValue] = useState<SelectOption | "">(controlledValue || "");
   const [open, setOpen] = useState<boolean>(false);
+  const selectedValue = controlledValue ?? value;
 
   const ref = useRef<HTMLDivElement>(null);
 
@@ -53,7 +58,7 @@ function CustomSelect({
         aria-expanded={open}
         aria-haspopup="listbox"
       >
-        <span>{value || "Choose"}</span>
+        <span>{selectedValue || placeholder}</span>
 
         <ChevronDown
           size={15}
@@ -68,9 +73,9 @@ function CustomSelect({
               type="button"
               key={option}
               role="option"
-              aria-selected={value === option}
+              aria-selected={selectedValue === option}
               className={`select-option ${
-                value === option ? "selected" : ""
+                selectedValue === option ? "selected" : ""
               }`}
               onClick={() => {
                 setValue(option);
@@ -80,7 +85,7 @@ function CustomSelect({
             >
               <span>{option}</span>
 
-              {value === option && <Check size={14} />}
+              {selectedValue === option && <Check size={14} />}
             </button>
           ))}
         </div>

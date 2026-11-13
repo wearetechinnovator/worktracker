@@ -1,17 +1,17 @@
 
 .custom-select {
   position: relative;
-  /* width: 155px; */
+  width: 100%;
   font-family: inherit;
   border: #b8bdc5 1px solid;
   border-radius: 5px;
 }
 
 .select-trigger {
-  /* width: 50%; */
+  width: 100%;
   display: flex;
   align-items: center;
-  /* justify-content: space-between; */
+  justify-content: space-between;
   gap: 10px;
   padding: 9px 10px;
 

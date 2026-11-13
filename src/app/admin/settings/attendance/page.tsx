@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import PageShimmer from "@/components/PageShimmer";
+import CustomSelect from "@/components/CustomSelect";
 import type { SettingsData } from "@/types/SettingsData";
 import { CustomTimePicker } from "@/components/TaskFormControls";
 import "../style.css";
@@ -96,6 +97,7 @@ export default function AttendanceSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
 
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<"success" | "error">("success");
@@ -165,13 +167,20 @@ export default function AttendanceSettingsPage() {
 
   const handleToggleWeeklyOff = (dayIdx: number) => {
     if (dayIdx === 6) {
+      const isDeselectingSaturday = selectedDayIndex === 6;
+      setSelectedDayIndex(isDeselectingSaturday ? null : 6);
       setSettings((prev) => ({
         ...prev,
-        saturdayOffRule:
-          prev.saturdayOffRule && prev.saturdayOffRule !== "none" ? "none" : "2nd_4th",
+        saturdayOffRule: isDeselectingSaturday
+          ? "none"
+          : prev.saturdayOffRule && prev.saturdayOffRule !== "none"
+            ? prev.saturdayOffRule
+            : "2nd_4th",
       }));
       return;
     }
+
+    setSelectedDayIndex(dayIdx);
 
     setSettings((prev) => {
       const current = Array.isArray(prev.weeklyOffDays) ? prev.weeklyOffDays : [0];
@@ -513,15 +522,16 @@ export default function AttendanceSettingsPage() {
           </div>
 
           {/* Saturday Specific 3 Options (1: Every Sat Off, 2: 2nd & 4th Sat Off, 3: Alternative Sat Off) */}
-          <div
-            style={{
-              marginTop: "16px",
-              padding: "14px 16px",
-              borderRadius: "12px",
-              background: "var(--bg-secondary, #f8fafc)",
-              border: "1px solid var(--border-color, #e2e8f0)",
-            }}
-          >
+          {selectedDayIndex === 6 && (
+            <div
+              style={{
+                marginTop: "16px",
+                padding: "14px 16px",
+                borderRadius: "12px",
+                background: "var(--bg-secondary, #f8fafc)",
+                border: "1px solid var(--border-color, #e2e8f0)",
+              }}
+            >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
               <div>
                 <div style={{ fontSize: "0.84rem", fontWeight: 800, color: "var(--text-primary)" }}>
@@ -532,7 +542,7 @@ export default function AttendanceSettingsPage() {
                 </div>
               </div>
 
-              {settings.saturdayOffRule && settings.saturdayOffRule !== "none" && (
+              {/* {settings.saturdayOffRule && settings.saturdayOffRule !== "none" && (
                 <button
                   type="button"
                   onClick={() => setSettings((prev) => ({ ...prev, saturdayOffRule: "none" }))}
@@ -549,64 +559,38 @@ export default function AttendanceSettingsPage() {
                 >
                   Make All Saturdays Working
                 </button>
-              )}
+              )} */}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "10px" }}>
-              {SATURDAY_OFF_OPTIONS.map((opt) => {
-                const isSelected = settings.saturdayOffRule === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setSettings((prev) => ({ ...prev, saturdayOffRule: opt.id }))}
-                    disabled={saving}
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: "10px",
-                      padding: "12px 14px",
-                      borderRadius: "10px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      border: isSelected ? "2px solid var(--accent-primary, #2563eb)" : "1px solid var(--border-color, #cbd5e1)",
-                      background: isSelected ? "#eff6ff" : "#ffffff",
-                      transition: "all 0.15s ease",
-                      boxShadow: isSelected ? "0 2px 6px rgba(37, 99, 235, 0.12)" : "none",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "22px",
-                        height: "22px",
-                        borderRadius: "50%",
-                        background: isSelected ? "var(--accent-primary, #2563eb)" : "#e2e8f0",
-                        color: isSelected ? "#ffffff" : "#64748b",
-                        fontSize: "0.72rem",
-                        fontWeight: 800,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                        marginTop: "1px",
-                      }}
-                    >
-                      {opt.num}
-                    </div>
-
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: "0.82rem", fontWeight: 800, color: isSelected ? "var(--accent-primary, #2563eb)" : "var(--text-primary)" }}>
-                        {opt.title}
-                      </div>
-                      <div style={{ fontSize: "0.68rem", color: "var(--text-secondary)", marginTop: "2px", lineHeight: 1.25 }}>
-                        {opt.desc}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+            <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
+              <label
+                htmlFor="saturday-off-rule"
+                style={{ fontSize: "0.74rem", fontWeight: 700, color: "var(--text-secondary)" }}
+              >
+                Saturday off option
+              </label>
+              <CustomSelect
+                options={SATURDAY_OFF_OPTIONS.map((option) => option.title)}
+                value={
+                  SATURDAY_OFF_OPTIONS.find(
+                    (option) => option.id === settings.saturdayOffRule
+                  )?.title
+                }
+                placeholder="Select a Saturday off option"
+                disabled={saving}
+                onSelect={(selectedTitle) => {
+                  const selectedOption = SATURDAY_OFF_OPTIONS.find(
+                    (option) => option.title === selectedTitle
+                  );
+                  setSettings((prev) => ({
+                    ...prev,
+                    saturdayOffRule: selectedOption?.id || "none",
+                  }));
+                }}
+              />
             </div>
           </div>
+          )}
 
           <div style={{ marginTop: "14px", fontSize: "0.78rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "6px" }}>
             <span style={{ fontWeight: 700 }}>Currently configured:</span>

@@ -22,6 +22,7 @@ import { toast } from '@/lib/toast';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  employeeIds?: string[];
   onExport?: (
     format: 'excel' | 'csv',
     period: { startDate: string; endDate: string; label: string }
@@ -43,7 +44,12 @@ const MONTH_NAMES = [
   'December',
 ];
 
-export default function ExportTeamAttendanceModal({ isOpen, onClose, onExport }: Props) {
+export default function ExportTeamAttendanceModal({
+  isOpen,
+  onClose,
+  employeeIds = [],
+  onExport,
+}: Props) {
   const today = new Date();
   const [selectedYear, setSelectedYear] = useState(today.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth()); // 0-11
@@ -126,12 +132,39 @@ export default function ExportTeamAttendanceModal({ isOpen, onClose, onExport }:
         return;
       }
 
-      const res = await fetch(`/api/attendance/report${query}`, { cache: 'no-store' });
-      const json = await res.json();
+      const reportResponses = employeeIds.length
+        ? await Promise.all(
+            employeeIds.map(async (employeeId) => {
+              const separator = query.includes('?') ? '&' : '?';
+              const response = await fetch(
+                `/api/attendance/report${query}${separator}employeeId=${encodeURIComponent(employeeId)}`,
+                { cache: 'no-store' }
+              );
+              const result = await response.json();
+              if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Failed to fetch attendance records');
+              }
+              return result;
+            })
+          )
+        : [await (async () => {
+            const response = await fetch(`/api/attendance/report${query}`, {
+              cache: 'no-store',
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+              throw new Error(result.message || 'Failed to fetch team attendance records');
+            }
+            return result;
+          })()];
 
-      if (!res.ok || !json.success) {
-        throw new Error(json.message || 'Failed to fetch team attendance records');
-      }
+      const json = {
+        data: {
+          employees: reportResponses.flatMap((result) => result.data?.employees || []),
+          weeklyOffDays: reportResponses[0]?.data?.weeklyOffDays,
+          saturdayOffRule: reportResponses[0]?.data?.saturdayOffRule,
+        },
+      };
 
       const employees: ExportEmployeeData[] = json.data?.employees || [];
       const weeklyOffDays: number[] = json.data?.weeklyOffDays || [0];

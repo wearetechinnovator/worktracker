@@ -4,6 +4,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Mail,
@@ -296,7 +297,12 @@ export default function EmployeeDetailsModal({ employee, isOpen, onClose }: Prop
     formattedAverageHours: '0h 0m',
   };
 
-  return (
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
+    (
     <div
       className="modal-overlay"
       onClick={onClose}
@@ -1175,5 +1181,7 @@ export default function EmployeeDetailsModal({ employee, isOpen, onClose }: Prop
         </div>
       </div>
     </div>
+    ),
+    document.body
   );
 }

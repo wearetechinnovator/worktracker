@@ -69,6 +69,7 @@ export default function EmployeesPage() {
 	const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 	const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 	const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+	const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
 
 	// View mode: card or tabular
 	const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
@@ -366,6 +367,74 @@ export default function EmployeesPage() {
 			toast.error(
 				error.message || "Failed to delete employee"
 			);
+		}
+	};
+
+	const toggleEmployeeSelection = (employeeId: string) => {
+		setSelectedEmployeeIds((previous) => {
+			const next = new Set(previous);
+			if (next.has(employeeId)) {
+				next.delete(employeeId);
+			} else {
+				next.add(employeeId);
+			}
+			return next;
+		});
+	};
+
+	const toggleVisibleEmployees = () => {
+		const visibleIds = paginatedEmployees.map((employee) => employee._id);
+		const allSelected =
+			visibleIds.length > 0 &&
+			visibleIds.every((employeeId) => selectedEmployeeIds.has(employeeId));
+
+		setSelectedEmployeeIds((previous) => {
+			const next = new Set(previous);
+			visibleIds.forEach((employeeId) => {
+				if (allSelected) {
+					next.delete(employeeId);
+				} else {
+					next.add(employeeId);
+				}
+			});
+			return next;
+		});
+	};
+
+	const deleteSelectedEmployees = async () => {
+		const selectedIds = Array.from(selectedEmployeeIds);
+		if (!selectedIds.length) return;
+		if (!confirm(`Delete ${selectedIds.length} selected employee(s)? This action is irreversible.`)) {
+			return;
+		}
+
+		const results = await Promise.allSettled(
+			selectedIds.map((employeeId) =>
+				fetch(`/api/users/employees?id=${encodeURIComponent(employeeId)}`, {
+					method: "DELETE",
+					credentials: "include",
+				}).then(async (response) => {
+					const data = await response.json();
+					if (!response.ok || !data.success) {
+						throw new Error(data.message || "Failed to delete employee");
+					}
+					return employeeId;
+				})
+			)
+		);
+		const deletedIds = results
+			.filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
+			.map((result) => result.value);
+		const failedCount = results.length - deletedIds.length;
+
+		setEmployees((previous) =>
+			previous.filter((employee) => !deletedIds.includes(employee._id))
+		);
+		setSelectedEmployeeIds(new Set());
+		if (failedCount > 0) {
+			toast.error(`${deletedIds.length} deleted, ${failedCount} failed.`);
+		} else {
+			toast.success(`${deletedIds.length} employees deleted.`);
 		}
 	};
 	/*
@@ -707,12 +776,39 @@ export default function EmployeesPage() {
 			<div
 				style={{
 					display: 'flex',
-					justifyContent: 'flex-end',
+					justifyContent: 'space-between',
 					alignItems: 'center',
 					marginBottom: '14px',
+					gap: '12px',
+					flexWrap: 'wrap',
 				}}
 				className="no-print"
 			>
+				{viewMode === 'table' && selectedEmployeeIds.size > 0 ? (
+					<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+						<span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+							{selectedEmployeeIds.size} selected
+						</span>
+						<button
+							type="button"
+							className="btn btn-secondary"
+							onClick={() => setIsExportModalOpen(true)}
+							style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+						>
+							<Download size={14} />
+							Download
+						</button>
+						<button
+							type="button"
+							className="btn btn-secondary"
+							onClick={() => void deleteSelectedEmployees()}
+							style={{ color: '#dc2626' }}
+						>
+							<Trash2 size={14} />
+							Delete
+						</button>
+					</div>
+				) : <div />}
 				<div
 					style={{
 						display: 'inline-flex',
@@ -957,6 +1053,19 @@ export default function EmployeesPage() {
 										background: 'var(--bg-primary)',
 									}}
 								>
+									<th style={{ ...tableHeaderStyle, width: '42px' }}>
+										<input
+											type="checkbox"
+											aria-label="Select all visible employees"
+											checked={
+												paginatedEmployees.length > 0 &&
+												paginatedEmployees.every((employee) =>
+													selectedEmployeeIds.has(employee._id)
+												)
+											}
+											onChange={toggleVisibleEmployees}
+										/>
+									</th>
 									<th style={tableHeaderStyle}>Employee</th>
 									<th style={tableHeaderStyle}>Email</th>
 									{/* <th style={tableHeaderStyle}>Phone</th> */}
@@ -986,6 +1095,14 @@ export default function EmployeesPage() {
 													'1px solid var(--border-color)',
 											}}
 										>
+											<td style={tableCellStyle}>
+												<input
+													type="checkbox"
+													aria-label={`Select ${employee.full_name}`}
+													checked={selectedEmployeeIds.has(employee._id)}
+													onChange={() => toggleEmployeeSelection(employee._id)}
+												/>
+											</td>
 											<td style={tableCellStyle}>
 												<div
 													style={{
@@ -1183,6 +1300,7 @@ export default function EmployeesPage() {
 			<ExportTeamAttendanceModal
 				isOpen={isExportModalOpen}
 				onClose={() => setIsExportModalOpen(false)}
+				employeeIds={Array.from(selectedEmployeeIds)}
 			/>
 
 			{/* Add Employee */}
