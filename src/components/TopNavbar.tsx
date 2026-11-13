@@ -1064,18 +1064,18 @@ export default function TopNavbar() {
                       transition:
                         'background-color 0.15s ease',
                     }}
-                    onMouseEnter={(
-                      e
-                    ) =>
-                    (e.currentTarget.style.backgroundColor =
-                      '#2563eb')
-                    }
-                    onMouseLeave={(
-                      e
-                    ) =>
-                    (e.currentTarget.style.backgroundColor =
-                      'transparent')
-                    }
+                    // onMouseEnter={(
+                    //   e
+                    // ) =>
+                    // (e.currentTarget.style.backgroundColor =
+                    //   '#2563eb')
+                    // }
+                    // onMouseLeave={(
+                    //   e
+                    // ) =>
+                    // (e.currentTarget.style.backgroundColor =
+                    //   'transparent')
+                    // }
                   >
                     <Plus
                       size={16}

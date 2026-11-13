@@ -228,13 +228,13 @@ export async function GET(req: Request) {
       $or: [{ owner_user_id: user._id }, { _id: user.settings_id }],
       status: 1,
     })
-      .select("punchInStartTime")
+      .select("punchInEndTime")
       .lean<any>();
 
-    const configuredStartTime = String(settings?.punchInStartTime || "");
-    const startMatch = /^(\d{1,2}):(\d{2})$/.exec(configuredStartTime);
-    const punchInStartMinutes = startMatch
-      ? Number(startMatch[1]) * 60 + Number(startMatch[2])
+    const configuredEndTime = String(settings?.punchInEndTime || "");
+    const endMatch = /^(\d{1,2}):(\d{2})$/.exec(configuredEndTime);
+    const punchInEndMinutes = endMatch
+      ? Number(endMatch[1]) * 60 + Number(endMatch[2])
       : null;
     const summaryByEmployee = new Map(
       summaryAttendanceRecords.map((record) => [
@@ -249,12 +249,12 @@ export async function GET(req: Request) {
       0
     );
     const late =
-      punchInStartMinutes === null
+      punchInEndMinutes === null
         ? 0
         : employees.reduce((count, employee) => {
             const punchIn = summaryByEmployee.get(String(employee._id))?.punch_in_on;
             const punchInMinutes = getKolkataMinutes(punchIn);
-            return count + (punchInMinutes !== null && punchInMinutes > punchInStartMinutes ? 1 : 0);
+            return count + (punchInMinutes !== null && punchInMinutes > punchInEndMinutes ? 1 : 0);
           }, 0);
 
     type MergedRow = {
@@ -329,9 +329,9 @@ export async function GET(req: Request) {
         const isPresent = Boolean(punchIn);
         const isLate =
           isPresent &&
-          punchInStartMinutes !== null &&
+          punchInEndMinutes !== null &&
           punchInMinutes !== null &&
-          punchInMinutes > punchInStartMinutes;
+          punchInMinutes > punchInEndMinutes;
 
         if (attendanceStatus === "present") return isPresent;
         if (attendanceStatus === "late") return isLate;

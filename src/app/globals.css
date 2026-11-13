@@ -920,53 +920,6 @@ a {
   opacity: 0.9;
 }
 
-/* ========================================================
-   EVENING LANTERNS BUTTON & THEME
-   ======================================================== */
-
-.evening-lantern-btn,
-.diwali-button {
-  position: relative !important;
-  isolation: isolate;
-  overflow: visible !important;
-  box-shadow: 0 1px 4px rgba(240, 58, 18, 0.22);
-  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
-}
-
-.evening-lantern-btn:hover,
-.diwali-button:hover {
-  box-shadow: 0 3px 12px rgba(255, 112, 67, 0.4) !important;
-}
-
-.evening-lanterns-btn-decor {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: visible;
-  z-index: 3;
-}
-
-.evening-lantern-btn-item {
-  position: absolute;
-  top: -10px;
-  pointer-events: none;
-  filter: drop-shadow(0 2px 5px rgba(255, 106, 60, 0.45));
-  transition: transform 0.2s ease, filter 0.2s ease;
-}
-
-.evening-lantern-btn-item.left {
-  left: -9px;
-}
-
-.evening-lantern-btn-item.right {
-  right: -9px;
-}
-
-.evening-lantern-btn:hover .evening-lantern-btn-item,
-.diwali-button:hover .evening-lantern-btn-item {
-  filter: drop-shadow(0 3px 9px rgba(255, 122, 42, 0.8));
-  transform: scale(1.08);
-}
 
 .btn-secondary {
   background: var(--bg-secondary);

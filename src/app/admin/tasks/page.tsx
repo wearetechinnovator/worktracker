@@ -50,8 +50,8 @@ interface Task {
   assignedTo?: Array<{
     _id: string;
     name: string;
-    email: string;
-    avatarColor: string;
+    email?: string;
+    avatarColor?: string;
   }>;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   status: 'To Do' | 'In Progress' | 'Paused' | 'Partially Done' | 'Partially Completed' | 'Review' | 'Completed';
@@ -3392,6 +3392,65 @@ export default function TasksPage() {
       />
 
       {/* Generated Daily Mail Modal */}
+      {selectedTaskForDetails && (
+        <TaskDetailsModal
+          task={selectedTaskForDetails}
+          sessions={taskWorkSessions}
+          loadingSessions={loadingSessions}
+          user={user}
+          isDownloadingZip={isDownloadingZip}
+          newCommentText={newCommentText}
+          newCommentStatus={newCommentStatus}
+          submittingComment={submittingComment}
+          copiedCommentId={copiedCommentId}
+          copiedUrlIndex={copiedUrlIndex}
+          isCopiedAllComments={isCopiedAllComments}
+          isCopiedAllUrls={isCopiedAllUrls}
+          onClose={closeTaskDetailsModal}
+          onEdit={() => {
+            openEditModal(selectedTaskForDetails);
+            closeTaskDetailsModal();
+          }}
+          onDelete={() => {
+            void handleDelete(selectedTaskForDetails._id);
+            closeTaskDetailsModal();
+          }}
+          onAddComment={() => {
+            void handleAddComment(selectedTaskForDetails._id);
+          }}
+          onCommentChange={setNewCommentText}
+          onCommentStatusChange={setNewCommentStatus}
+          onCopyComment={handleCopyComment}
+          onCopyAllComments={() => handleCopyAllComments(selectedTaskForDetails)}
+          onCopyUrl={(index, url) => {
+            void navigator.clipboard.writeText(url);
+            setCopiedUrlIndex(index);
+            window.setTimeout(() => setCopiedUrlIndex(null), 2000);
+          }}
+          onCopyAllUrls={() => handleCopyAllUrls(
+            selectedTaskForDetails.urls?.length
+              ? selectedTaskForDetails.urls
+              : selectedTaskForDetails.url
+                ? [selectedTaskForDetails.url]
+                : []
+          )}
+          onViewFile={handleViewFile}
+          onDownloadFile={handleDownloadFile}
+          onDownloadAllFiles={() => handleDownloadAllFilesZip(
+            selectedTaskForDetails.files || [],
+            selectedTaskForDetails.title
+          )}
+          onUpdated={async (updatedTask) => {
+            await loadAllData();
+            if (updatedTask) {
+              setSelectedTaskForDetails((currentTask) =>
+                currentTask ? { ...currentTask, ...updatedTask } : currentTask
+              );
+            }
+          }}
+        />
+      )}
+
       {showMailModal && (
         <div
           style={{
